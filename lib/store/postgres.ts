@@ -298,6 +298,27 @@ function toObservation(row: ObservationRow): ObservationRecord {
  */
 const QUERY_TIMEOUT_MS = Number(process.env.CURB_POSTGRES_QUERY_TIMEOUT_MS ?? 10_000);
 
+/**
+ * The driver's own codes for a connection that went away, plus the socket
+ * errors underneath them. Anything else — a constraint, a syntax error, a
+ * statement timeout the server chose — is the database answering, and is not
+ * retried.
+ */
+const CONNECTION_FAULTS = new Set([
+  'CONNECTION_DESTROYED',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+]);
+
+function isConnectionFault(cause: unknown): boolean {
+  if (!(cause instanceof Error)) return false;
+  const code = (cause as Error & { code?: unknown }).code;
+  return typeof code === 'string' && CONNECTION_FAULTS.has(code);
+}
+
 class QueryTimeout extends Error {
   constructor(label: string) {
     super(`${label} did not return within ${QUERY_TIMEOUT_MS}ms — treated as lost`);
@@ -326,15 +347,30 @@ export class PostgresStore implements Store {
    * rejection into UNREAD or FAILED, so nothing above this sees a hang.
    */
   private async guard<T>(label: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await this.timed(label, run);
+    } catch (cause) {
+      if (cause instanceof QueryTimeout) {
+        this.discardClient();
+        throw cause;
+      }
+      // A socket that was dropped between two statements is not an answer
+      // from the database; it is the network. The driver reconnects on the
+      // next statement, so that statement is sent once more — once. A second
+      // failure is reported as it is, and a query the database rejected is
+      // never resent at all.
+      if (!isConnectionFault(cause)) throw cause;
+      return await this.timed(label, run);
+    }
+  }
+
+  private async timed<T>(label: string, run: () => Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new QueryTimeout(label)), QUERY_TIMEOUT_MS);
     });
     try {
       return await Promise.race([run(), timeout]);
-    } catch (cause) {
-      if (cause instanceof QueryTimeout) this.discardClient();
-      throw cause;
     } finally {
       clearTimeout(timer);
     }

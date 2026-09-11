@@ -8,6 +8,9 @@ import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { getStoreAsync } from '@/lib/store';
 import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
+import { composeBoard } from '@/lib/floor/board';
+import { FloorBoard } from './components/floor-board';
+import { CityMap } from './components/city-map';
 
 /**
  * Rendered on every request, never prerendered.
@@ -83,10 +86,11 @@ export default async function Home() {
   const session = readSession(now);
   const store = await getStoreAsync();
 
-  const [heartbeatsRead, publicationsRead, blocksRead] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, blocksRead, feedSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(6),
     store.recentBlocks(5),
+    store.snapshots('feed:'),
   ]);
 
   /**
@@ -102,8 +106,19 @@ export default async function Home() {
     heartbeatsRead.state === 'UNREAD'
       ? `${heartbeatsRead.reason}${heartbeatsRead.detail ? ` — ${heartbeatsRead.detail}` : ''}`
       : null;
-  const priceAge = describePriceAge(null, session, now);
+  const board = feedSnapshots.state === 'UNREAD' ? null : composeBoard(feedSnapshots.value, now);
+  const boardFault =
+    feedSnapshots.state === 'UNREAD'
+      ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}`
+      : null;
+  // The freshest equity sample on the board is the last equity price this
+  // system read. Its verdict is judged against the session, like every price.
+  const freshestEquity = board?.equity
+    .filter((r) => r.price !== null)
+    .reduce<(typeof board.equity)[number] | null>((best, r) => (best === null || r.sampleAgeSeconds < best.sampleAgeSeconds ? r : best), null) ?? null;
+  const priceAge = describePriceAge(freshestEquity ? new Date(freshestEquity.sampledAt) : null, session, now);
   const closed = session.phase === 'CLOSED';
+  const healthById = health === null ? null : Object.fromEntries(health.statuses.map((st) => [st.id, st.health]));
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
@@ -113,6 +128,14 @@ export default async function Home() {
           <nav className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
             <Link href="/agents" className="hover:text-[--color-paper]">
               The agents
+            </Link>
+            <span className="mx-3">·</span>
+            <Link href="/registry" className="hover:text-[--color-paper]">
+              The Registry
+            </Link>
+            <span className="mx-3">·</span>
+            <Link href="/doctrine" className="hover:text-[--color-paper]">
+              Doctrine
             </Link>
             <span className="mx-3">·</span>
             <Link href="/gazette" className="hover:text-[--color-paper]">
@@ -128,6 +151,8 @@ export default async function Home() {
           promotes and declares it, {AGENT_COUNTS.execute} execute. Nothing here places an order.
         </p>
       </header>
+
+      <CityMap healthById={healthById} />
 
       {/* ── THE BELL ──────────────────────────────────────────────────────── */}
       <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
@@ -174,7 +199,13 @@ export default async function Home() {
               )}
             </Row>
             <Row label="Last equity price read">
-              <Absent why="SOURCE_NOT_CONNECTED — no equity feed address captured" />
+              {freshestEquity === null ? (
+                <Absent why={board === null ? 'the snapshot store could not be read' : 'no equity feed has been sampled into this store yet'} />
+              ) : (
+                <span className="tabular text-xs">
+                  {freshestEquity.label} · {describeAge(freshestEquity.sampleAgeSeconds)} ago
+                </span>
+              )}
             </Row>
             <Row label="Price verdict">
               <span className="text-xs">{priceAge.kind.replace(/_/g, ' ').toLowerCase()}</span>
@@ -193,6 +224,21 @@ export default async function Home() {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* ── THE FLOOR ─────────────────────────────────────────────────────── */}
+      <section id="floor" className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
+        <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">
+          The Floor · the book
+        </h2>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
+          Every tokenized-equity feed on Robinhood Chain, as the Pillar last read it: the price,
+          how long since the oracle published it, how long since we read it, and the two flags
+          that decide whether the price means what it appears to mean.
+        </p>
+        <div className="mt-6">
+          <FloorBoard board={board} unreadable={boardFault} />
         </div>
       </section>
 
@@ -336,8 +382,8 @@ export default async function Home() {
                       {pub.figures.length} declared figures, with provenance
                     </summary>
                     <ul className="mt-2 space-y-1">
-                      {pub.figures.map((f) => (
-                        <li key={`${f.token}-${f.source}`} className="tabular text-[11px] text-[--color-paper-faint]">
+                      {pub.figures.map((f, i) => (
+                        <li key={`${i}-${f.token}`} className="tabular text-[11px] text-[--color-paper-faint]">
                           {f.token} — {f.source} @ {f.retrievedAt}
                         </li>
                       ))}

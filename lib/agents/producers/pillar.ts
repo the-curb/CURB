@@ -293,7 +293,16 @@ export function summariseEquity(
     lines.push('— Every feed read describes itself exactly as it did when the registry was captured.');
   }
 
-  return { lines, figures, literals: [...literals], priced: priced.length, answered: answered.length };
+  // The same age can be declared from two sentences (the oldest feed is also
+  // in the "older than an hour" list). One declaration per figure and source.
+  const seen = new Set<string>();
+  const distinct = figures.filter((f) => {
+    const id = `${f.token}|${f.source}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  return { lines, figures: distinct, literals: [...literals], priced: priced.length, answered: answered.length };
 }
 
 /** What a page needs to show the feed now, with its age attached. */
