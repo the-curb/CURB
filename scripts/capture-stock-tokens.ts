@@ -25,7 +25,7 @@ import { readMany } from '../lib/chain/multicall.ts';
 import { readBlockNumber, rpcCall } from '../lib/chain/rpc.ts';
 import { EIP1967_SLOTS, SELECTORS, decodeAddressWord, decodeString, decodeUint } from '../lib/chain/abi.ts';
 import { keccak256, selector, toHex } from '../lib/chain/keccak.ts';
-import { MULTIPLIER_SCALE } from '../lib/chain/oracle.ts';
+import { formatMultiplierExact } from '../lib/chain/oracle.ts';
 import { activeNetwork } from '../lib/chain/networks.ts';
 import { FEED_DIRECTORY } from '../lib/chain/feed-directory.ts';
 
@@ -58,13 +58,6 @@ async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) 
     }),
   );
   return out;
-}
-
-/** 1e18-scaled → '1.000566080061092436', all eighteen places, as the registry prints it. */
-function exactMultiplier(raw: bigint): string {
-  const whole = raw / MULTIPLIER_SCALE;
-  const fraction = (raw % MULTIPLIER_SCALE).toString().padStart(18, '0');
-  return `${whole}.${fraction}`;
 }
 
 const write = process.argv.includes('--write');
@@ -126,7 +119,7 @@ const records = onThisChain.map((a, i) => {
     observedSymbol: symbol.state === 'VERIFIED' ? decodeString(symbol.value) : null,
     observedName: name.state === 'VERIFIED' ? decodeString(name.value) : null,
     observedDecimals: decimals.state === 'VERIFIED' ? Number(decodeUint(decimals.value)) : null,
-    observedMultiplier: multiplierRaw === null ? null : exactMultiplier(multiplierRaw),
+    observedMultiplier: multiplierRaw === null ? null : formatMultiplierExact(multiplierRaw),
     beacon: slots[i]!.beacon,
     codeHash: slots[i]!.codeHash,
     feedKey: feedByTicker.get(a.tokenSymbol) ?? null,

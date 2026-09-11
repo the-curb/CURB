@@ -48,11 +48,12 @@ export interface CallResult {
 }
 
 /**
- * How many subcalls go into one `eth_call`. The node evaluated four hundred
- * feed reads in one call in under a second when this was sized; a hundred
- * leaves that margin for a call that forwards through more than one proxy.
+ * How many subcalls go into one `eth_call`. The node evaluated a thousand
+ * token reads in one call in about a second when this was sized; two hundred
+ * and fifty keeps a wide margin under that and bounds what one failed chunk
+ * takes with it.
  */
-export const BATCH_SIZE = 100;
+export const BATCH_SIZE = 250;
 
 function strip(hex: string): string {
   return hex.startsWith('0x') ? hex.slice(2) : hex;

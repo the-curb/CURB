@@ -232,6 +232,13 @@ export interface Store {
   narration(day: string): Promise<Reading<NarrationRecord | null>>;
   /** Replaces any earlier narration for the day: one row per day, ever. */
   writeNarration(record: NarrationRecord): Promise<WriteOutcome>;
+
+  /**
+   * Release whatever the store holds open. A script that forgets this waits
+   * out the pool's idle timeout before its process can exit — twenty silent
+   * seconds that look like a slow chain. Idempotent; never throws.
+   */
+  close(): Promise<void>;
 }
 
 /**

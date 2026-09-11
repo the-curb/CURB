@@ -31,7 +31,11 @@ if (!producer) {
 }
 
 const now = new Date();
-const result = await producer({ spec, now, store: await getStoreAsync() });
+const store = await getStoreAsync();
+const result = await producer({ spec, now, store });
+// The rehearsal is over; nothing else touches the store. Closing it here means
+// the process exits when the output ends, not when the pool times out.
+await store.close();
 
 console.log(`\n${'='.repeat(72)}`);
 console.log(`${spec.name} · rehearsal at ${now.toISOString()} · nothing written`);

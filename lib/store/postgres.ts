@@ -348,6 +348,18 @@ export class PostgresStore implements Store {
    * A client handed in by a test is left alone — there is nothing to rebuild it
    * from, and the test owns its lifecycle.
    */
+  async close(): Promise<void> {
+    // A client handed in by a test is the test's to end.
+    if (this.provided !== null) return;
+    const ending = this.current;
+    client = null;
+    try {
+      await ending.end({ timeout: 5 });
+    } catch {
+      // Already gone, or refusing to go: either way there is nothing to hold.
+    }
+  }
+
   private discardClient(): void {
     const stale = this.current;
     void stale.end({ timeout: 2 }).catch(() => {});

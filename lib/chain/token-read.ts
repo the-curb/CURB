@@ -108,9 +108,12 @@ export interface ProxyState {
   readonly beacon: string | null;
   /**
    * Transparent proxies set the admin slot; UUPS leaves it empty because the
-   * upgrade entry point lives in the implementation instead.
+   * upgrade entry point lives in the implementation instead. A beacon proxy
+   * sets neither: its implementation slot is empty and the beacon slot names
+   * the contract that answers implementation() for it — and for every other
+   * proxy on the same beacon.
    */
-  readonly pattern: 'transparent' | 'uups' | 'not-eip1967';
+  readonly pattern: 'transparent' | 'uups' | 'beacon' | 'not-eip1967';
 }
 
 export async function readProxyState(
@@ -132,7 +135,13 @@ export async function readProxyState(
   const beacon = beaconSlot.state === 'UNREAD' ? null : decodeAddressWord(beaconSlot.value);
 
   const pattern: ProxyState['pattern'] =
-    implementation === null ? 'not-eip1967' : admin === null ? 'uups' : 'transparent';
+    implementation !== null
+      ? admin === null
+        ? 'uups'
+        : 'transparent'
+      : beacon !== null
+        ? 'beacon'
+        : 'not-eip1967';
 
   return { ...implSlot, value: { implementation, admin, beacon, pattern } };
 }

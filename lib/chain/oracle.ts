@@ -203,6 +203,13 @@ export function formatMultiplier(raw: bigint): string {
   return `${whole}.${fraction}`;
 }
 
+/** All eighteen places, as the issuer's registry prints its own figure. Lossless. */
+export function formatMultiplierExact(raw: bigint): string {
+  const whole = raw / MULTIPLIER_SCALE;
+  const fraction = (raw % MULTIPLIER_SCALE).toString().padStart(18, '0');
+  return `${whole}.${fraction}`;
+}
+
 export type SequencerVerdict =
   | { readonly kind: 'UP'; readonly sinceSeconds: number }
   | { readonly kind: 'DOWN' }

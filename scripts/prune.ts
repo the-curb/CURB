@@ -52,6 +52,7 @@ console.log('');
 
 if (!apply) {
   console.log('Nothing was deleted. Re-run with --apply to prune.');
+  await store.close();
   process.exit(0);
 }
 
@@ -65,3 +66,5 @@ if (pruned.state === 'UNREAD') {
   console.log('');
   console.log(describeRetention());
 }
+
+await store.close();

@@ -400,6 +400,10 @@ export class FileSystemStore implements Store {
     return append(this.dir, FILES.narrations, [record]);
   }
 
+  async close(): Promise<void> {
+    // Nothing is held open between calls.
+  }
+
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (records.length === 0) return { state: 'WRITTEN' };
     return append(this.dir, FILES.snapshots, records);

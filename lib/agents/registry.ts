@@ -58,13 +58,16 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'I do not decide what it is. I tell you what the chain says about it.',
     posture: 'MEASURES',
     intervalSeconds: 24 * HOURS,
-    sourcesExpected: 4,
+    // Five groups: the stock-token beacon, then code, metadata, supply and
+    // proxy shape for the one contract under audit this run.
+    sourcesExpected: 5,
     minimumSources: 3,
     refusal:
       'Reports what was found. Never says a token is backed, safe, or a scam — in either direction.',
     reads: [
-      'Robinhood Chain RPC — contract code and storage',
-      'Proxy implementation slot and upgrade authority',
+      'The one beacon every stock token delegates to — implementation() and its code hash, against the ones recorded at capture',
+      'Robinhood Chain RPC — contract code and storage of the contract under audit',
+      'Proxy shape: implementation, admin and beacon slots, against the recorded tripwire',
       'Pause, freeze and transfer-restriction state',
       'Decimals, total supply, issuer metadata',
     ],
@@ -118,14 +121,16 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'A split that the token did not follow is the whole story.',
     posture: 'MEASURES',
     intervalSeconds: 6 * HOURS,
-    sourcesExpected: 3,
-    minimumSources: 2,
+    // Every stock token in the issuer's registry (194) and the two settlement
+    // assets. A test pins this to the captured registry.
+    sourcesExpected: 196,
+    minimumSources: 99,
     refusal:
       'Records announced actions and whether the on-chain token reflected them. Never predicts a dividend, a split or a delisting.',
     reads: [
-      'Issuer corporate-action notices, cited',
-      'Ticker and ISIN changes',
-      'On-chain supply and metadata around the effective date',
+      'uiMultiplier() on every stock token — shares per token, the on-chain record of dividends and splits',
+      'newUIMultiplier() and effectiveAt() — a change the issuer has published but not yet applied',
+      'totalSupply() on every token, against the previous reading',
     ],
   },
   {

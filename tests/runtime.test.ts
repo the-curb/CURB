@@ -154,6 +154,7 @@ class MemoryStore implements Store {
     this.narrations = [...this.narrations.filter((n) => n.day !== record.day), record];
     return { state: 'WRITTEN' };
   }
+  async close(): Promise<void> {}
   snapshotRows = new Map<string, SnapshotRecord>();
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };
