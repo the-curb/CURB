@@ -44,7 +44,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function RegistryPage() {
   const now = new Date();
   const store = await getStoreAsync();
-  const [snapshots, publications] = await Promise.all([store.snapshots('token:'), store.publicationsByAgent('registrar', 1)]);
+  const [snapshots, publications, driftSnapshots] = await Promise.all([store.snapshots('token:'), store.publicationsByAgent('registrar', 1), store.snapshots('capture:drift')]);
+  // The capture against the world, as the Registrar last checked it. Stored JSON, checked field by field.
+  const driftRow = driftSnapshots.state === 'UNREAD' ? null : (driftSnapshots.value.find((s) => s.key === 'capture:drift') ?? null);
+  const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  const drift = driftRow === null ? null : {
+    checkedAgeSeconds: Math.max(0, Math.round((now.getTime() - new Date(driftRow.observedAt).getTime()) / 1000)),
+    tokensListed: typeof driftRow.payload.tokensListed === 'number' ? driftRow.payload.tokensListed : null,
+    feedsListed: typeof driftRow.payload.feedsListed === 'number' ? driftRow.payload.feedsListed : null,
+    tokensAdded: list(driftRow.payload.tokensAdded), tokensRemoved: list(driftRow.payload.tokensRemoved), tokensMoved: list(driftRow.payload.tokensMoved),
+    feedsAdded: list(driftRow.payload.feedsAdded), feedsRemoved: list(driftRow.payload.feedsRemoved),
+  };
+  const driftClean = drift !== null && [drift.tokensAdded, drift.tokensRemoved, drift.tokensMoved, drift.feedsAdded, drift.feedsRemoved].every((l) => l.length === 0);
   const roll = snapshots.state === 'UNREAD' ? null : composeRoll(snapshots.value, now);
   const rollFault = snapshots.state === 'UNREAD' ? `${snapshots.reason}${snapshots.detail ? ` — ${snapshots.detail}` : ''}` : null;
   const lastAudit = publications.state === 'UNREAD' ? null : (publications.value[0] ?? null);
@@ -112,6 +123,45 @@ export default async function RegistryPage() {
             </Row>
           </div>
         </div>
+      </section>
+
+      {/* ── THE CAPTURE, AGAINST THE WORLD ───────────────────────────────── */}
+      <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
+        <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">The capture, against the world</h2>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
+          What this system reads is what the issuer&rsquo;s registry and the vendor&rsquo;s directory said on the day they were
+          captured. {AGENT_BY_ID.registrar.name} fetches both every day and diffs them against the capture, so a token listed
+          since is named here rather than silently absent.
+        </p>
+        {drift === null ? (
+          <p className="mt-4 text-sm text-[--color-paper-faint]">
+            <Absent why={driftSnapshots.state === 'UNREAD' ? 'the snapshot store could not be read' : 'the Registrar has not yet checked the capture against the live sources'} /> not yet checked
+          </p>
+        ) : (
+          <div className="mt-6 grid gap-x-12 sm:grid-cols-2">
+            <div>
+              <Row label="Checked"><span className="tabular text-xs">{describeAge(drift.checkedAgeSeconds)} ago</span></Row>
+              <Row label="Tokens listed today · captured">
+                <span className="tabular">{drift.tokensListed ?? ABSENT_GLYPH} · {STOCK_TOKEN_COVERAGE.tokensInRegistry}</span>
+              </Row>
+              <Row label="Feeds listed today · captured">
+                <span className="tabular">{drift.feedsListed ?? ABSENT_GLYPH} · {FEED_COVERAGE.capturedHere}</span>
+              </Row>
+            </div>
+            <div>
+              <Row label="Verdict">
+                <span className="text-xs" style={{ color: driftClean ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>
+                  {driftClean ? 'the same sets, nothing to re-capture' : 're-capture owed'}
+                </span>
+              </Row>
+              {drift.tokensAdded.length > 0 ? <Row label="Listed, not captured"><span className="text-xs">{drift.tokensAdded.join(', ')}</span></Row> : null}
+              {drift.tokensRemoved.length > 0 ? <Row label="Captured, no longer listed"><span className="text-xs">{drift.tokensRemoved.join(', ')}</span></Row> : null}
+              {drift.tokensMoved.length > 0 ? <Row label="Moved to another contract"><span className="text-xs" style={{ color: 'var(--color-state-dark)' }}>{drift.tokensMoved.join(', ')}</span></Row> : null}
+              {drift.feedsAdded.length > 0 ? <Row label="Feeds listed, not captured"><span className="text-xs">{drift.feedsAdded.join(', ')}</span></Row> : null}
+              {drift.feedsRemoved.length > 0 ? <Row label="Feeds no longer listed"><span className="text-xs">{drift.feedsRemoved.join(', ')}</span></Row> : null}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── THE ROLL ──────────────────────────────────────────────────────── */}

@@ -24,9 +24,11 @@ Route (app)
 ├ ƒ /api/session
 ├ ƒ /api/state      the operator's page
 ├ ƒ /api/tick
+├ ƒ /chambers        the terms watched, the conditions, the three numbers
 ├ ƒ /doctrine
 ├ ƒ /gazette
-└ ƒ /registry
+├ ƒ /registry
+└ ƒ /vault           flow as an hourly rate sample
 ```
 
 `/api/tick` and `/api/desk` declare `maxDuration = 60`. A tick with the Tally,

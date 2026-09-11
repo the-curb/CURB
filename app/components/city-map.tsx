@@ -13,8 +13,8 @@ import type { AgentHealth } from '@/lib/agents/health';
 const WHERE: Record<string, string> = {
   floor: '/#floor',
   registry: '/registry',
-  vault: '/agents/tally',
-  chambers: '/agents',
+  vault: '/vault',
+  chambers: '/chambers',
   press: '/gazette',
   cage: '/agents/herald',
 };
