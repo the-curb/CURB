@@ -2,6 +2,8 @@
 
 **The ticker tells you the exposure. The curb tells you the conditions.**
 
+Live at **https://the-curb.vercel.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
+
 A multi-agent intelligence desk for stock tokens on Robinhood Chain (chain id
 4663). Nine agents read the chain and two published registries on a schedule,
 publish what they measured with a source and a time on every figure, and refuse
