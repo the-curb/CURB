@@ -59,7 +59,7 @@ html {
   --masthead-h: 7.5rem;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 1024px) {
   html {
     --masthead-h: 5.75rem;
   }
