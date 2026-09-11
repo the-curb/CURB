@@ -49,7 +49,7 @@ function Section({ section }: { section: Edition['sections'][number] }) {
   return (
     <article className="border-t border-(--color-rule) py-6 first:border-t-0 first:pt-0">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-lg text-(--color-paper)" style={{ fontFamily: 'var(--font-serif)' }}>
+        <h3 className="text-lg text-(--color-paper)" style={{ fontFamily: 'var(--font-sans)' }}>
           {section.headline}
         </h3>
         <span className="text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
@@ -126,7 +126,7 @@ export default async function EditionPage(props: { params: Params }) {
           <section className="mb-12">
             <h2
               className="mb-4 text-3xl leading-tight text-(--color-paper) sm:text-4xl"
-              style={{ fontFamily: 'var(--font-serif)' }}
+              style={{ fontFamily: 'var(--font-sans)' }}
             >
               {edition.headline}
             </h2>
@@ -135,7 +135,7 @@ export default async function EditionPage(props: { params: Params }) {
               <>
                 <p
                   className="text-lg leading-relaxed text-(--color-paper)"
-                  style={{ fontFamily: 'var(--font-serif)' }}
+                  style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   {narration.standfirst}
                 </p>

@@ -91,7 +91,7 @@ export function StackSection({ aside, children }: { aside: ReactNode; children: 
                     >
                       {s.label}
                     </text>
-                    <text x={nx} y={ny + 3} fontSize={9} fill="var(--color-accent)" opacity={local} style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+                    <text x={nx} y={ny + 3} fontSize={9} fill="var(--color-accent)" opacity={local} style={{ fontFamily: 'var(--font-mono)' }}>
                       {String(i + 1).padStart(2, '0')}
                     </text>
                   </g>

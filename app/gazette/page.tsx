@@ -79,7 +79,7 @@ export default async function GazetteIndex() {
                 <Link href={`/gazette/${day}`} className="group block">
                   <h2
                     className="text-2xl leading-tight text-(--color-paper) group-hover:text-(--color-brass) sm:text-3xl"
-                    style={{ fontFamily: 'var(--font-serif)' }}
+                    style={{ fontFamily: 'var(--font-sans)' }}
                   >
                     {edition.headline}
                   </h2>

@@ -38,7 +38,7 @@ export function SiteFooter() {
           <div className="cell p-6 sm:p-8">
             <div className="flex items-center gap-3">
               <Mark size={30} className="text-(--color-accent)" />
-              <span className="display text-2xl tracking-[0.1em] text-(--color-paper)">{BRAND.name}</span>
+              <span className="display text-xl tracking-[0.22em] text-(--color-paper)">{BRAND.name}</span>
             </div>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-(--color-paper-dim)">
               Nine agents read Robinhood Chain and two published registries on a schedule, publish what they measured with a

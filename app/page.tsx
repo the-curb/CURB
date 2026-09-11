@@ -50,7 +50,7 @@ function Kicker({ n, title, note }: { n: string; title: string; note?: string })
       <span className="kicker">
         <b>№ {n}</b> · {title}
       </span>
-      {note ? <span className="display hidden text-xl italic text-(--color-paper-faint) sm:inline">{note}</span> : null}
+      {note ? <span className="hidden text-[13px] text-(--color-paper-faint) sm:inline">{note}</span> : null}
     </div>
   );
 }
@@ -88,7 +88,7 @@ export default async function Home() {
         <HeroSection>
           <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <div className="cell flex items-center p-6 sm:p-10 md:row-span-2">
-              <h1 className="display text-[2.25rem] text-(--color-paper) sm:text-[2.6rem] md:text-[clamp(2.4rem,5vw,5.4rem)]">
+              <h1 className="display text-[2.25rem] text-(--color-paper) sm:text-[2.6rem] md:text-[clamp(2.2rem,4.2vw,4.5rem)]">
                 The ticker tells you the exposure.
                 <br />
                 <em className="text-(--color-paper-dim)">The Curb tells you the conditions.</em>
@@ -131,7 +131,7 @@ export default async function Home() {
           <div className="cells !border-b-0 grid-cols-1">
             {DISTRICTS.map((d, i) => (
               <div key={d.name} className="cell grid grid-cols-[3rem_minmax(0,1fr)] gap-4 p-6 sm:p-8">
-                <span className="display text-2xl italic text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
+                <span className="tabular pt-1 text-sm text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
                 <div>
                   <h3 className="kicker" style={{ color: 'var(--color-paper)' }}>
                     {d.name}
@@ -189,7 +189,7 @@ export default async function Home() {
               <ol className="space-y-7">
                 {RULES.map((r, i) => (
                   <li key={r.title} className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3">
-                    <span className="display text-xl italic text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="tabular pt-1 text-sm text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
                     <div>
                       <h3 className="text-lg font-bold leading-tight text-(--color-paper)">{r.title}</h3>
                       <p className="mt-2 text-base leading-relaxed text-(--color-paper-dim)">{r.body}</p>

@@ -161,7 +161,7 @@ export function CardsFigure() {
         return (
           <g key={c.title} transform={`translate(${x},40) skewY(-12)`}>
             <path d="M0,20 L40,20 L48,6 L120,6 L128,20 L240,20 L240,180 L0,180 Z" fill="var(--color-ink)" stroke="currentColor" strokeWidth="1" />
-            <text x="18" y="54" fontSize="20" fill="currentColor" style={{ fontFamily: 'var(--font-serif)' }}>{c.title}</text>
+            <text x="18" y="54" fontSize="20" fill="currentColor" style={{ fontFamily: 'var(--font-sans)' }}>{c.title}</text>
             {c.lines.map((l, j) => (
               <text key={l} x="18" y={84 + j * 24} fontSize="12" fill="currentColor" opacity="0.75" style={{ fontFamily: 'var(--font-mono)' }}>
                 {l}

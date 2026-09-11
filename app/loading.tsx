@@ -14,7 +14,7 @@ export default function Loading() {
           <span className="kicker">
             <b>№ —</b>
           </span>
-          <span className="display text-xl italic text-(--color-paper-faint)">Reading the record.</span>
+          <span className="display text-xl text-(--color-paper-faint)">Reading the record.</span>
         </div>
         <div className="cell" style={{ height: 'clamp(200px, 32vw + 80px, 480px)' }} />
         <div className="cells !border-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">

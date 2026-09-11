@@ -48,7 +48,6 @@
   --color-state-closed: #7d8590;
 
   --font-sans: var(--font-grotesk), 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
-  --font-serif: var(--font-instrument), 'Instrument Serif', 'Iowan Old Style', 'Times New Roman', serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
 }
 
@@ -170,17 +169,18 @@ body {
   mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
 }
 
-/* Display type: the big words, set in the serif. */
+/* Display type: the big words. The second clause of a headline is an
+   <em>, carried by colour rather than a slant. */
 .display {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  line-height: 0.98;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
 }
 
 .display em,
 .display i {
-  font-style: italic;
+  font-style: normal;
 }
 
 /* A section's running head: numeral in the second ink, title in small caps. */

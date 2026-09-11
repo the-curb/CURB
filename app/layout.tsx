@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Instrument_Serif, JetBrains_Mono, Space_Grotesk } from 'next/font/google';
+import { JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import { BRAND } from '@/lib/brand';
 import { SiteHeader } from './components/site-header';
 import { SiteFooter } from './components/site-footer';
@@ -9,14 +9,6 @@ const grotesk = Space_Grotesk({
   subsets: ['latin'],
   weight: ['400', '500', '700'],
   variable: '--font-grotesk',
-  display: 'swap',
-});
-
-const instrument = Instrument_Serif({
-  subsets: ['latin'],
-  weight: '400',
-  style: ['normal', 'italic'],
-  variable: '--font-instrument',
   display: 'swap',
 });
 
@@ -42,7 +34,7 @@ const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('curb-theme');i
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${grotesk.variable} ${instrument.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${grotesk.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

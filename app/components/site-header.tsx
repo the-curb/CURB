@@ -32,9 +32,9 @@ export function SiteHeader() {
         <div className="flex h-12 items-center gap-5 px-4 sm:h-14">
           <Link href="/" className="flex items-center gap-3 text-(--color-paper)" aria-label={`${BRAND.name} home`}>
             <Mark size={26} className="text-(--color-accent)" />
-            <span className="display whitespace-nowrap text-[1.55rem] tracking-[0.1em] sm:text-[1.8rem]">{BRAND.name}</span>
+            <span className="display whitespace-nowrap text-[1.2rem] tracking-[0.22em] sm:text-[1.4rem]">{BRAND.name}</span>
           </Link>
-          <span className="display hidden text-lg italic text-(--color-paper-faint) lg:inline">{BRAND.descriptor}</span>
+          <span className="hidden text-[13px] text-(--color-paper-faint) lg:inline">{BRAND.descriptor}</span>
 
           <nav className="ml-auto hidden h-full items-stretch lg:flex" aria-label="Sections">
             {SECTIONS.map(([label, href]) => (
