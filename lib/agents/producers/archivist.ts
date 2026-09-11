@@ -28,7 +28,7 @@ import {
   readUiMultiplier,
 } from '../../chain/oracle.ts';
 import { readTokenUint } from '../../chain/token-read.ts';
-import { EQUITY_FEEDS_STATUS } from '../../chain/feeds.ts';
+import { STOCK_TOKEN_COVERAGE } from '../../chain/feeds.ts';
 import { TOKENS } from '../../chain/tokens.ts';
 
 const INTERVAL = 6 * 3600;
@@ -178,6 +178,11 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
     };
   }
 
+  figures.push(
+    { token: String(STOCK_TOKEN_COVERAGE.tokensInRegistry), source: STOCK_TOKEN_COVERAGE.registry, retrievedAt: STOCK_TOKEN_COVERAGE.observedAt },
+    { token: String(TOKENS.length), source: TOKENS[0]?.source ?? 'the settlement-asset registry', retrievedAt: TOKENS[0]?.observedAt ?? STOCK_TOKEN_COVERAGE.observedAt },
+  );
+
   const body = [
     'OBSERVED',
     ...(observed.length > 0 ? observed : ['— Nothing in the registry answered with a figure.']),
@@ -186,7 +191,7 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
     ...(notExposed.length > 0
       ? notExposed
       : ['— Every field this agent reads was exposed by every token in the registry.']),
-    `— Stock tokens themselves: ${EQUITY_FEEDS_STATUS.reason} The multiplier checks above are wired and run, but the registry holds no stock token for them to describe.`,
+    `— Stock tokens: the issuer registry lists ${STOCK_TOKEN_COVERAGE.tokensInRegistry} on this chain and none was read on this run. The multiplier checks above ran against the ${TOKENS.length} contracts in the settlement-asset registry only.`,
     '',
     'NOT DERIVABLE FROM THE CHAIN',
     ...NOT_DERIVABLE.map((line) => `— ${line}`),

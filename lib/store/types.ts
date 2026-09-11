@@ -76,6 +76,22 @@ export interface ObservationRecord {
 }
 
 /**
+ * The latest state of one thing, keyed, replaced on every write.
+ *
+ * Observations are a series: every sample is kept so structure can be measured
+ * over them. A snapshot is the opposite shape — one row per key, overwritten —
+ * for what a page needs to show right now without reading a series back: the
+ * last price and update time of each feed, the last multiplier of each token.
+ * The payload is whatever the writer measured; the key's prefix says which
+ * writer, and the reader that knows the prefix knows the shape.
+ */
+export interface SnapshotRecord {
+  readonly key: string;
+  readonly observedAt: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
+/**
  * The result of a write.
  *
  * Writes report rather than throw, for the same reason reads return a Reading:
@@ -189,6 +205,11 @@ export interface Store {
    * quietly until it is the problem.
    */
   pruneObservations(before: Date): Promise<Reading<number>>;
+
+  /** Replace the snapshot for each key. One row per key, ever. */
+  writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome>;
+  /** Every snapshot whose key starts with the prefix, in key order. */
+  snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>>;
 
   writeBlock(record: BlockRecord): Promise<WriteOutcome>;
   recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>>;

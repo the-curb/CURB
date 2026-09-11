@@ -46,11 +46,13 @@ export interface RoundData {
   readonly answeredInRound: bigint;
 }
 
-export async function readLatestRound(
-  feedProxy: string,
-  opts: RpcOptions,
-): Promise<Reading<RoundData>> {
-  const raw = await call(feedProxy, SELECTORS.latestRoundData, 'latestRoundData()', opts);
+/**
+ * The decoders are separate from the calls so that bytes read through a batch
+ * (see multicall.ts) pass through exactly the same code as a direct call. One
+ * decoder per field, and every one returns a Reading: undecodable bytes are
+ * SOURCE_MALFORMED with the field named, never a zero.
+ */
+export function decodeRound(raw: Reading<string>): Reading<RoundData> {
   if (raw.state === 'UNREAD') return raw;
 
   const parts = words(raw.value);
@@ -80,11 +82,7 @@ export async function readLatestRound(
   return { ...raw, value: { roundId, answer, startedAt, updatedAt, answeredInRound } };
 }
 
-export async function readFeedDecimals(
-  feedProxy: string,
-  opts: RpcOptions,
-): Promise<Reading<number>> {
-  const raw = await call(feedProxy, SELECTORS.decimals, 'decimals()', opts);
+export function decodeDecimals(raw: Reading<string>): Reading<number> {
   if (raw.state === 'UNREAD') return raw;
   const value = decodeUint(raw.value);
   if (value === null) {
@@ -93,17 +91,53 @@ export async function readFeedDecimals(
   return { ...raw, value: Number(value) };
 }
 
-export async function readFeedDescription(
-  feedProxy: string,
-  opts: RpcOptions,
-): Promise<Reading<string>> {
-  const raw = await call(feedProxy, SELECTORS.description, 'description()', opts);
+export function decodeDescription(raw: Reading<string>): Reading<string> {
   if (raw.state === 'UNREAD') return raw;
   const value = decodeString(raw.value);
   if (value === null) {
     return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'description() undecodable' });
   }
   return { ...raw, value };
+}
+
+/** A uint256 flag: zero is false, anything else is true, no data is unread. */
+export function decodeFlag(raw: Reading<string>, label: string): Reading<boolean> {
+  if (raw.state === 'UNREAD') return raw;
+  const value = decodeUint(raw.value);
+  if (value === null) {
+    return unread('SOURCE_MALFORMED', { source: raw.source, detail: `${label} undecodable` });
+  }
+  return { ...raw, value: value !== 0n };
+}
+
+export function decodeUintReading(raw: Reading<string>, label: string): Reading<bigint> {
+  if (raw.state === 'UNREAD') return raw;
+  const value = decodeUint(raw.value);
+  if (value === null) {
+    return unread('SOURCE_MALFORMED', { source: raw.source, detail: `${label} undecodable` });
+  }
+  return { ...raw, value };
+}
+
+export async function readLatestRound(
+  feedProxy: string,
+  opts: RpcOptions,
+): Promise<Reading<RoundData>> {
+  return decodeRound(await call(feedProxy, SELECTORS.latestRoundData, 'latestRoundData()', opts));
+}
+
+export async function readFeedDecimals(
+  feedProxy: string,
+  opts: RpcOptions,
+): Promise<Reading<number>> {
+  return decodeDecimals(await call(feedProxy, SELECTORS.decimals, 'decimals()', opts));
+}
+
+export async function readFeedDescription(
+  feedProxy: string,
+  opts: RpcOptions,
+): Promise<Reading<string>> {
+  return decodeDescription(await call(feedProxy, SELECTORS.description, 'description()', opts));
 }
 
 /**
@@ -115,13 +149,10 @@ export async function readOraclePaused(
   tokenAddress: string,
   opts: RpcOptions,
 ): Promise<Reading<boolean>> {
-  const raw = await call(tokenAddress, SELECTORS.oraclePaused, 'oraclePaused()', opts);
-  if (raw.state === 'UNREAD') return raw;
-  const value = decodeUint(raw.value);
-  if (value === null) {
-    return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'oraclePaused() undecodable' });
-  }
-  return { ...raw, value: value !== 0n };
+  return decodeFlag(
+    await call(tokenAddress, SELECTORS.oraclePaused, 'oraclePaused()', opts),
+    'oraclePaused()',
+  );
 }
 
 /**
@@ -135,13 +166,10 @@ export async function readUiMultiplier(
   tokenAddress: string,
   opts: RpcOptions,
 ): Promise<Reading<bigint>> {
-  const raw = await call(tokenAddress, SELECTORS.uiMultiplier, 'uiMultiplier()', opts);
-  if (raw.state === 'UNREAD') return raw;
-  const value = decodeUint(raw.value);
-  if (value === null) {
-    return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'uiMultiplier() undecodable' });
-  }
-  return { ...raw, value };
+  return decodeUintReading(
+    await call(tokenAddress, SELECTORS.uiMultiplier, 'uiMultiplier()', opts),
+    'uiMultiplier()',
+  );
 }
 
 /**
@@ -159,17 +187,9 @@ export async function readPendingMultiplier(
     call(tokenAddress, SELECTORS.effectiveAt, 'effectiveAt()', opts),
   ]);
 
-  const decode = (raw: Reading<string>, label: string): Reading<bigint> => {
-    if (raw.state === 'UNREAD') return raw;
-    const value = decodeUint(raw.value);
-    return value === null
-      ? unread('SOURCE_MALFORMED', { source: raw.source, detail: `${label} undecodable` })
-      : { ...raw, value };
-  };
-
   return {
-    next: decode(next, 'newUIMultiplier()'),
-    effectiveAt: decode(effective, 'effectiveAt()'),
+    next: decodeUintReading(next, 'newUIMultiplier()'),
+    effectiveAt: decodeUintReading(effective, 'effectiveAt()'),
   };
 }
 

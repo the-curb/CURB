@@ -9,6 +9,7 @@ import type {
   LockOutcome,
   NarrationRecord,
   PublishOutcome,
+  SnapshotRecord,
   Store,
   WriteOutcome,
 } from './types.ts';
@@ -41,6 +42,7 @@ const FILES = {
   blocks: 'blocks.jsonl',
   observations: 'observations.jsonl',
   narrations: 'narrations.jsonl',
+  snapshots: 'snapshots.jsonl',
 } as const;
 
 const SOURCE = 'filesystem JSONL store (development)';
@@ -396,6 +398,25 @@ export class FileSystemStore implements Store {
 
   async writeNarration(record: NarrationRecord): Promise<WriteOutcome> {
     return append(this.dir, FILES.narrations, [record]);
+  }
+
+  async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
+    if (records.length === 0) return { state: 'WRITTEN' };
+    return append(this.dir, FILES.snapshots, records);
+  }
+
+  async snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>> {
+    const all = await readAll<SnapshotRecord>(this.dir, FILES.snapshots);
+    if (all.state === 'UNREAD') return all;
+    // Append-only log: the last row written for a key is the current snapshot.
+    const latest = new Map<string, SnapshotRecord>();
+    for (const record of all.value) {
+      if (record.key.startsWith(prefix)) latest.set(record.key, record);
+    }
+    return {
+      ...all,
+      value: [...latest.values()].sort((a, b) => a.key.localeCompare(b.key)),
+    };
   }
 
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {

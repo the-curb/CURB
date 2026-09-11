@@ -102,3 +102,11 @@ create table if not exists narrations (
   detail       text,
   generated_at timestamptz not null
 );
+
+-- One row per key, replaced on write: the latest state of each feed and token,
+-- for pages that need "now" without reading a series back.
+create table if not exists snapshots (
+  key         text        primary key,
+  observed_at timestamptz not null,
+  payload     jsonb       not null
+);

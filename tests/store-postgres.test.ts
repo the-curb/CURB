@@ -60,7 +60,8 @@ if (!url) {
     fresh: async () => {
       await sql.unsafe(
         `truncate ${TEST_SCHEMA}.heartbeats, ${TEST_SCHEMA}.publications, ` +
-          `${TEST_SCHEMA}.blocks, ${TEST_SCHEMA}.observations, ${TEST_SCHEMA}.run_lock ` +
+          `${TEST_SCHEMA}.blocks, ${TEST_SCHEMA}.observations, ${TEST_SCHEMA}.narrations, ` +
+          `${TEST_SCHEMA}.snapshots, ${TEST_SCHEMA}.run_lock ` +
           `restart identity`,
       );
       return new PostgresStore(sql);

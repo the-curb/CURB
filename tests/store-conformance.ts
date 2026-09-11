@@ -195,6 +195,77 @@ export function runStoreConformance(target: ConformanceTarget): void {
         const outcome = await store.writeObservations([]);
         assert.equal(outcome.state, 'WRITTEN');
       });
+
+      it('writes a large batch in one go and keeps every row', async () => {
+        // The size of one Archivist sweep. Through a transaction pooler a row
+        // per statement is a round trip each; this must be one statement.
+        const rows = Array.from({ length: 200 }, (_, i) => ({
+          key: `rh-t${String(i).padStart(3, '0')}:multiplier`,
+          observedAt: '2026-09-10T10:00:00.000Z',
+          value: 1 + i / 1000,
+          raw: String(10n ** 18n + BigInt(i) * 10n ** 15n),
+          decimals: 18,
+          source: 's',
+        }));
+        const outcome = await store.writeObservations(rows);
+        assert.equal(outcome.state, 'WRITTEN');
+        const first = await store.observations('rh-t000:multiplier', 5);
+        const last = await store.observations('rh-t199:multiplier', 5);
+        assert.equal(first.state === 'VERIFIED' ? first.value[0]?.raw : null, '1000000000000000000');
+        assert.equal(last.state === 'VERIFIED' ? last.value[0]?.raw : null, '1199000000000000000');
+      });
+    });
+
+    describe('snapshots', () => {
+      it('reads none as an empty list, not as unread', async () => {
+        const read = await store.snapshots('feed:');
+        assert.equal(read.state, 'VERIFIED');
+        assert.deepEqual(read.state === 'VERIFIED' ? read.value : null, []);
+      });
+
+      it('keeps one row per key, the latest write replacing the earlier one', async () => {
+        await store.writeSnapshots([
+          { key: 'feed:rh-aapl-usd', observedAt: '2026-09-10T10:00:00.000Z', payload: { price: '326.41', paused: false } },
+        ]);
+        await store.writeSnapshots([
+          { key: 'feed:rh-aapl-usd', observedAt: '2026-09-10T10:15:00.000Z', payload: { price: '327.00', paused: true } },
+          { key: 'feed:rh-nvda-usd', observedAt: '2026-09-10T10:15:00.000Z', payload: { price: '220.97', paused: false } },
+        ]);
+        const read = await store.snapshots('feed:');
+        const rows = read.state === 'VERIFIED' ? read.value : [];
+        assert.deepEqual(
+          rows.map((r) => [r.key, r.observedAt, r.payload]),
+          [
+            ['feed:rh-aapl-usd', '2026-09-10T10:15:00.000Z', { price: '327.00', paused: true }],
+            ['feed:rh-nvda-usd', '2026-09-10T10:15:00.000Z', { price: '220.97', paused: false }],
+          ],
+        );
+      });
+
+      it('selects by prefix and returns nothing from other prefixes', async () => {
+        await store.writeSnapshots([
+          { key: 'feed:rh-aapl-usd', observedAt: '2026-09-10T10:00:00.000Z', payload: { a: 1 } },
+          { key: 'token:rh-aapl', observedAt: '2026-09-10T10:00:00.000Z', payload: { b: 2 } },
+        ]);
+        const read = await store.snapshots('token:');
+        assert.deepEqual(read.state === 'VERIFIED' ? read.value.map((r) => r.key) : null, ['token:rh-aapl']);
+      });
+
+      it('round-trips a nested payload as structure, not as a string', async () => {
+        // The jsonb double-encoding trap, again: a payload that reads back as
+        // a string is a page that renders "[object Object]".
+        await store.writeSnapshots([
+          { key: 'token:rh-crwd', observedAt: '2026-09-10T10:00:00.000Z', payload: { multiplier: { raw: '4000000000000000000', shown: '4.000000' }, tags: ['split'] } },
+        ]);
+        const read = await store.snapshots('token:rh-crwd');
+        const row = read.state === 'VERIFIED' ? read.value[0] : null;
+        assert.deepEqual(row?.payload, { multiplier: { raw: '4000000000000000000', shown: '4.000000' }, tags: ['split'] });
+      });
+
+      it('accepts an empty write without complaint', async () => {
+        const outcome = await store.writeSnapshots([]);
+        assert.equal(outcome.state, 'WRITTEN');
+      });
     });
 
     describe('retention', () => {

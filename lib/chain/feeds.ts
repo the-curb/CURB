@@ -1,146 +1,66 @@
 /**
- * Chainlink price feeds on Robinhood Chain, as recorded by hand.
+ * Chainlink price feeds on Robinhood Chain — the view the agents read.
  *
- * The vendor documentation is explicit that its own directory is the source of
- * truth and that addresses should be read from there rather than hardcoded. This
- * file does not contradict that: it is dated evidence of what the directory said
- * when a person looked, kept so that a change can be noticed. It is not a
- * substitute for the directory and it is not a recommendation of any feed.
+ * The data lives in `feed-directory.ts`, generated from the vendor's own
+ * directory and verified on chain at capture (see scripts/capture-feeds.ts).
+ * This module is the vocabulary over it: which feeds follow which clock, how
+ * much of the directory is covered, and the one feed that is configured rather
+ * than captured.
  *
- * COVERAGE, STATED PLAINLY: the directory listed 57 feeds for this network. The
- * eight below are the ones actually read off the page. The remaining 49 — which
- * include every tokenized-equity feed — were NOT captured, and this module
- * reports them as unread rather than presenting eight as if they were all.
+ * The vendor documentation is explicit that its directory is the source of
+ * truth and that addresses should be read from there. The generated module
+ * does not contradict that: it is dated evidence of what the directory said,
+ * with a hash of the file, kept so that a change can be noticed. It is not a
+ * recommendation of any feed.
  */
 
-export type FeedMarketHours = 'crypto' | 'equity' | 'unknown';
+import {
+  FEED_DIRECTORY,
+  FEED_DIRECTORY_SOURCE,
+  type DirectoryFeed,
+  type FeedMarketHours,
+} from './feed-directory.ts';
+import { STOCK_TOKENS, STOCK_TOKENS_SOURCE } from './stock-tokens.ts';
 
-export interface FeedRecord {
-  readonly key: string;
-  readonly pair: string;
-  readonly assetName: string;
-  /**
-   * Which clock this feed follows. The distinction is the point of the Pillar:
-   * a crypto feed that has not moved in six hours is a problem; an equity feed
-   * that has not moved since Friday is a closed exchange.
-   */
-  readonly marketHours: FeedMarketHours;
-  readonly proxy: string;
-  /**
-   * Seconds the feed may go without an update before staleness is expected.
-   * Null means the heartbeat was not captured — so staleness cannot be judged
-   * against a threshold, and the Pillar says so instead of inventing one.
-   */
-  readonly heartbeatSeconds: number | null;
-  readonly observedAt: string;
-  readonly source: string;
-}
+export type FeedRecord = DirectoryFeed;
+export type { FeedMarketHours };
 
-const SOURCE = 'https://docs.chain.link/data-feeds/price-feeds/addresses?network=robinhood';
-const OBSERVED = '2026-09-11T02:00:00Z';
+export const FEEDS: readonly FeedRecord[] = FEED_DIRECTORY;
 
-export const FEEDS: readonly FeedRecord[] = [
-  {
-    key: 'btc-usd',
-    pair: 'BTC / USD',
-    assetName: 'Bitcoin',
-    marketHours: 'crypto',
-    proxy: '0xa2c5184bF03d373Dc9dE4876eb4Bce595B460251',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'eth-usd',
-    pair: 'ETH / USD',
-    assetName: 'Ethereum',
-    marketHours: 'crypto',
-    proxy: '0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'link-usd',
-    pair: 'LINK / USD',
-    assetName: 'Chainlink',
-    marketHours: 'crypto',
-    proxy: '0xe86e3422Aa9B5e8ee9f3E41a63975bC387A8bce9',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'eurc-usd',
-    pair: 'EURC / USD',
-    assetName: 'Euro Coin',
-    marketHours: 'crypto',
-    proxy: '0xfF2B10c1973eD10c841434f98e456d8f3a0D7DD8',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'ena-usd',
-    pair: 'ENA / USD',
-    assetName: 'Ethena',
-    marketHours: 'crypto',
-    proxy: '0x2A291496b3aa19d8948e442Ef28Ee952f3Ee97E8',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'cbbtc-usd',
-    pair: 'CBBTC / USD',
-    assetName: 'Coinbase Wrapped BTC',
-    marketHours: 'crypto',
-    proxy: '0x0009cD492adf8167f9eEBf1293556A673530a21a',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'btcb-usd',
-    pair: 'BTC.B / USD',
-    assetName: 'Avalanche Bridged BTC',
-    marketHours: 'crypto',
-    proxy: '0x5BB5e6a17a477d5B6Fec77b4322daD4A66bFb732',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-  {
-    key: 'lbtc-usd',
-    pair: 'LBTC / USD',
-    assetName: 'LOMBARD STAKED BTC',
-    marketHours: 'crypto',
-    proxy: '0xa621344AdAEE699491597Fd8890E0C59a5BFBE59',
-    heartbeatSeconds: null,
-    observedAt: OBSERVED,
-    source: SOURCE,
-  },
-];
+/**
+ * The feeds this project is about. Each prices one stock token and follows the
+ * equity clock: a quiet weekend is a closed exchange, not a fault.
+ */
+export const EQUITY_FEEDS: readonly FeedRecord[] = FEEDS.filter((f) => f.marketHours === 'equity');
 
-/** What the directory said existed, against what was actually captured. */
+/** Feeds on the crypto clock, which does not close. Age here has no alibi. */
+export const CRYPTO_FEEDS: readonly FeedRecord[] = FEEDS.filter((f) => f.marketHours === 'crypto');
+
+/** What the directory said existed, against what was captured and verified. */
 export const FEED_COVERAGE = {
-  listedByDirectory: 57,
+  listedByDirectory: FEED_DIRECTORY_SOURCE.listed,
   capturedHere: FEEDS.length,
-  source: SOURCE,
-  observedAt: OBSERVED,
+  verifiedOnChain: FEED_DIRECTORY_SOURCE.verifiedOnChain,
+  equity: EQUITY_FEEDS.length,
+  crypto: CRYPTO_FEEDS.length,
+  source: FEED_DIRECTORY_SOURCE.linkedFrom,
+  directory: FEED_DIRECTORY_SOURCE.url,
+  observedAt: FEED_DIRECTORY_SOURCE.retrievedAt,
+  observedAtBlock: FEED_DIRECTORY_SOURCE.verifiedAtBlock,
 } as const;
 
 /**
- * Equity feeds are the ones this project is actually about, and there are none
- * here. The directory carries them; they were not read. Reporting that as an
- * absence with a reason is the only honest option — an equity feed address that
- * is wrong does not fail loudly, it prices the wrong instrument.
+ * How many stock tokens have a reference price this system can read, and how
+ * many do not. The second number is the larger one, and it is reported as such:
+ * a token without a feed is a token whose price this system cannot state.
  */
-export const EQUITY_FEEDS_STATUS = {
-  state: 'SOURCE_NOT_CONNECTED',
-  reason:
-    'No tokenized-equity feed address has been captured from the Chainlink directory. Until one is read from the source of truth, equity prices are reported as unread — never as zero, and never guessed.',
-  remedy: `Read an equity feed proxy from ${SOURCE} and add it to FEEDS with marketHours: 'equity'.`,
+export const STOCK_TOKEN_COVERAGE = {
+  tokensInRegistry: STOCK_TOKENS.length,
+  withFeed: STOCK_TOKENS.filter((t) => t.feedKey !== null).length,
+  withoutFeed: STOCK_TOKENS.filter((t) => t.feedKey === null).length,
+  source: STOCK_TOKENS_SOURCE.linkedFrom,
+  registry: STOCK_TOKENS_SOURCE.url,
+  observedAt: STOCK_TOKENS_SOURCE.retrievedAt,
 } as const;
 
 /**
@@ -148,9 +68,10 @@ export const EQUITY_FEEDS_STATUS = {
  * guidance is to confirm the sequencer is up before trusting any price: during
  * an outage feeds can go stale while still returning a value.
  *
- * The address was not captured, so the Pillar reports the sequencer check as
- * not performed rather than as passed. "Not checked" and "up" are different
- * claims, and only one of them is safe to assume.
+ * The directory captured above lists no sequencer feed for this network, so
+ * the address is configured, not captured. Unconfigured, the Pillar reports the
+ * sequencer check as not performed rather than as passed. "Not checked" and
+ * "up" are different claims, and only one of them is safe to assume.
  */
 export const SEQUENCER_FEED = {
   proxy: process.env.CURB_SEQUENCER_FEED ?? null,
@@ -161,4 +82,10 @@ export const SEQUENCER_FEED = {
 
 export function feedByKey(key: string): FeedRecord | null {
   return FEEDS.find((f) => f.key === key) ?? null;
+}
+
+/** The stock token an equity feed prices, by the ticker both sources share. */
+export function tokenForFeed(feed: FeedRecord) {
+  if (feed.ticker === null) return null;
+  return STOCK_TOKENS.find((t) => t.feedKey === feed.key) ?? null;
 }

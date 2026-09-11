@@ -111,7 +111,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
   const spanText = describeAge(Math.round((Date.now() - oldestInputAt.getTime()) / 1000));
   declare(spanText.replace(/[^\d.]/g, ''));
   measured.push(
-    `— Series: ${observedCount} observations of ${feed.pair}, the earliest taken ${spanText} ago.`,
+    `— Series: ${observedCount} observations of ${feed.name}, the earliest taken ${spanText} ago.`,
   );
 
   if (periodsPerYear === null || !Number.isFinite(periodsPerYear)) {
@@ -187,7 +187,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
 
   return {
     publication: {
-      headline: `STRUCTURE · ${feed.pair} · ${observedCount} observations`,
+      headline: `STRUCTURE · ${feed.name} · ${observedCount} observations`,
       body,
       figures,
       // 14 in "RSI(14)" names the index, and the minimums name our own rules.

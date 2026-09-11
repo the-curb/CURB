@@ -10,6 +10,7 @@ import type {
   PublicationRecord,
   PublishOutcome,
   RunOutcome,
+  SnapshotRecord,
   Store,
   WriteOutcome,
 } from './types.ts';
@@ -249,6 +250,16 @@ function toNarration(row: NarrationRow): NarrationRecord {
     detail: row.detail,
     generatedAt: row.generated_at.toISOString(),
   };
+}
+
+interface SnapshotRow {
+  key: string;
+  observed_at: Date;
+  payload: Record<string, unknown>;
+}
+
+function toSnapshot(row: SnapshotRow): SnapshotRecord {
+  return { key: row.key, observedAt: row.observed_at.toISOString(), payload: row.payload };
 }
 
 interface ObservationRow {
@@ -533,19 +544,24 @@ export class PostgresStore implements Store {
     if (records.length === 0) return { state: 'WRITTEN' };
     try {
       return await this.guard('writeObservations', async () => {
-        // One transaction, one insert per record. A run produces a handful of
-        // observations at most, so the bulk-insert helper buys nothing here and
-        // costs a fight with its types — and losing that fight quietly is how a
-        // series ends up with rows that do not mean what they say.
-        await this.sql.begin(async (tx) => {
-          for (const r of records) {
-            await tx`
-              insert into observations (key, observed_at, value, raw, decimals, source)
-              values (${r.key}, ${r.observedAt}, ${String(r.value)}::numeric,
-                      ${r.raw ?? null}, ${r.decimals ?? null}, ${r.source})
-            `;
-          }
-        });
+        // One statement for the whole batch. A Pillar run writes a row per feed
+        // and an Archivist run one per token, and through a transaction pooler
+        // every statement is a round trip; two hundred of them from a serverless
+        // region a continent away is a run that outlives its lock. The arrays
+        // are typed on the Postgres side so a value that does not parse fails
+        // the statement rather than landing as something else.
+        await this.sql`
+          insert into observations (key, observed_at, value, raw, decimals, source)
+          select key, observed_at, value::numeric, raw, decimals, source
+          from unnest(
+            ${records.map((r) => r.key)}::text[],
+            ${records.map((r) => r.observedAt)}::timestamptz[],
+            ${records.map((r) => String(r.value))}::text[],
+            ${records.map((r) => r.raw ?? null)}::text[],
+            ${records.map((r) => r.decimals ?? null)}::int[],
+            ${records.map((r) => r.source)}::text[]
+          ) as rows(key, observed_at, value, raw, decimals, source)
+        `;
         return { state: 'WRITTEN' };
       });
     } catch (cause) {
@@ -739,6 +755,46 @@ export class PostgresStore implements Store {
       });
     } catch (cause) {
       return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
+  /** Upsert, one statement for the batch: one row per key, ever. */
+  async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
+    if (records.length === 0) return { state: 'WRITTEN' };
+    try {
+      return await this.guard('writeSnapshots', async () => {
+        await this.sql`
+          insert into snapshots (key, observed_at, payload)
+          select key, observed_at, payload::jsonb
+          from unnest(
+            ${records.map((r) => r.key)}::text[],
+            ${records.map((r) => r.observedAt)}::timestamptz[],
+            ${records.map((r) => JSON.stringify(asJson(r.payload)))}::text[]
+          ) as rows(key, observed_at, payload)
+          on conflict (key) do update set
+            observed_at = excluded.observed_at,
+            payload     = excluded.payload
+        `;
+        return { state: 'WRITTEN' };
+      });
+    } catch (cause) {
+      return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
+  async snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>> {
+    try {
+      return await this.guard('snapshots', async () => {
+        const rows = await this.sql<SnapshotRow[]>`
+          select key, observed_at, payload
+          from snapshots
+          where starts_with(key, ${prefix})
+          order by key
+        `;
+        return readNow(rows.map(toSnapshot), `${SOURCE} · snapshots`);
+      });
+    } catch (cause) {
+      return unreadable('snapshots', cause);
     }
   }
 

@@ -94,14 +94,20 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'Every price I show you has an age. Most places hide it.',
     posture: 'MEASURES',
     intervalSeconds: 15 * 60,
-    sourcesExpected: 3,
-    minimumSources: 2,
+    // Every tokenized-equity feed (35), the crypto rotation (4), and the session
+    // calendar (1). A test pins this to the captured directory so the number
+    // cannot drift from what the producer actually asks.
+    sourcesExpected: 40,
+    // The session plus more than half the feeds. Below that the book is not
+    // described; the run says it could not look.
+    minimumSources: 21,
     refusal:
       'Publishes the feed, the block and the age. Never fills a gap with a last-known price without stamping how old it is.',
     reads: [
-      'Robinhood Chain oracle contracts — answer and updatedAt',
-      'Feed heartbeat and deviation threshold',
-      'Cross-feed disagreement where a second feed exists',
+      'Every tokenized-equity feed on Robinhood Chain — answer, updatedAt, and the on-chain description against the one recorded at capture',
+      'The issuer oracle pause flag on the stock token each feed prices',
+      'Crypto feeds in rotation',
+      'Feed heartbeat and deviation threshold, as the vendor directory publishes them',
     ],
   },
   {

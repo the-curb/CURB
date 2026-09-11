@@ -140,14 +140,41 @@ that on every publish, in the API response, where it is visible rather than
 buried in a comment. On failure, `partial` names which of the two landed, which
 is the state an operator has to repair.
 
-### The store is still not production-ready
+### Two stores, one contract
 
-`lib/store/fs.ts` is an append-only JSONL log on local disk, and its limits are
-properties of the medium: no durable disk on serverless, one file per instance,
-no transaction, and observation values that round-trip through a lossy double
-(`ObservationRecord` documents which fields are the record of record). It must be
-reimplemented against a database before deploy. The interface exists so that swap
-touches nothing above it.
+`lib/store/fs.ts` is an append-only JSONL log on local disk, for development,
+and it says so in its return values: `publishAtomically` reports `atomic: false`
+because a filesystem cannot give a transaction. `lib/store/postgres.ts` is the
+production store. Both pass the same conformance suite (`tests/store-conformance.ts`),
+and the Postgres suite runs against a private schema so it can never truncate
+the tables that hold the record.
+
+### Series and snapshots
+
+Two shapes of measurement are kept, and they answer different questions.
+
+An **observation** is one sample in a series: every price the Pillar reads,
+every multiplier the Archivist reads, kept so structure can be measured over
+them later. It carries the raw integer the chain returned beside the lossy
+double, because a value that was rounded at write time cannot be un-rounded.
+
+A **snapshot** is the latest state of one thing, keyed and replaced on every
+write — the last price and update time of each feed, with every judgement made
+about it. A page that shows "now" reads snapshots; it never re-reads the chain
+to render, and it never reads a series back to find the last row.
+
+Both are written before any gate runs. Policy governs what is published, not
+what was measured.
+
+### Reads are batched, and the batch is not a source
+
+Thirty-five equity feeds asked three questions each is a hundred and five
+calls, and the public endpoint answers a burst by refusing part of it — which
+was measured. Reads go through Multicall3 (`lib/chain/multicall.ts`): one
+`eth_call`, every answer from the same block, and a flag per call saying whether
+that call succeeded. A feed's answer read through it is still the feed's answer;
+a subcall that failed is still that one feed's absence, not the batch's. The
+contract's code hash is recorded as a tripwire, like every other address here.
 
 ## 6. Code computes, the model narrates
 

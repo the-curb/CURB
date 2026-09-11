@@ -6,7 +6,7 @@ import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { getStoreAsync } from '@/lib/store';
-import { FEED_COVERAGE } from '@/lib/chain/feeds';
+import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
 
 /**
@@ -358,11 +358,19 @@ export default async function Home() {
         <Row label="Price feeds in the vendor directory">
           <span className="tabular">{FEED_COVERAGE.listedByDirectory}</span>
         </Row>
-        <Row label="Feeds captured here">
-          <span className="tabular">{FEED_COVERAGE.capturedHere}</span>
+        <Row label="Feeds captured and verified on chain">
+          <span className="tabular">
+            {FEED_COVERAGE.capturedHere} / {FEED_COVERAGE.verifiedOnChain}
+          </span>
         </Row>
-        <Row label="Tokenized-equity feeds captured">
-          <Absent why="SOURCE_NOT_CONNECTED — no equity feed address has been read from the directory" />
+        <Row label="Tokenized-equity feeds">
+          <span className="tabular">{FEED_COVERAGE.equity}</span>
+        </Row>
+        <Row label="Stock tokens in the issuer registry">
+          <span className="tabular">{STOCK_TOKEN_COVERAGE.tokensInRegistry}</span>
+        </Row>
+        <Row label="Stock tokens with no feed this system can read">
+          <span className="tabular">{STOCK_TOKEN_COVERAGE.withoutFeed}</span>
         </Row>
         <Row label="Sequencer uptime check">
           <Absent why="no sequencer feed configured — not checked, which is not the same as up" />

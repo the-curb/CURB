@@ -28,6 +28,7 @@ import type {
   PublicationRecord,
   LockOutcome,
   RunOutcome,
+  SnapshotRecord,
   Store,
 } from '../store/types.ts';
 
@@ -55,6 +56,12 @@ export interface ProducerResult {
    * must not punch a hole in the record of what the sources actually said.
    */
   readonly observations?: readonly ObservationRecord[];
+  /**
+   * The latest state of each thing this run looked at, keyed, for pages that
+   * show "now". Persisted on the same terms as observations: before any gate,
+   * and a failure to store them rides on the heartbeat rather than vanishing.
+   */
+  readonly snapshots?: readonly SnapshotRecord[];
   /**
    * Why the sources that failed, failed. A coverage failure that only reports a
    * count is not diagnosable: "reached 1 of 2" says nothing about which source
@@ -195,13 +202,16 @@ export async function runAgent(
   // happened and is still publishable — but it is not swallowed either: a gap in
   // the series changes what the Surveyor can compute later, so it rides along on
   // the heartbeat where somebody will see it.
-  let seriesFault: string | null = null;
+  const faults: string[] = [];
   if (!dryRun && result.observations && result.observations.length > 0) {
     const written = await store.writeObservations(result.observations);
-    if (written.state === 'FAILED') {
-      seriesFault = `observations not stored: ${written.reason}`;
-    }
+    if (written.state === 'FAILED') faults.push(`observations not stored: ${written.reason}`);
   }
+  if (!dryRun && result.snapshots && result.snapshots.length > 0) {
+    const written = await store.writeSnapshots(result.snapshots);
+    if (written.state === 'FAILED') faults.push(`snapshots not stored: ${written.reason}`);
+  }
+  const seriesFault: string | null = faults.length > 0 ? faults.join(' · ') : null;
 
   /** Join whatever the run has to explain into one heartbeat detail line. */
   const withFault = (detail: string | null): string | null =>

@@ -12,6 +12,7 @@ import type {
   LockOutcome,
   NarrationRecord,
   PublishOutcome,
+  SnapshotRecord,
   Store,
   WriteOutcome,
 } from '../lib/store/types.ts';
@@ -152,6 +153,17 @@ class MemoryStore implements Store {
   async writeNarration(record: NarrationRecord): Promise<WriteOutcome> {
     this.narrations = [...this.narrations.filter((n) => n.day !== record.day), record];
     return { state: 'WRITTEN' };
+  }
+  snapshotRows = new Map<string, SnapshotRecord>();
+  async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
+    if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };
+    for (const r of records) this.snapshotRows.set(r.key, r);
+    return { state: 'WRITTEN' };
+  }
+  async snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>> {
+    return this.read<readonly SnapshotRecord[]>(
+      [...this.snapshotRows.values()].filter((r) => r.key.startsWith(prefix)).sort((a, b) => a.key.localeCompare(b.key)),
+    );
   }
   async dayRecord(day: string): Promise<Reading<DayRecord>> {
     const on = (iso: string) => iso.slice(0, 10) === day;

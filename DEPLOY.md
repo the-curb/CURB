@@ -108,11 +108,37 @@ renewed mid-run, which means the run may have overlapped another. It is reported
 rather than hidden because "we held it the whole time" is a claim that field
 exists to keep honest.
 
+## The registries, and how to re-capture them
+
+Two generated modules hold every address the agents read, and both were
+verified on chain when they were written:
+
+- `lib/chain/feed-directory.ts` — every Chainlink feed the vendor directory
+  lists for Robinhood Chain (57 at capture: 35 tokenized equity, 22 crypto),
+  each with the `description()` and `decimals()` the proxy actually answered.
+- `lib/chain/stock-tokens.ts` — every stock and ETF token in the issuer's
+  registry (194 at capture), each with the symbol, name, multiplier, beacon and
+  code hash the chain answered, and the one shared beacon they all delegate to.
+
+When either source changes — a new feed, a new token, a re-pointed proxy — the
+Pillar and the Registrar will say so in their filings (identity drift, a beacon
+implementation that differs from the recorded one). The fix is a re-capture,
+not a hand edit:
+
+```bash
+node --env-file-if-exists=.env.local scripts/capture-feeds.ts
+```
+
+```bash
+node --env-file-if-exists=.env.local scripts/capture-stock-tokens.ts
+```
+
+Each is a dry run that prints what changed and writes nothing. Add `--write` to
+regenerate the module, read the diff, and commit it. A capture that cannot
+verify every entry on chain refuses to write.
+
 ## What is not covered here
 
-- **Tokenized-equity feeds.** No address has been captured from the Chainlink
-  directory, so equity prices report as unread. `lib/chain/feeds.ts` says how to
-  add one.
 - **The sequencer uptime feed.** Unconfigured; the Pillar reports the sequencer
   as not checked, which is not the same as up.
 - **Alerting.** Nothing pages anyone. The signal is there in `/api/state`; the

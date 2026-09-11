@@ -36,7 +36,7 @@ console.log('');
 for (const feed of FEEDS) {
   const read = await store.observations(feed.key, 10_000);
   if (read.state === 'UNREAD') {
-    console.log(`  ${feed.key.padEnd(12)} unreadable (${read.reason})`);
+    console.log(`  ${feed.key.padEnd(30)} unreadable (${read.reason})`);
     continue;
   }
   const total = read.value.length;
