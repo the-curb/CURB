@@ -66,9 +66,16 @@ export async function rpcCall<T>(
 
     const body = (await response.json()) as RpcSuccess | RpcFailure;
     if ('error' in body) {
-      return unread('SOURCE_MALFORMED', {
+      // A revert is not malformed data. The node answered correctly; the
+      // contract declined to. Calling a function a contract does not implement
+      // reverts, and reporting that as corruption would send a reader looking
+      // for a fault in the transport that is not there.
+      const reverted = /execution reverted|revert/i.test(body.error.message);
+      return unread(reverted ? 'FIELD_ABSENT' : 'SOURCE_MALFORMED', {
         source,
-        detail: `rpc error ${body.error.code}: ${body.error.message}`,
+        detail: reverted
+          ? `the call reverted (${body.error.message}) — the contract does not answer this. Not a "no".`
+          : `rpc error ${body.error.code}: ${body.error.message}`,
       });
     }
 
@@ -108,6 +115,43 @@ export async function readBlockNumber(opts: RpcOptions): Promise<Reading<number>
     return unread('SOURCE_MALFORMED', { source: hex.source, detail: `block ${hex.value}` });
   }
   return { ...hex, value: parsed };
+}
+
+export interface LogEntry {
+  readonly address: string;
+  readonly topics: readonly string[];
+  readonly data: string;
+  readonly blockNumber: string;
+  readonly transactionHash: string;
+}
+
+/**
+ * Logs over a block range.
+ *
+ * Public endpoints cap how wide a range they will scan and reject anything
+ * larger. That rejection comes back as an UNREAD reading with the node's own
+ * message attached, rather than as an empty array — "no transfers happened" and
+ * "we were not allowed to look" must never arrive looking the same.
+ */
+export async function readLogs(
+  address: string,
+  topics: readonly (string | null)[],
+  fromBlock: number,
+  toBlock: number,
+  opts: RpcOptions,
+): Promise<Reading<LogEntry[]>> {
+  return rpcCall<LogEntry[]>(
+    'eth_getLogs',
+    [
+      {
+        address,
+        topics,
+        fromBlock: `0x${fromBlock.toString(16)}`,
+        toBlock: `0x${toBlock.toString(16)}`,
+      },
+    ],
+    opts,
+  );
 }
 
 /** Non-empty code is the difference between "a contract" and "an address someone typed". */

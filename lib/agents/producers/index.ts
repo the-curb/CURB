@@ -4,6 +4,10 @@ import { registrarProducer } from './registrar.ts';
 import { pillarProducer } from './pillar.ts';
 import { surveyorProducer } from './surveyor.ts';
 import { wardenProducer } from './warden.ts';
+import { archivistProducer } from './archivist.ts';
+import { tallyProducer } from './tally.ts';
+import { counselProducer } from './counsel.ts';
+import { heraldProducer } from './herald.ts';
 
 /**
  * The producers that exist. An agent absent from this table is described in the
@@ -16,4 +20,8 @@ export const PRODUCERS: ProducerTable = {
   pillar: pillarProducer,
   surveyor: surveyorProducer,
   warden: wardenProducer,
+  archivist: archivistProducer,
+  tally: tallyProducer,
+  counsel: counselProducer,
+  herald: heraldProducer,
 };

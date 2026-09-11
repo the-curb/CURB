@@ -144,6 +144,45 @@ export async function readUiMultiplier(
   return { ...raw, value };
 }
 
+/**
+ * A multiplier change that has been announced but has not taken effect yet,
+ * with the moment it does. This pair is the only forward-looking thing in the
+ * whole system, and it is not a forecast: it is a scheduled change the issuer
+ * has already published on chain.
+ */
+export async function readPendingMultiplier(
+  tokenAddress: string,
+  opts: RpcOptions,
+): Promise<{ next: Reading<bigint>; effectiveAt: Reading<bigint> }> {
+  const [next, effective] = await Promise.all([
+    call(tokenAddress, SELECTORS.newUIMultiplier, 'newUIMultiplier()', opts),
+    call(tokenAddress, SELECTORS.effectiveAt, 'effectiveAt()', opts),
+  ]);
+
+  const decode = (raw: Reading<string>, label: string): Reading<bigint> => {
+    if (raw.state === 'UNREAD') return raw;
+    const value = decodeUint(raw.value);
+    return value === null
+      ? unread('SOURCE_MALFORMED', { source: raw.source, detail: `${label} undecodable` })
+      : { ...raw, value };
+  };
+
+  return {
+    next: decode(next, 'newUIMultiplier()'),
+    effectiveAt: decode(effective, 'effectiveAt()'),
+  };
+}
+
+/** The multiplier is scaled by 1e18. Dividing later, or not at all, is the
+ *  documented way to be wrong by a factor of a billion billion. */
+export const MULTIPLIER_SCALE = 10n ** 18n;
+
+export function formatMultiplier(raw: bigint): string {
+  const whole = raw / MULTIPLIER_SCALE;
+  const fraction = (raw % MULTIPLIER_SCALE).toString().padStart(18, '0').slice(0, 6);
+  return `${whole}.${fraction}`;
+}
+
 export type SequencerVerdict =
   | { readonly kind: 'UP'; readonly sinceSeconds: number }
   | { readonly kind: 'DOWN' }
