@@ -1,8 +1,10 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import {
+  bookShape,
   CRYPTO_PER_RUN,
   judgeFeed,
+  REFILE_SECONDS,
   snapshotOf,
   summariseEquity,
   type FeedRead,
@@ -259,5 +261,34 @@ describe('the snapshot', () => {
     assert.equal(snap.payload.price, null);
     assert.equal(snap.payload.raw, null);
     assert.match(String(snap.payload.notPricedBecause), /SOURCE_TIMEOUT/);
+  });
+});
+
+describe('the shape of the book', () => {
+  const session = readSession(NOW);
+
+  it('ignores ages and prices, so a book that only got older is the same book', () => {
+    const a = bookShape([judgeFeed(readOf(AAPL, { round: round(32641467229n, 60) }), NOW)], session, false);
+    const b = bookShape([judgeFeed(readOf(AAPL, { round: round(33400000000n, 7200) }), NOW)], session, false);
+    assert.equal(a, b);
+  });
+
+  it('changes when an exception appears, the session moves, or the head stalls', () => {
+    const base = bookShape([judgeFeed(readOf(AAPL), NOW)], session, false);
+    assert.notEqual(base, bookShape([judgeFeed(readOf(AAPL, { oraclePaused: ok(true) }), NOW)], session, false));
+    assert.notEqual(base, bookShape([judgeFeed(readOf(AAPL, { round: round(32641467229n, 90_000) }), NOW)], session, false));
+    assert.notEqual(base, bookShape([judgeFeed(readOf(AAPL), NOW)], readSession(new Date('2026-09-13T15:00:00.000Z')), false));
+    assert.notEqual(base, bookShape([judgeFeed(readOf(AAPL), NOW)], session, true));
+    assert.notEqual(base, bookShape([judgeFeed(readOf(AAPL), NOW)], session, null));
+  });
+
+  it('does not depend on the order the feeds were read in', () => {
+    const x = judgeFeed(readOf(AAPL, { oraclePaused: ok(true) }), NOW);
+    const y = judgeFeed(readOf(NVDA, { description: ok('other') }), NOW);
+    assert.equal(bookShape([x, y], session, false), bookShape([y, x], session, false));
+  });
+
+  it('refiles within a bounded silence', () => {
+    assert.ok(REFILE_SECONDS >= 3600 && REFILE_SECONDS <= 24 * 3600);
   });
 });

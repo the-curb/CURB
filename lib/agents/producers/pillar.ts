@@ -332,10 +332,43 @@ export function snapshotOf(v: FeedVerdict, session: SessionState, observedAt: st
   };
 }
 
-export const pillarProducer: Producer = async ({ now }): Promise<ProducerResult> => {
+/**
+ * The shape of the book: everything the equity block would say that is not a
+ * clock reading. Two runs with the same shape would file the same filing with
+ * different ages in it, and the second is not news. Pure.
+ */
+export function bookShape(verdicts: readonly FeedVerdict[], session: SessionState, headStalled: boolean | null): string {
+  const labels = (rows: readonly FeedVerdict[]) => rows.map((v) => v.label).sort();
+  return JSON.stringify({
+    phase: session.phase,
+    answered: verdicts.filter((v) => v.ageSeconds !== null).length,
+    priced: verdicts.filter((v) => v.price !== null).length,
+    pastHeartbeat: labels(verdicts.filter((v) => v.pastHeartbeat === true)),
+    paused: labels(verdicts.filter((v) => v.pauseFlag === 'SET')),
+    pauseUnread: labels(verdicts.filter((v) => v.pauseFlag === 'UNREAD')),
+    drift: labels(verdicts.filter((v) => v.identity === 'DRIFT')),
+    identityUnread: labels(verdicts.filter((v) => v.identity === 'UNREAD')),
+    unread: labels(verdicts.filter((v) => v.price === null)),
+    headStalled,
+  });
+}
+
+/** How long the Pillar may stay quiet on an unchanged book before filing anyway. */
+export const REFILE_SECONDS = 6 * 3600;
+
+export const SHAPE_KEY = 'pillar:shape';
+
+export const pillarProducer: Producer = async ({ now, store }): Promise<ProducerResult> => {
   const network = activeNetwork();
   const session = readSession(now);
   const opts = { intervalSeconds: INTERVAL };
+
+  // What the last filing said the book looked like, so this run can tell
+  // whether it has anything new to say. Unreadable is treated as unknown,
+  // which means file: repeating a filing is a smaller fault than going quiet
+  // on a change nobody could compare.
+  const priorShape = await store.snapshots(SHAPE_KEY);
+  const prior = priorShape.state === 'UNREAD' ? null : (priorShape.value.find((s) => s.key === SHAPE_KEY) ?? null);
 
   // Rotate the crypto feeds by the quarter-hour so successive runs cover them.
   const slot = Math.floor(now.getTime() / (INTERVAL * 1000)) % CRYPTO_FEEDS.length;
@@ -504,6 +537,31 @@ export const pillarProducer: Producer = async ({ now }): Promise<ProducerResult>
   ].join('\n');
 
   const readings = Object.fromEntries(reads.map((r) => [r.feed.name, r.round]));
+
+  // ── is there anything new to say? ──────────────────────────────────────────
+  // The snapshot and the series were written for this run whatever the answer.
+  // A filing goes out when the shape changed, when there is no prior shape to
+  // compare with, or when the last filing is old enough that the paper should
+  // carry one anyway.
+  const shape = bookShape(equity, session, isRead(head) ? Math.round(now.getTime() / 1000 - head.value.timestamp) > HEAD_STALL_SECONDS : null);
+  const priorShapeText = prior && typeof prior.payload.shape === 'string' ? prior.payload.shape : null;
+  const priorFiledAt = prior && typeof prior.payload.filedAt === 'string' ? new Date(prior.payload.filedAt) : null;
+  const sinceFiled = priorFiledAt === null ? null : Math.round((now.getTime() - priorFiledAt.getTime()) / 1000);
+  const unchanged = priorShapeText === shape && sinceFiled !== null && sinceFiled < REFILE_SECONDS;
+
+  if (unchanged) {
+    // Keep the shape's filedAt as it was: the clock on "when did we last file" runs from the filing, not from this quiet run.
+    snapshots.push({ key: SHAPE_KEY, observedAt: now.toISOString(), payload: { shape, filedAt: priorFiledAt!.toISOString() } });
+    return {
+      publication: null,
+      sourcesReached,
+      oldestInputAt,
+      observations,
+      snapshots,
+      note: `the book is unchanged in shape since the filing ${describeAge(sinceFiled!)} ago; the snapshot and the series were updated, and nothing new was said`,
+    };
+  }
+  snapshots.push({ key: SHAPE_KEY, observedAt: now.toISOString(), payload: { shape, filedAt: now.toISOString() } });
 
   return {
     publication: {
