@@ -158,14 +158,15 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'I can read you the terms. I cannot tell you that they apply to you.',
     posture: 'MEASURES',
     intervalSeconds: 24 * HOURS,
-    sourcesExpected: 3,
-    minimumSources: 2,
+    // The register itself, and each of the five published pages it watches.
+    sourcesExpected: 6,
+    minimumSources: 1,
     refusal:
       'Quotes published issuer and jurisdiction terms with citations. Never gives legal or tax advice, and never tells anyone they are eligible.',
     reads: [
-      'Issuer terms — rights, distribution, transfer, redemption',
-      'Restricted-jurisdiction lists, as published',
-      'Documented KYC boundary for the venue',
+      'The published-terms register: which issuer pages have been read and what was recorded, with dates',
+      'Every page in the register, fetched and hashed on each run — reported as unchanged or changed, never read for meaning',
+      'Restricted-jurisdiction lists and the documented KYC boundary, as published and linked',
     ],
   },
   {
