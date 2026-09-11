@@ -42,6 +42,8 @@ export function deriveConditions(input: {
   readonly lastRegistrar: PublicationRecord | null;
   /** The 'chain:head' snapshot, when the store has one. */
   readonly headSnapshot?: SnapshotRecord | null;
+  /** The 'capture:drift' snapshot, when the Registrar has written one. */
+  readonly driftSnapshot?: SnapshotRecord | null;
   readonly now: Date;
 }): Condition[] {
   const out: Condition[] = [];
@@ -86,6 +88,28 @@ export function deriveConditions(input: {
       if (row.pastHeartbeat === true && row.sessionAtSample === 'REGULAR') {
         out.push({ id: `feed:${row.key}:STALE_IN_SESSION`, severity: 'STALE', text: `${row.label}: past its published heartbeat while the exchange was open` });
       }
+    }
+  }
+
+  // The capture against the world, as the Registrar last checked it. A token
+  // whose contract moved is the capture pointing at the wrong contract: dark.
+  // Tokens or feeds added or removed are a re-capture owed: a note.
+  const drift = input.driftSnapshot;
+  if (drift) {
+    const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+    const moved = list(drift.payload.tokensMoved);
+    const tokensAdded = list(drift.payload.tokensAdded);
+    const tokensRemoved = list(drift.payload.tokensRemoved);
+    const feedsAdded = list(drift.payload.feedsAdded);
+    const feedsRemoved = list(drift.payload.feedsRemoved);
+    if (moved.length > 0) {
+      out.push({ id: 'capture:tokens:MOVED', severity: 'DARK', text: `the capture points at the wrong contract for ${moved.join(', ')}: the issuer's registry names a different address for the same entry — re-capture` });
+    }
+    if (tokensAdded.length > 0 || tokensRemoved.length > 0) {
+      out.push({ id: 'capture:tokens:DRIFT', severity: 'NOTE', text: `the issuer's registry no longer matches the capture — added: ${tokensAdded.join(', ') || 'none'}; removed: ${tokensRemoved.join(', ') || 'none'} — re-capture with scripts/capture-stock-tokens.ts` });
+    }
+    if (feedsAdded.length > 0 || feedsRemoved.length > 0) {
+      out.push({ id: 'capture:feeds:DRIFT', severity: 'NOTE', text: `the vendor's feed directory no longer matches the capture — added: ${feedsAdded.join(', ') || 'none'}; removed: ${feedsRemoved.join(', ') || 'none'} — re-capture with scripts/capture-feeds.ts` });
     }
   }
 
@@ -176,12 +200,13 @@ export interface AlertRun {
  * than being marked as sent.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state, head] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head, drift] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
     store.snapshots(ALERT_STATE_KEY),
     store.snapshots('chain:head'),
+    store.snapshots('capture:drift'),
   ]);
 
   const current = deriveConditions({
@@ -190,6 +215,7 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: head.state === 'UNREAD' ? null : (head.value.find((s) => s.key === 'chain:head') ?? null),
+    driftSnapshot: drift.state === 'UNREAD' ? null : (drift.value.find((s) => s.key === 'capture:drift') ?? null),
     now,
   });
 

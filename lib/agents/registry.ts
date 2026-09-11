@@ -58,9 +58,10 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'I do not decide what it is. I tell you what the chain says about it.',
     posture: 'MEASURES',
     intervalSeconds: 24 * HOURS,
-    // Five groups: the stock-token beacon, then code, metadata, supply and
-    // proxy shape for the one contract under audit this run.
-    sourcesExpected: 5,
+    // Seven groups: the stock-token beacon; code, metadata, supply and proxy
+    // shape for the one contract under audit; and the issuer's live registry
+    // and the vendor's live directory, each checked against its capture.
+    sourcesExpected: 7,
     minimumSources: 3,
     refusal:
       'Reports what was found. Never says a token is backed, safe, or a scam — in either direction.',
@@ -70,6 +71,7 @@ export const AGENTS: readonly AgentSpec[] = [
       'Proxy shape: implementation, admin and beacon slots, against the recorded tripwire',
       'Pause, freeze and transfer-restriction state',
       'Decimals, total supply, issuer metadata',
+      'The issuer registry and the vendor feed directory as published today, against the captured copies — what was added, removed or moved since capture',
     ],
   },
   {

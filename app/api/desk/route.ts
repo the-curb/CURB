@@ -17,8 +17,20 @@ export const maxDuration = 60;
  *
  * It still travels the full pipeline. Being asked for is not a reason to skip a
  * gate, so provenance and policy run exactly as they do on a scheduled agent.
+ *
+ * And the asking is a write: a run leaves a heartbeat and may leave a filing.
+ * So it is protected the way the tick is — the same bearer secret, POST in
+ * production — because a public GET that publishes is a wire anyone can fill.
  */
-export async function GET(request: Request): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  const secret = process.env.CURB_TICK_SECRET;
+  if (secret) {
+    const offered = request.headers.get('authorization');
+    if (offered !== `Bearer ${secret}`) {
+      return Response.json({ error: 'unauthorized' }, { status: 401 });
+    }
+  }
+
   const spec = AGENT_BY_ID.surveyor;
   const producer = PRODUCERS.surveyor;
 
@@ -62,4 +74,12 @@ export async function GET(request: Request): Promise<Response> {
     },
     { headers: { 'cache-control': 'no-store' } },
   );
+}
+
+/** Convenience for local development only; production should POST with the secret. */
+export async function GET(request: Request): Promise<Response> {
+  if (process.env.NODE_ENV === 'production') {
+    return Response.json({ error: 'use POST' }, { status: 405 });
+  }
+  return POST(request);
 }

@@ -78,11 +78,17 @@ Done once.
    `state` must be `READ`. If it is `STORE_UNREADABLE` the connection string is
    wrong or the pooler is unreachable; the `reason` field says which.
 
-4. Confirm the tick is protected:
+4. Confirm the tick and the desk are protected — both write, both take the
+   same secret:
 
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<deployment>/api/tick
    # 401 — no secret, no run
+   ```
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<deployment>/api/desk
+   # 401 — the Surveyor runs on request, and the request carries the secret
    ```
 
 ## 3. Scheduler — GitHub Actions
@@ -142,10 +148,14 @@ verified on chain when they were written:
   registry (194 at capture), each with the symbol, name, multiplier, beacon and
   code hash the chain answered, and the one shared beacon they all delegate to.
 
-When either source changes — a new feed, a new token, a re-pointed proxy — the
-Pillar and the Registrar will say so in their filings (identity drift, a beacon
-implementation that differs from the recorded one). The fix is a re-capture,
-not a hand edit:
+When either source changes, the system says so rather than drifting quietly.
+The Registrar fetches both live sources once a day and diffs them against the
+captures — tokens or feeds added, removed, or moved to another contract — in a
+"THE CAPTURE, AGAINST THE WORLD" block, and the difference is an alert
+condition (`capture:tokens:DRIFT`, `capture:feeds:DRIFT`, and
+`capture:tokens:MOVED` when the capture points at the wrong contract). The
+Pillar and the Registrar also catch a re-pointed proxy or a changed beacon on
+chain. The fix is a re-capture, not a hand edit:
 
 ```bash
 node --env-file-if-exists=.env.local scripts/capture-feeds.ts

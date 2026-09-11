@@ -34,7 +34,10 @@ import {
 import { decodeAddressWord, formatUnits } from '../../chain/abi.ts';
 import { keccak256, selector, toHex } from '../../chain/keccak.ts';
 import { TOKENS, UNKNOWABLE_FROM_CHAIN } from '../../chain/tokens.ts';
-import { STOCK_TOKENS, STOCK_TOKEN_BEACON } from '../../chain/stock-tokens.ts';
+import { STOCK_TOKENS, STOCK_TOKEN_BEACON, STOCK_TOKENS_SOURCE } from '../../chain/stock-tokens.ts';
+import { FEED_DIRECTORY_SOURCE } from '../../chain/feed-directory.ts';
+import { diffFeeds, diffTokens, fetchListedFeeds, fetchListedTokens } from '../../chain/capture-drift.ts';
+import type { SnapshotRecord } from '../../store/types.ts';
 
 const INTERVAL = 24 * 3600;
 
@@ -126,6 +129,8 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
     readOwner(subject.address, opts),
     rpcCall<string>('eth_call', [{ to: STOCK_TOKEN_BEACON.address, data: IMPLEMENTATION_SELECTOR }, 'latest'], opts),
   ]);
+  // The two live sources the captures came from, for the drift check below.
+  const [listedTokens, listedFeeds] = await Promise.all([fetchListedTokens(INTERVAL), fetchListedFeeds(INTERVAL)]);
   // The implementation's code, hashed, so a beacon that still names the same
   // address but has different bytes behind it is caught as well.
   const beaconImplAddress = isRead(beaconImpl) ? decodeAddressWord(beaconImpl.value) : null;
@@ -136,7 +141,9 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
   const checked: string[] = [];
   const couldNotCheck: string[] = [];
 
-  // Five source groups, matching the Registrar's declared sourcesExpected.
+  // Seven source groups, matching the Registrar's declared sourcesExpected: the
+  // beacon, code, metadata, supply and proxy shape of the contract under
+  // audit, then the two live sources the captures are checked against.
   let sourcesReached = 0;
   let oldestInputAt: Date | null = null;
   const note = (reading: Reading<unknown>) => {
@@ -297,10 +304,56 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
     return { publication: null, sourcesReached, oldestInputAt };
   }
 
+  // ── groups 6 and 7: has the world moved on from the capture? ──────────────
+  const capture: string[] = [];
+  const snapshots: SnapshotRecord[] = [];
+  const literals = new Set<string>(['1967']);
+  const literal = (n: number) => {
+    literals.add(String(n));
+    return String(n);
+  };
+  const driftPayload: Record<string, unknown> = { checkedAt: now.toISOString() };
+  if (isRead(listedTokens)) {
+    sourcesReached += 1;
+    note(listedTokens);
+    const drift = diffTokens(listedTokens.value);
+    figures.push({ token: String(drift.listed), source: STOCK_TOKENS_SOURCE.url, retrievedAt: listedTokens.retrievedAt });
+    Object.assign(driftPayload, { tokensListed: drift.listed, tokensAdded: drift.added.map((t) => t.ticker), tokensRemoved: drift.removed.map((t) => t.ticker), tokensMoved: drift.moved.map((t) => t.ticker) });
+    const clean = drift.added.length === 0 && drift.removed.length === 0 && drift.moved.length === 0;
+    capture.push(
+      clean
+        ? `— The issuer's registry lists ${drift.listed} stock tokens on this chain today and this system's capture holds ${literal(drift.captured)}: the same set, nothing added, nothing removed, no contract moved.`
+        : `— The issuer's registry lists ${drift.listed} stock tokens on this chain today; this system's capture holds ${literal(drift.captured)}.${drift.added.length > 0 ? ` Listed and NOT captured (${literal(drift.added.length)}): ${drift.added.map((t) => t.ticker).join(', ')} — no agent reads them until the registry is re-captured.` : ''}${drift.removed.length > 0 ? ` Captured and no longer listed (${literal(drift.removed.length)}): ${drift.removed.map((t) => t.ticker).join(', ')} — still read, and every filing about them describes a token the issuer has delisted.` : ''}${drift.moved.length > 0 ? ` Same registry entry, different contract (${literal(drift.moved.length)}): ${drift.moved.map((t) => t.ticker).join(', ')} — the capture points at the wrong contract for these.` : ''} The remedy is scripts/capture-stock-tokens.ts, not a hand edit.`,
+    );
+  } else {
+    couldNotCheck.push(whyUnread(listedTokens, "the issuer's live asset registry") + ' Whether tokens were added or removed since capture is not known.');
+  }
+  if (isRead(listedFeeds)) {
+    sourcesReached += 1;
+    note(listedFeeds);
+    const drift = diffFeeds(listedFeeds.value);
+    figures.push({ token: String(drift.listed), source: FEED_DIRECTORY_SOURCE.url, retrievedAt: listedFeeds.retrievedAt });
+    Object.assign(driftPayload, { feedsListed: drift.listed, feedsAdded: drift.added.map((f) => f.name), feedsRemoved: drift.removed.map((f) => f.name) });
+    const clean = drift.added.length === 0 && drift.removed.length === 0;
+    capture.push(
+      clean
+        ? `— The vendor's feed directory lists ${drift.listed} feeds for this network today and the capture holds ${literal(drift.captured)}: the same set.`
+        : `— The vendor's feed directory lists ${drift.listed} feeds for this network today; the capture holds ${literal(drift.captured)}.${drift.added.length > 0 ? ` Listed and NOT captured (${literal(drift.added.length)}): ${drift.added.map((f) => f.name).join(', ')} — not priced here until re-captured.` : ''}${drift.removed.length > 0 ? ` Captured and no longer listed (${literal(drift.removed.length)}): ${drift.removed.map((f) => f.name).join(', ')} — still read; the vendor no longer lists them.` : ''} The remedy is scripts/capture-feeds.ts.`,
+    );
+  } else {
+    couldNotCheck.push(whyUnread(listedFeeds, "the vendor's live feed directory") + ' Whether feeds were added or removed since capture is not known.');
+  }
+  snapshots.push({ key: 'capture:drift', observedAt: now.toISOString(), payload: driftPayload });
+
   const rotationCount = String(AUDIT_ROTATION.length);
+  literals.add(rotationCount);
+  literals.add(String(AUDIT_ROTATION.length - 1));
   const body = [
     'CHECKED',
     ...checked,
+    '',
+    'THE CAPTURE, AGAINST THE WORLD',
+    ...capture,
     '',
     'COULD NOT BE CHECKED',
     ...(couldNotCheck.length > 0
@@ -324,9 +377,10 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
         'beacon implementation': beaconImpl,
       },
       // Standard numbers and counts of our own things, not measurements.
-      allowedLiterals: ['1967', rotationCount, String(AUDIT_ROTATION.length - 1)],
+      allowedLiterals: [...literals],
     },
     sourcesReached,
     oldestInputAt,
+    snapshots,
   };
 };

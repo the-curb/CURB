@@ -12,12 +12,13 @@ import { deriveConditions } from '@/lib/ops/alerts';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots] = await Promise.all([
+  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots, driftSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
     store.snapshots('chain:head'),
+    store.snapshots('capture:drift'),
   ]);
 
   // A store that will not answer is its own response. Serving an empty roster
@@ -47,6 +48,7 @@ export async function GET(): Promise<Response> {
     feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null),
+    driftSnapshot: driftSnapshots.state === 'UNREAD' ? null : (driftSnapshots.value.find((s) => s.key === 'capture:drift') ?? null),
     now,
   });
   const head = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null);
