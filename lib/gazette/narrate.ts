@@ -266,12 +266,37 @@ export type NarrateDayResult =
  * gets narrated again, because the old prose was about a different edition.
  * Called from the scheduler after the agents run, for yesterday.
  */
+/**
+ * How long after a day closes its record is still treated as moving. A tick
+ * that straddles midnight files its last rows minutes into the next day; two
+ * hours is far past that. After it, a narration that exists stands without
+ * recomposing the day — reading a full day's record every five minutes to
+ * confirm nothing changed is a cost with no corresponding fact.
+ */
+export const SETTLE_SECONDS = 2 * 3600;
+
+export function daySettledAt(day: string): Date {
+  return new Date(Date.parse(`${day}T00:00:00.000Z`) + 24 * 3600 * 1000 + SETTLE_SECONDS * 1000);
+}
+
 export async function narrateClosedDay(
   store: Store,
   day: string,
   now: Date = new Date(),
   opts: NarrateOptions = {},
 ): Promise<NarrateDayResult> {
+  // The cheap check first: a narration that already stands for a settled day
+  // is left alone without reading the day back. Inside the settling window
+  // the full comparison below still runs, so a late row is still caught.
+  if (now.getTime() >= daySettledAt(day).getTime()) {
+    const settled = await store.narration(day);
+    if (settled.state === 'VERIFIED' && settled.value !== null) {
+      if (settled.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) {
+        return { state: 'ALREADY_DONE', day };
+      }
+    }
+  }
+
   const record = await store.dayRecord(day);
   if (record.state === 'UNREAD') {
     return { state: 'RECORD_UNREADABLE', day, reason: record.reason };

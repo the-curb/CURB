@@ -4,11 +4,13 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { composeEdition } from '../lib/gazette/edition.ts';
 import {
   buildNarrationPrompt,
+  daySettledAt,
   editionHash,
+  narrateClosedDay,
   narrateEdition,
   type NarrationClient,
 } from '../lib/gazette/narrate.ts';
-import type { DayRecord } from '../lib/store/types.ts';
+import type { DayRecord, NarrationRecord, Store } from '../lib/store/types.ts';
 
 /**
  * The narrator is tested without a network and without a key. What is under
@@ -201,6 +203,74 @@ describe('outcomes', () => {
     } finally {
       if (saved.key !== undefined) process.env.ANTHROPIC_API_KEY = saved.key;
       if (saved.token !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = saved.token;
+    }
+  });
+});
+
+describe('narrateClosedDay, once the day has settled', () => {
+  /**
+   * Only the three store methods the function touches. The cast is the test
+   * admitting it is a fake; the assertion is on how many times the day record
+   * is read, which is the whole point of the settling rule.
+   */
+  function storeWith(existing: NarrationRecord | null) {
+    const calls = { dayRecord: 0, narration: 0, writes: 0 };
+    const store = {
+      async narration() {
+        calls.narration += 1;
+        return { state: 'VERIFIED', value: existing, source: 'fake', retrievedAt: LATER.toISOString(), ageSeconds: 0, intervalSeconds: 60 };
+      },
+      async dayRecord() {
+        calls.dayRecord += 1;
+        return { state: 'VERIFIED', value: record, source: 'fake', retrievedAt: LATER.toISOString(), ageSeconds: 0, intervalSeconds: 60 };
+      },
+      async writeNarration() {
+        calls.writes += 1;
+        return { state: 'WRITTEN' };
+      },
+    } as unknown as Store;
+    return { store, calls };
+  }
+  const narrated: NarrationRecord = { day: DAY, editionHash: editionHash(closed), outcome: 'NARRATED', standfirst: 'x', model: 'm', detail: null, generatedAt: `${DAY}T23:59:00.000Z` };
+
+  it('leaves an existing narration alone without reading the day back', async () => {
+    const { store, calls } = storeWith(narrated);
+    const after = new Date(daySettledAt(DAY).getTime() + 60_000);
+    const r = await narrateClosedDay(store, DAY, after, { client: scripted('would be new prose') });
+    assert.equal(r.state, 'ALREADY_DONE');
+    assert.equal(calls.dayRecord, 0);
+    assert.equal(calls.writes, 0);
+  });
+
+  it('still recomposes and compares inside the settling window', async () => {
+    const { store, calls } = storeWith(narrated);
+    const before = new Date(daySettledAt(DAY).getTime() - 60_000);
+    const r = await narrateClosedDay(store, DAY, before, { client: scripted('would be new prose') });
+    assert.equal(r.state, 'ALREADY_DONE'); // same hash: nothing to redo
+    assert.equal(calls.dayRecord, 1);
+  });
+
+  it('narrates a settled day that was never narrated', async () => {
+    const { store, calls } = storeWith(null);
+    const after = new Date(daySettledAt(DAY).getTime() + 60_000);
+    const r = await narrateClosedDay(store, DAY, after, { client: scripted('One agent filed. LINK / USD read 11.43, updated 61m ago.') });
+    assert.equal(r.state, 'ATTEMPTED');
+    assert.equal(calls.dayRecord, 1);
+    assert.equal(calls.writes, 1);
+  });
+
+  it('retries a settled day recorded as not configured once a client is available', async () => {
+    const { store, calls } = storeWith({ ...narrated, outcome: 'NOT_CONFIGURED', standfirst: null, model: null, detail: 'no ANTHROPIC_API_KEY' });
+    const after = new Date(daySettledAt(DAY).getTime() + 60_000);
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key-for-configured-check';
+    try {
+      const r = await narrateClosedDay(store, DAY, after, { client: scripted('One agent filed.') });
+      assert.equal(r.state, 'ATTEMPTED');
+      assert.equal(calls.writes, 1);
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
     }
   });
 });
