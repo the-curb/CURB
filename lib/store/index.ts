@@ -18,8 +18,31 @@ let singleton: Store | null = null;
 
 export type StoreKind = 'postgres' | 'filesystem';
 
+/**
+ * Placeholders from `.env.local.example`, left in by a copy that was never
+ * filled in.
+ *
+ * This check exists because copying the example used to be enough to switch the
+ * whole system onto a database that does not resolve. Every read then came back
+ * UNREAD with a DNS error — correct behaviour, and a miserable way to find out
+ * that a file needed editing. A half-configured template is a configuration
+ * error, and it is named as one here rather than becoming a runtime mystery.
+ */
+const PLACEHOLDER = /PROJECTREF|:PASSWORD@|aws-0-REGION\./;
+
 export function selectedStoreKind(): StoreKind {
-  return process.env.CURB_POSTGRES_URL ? 'postgres' : 'filesystem';
+  const url = process.env.CURB_POSTGRES_URL;
+  if (!url || url.trim() === '') return 'filesystem';
+
+  if (PLACEHOLDER.test(url)) {
+    throw new Error(
+      'CURB_POSTGRES_URL still contains the placeholders from .env.local.example. ' +
+        'Replace it with a real connection string, or comment the line out to use the ' +
+        'filesystem store. It is not treated as unset, because a store silently ' +
+        'switching back would be worse than this message.',
+    );
+  }
+  return 'postgres';
 }
 
 export async function getStoreAsync(): Promise<Store> {

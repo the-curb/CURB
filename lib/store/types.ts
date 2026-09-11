@@ -160,6 +160,16 @@ export interface Store {
   /** Oldest first, so the series is ready to compute over. */
   observations(key: string, limit: number): Promise<Reading<readonly ObservationRecord[]>>;
 
+  /**
+   * Remove observations taken before the cutoff, and report how many went.
+   *
+   * The count is returned as a Reading rather than a number because a prune we
+   * could not confirm is not a prune of zero. An operator who is told "0 removed"
+   * when the delete never ran will not go looking, which is how a table grows
+   * quietly until it is the problem.
+   */
+  pruneObservations(before: Date): Promise<Reading<number>>;
+
   writeBlock(record: BlockRecord): Promise<WriteOutcome>;
   recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>>;
 }

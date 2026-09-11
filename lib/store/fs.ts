@@ -267,6 +267,38 @@ export class FileSystemStore implements Store {
     };
   }
 
+  /**
+   * Rewrites the log without the expired rows.
+   *
+   * This is the one operation that breaks the append-only property, because
+   * pruning inherently does. It writes a replacement alongside and renames over
+   * the original, so a crash mid-write leaves the old log intact rather than a
+   * half-written one — losing a prune is recoverable, losing the series is not.
+   */
+  async pruneObservations(before: Date): Promise<Reading<number>> {
+    const all = await readAll<ObservationRecord>(this.dir, FILES.observations);
+    if (all.state === 'UNREAD') return all;
+
+    const cutoff = before.getTime();
+    const kept = all.value.filter((r) => new Date(r.observedAt).getTime() >= cutoff);
+    const removed = all.value.length - kept.length;
+    if (removed === 0) return readNow(0, `${SOURCE} · ${FILES.observations}`);
+
+    const target = path.join(this.dir, FILES.observations);
+    const staging = `${target}.pruning`;
+    try {
+      await fs.writeFile(staging, kept.map((r) => `${JSON.stringify(r)}\n`).join(''), 'utf8');
+      await fs.rename(staging, target);
+      return readNow(removed, `${SOURCE} · ${FILES.observations}`);
+    } catch (cause) {
+      await fs.rm(staging, { force: true }).catch(() => {});
+      return unread('SOURCE_UNREACHABLE', {
+        source: `${SOURCE} · ${FILES.observations}`,
+        detail: `prune failed, the log is unchanged: ${failureReason(cause)}`,
+      });
+    }
+  }
+
   async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
     return append(this.dir, FILES.blocks, [record]);
   }

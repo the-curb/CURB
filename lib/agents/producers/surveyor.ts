@@ -20,6 +20,7 @@ import type { ObservationRecord } from '../../store/types.ts';
 import { describeAge } from '../../doctrine/reading.ts';
 import { FEEDS } from '../../chain/feeds.ts';
 import { MINIMUMS, readStructure } from '../../market/structure.ts';
+import { describeRetention, OBSERVATION_RETENTION_DAYS } from '../../store/retention.ts';
 
 const SHORT_WINDOW = 24;
 const LONG_WINDOW = 120;
@@ -180,6 +181,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
     '',
     'WHAT THIS IS NOT',
     '— These are our own samples of a price feed, taken when the Pillar ran. They are not exchange daily closes, and a figure computed from them describes the feed, not the underlying session.',
+    `— ${describeRetention()}`,
     '— No entry, no stop, no target. This is a measurement method, not a trading method: it contains no rule for sizing a position and nothing here allocates capital.',
   ].join('\n');
 
@@ -189,7 +191,12 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
       body,
       figures,
       // 14 in "RSI(14)" names the index, and the minimums name our own rules.
-      allowedLiterals: ['14', String(MINIMUMS.volatility), String(MINIMUMS.trend)],
+      allowedLiterals: [
+        '14',
+        String(MINIMUMS.volatility),
+        String(MINIMUMS.trend),
+        String(OBSERVATION_RETENTION_DAYS),
+      ],
     },
     sourcesReached: 1,
     oldestInputAt,

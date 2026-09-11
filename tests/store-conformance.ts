@@ -197,6 +197,57 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('retention', () => {
+      const series = [
+        { key: 'eth-usd', observedAt: '2026-01-01T00:00:00.000Z', value: 1, source: 's' },
+        { key: 'eth-usd', observedAt: '2026-06-01T00:00:00.000Z', value: 2, source: 's' },
+        { key: 'eth-usd', observedAt: '2026-09-01T00:00:00.000Z', value: 3, source: 's' },
+      ];
+
+      it('removes only what is older than the cutoff', async () => {
+        await store.writeObservations(series);
+        const pruned = await store.pruneObservations(new Date('2026-05-01T00:00:00.000Z'));
+        assert.equal(pruned.state, 'VERIFIED');
+        assert.equal(pruned.state === 'VERIFIED' ? pruned.value : -1, 1);
+
+        const left = await store.observations('eth-usd', 10);
+        assert.deepEqual(
+          left.state === 'VERIFIED' ? left.value.map((r) => r.value) : null,
+          [2, 3],
+        );
+      });
+
+      it('reports a count, and reports zero as a real zero', async () => {
+        await store.writeObservations(series);
+        const pruned = await store.pruneObservations(new Date('2025-01-01T00:00:00.000Z'));
+        assert.equal(pruned.state === 'VERIFIED' ? pruned.value : -1, 0);
+        const left = await store.observations('eth-usd', 10);
+        assert.equal(left.state === 'VERIFIED' ? left.value.length : -1, 3);
+      });
+
+      it('prunes across every key, not just one', async () => {
+        await store.writeObservations([
+          ...series,
+          { key: 'btc-usd', observedAt: '2026-01-01T00:00:00.000Z', value: 9, source: 's' },
+        ]);
+        const pruned = await store.pruneObservations(new Date('2026-05-01T00:00:00.000Z'));
+        assert.equal(pruned.state === 'VERIFIED' ? pruned.value : -1, 2);
+      });
+
+      it('leaves other records untouched', async () => {
+        // Publications are the product and blocks are the evidence; neither has
+        // a horizon, and a prune that took them would be deleting the record.
+        const pub = publication('77777777-7777-4777-8777-777777777777', '2026-01-01T00:00:00.000Z');
+        await store.publishAtomically(pub, heartbeat('2026-01-01T00:00:00.000Z'));
+        await store.writeObservations(series);
+
+        await store.pruneObservations(new Date('2026-05-01T00:00:00.000Z'));
+
+        const pubs = await store.recentPublications(5);
+        assert.equal(pubs.state === 'VERIFIED' ? pubs.value.length : -1, 1);
+      });
+    });
+
     describe('blocked outputs', () => {
       it('keeps the text and the breaches in full', async () => {
         await store.writeBlock({

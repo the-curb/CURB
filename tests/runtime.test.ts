@@ -104,6 +104,17 @@ class MemoryStore implements Store {
       this.observed.filter((o) => o.key === key).slice(-limit),
     );
   }
+  async pruneObservations(before: Date): Promise<Reading<number>> {
+    if (this.readsFail) {
+      return unread('SOURCE_UNREACHABLE', { source: 'memory', detail: 'simulated outage' });
+    }
+    const cutoff = before.getTime();
+    const kept = this.observed.filter((o) => new Date(o.observedAt).getTime() >= cutoff);
+    const removed = this.observed.length - kept.length;
+    this.observed = kept;
+    return readNow(removed, 'memory store');
+  }
+
   async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
     const outcome = this.write();
     if (outcome.state === 'WRITTEN') this.blocks.push(record);

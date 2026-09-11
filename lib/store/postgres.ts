@@ -392,6 +392,22 @@ export class PostgresStore implements Store {
     }
   }
 
+  /**
+   * Deletes expired observations and reports the count the database actually
+   * removed, not the count we expected it to.
+   */
+  async pruneObservations(before: Date): Promise<Reading<number>> {
+    try {
+      const removed = await this.sql`
+        delete from observations where observed_at < ${before.toISOString()} returning id
+      `;
+      return readNow(removed.length, `${SOURCE} · observations`);
+    } catch (cause) {
+      // A prune we could not confirm is not a prune of zero.
+      return unreadable('observations prune', cause);
+    }
+  }
+
   async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
     try {
       await this.sql`
