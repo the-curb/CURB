@@ -58,4 +58,7 @@ jobs:
             console.log("lock :", t.lock?.state, t.lock?.renewalFault ? "RENEWAL FAULT: "+t.lock.renewalFault : "");
             for (const r of t.ran) console.log(" ", r.agentId.padEnd(10), r.outcome.padEnd(22), JSON.stringify(r.storage));
             if (t.undetermined?.length) { console.log("UNDETERMINED:", JSON.stringify(t.undetermined)); process.exitCode = 1; }
+            if (t.alerts) console.log("alerts:", t.alerts.delivery.state, "raised", t.alerts.raised.length, "cleared", t.alerts.cleared.length, "active", t.alerts.active.length);
+            if (t.retention) console.log("retention:", t.retention.state, t.retention.removed ?? "");
+            if (t.narration && t.narration.state === "ATTEMPTED") console.log("narration:", t.narration.record.outcome, t.narration.record.detail ?? "");
           '

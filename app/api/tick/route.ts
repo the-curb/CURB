@@ -6,6 +6,11 @@ import { runAlerts } from '@/lib/ops/alerts';
 import { maintainRetention } from '@/lib/ops/maintenance';
 
 /**
+ * A tick with the Tally, the Archivist and a narration due together runs thirty to forty seconds; the platform default of ten would kill it mid-run with the lock held and half the records written. The run lock TTL is 120 s, so a run that does overrun this limit is released within two minutes rather than never.
+ */
+export const maxDuration = 60;
+
+/**
  * The scheduler's entry point.
  *
  * It is triggered from outside the hosting platform on purpose: a schedule that

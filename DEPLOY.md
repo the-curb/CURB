@@ -16,12 +16,24 @@ reason; do not remove it.
 
 ```
 Route (app)
-┌ ƒ /              ← must be ƒ
+┌ ƒ /              ← must be ƒ, and so must every other route
+├ ƒ /agents
 ├ ƒ /api/desk
+├ ƒ /api/floor      the Floor board as data
+├ ƒ /api/registry   the Registry roll as data
 ├ ƒ /api/session
-├ ƒ /api/state
-└ ƒ /api/tick
+├ ƒ /api/state      the operator's page
+├ ƒ /api/tick
+├ ƒ /doctrine
+├ ƒ /gazette
+└ ƒ /registry
 ```
+
+`/api/tick` and `/api/desk` declare `maxDuration = 60`. A tick with the Tally,
+the Archivist and a narration due together runs thirty to forty seconds, and a
+platform default of ten would kill it mid-run with the lock held. Sixty is
+within the Hobby plan's ceiling; the run lock's 120-second TTL is what frees a
+run that overruns even that.
 
 ## 1. Store — Supabase
 

@@ -4,6 +4,11 @@ import { runAgent } from '@/lib/agents/runtime';
 import { getStoreAsync } from '@/lib/store';
 
 /**
+ * The Surveyor reads a series per feed before it measures; give it the same room as a tick.
+ */
+export const maxDuration = 60;
+
+/**
  * The desk — an on-request agent, answered here.
  *
  * The Surveyor declares no interval. It is never due, never scheduled, and never
