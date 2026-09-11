@@ -3,6 +3,7 @@ import { bellProducer } from './bell.ts';
 import { registrarProducer } from './registrar.ts';
 import { pillarProducer } from './pillar.ts';
 import { surveyorProducer } from './surveyor.ts';
+import { wardenProducer } from './warden.ts';
 
 /**
  * The producers that exist. An agent absent from this table is described in the
@@ -14,4 +15,5 @@ export const PRODUCERS: ProducerTable = {
   registrar: registrarProducer,
   pillar: pillarProducer,
   surveyor: surveyorProducer,
+  warden: wardenProducer,
 };
