@@ -72,7 +72,17 @@ export function buildSql(url: string, options: SqlOptions = {}): Sql {
     // A transaction pooler hands back a different session each time, so a
     // prepared statement cached against the last one is not there any more.
     prepare: false,
-    max: Number(process.env.CURB_POSTGRES_MAX ?? 3),
+    /**
+     * One connection per instance, which is the vendor's guidance for
+     * serverless and not a conservative guess.
+     *
+     * The pool is per warm instance, and the number of warm instances is not
+     * something this process controls — so a pool of three is three connections
+     * multiplied by however many instances happen to exist, and a few dozen of
+     * those exhausts the database. Raise it only with evidence that concurrent
+     * invocations on one instance are queuing.
+     */
+    max: Number(process.env.CURB_POSTGRES_MAX ?? 1),
     idle_timeout: 20,
     connect_timeout: 15,
     ...(declaresSsl ? {} : { ssl: 'require' as const }),
