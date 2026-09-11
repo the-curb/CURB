@@ -2,6 +2,8 @@ import { PRODUCERS } from '@/lib/agents/producers';
 import { tick } from '@/lib/agents/runtime';
 import { describeStore, getStoreAsync } from '@/lib/store';
 import { narrateClosedDay, yesterdayOf } from '@/lib/gazette/narrate';
+import { runAlerts } from '@/lib/ops/alerts';
+import { maintainRetention } from '@/lib/ops/maintenance';
 
 /**
  * The scheduler's entry point.
@@ -30,6 +32,12 @@ export async function POST(request: Request): Promise<Response> {
   // Yesterday's edition is closed and stable; narrate it once. A dry run does
   // not, because a narration is a write. Never today: its record is still moving.
   const narration = dryRun ? null : await narrateClosedDay(store, yesterdayOf(new Date()));
+
+  // Operations ride on the same tick: what changed that a person should know,
+  // and the once-a-day prune. Neither runs on a rehearsal, because both write.
+  const now = new Date();
+  const alerts = dryRun ? null : await runAlerts(store, now);
+  const retention = dryRun ? null : await maintainRetention(store, now);
 
   return Response.json(
     {
@@ -68,6 +76,14 @@ export async function POST(request: Request): Promise<Response> {
        * ATTEMPTED carries the outcome, including a refusal or a policy block.
        */
       narration,
+      /**
+       * Conditions raised and cleared since the last tick, and whether a human
+       * was told. NOT_CONFIGURED is reported, not silent: an operator who
+       * believes they would be paged can see here that they would not.
+       */
+      alerts,
+      /** The once-a-day prune: done today already, done now, or not confirmed. */
+      retention,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

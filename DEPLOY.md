@@ -35,7 +35,7 @@ Done once.
 
    ```bash
    npm run db:migrate     # applies lib/store/schema.sql, idempotent
-   npm run verify:store   # 54 assertions in a schema of their own; must be 54/54
+   npm run verify:store   # the store contract in a schema of its own; every case must pass
    ```
 
    The verification creates and drops `curb_conformance`; it never touches
@@ -51,6 +51,7 @@ Done once.
    | `CURB_POSTGRES_URL` | the transaction-pooler string from step 1 |
    | `CURB_TICK_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
    | `CURB_NETWORK` | `robinhood-mainnet` (the default; set it anyway so it is visible) |
+   | `CURB_ALERT_WEBHOOK` | optional — a Discord or Slack incoming-webhook URL; see Alerting below |
 
    Do **not** set `CURB_DNS_OVER_HTTPS` on Vercel. It exists for a local network
    whose resolver hijacks the RPC hostname. Vercel's does not, and the plain
@@ -137,11 +138,34 @@ Each is a dry run that prints what changed and writes nothing. Add `--write` to
 regenerate the module, read the diff, and commit it. A capture that cannot
 verify every entry on chain refuses to write.
 
+## Alerting and retention
+
+Both ride on the tick, and both are reported in its response.
+
+- **Alerting.** Set `CURB_ALERT_WEBHOOK` to a Discord or Slack incoming-webhook
+  URL. After each tick the active conditions — an agent absent, degraded or
+  stale; the board's sample absent; a feed paused, drifted, or past its
+  heartbeat while the exchange was open; the stock-token beacon changed — are
+  compared with the set last delivered, and what was raised or cleared is posted
+  once. A condition that persists is not re-sent. The current set is always
+  visible at `/api/state` under `conditions`, with `alerting` saying whether a
+  webhook is configured. Unconfigured is a reported state, not a silent one.
+- **Retention.** Once a UTC day the first tick prunes observations older than
+  the horizon in `lib/store/retention.ts` and records what it removed. The
+  tick response shows `retention` as PRUNED, ALREADY_DONE, or UNCONFIRMED — the
+  last is a prune the store would not confirm, which is not a prune of zero.
+  `npm run db:prune -- --apply` still works by hand.
+
 ## What is not covered here
 
-- **The sequencer uptime feed.** Unconfigured; the Pillar reports the sequencer
-  as not checked, which is not the same as up.
-- **Alerting.** Nothing pages anyone. The signal is there in `/api/state`; the
-  wiring to a human is not.
-- **Retention.** `npm run db:prune -- --apply` is a manual operation and is not
-  scheduled. Observations are small; it can wait until it cannot.
+- **The sequencer uptime feed.** The vendor directory lists none for this
+  network. Unconfigured, the Pillar reports the sequencer as not checked, which
+  is not the same as up. If one is published, set `CURB_SEQUENCER_FEED`.
+- **Holder concentration and hourly flow totals.** The public node refuses any
+  log query matching more than ten thousand entries and this chain produces
+  hundreds of transfers a second, so the Tally measures a rate over a sample
+  of about a minute and says so. Totals and concentration need an indexer this
+  system does not have.
+- **Prices for 159 of the 194 stock tokens.** The directory lists a feed for
+  35. The rest are on the Registry roll with every measured column present and
+  no price, and nothing on the site states one for them.

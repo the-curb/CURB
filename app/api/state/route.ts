@@ -3,6 +3,7 @@ import { systemHealth } from '@/lib/agents/health';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { getStoreAsync } from '@/lib/store';
+import { deriveConditions } from '@/lib/ops/alerts';
 
 /**
  * THE WARDEN, as an endpoint. Every figure here is read back from the heartbeat
@@ -11,9 +12,11 @@ import { getStoreAsync } from '@/lib/store';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeatsRead, blocksRead] = await Promise.all([
+  const [heartbeatsRead, blocksRead, feedSnapshots, registrar] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
+    store.snapshots('feed:'),
+    store.publicationsByAgent('registrar', 1),
   ]);
 
   // A store that will not answer is its own response. Serving an empty roster
@@ -37,6 +40,12 @@ export async function GET(): Promise<Response> {
 
   const health = systemHealth(heartbeatsRead.value, now);
   const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
+  const conditions = deriveConditions({
+    heartbeats: heartbeatsRead.value,
+    feedSnapshots: feedSnapshots.state === 'UNREAD' ? null : feedSnapshots.value,
+    lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
+    now,
+  });
 
   return Response.json(
     {
@@ -51,6 +60,12 @@ export async function GET(): Promise<Response> {
       },
       policyRules: RULE_COUNT,
       counts: AGENT_COUNTS,
+      /**
+       * What a person should know right now, as the alerting derives it from
+       * the same record. Empty is a real empty: every condition was checked.
+       */
+      conditions,
+      alerting: process.env.CURB_ALERT_WEBHOOK ? 'CONFIGURED' : 'NOT_CONFIGURED',
       agents: health.statuses.map((status) => ({
         ...status,
         /** Wired means a producer exists. Described in the registry is not running. */
