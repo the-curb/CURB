@@ -90,6 +90,12 @@ export interface Observation {
   readonly parse: ParseStatus;
   readonly parsed: XstocksAsset | OndoAsset | null;
   readonly detail: string | null;
+  /** The hash this body replaced, when it replaced one. */
+  readonly previousHash?: string | null;
+  /** When the body last changed — the read that first saw the current hash. */
+  readonly changedAt?: string | null;
+  /** When this source was first archived. */
+  readonly firstSeenAt?: string | null;
 }
 
 export const EVIDENCE_PREFIX = 'evidence:';
@@ -208,12 +214,19 @@ export async function archiveEvidence(store: Store, now: Date, sources: readonly
     const prior = await store.snapshots(evidenceLatestKey(source.id));
     const priorLatest = prior.state === 'UNREAD' ? null : observationOf(prior.value.find((s) => s.key === evidenceLatestKey(source.id)));
     const version: ArchiveOutcome['version'] = observation.hash === null ? 'NONE' : priorLatest?.hash === observation.hash ? 'SAME' : 'NEW';
+    const changed = version === 'NEW' && priorLatest !== null && priorLatest.hash !== null;
+    const latest: Observation = {
+      ...observation,
+      previousHash: changed ? priorLatest.hash : (priorLatest?.previousHash ?? null),
+      changedAt: changed ? observation.readAt : (priorLatest?.changedAt ?? null),
+      firstSeenAt: priorLatest?.firstSeenAt ?? priorLatest?.readAt ?? observation.readAt,
+    };
 
     const records: SnapshotRecord[] = [
       {
         key: evidenceLatestKey(source.id),
         observedAt: observation.readAt,
-        payload: observation as unknown as Record<string, unknown>,
+        payload: latest as unknown as Record<string, unknown>,
       },
     ];
     if (version === 'NEW' && observation.hash !== null) {

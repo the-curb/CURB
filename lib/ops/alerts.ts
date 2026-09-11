@@ -44,6 +44,8 @@ export function deriveConditions(input: {
   readonly headSnapshot?: SnapshotRecord | null;
   /** The 'capture:drift' snapshot, when the Registrar has written one. */
   readonly driftSnapshot?: SnapshotRecord | null;
+  /** The position product's snapshots (`positions:` and `evidence:…:latest`), when the store has them. */
+  readonly positionSnapshots?: readonly SnapshotRecord[] | null;
   readonly now: Date;
 }): Condition[] {
   const out: Condition[] = [];
@@ -123,7 +125,80 @@ export function deriveConditions(input: {
     }
   }
 
+  out.push(...positionConditions(input.positionSnapshots ?? null, now));
+
   return out.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** How long a change in the evidence or a drift on chain stays a condition, so a person has time to read it. */
+export const CHANGE_WINDOW_SECONDS = 48 * 3600;
+
+/**
+ * The position product's conditions, from its own snapshots: a document or
+ * an issuer record that changed, a source that stopped answering, a candidate
+ * address whose code or answers moved since the last run, and a configured
+ * series held short of what it owes. A source that is refused for want of a
+ * key is the documented state, not a condition.
+ */
+export function positionConditions(snapshots: readonly SnapshotRecord[] | null, now: Date): Condition[] {
+  if (snapshots === null) return [];
+  const out: Condition[] = [];
+  const recent = (iso: unknown): boolean => typeof iso === 'string' && now.getTime() - new Date(iso).getTime() <= CHANGE_WINDOW_SECONDS * 1000;
+  const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
+
+  for (const snap of snapshots) {
+    const p = snap.payload;
+
+    if (snap.key.startsWith('evidence:') && snap.key.endsWith(':latest')) {
+      const sourceId = str(p.sourceId) ?? snap.key.slice('evidence:'.length, -':latest'.length);
+      const status = str(p.status);
+      const kind = str(p.kind);
+      if (status === 'UNREACHABLE' || status === 'HTTP_ERROR' || status === 'SCHEMA_CHANGED' || status === 'NOT_JSON') {
+        out.push({ id: `evidence:${sourceId}:${status}`, severity: 'STALE', text: `the ${kind === 'page' ? 'document' : 'issuer record'} ${sourceId} could not be read as before (${status.toLowerCase().replace('_', ' ')}${p.detail ? ` — ${String(p.detail)}` : ''})` });
+      }
+      if (status === 'ACCESS_DENIED' && process.env.CURB_ONDO_API_KEY) {
+        out.push({ id: `evidence:${sourceId}:ACCESS_DENIED`, severity: 'STALE', text: `${sourceId} refused the configured key (${String(p.detail ?? 'no detail')})` });
+      }
+      if (recent(p.changedAt) && typeof p.hash === 'string') {
+        out.push({
+          id: `evidence:${sourceId}:CHANGED:${p.hash.slice(0, 8)}`,
+          severity: 'NOTE',
+          text: kind === 'page' ? `the document ${sourceId} changed (${String(p.url)}) — a page for a person to read, not a fact this desk asserts` : `the issuer record ${sourceId} changed — its parsed fields and the chain's answers should be reviewed`,
+        });
+      }
+    }
+
+    if (snap.key.startsWith('positions:verify:')) {
+      const seriesId = str(p.seriesId) ?? snap.key.slice('positions:verify:'.length);
+      const drift = Array.isArray(p.lastDrift) ? (p.lastDrift as { address?: unknown; role?: unknown; field?: unknown; from?: unknown; to?: unknown }[]) : [];
+      if (recent(p.driftSince) && drift.length > 0) {
+        for (const d of drift) {
+          out.push({
+            id: `positions:${seriesId}:DRIFT:${String(d.address).slice(0, 10)}:${String(d.field)}`,
+            severity: d.field === 'answersAsToken' || d.field === 'codeHash' || d.field === 'asset' ? 'DARK' : 'STALE',
+            text: `candidate ${String(d.role).toLowerCase().replace('_', ' ')} ${String(d.address)} for ${seriesId}: ${String(d.field)} moved from ${String(d.from)} to ${String(d.to)} — verification to be re-reviewed; minting would be stopped`,
+          });
+        }
+      }
+    }
+
+    if (snap.key.startsWith('positions:reconcile:')) {
+      const seriesId = str(p.seriesId) ?? snap.key.slice('positions:reconcile:'.length);
+      const components = Array.isArray(p.components) ? (p.components as { component?: unknown; finding?: unknown; owed?: unknown; held?: unknown; reason?: unknown }[]) : [];
+      for (const c of components) {
+        if (c.finding === 'SHORTFALL') {
+          out.push({ id: `positions:${seriesId}:SHORTFALL:${String(c.component)}`, severity: 'DARK', text: `series ${seriesId} holds ${String(c.held)} units of ${String(c.component)} against ${String(c.owed)} owed — payment of that component is halted until resolved` });
+        } else if (c.finding === 'UNKNOWN') {
+          out.push({ id: `positions:${seriesId}:UNKNOWN:${String(c.component)}`, severity: 'STALE', text: `series ${seriesId}: the balance of ${String(c.component)} could not be read (${String(c.reason ?? 'no reason')}); owed ${String(c.owed)}` });
+        }
+      }
+      const disagreements = Array.isArray(p.disagreements) ? p.disagreements.length : 0;
+      if (disagreements > 0) {
+        out.push({ id: `positions:${seriesId}:DISAGREEMENT`, severity: 'DARK', text: `series ${seriesId}: ${disagreements} event${disagreements === 1 ? '' : 's'} on chain that the ledger model refuses — the contract and the model disagree` });
+      }
+    }
+  }
+  return out;
 }
 
 export interface Transition {
@@ -200,13 +275,15 @@ export interface AlertRun {
  * than being marked as sent.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state, head, drift] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
     store.snapshots(ALERT_STATE_KEY),
     store.snapshots('chain:head'),
     store.snapshots('capture:drift'),
+    store.snapshots('positions:'),
+    store.snapshots('evidence:'),
   ]);
 
   const current = deriveConditions({
@@ -216,6 +293,7 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: head.state === 'UNREAD' ? null : (head.value.find((s) => s.key === 'chain:head') ?? null),
     driftSnapshot: drift.state === 'UNREAD' ? null : (drift.value.find((s) => s.key === 'capture:drift') ?? null),
+    positionSnapshots: positions.state === 'UNREAD' && evidence.state === 'UNREAD' ? null : [...(positions.state === 'UNREAD' ? [] : positions.value), ...(evidence.state === 'UNREAD' ? [] : evidence.value.filter((s) => s.key.endsWith(':latest')))],
     now,
   });
 

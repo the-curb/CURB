@@ -155,6 +155,36 @@ export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, no
   };
 }
 
+export interface Drift {
+  readonly address: string;
+  readonly role: AddressRole;
+  readonly component: 'A' | 'B';
+  readonly field: 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken';
+  readonly from: string;
+  readonly to: string;
+}
+
+/** A field that moved between two runs, for every address both runs read. */
+export function driftBetween(before: readonly AddressVerification[], after: readonly AddressVerification[]): Drift[] {
+  const out: Drift[] = [];
+  for (const b of before) {
+    const a = after.find((x) => x.address === b.address && x.role === b.role);
+    if (!a) continue;
+    const fields = ['hasCode', 'codeHash', 'symbol', 'decimals', 'asset'] as const;
+    for (const field of fields) {
+      const x = b[field];
+      const y = a[field];
+      if (x.state === 'VERIFIED' && y.state === 'VERIFIED' && String(x.value) !== String(y.value)) {
+        out.push({ address: a.address, role: a.role, component: a.component, field, from: String(x.value), to: String(y.value) });
+      }
+    }
+    if (b.answersAsToken && !a.answersAsToken) {
+      out.push({ address: a.address, role: a.role, component: a.component, field: 'answersAsToken', from: 'true', to: 'false' });
+    }
+  }
+  return out;
+}
+
 export interface VerificationRun {
   readonly seriesId: string;
   readonly chainId: number;
@@ -164,6 +194,19 @@ export interface VerificationRun {
   readonly verifications: readonly AddressVerification[];
   readonly recorded: boolean;
   readonly note: string | null;
+  readonly drift: readonly Drift[];
+}
+
+export interface StoredVerification {
+  readonly seriesId: string;
+  readonly chainId: number;
+  readonly network: string;
+  readonly ranAt: string;
+  readonly verifications: readonly AddressVerification[];
+  readonly drift?: readonly Drift[];
+  readonly previousRanAt?: string | null;
+  readonly driftSince?: string | null;
+  readonly lastDrift?: readonly Drift[];
 }
 
 /** Verify every candidate the latest evidence names for a series, and record the run. */
@@ -175,10 +218,28 @@ export async function verifySeriesCandidates(store: Store, seriesId: string, now
   const verifications: AddressVerification[] = [];
   for (const candidate of candidates) verifications.push(await verifyCandidate(candidate, opts, now));
 
+  // What moved since the last run: a code hash, a symbol, decimals, the asset
+  // behind a wrapper, or an address that answered as a token and no longer
+  // does. Recorded with the run, so the conditions can name it (T15).
+  const previous = await latestVerification(store, seriesId);
+  const drift = previous.run === null ? [] : driftBetween(previous.run.verifications, verifications);
+
   const record: SnapshotRecord = {
     key: VERIFY_KEY(seriesId),
     observedAt: now.toISOString(),
-    payload: { seriesId, chainId: profile.chainId, network: profile.id, ranAt: now.toISOString(), verifications } as unknown as Record<string, unknown>,
+    payload: {
+      seriesId,
+      chainId: profile.chainId,
+      network: profile.id,
+      ranAt: now.toISOString(),
+      verifications,
+      drift,
+      previousRanAt: previous.run?.ranAt ?? null,
+      // A drift found earlier stays on the record for two days even when the
+      // next run sees nothing new, so a person has time to read it.
+      driftSince: drift.length > 0 ? now.toISOString() : previous.run?.driftSince ?? null,
+      lastDrift: drift.length > 0 ? drift : previous.run?.lastDrift ?? [],
+    } as unknown as Record<string, unknown>,
   };
   const written = await store.writeSnapshots([record]);
   return {
@@ -190,14 +251,14 @@ export async function verifySeriesCandidates(store: Store, seriesId: string, now
     verifications,
     recorded: written.state === 'WRITTEN',
     note: candidates.length === 0 ? 'no candidate address on this network in the archived evidence — nothing was read' : null,
+    drift,
   };
 }
 
-export async function latestVerification(store: Store, seriesId: string): Promise<{ run: Omit<VerificationRun, 'candidates' | 'recorded' | 'note'> | null; storeFault: string | null }> {
+export async function latestVerification(store: Store, seriesId: string): Promise<{ run: StoredVerification | null; storeFault: string | null }> {
   const read = await store.snapshots(VERIFY_KEY(seriesId));
   if (read.state === 'UNREAD') return { run: null, storeFault: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
   const snap = read.value.find((s) => s.key === VERIFY_KEY(seriesId));
   if (!snap) return { run: null, storeFault: null };
-  const p = snap.payload as unknown as { seriesId: string; chainId: number; network: string; ranAt: string; verifications: AddressVerification[] };
-  return { run: p, storeFault: null };
+  return { run: snap.payload as unknown as StoredVerification, storeFault: null };
 }

@@ -246,3 +246,90 @@ describe('the networks', () => {
     else process.env.CURB_RPC_URL_ETHEREUM = saved;
   });
 });
+
+describe('the position conditions', () => {
+  const NOW2 = new Date('2026-09-12T12:00:00.000Z');
+  const snap = (key: string, observedAt: string, payload: Record<string, unknown>) => ({ key, observedAt, payload });
+
+  it('raise a changed document for two days, and never a refusal for want of a key', async () => {
+    const { positionConditions } = await import('../lib/ops/alerts.ts');
+    const fresh = positionConditions(
+      [
+        snap('evidence:page:B:ondo-stocks-eligibility:latest', '2026-09-12T10:00:00.000Z', { sourceId: 'page:B:ondo-stocks-eligibility', kind: 'page', status: 'OK', hash: 'abcdef0123456789', url: 'https://x/y', changedAt: '2026-09-12T10:00:00.000Z' }),
+        snap('evidence:ondo:AAPLon:latest', '2026-09-12T10:00:00.000Z', { sourceId: 'ondo:AAPLon', kind: 'ondo-addresses', status: 'ACCESS_DENIED', hash: null, detail: 'HTTP 403 — no key' }),
+        snap('evidence:xstocks:AAPLx:latest', '2026-09-12T10:00:00.000Z', { sourceId: 'xstocks:AAPLx', kind: 'xstocks-asset', status: 'SCHEMA_CHANGED', hash: 'ff', detail: 'symbol or name is missing' }),
+      ],
+      NOW2,
+    );
+    assert.deepEqual(
+      fresh.map((c) => c.id).sort(),
+      ['evidence:page:B:ondo-stocks-eligibility:CHANGED:abcdef01', 'evidence:xstocks:AAPLx:SCHEMA_CHANGED'],
+    );
+    const old = positionConditions(
+      [snap('evidence:page:B:ondo-stocks-eligibility:latest', '2026-09-01T10:00:00.000Z', { sourceId: 'page:B:ondo-stocks-eligibility', kind: 'page', status: 'OK', hash: 'abcdef0123456789', url: 'https://x/y', changedAt: '2026-09-01T10:00:00.000Z' })],
+      NOW2,
+    );
+    assert.deepEqual(old, [], 'a change older than the window is no longer a condition');
+  });
+
+  it('name a drifted candidate darkly, and a shortfall or a disagreement on a series', async () => {
+    const { positionConditions } = await import('../lib/ops/alerts.ts');
+    const out = positionConditions(
+      [
+        snap('positions:verify:apple-s1', '2026-09-12T11:00:00.000Z', {
+          seriesId: 'apple-s1',
+          driftSince: '2026-09-12T11:00:00.000Z',
+          lastDrift: [{ address: '0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f', role: 'WRAPPER_V2', field: 'codeHash', from: '0xaa', to: '0xbb' }],
+        }),
+        snap('positions:reconcile:apple-s1', '2026-09-12T11:00:00.000Z', {
+          seriesId: 'apple-s1',
+          components: [
+            { component: 'A', finding: 'SHORTFALL', owed: '40', held: '25' },
+            { component: 'B', finding: 'MATCHED', owed: '80', held: '80' },
+          ],
+          disagreements: ['0xf..:0 ExitAllocated: INSUFFICIENT_RECEIPTS'],
+        }),
+      ],
+      NOW2,
+    );
+    const ids = out.map((c) => `${c.severity} ${c.id}`).sort();
+    assert.deepEqual(ids, [
+      'DARK positions:apple-s1:DISAGREEMENT',
+      'DARK positions:apple-s1:DRIFT:0x943bf64d:codeHash',
+      'DARK positions:apple-s1:SHORTFALL:A',
+    ]);
+  });
+});
+
+describe('verification drift', () => {
+  it('names a field that moved between two runs, and an address that stopped answering', async () => {
+    const { driftBetween } = await import('../lib/positions/verify.ts');
+    const base = {
+      sourceId: 'xstocks:AAPLx',
+      component: 'A' as const,
+      role: 'WRAPPER_V2' as const,
+      address: '0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f',
+      claimedAsset: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a',
+      networkChainId: 1,
+      chainId: 1,
+      readAt: '2026-09-11T00:00:00.000Z',
+      source: 'node',
+      hasCode: { value: true, state: 'VERIFIED' as const, reason: null },
+      codeHash: { value: '0xaa', state: 'VERIFIED' as const, reason: null },
+      symbol: { value: 'wAAPLx', state: 'VERIFIED' as const, reason: null },
+      decimals: { value: 18, state: 'VERIFIED' as const, reason: null },
+      asset: { value: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a', state: 'VERIFIED' as const, reason: null },
+      assetMatchesClaim: 'MATCHES' as const,
+      answersAsToken: true,
+      notProven: [],
+    };
+    const later = { ...base, codeHash: { value: '0xbb', state: 'VERIFIED' as const, reason: null }, symbol: { value: null, state: 'UNREAD' as const, reason: 'SOURCE_TIMEOUT' }, answersAsToken: false };
+    const drift = driftBetween([base], [later]);
+    assert.deepEqual(
+      drift.map((d) => `${d.field}:${d.from}->${d.to}`),
+      ['codeHash:0xaa->0xbb', 'answersAsToken:true->false'],
+      'an unread field is not a drift; a changed hash and a lost answer are',
+    );
+    assert.deepEqual(driftBetween([base], [base]), []);
+  });
+});

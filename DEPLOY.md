@@ -247,8 +247,25 @@ its own RPC override.
   reconciles what the series owes against `balanceOf` on each component:
   MATCHED, SURPLUS, SHORTFALL, or UNKNOWN. Without it, every read of a chain
   for that series is skipped and `/api/status` says `NOT_DEPLOYED`.
+- **Documents watched.** The nine pages the issuers publish about the
+  instruments are fetched on the same daily run and kept as the hash of their
+  visible text — never read for meaning. A change raises a NOTE condition for
+  two days; a page that stops answering raises a STALE one.
+- **Conditions and alerts.** The position product feeds the same alerting as
+  the desk: an issuer record or document that changed or stopped answering, a
+  candidate address whose code hash, symbol, decimals or `asset()` moved
+  between daily runs (T15 — DARK), a configured series held short of what it
+  owes, a balance that could not be read, and an event the ledger model
+  refuses. They appear on `/api/state` under `conditions` and on Chambers,
+  and are posted to the webhook once when raised and once when cleared.
+- **Instrument file (R01).** `/api/positions/<series>/file` compiles, from the
+  archive and the chain, what is known about each candidate component — the
+  underlying and its ISIN as the issuer states them, the issuer record and its
+  status, every address with code hash, symbol, decimals and `asset()`, the
+  documents and their hashes — and what is not known, for an admission review.
+  Nothing in it is typed by hand and nothing in it admits a component.
 - **Product API.** `/api/positions`, `/api/positions/<series>`,
-  `/api/positions/<series>/evidence`, `/api/positions/<series>/preview-mint?lots=`,
+  `/api/positions/<series>/evidence`, `/api/positions/<series>/file`, `/api/positions/<series>/preview-mint?lots=`,
   `/api/positions/<series>/preview-exit?lots=`, `/api/wallets/<address>/positions`,
   `/api/wallets/<address>/claims`, `/api/status`. Every amount is a string of
   integer base units. A preview sends nothing and estimates nothing; a value

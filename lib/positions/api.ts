@@ -65,7 +65,18 @@ export function seriesSummary(spec: SeriesSpec) {
 function evidenceView(o: Observation | null) {
   if (o === null) return null;
   // The raw body is archived, not served: what is served is its identity and its status.
-  return { readAt: o.readAt, status: o.status, httpStatus: o.httpStatus, hash: o.hash, parse: o.parse, detail: o.detail, parsed: o.parsed };
+  return {
+    readAt: o.readAt,
+    status: o.status,
+    httpStatus: o.httpStatus,
+    hash: o.hash,
+    parse: o.parse,
+    detail: o.detail,
+    parsed: o.parsed,
+    previousHash: o.previousHash ?? null,
+    changedAt: o.changedAt ?? null,
+    firstSeenAt: o.firstSeenAt ?? null,
+  };
 }
 
 export async function seriesEvidence(store: Store, spec: SeriesSpec) {
@@ -271,3 +282,70 @@ export { seriesById };
 
 /** A reconciliation view with its limit line always attached. */
 export type ReconciliationView = Reconciliation;
+
+/**
+ * The instrument file (R01): everything the archive and the chain say about
+ * each candidate component, in one document a reviewer can take to an
+ * admission decision — and everything they do not say, listed as such. It is
+ * generated from the record every time; nothing in it is typed by hand.
+ */
+export async function instrumentFile(store: Store, spec: SeriesSpec) {
+  const evidence = await seriesEvidence(store, spec);
+  const bySource = new Map(evidence.sources.map((s) => [s.id, s]));
+  const xstocks = bySource.get('xstocks:AAPLx')?.latest?.parsed as { symbol?: string; name?: string; isin?: string | null; underlyingSymbol?: string | null; underlyingIsin?: string | null; isTradingHalted?: boolean | null } | null | undefined;
+  const ondo = bySource.get('ondo:AAPLon')?.latest?.parsed as { symbol?: string; addresses?: { networkChainId: string; address: string; decimals: number | null }[] } | null | undefined;
+
+  const components = spec.components.map((c) => {
+    const record = c.id === 'A' ? xstocks : ondo;
+    const recordSource = c.id === 'A' ? bySource.get('xstocks:AAPLx') : bySource.get('ondo:AAPLon');
+    const addresses = (evidence.verification?.addresses ?? []).filter((v) => v.component === c.id);
+    const documents = evidence.sources.filter((s) => s.kind === 'page' && s.component === c.id);
+    return {
+      component: c.id,
+      instrument: c.instrument,
+      issuerAsDocumented: c.issuer,
+      network: { candidate: c.chain, chainId: evidence.verification?.chainId ?? null },
+      underlying:
+        c.id === 'A' && xstocks
+          ? { symbol: xstocks.underlyingSymbol ?? null, isin: xstocks.underlyingIsin ?? null, instrumentIsin: xstocks.isin ?? null, tradingHalted: xstocks.isTradingHalted ?? null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null }
+          : { symbol: null, isin: null, instrumentIsin: null, tradingHalted: null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null, reason: recordSource?.latest?.status === 'ACCESS_DENIED' ? 'the issuer record is behind an API key this desk does not hold' : recordSource?.latest ? recordSource.latest.status : 'not fetched yet' },
+      issuerRecord: recordSource
+        ? { id: recordSource.id, url: recordSource.url, status: recordSource.latest?.status ?? null, readAt: recordSource.latest?.readAt ?? null, hash: recordSource.latest?.hash ?? null, versions: recordSource.versions, parsed: recordSource.latest?.parse ?? null }
+        : null,
+      addressesOnChain: addresses.map((v) => ({
+        role: v.role,
+        address: v.address,
+        explorer: v.explorer,
+        hasCode: v.hasCode.value,
+        codeHash: v.codeHash.value,
+        symbol: v.symbol.value,
+        decimals: v.decimals.value,
+        asset: v.asset.value,
+        assetMatchesClaim: v.assetMatchesClaim,
+        answersAsToken: v.answersAsToken,
+        readAt: v.readAt,
+        source: v.source,
+      })),
+      candidateUnit:
+        c.id === 'A'
+          ? { role: 'WRAPPER_V2', why: 'the issuer’s current non-rebasing wrapper; the raw token’s balance behaviour under a corporate action is not assumed static', chosen: false }
+          : { role: 'ISSUER_TOKEN', why: 'the issuer’s own token, once its record answers', chosen: false },
+      documents: documents.map((d) => ({ title: d.title, url: d.url, status: d.latest?.status ?? null, hash: d.latest?.hash ?? null, firstSeenAt: d.latest?.firstSeenAt ?? null, changedAt: d.latest?.changedAt ?? null, versions: d.versions })),
+      notKnown: c.unknown,
+      notProven: evidence.verification?.addresses[0]?.notProven ?? [],
+      statuses: c.statuses,
+      verification: c.verification,
+    };
+  });
+
+  return {
+    seriesId: spec.id,
+    name: spec.name,
+    company: spec.company,
+    generatedAt: new Date().toISOString(),
+    stage: spec.stageLine,
+    admission: 'not decided — a reviewer decides from this file, the fork tests and the rights review; nothing here admits a component by itself',
+    components,
+    gates: GATES,
+  };
+}

@@ -49,13 +49,15 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function ChambersPage() {
   const now = new Date();
   const store = await getStoreAsync();
-  const [terms, heartbeats, feeds, registrar, head, drift] = await Promise.all([
+  const [terms, heartbeats, feeds, registrar, head, drift, positionSnaps, evidenceSnaps] = await Promise.all([
     store.snapshots('terms:'),
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
     store.snapshots('chain:head'),
     store.snapshots('capture:drift'),
+    store.snapshots('positions:'),
+    store.snapshots('evidence:'),
   ]);
 
   const table = terms.state === 'UNREAD' ? null : composeWatchTable(terms.value, now);
@@ -67,6 +69,7 @@ export default async function ChambersPage() {
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: head.state === 'UNREAD' ? null : (head.value.find((s) => s.key === 'chain:head') ?? null),
     driftSnapshot: drift.state === 'UNREAD' ? null : (drift.value.find((s) => s.key === 'capture:drift') ?? null),
+    positionSnapshots: [...(positionSnaps.state === 'UNREAD' ? [] : positionSnaps.value), ...(evidenceSnaps.state === 'UNREAD' ? [] : evidenceSnaps.value.filter((s) => s.key.endsWith(':latest')))],
     now,
   });
   const alerting = process.env.CURB_ALERT_WEBHOOK ? 'configured' : 'not configured';

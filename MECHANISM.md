@@ -368,6 +368,8 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Series contract prototype (§7, §9.1, §11) with Solidity tests T01–T12, T17, T19, T20, T22–T25 and a fuzz run | Implemented in `contracts/`; unaudited, unreviewed, undeployed | `contracts/src/CompanySeries.sol`, `contracts/test/CompanySeries.t.sol` |
 | Tests T13–T16, T18, T21 (real component, fork, running index) | Not started | — |
 | Independent review and audit of the contract | Not started | — |
+| Drift between daily verification runs and changes in the evidence raised as conditions and alerted (T15) | Implemented | `/api/state` → `conditions`, the webhook |
+| Instrument file compiled from the archive and the chain (R01, the automatable half) | Implemented | `/api/positions/apple-s1/file` |
 | Issuer documents watched for change by the hash of their visible text (9 pages) | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
 | Instrument file (R01), rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started | — |
 | Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
