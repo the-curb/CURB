@@ -29,6 +29,9 @@ export const SIGNATURES = {
   uiMultiplier: 'uiMultiplier()',
   newUIMultiplier: 'newUIMultiplier()',
   effectiveAt: 'effectiveAt()',
+  // ERC-4626 and ERC-20 reads the position product needs
+  asset: 'asset()',
+  balanceOf: 'balanceOf(address)',
 } as const;
 
 export const SELECTORS: Readonly<Record<keyof typeof SIGNATURES, string>> = Object.fromEntries(

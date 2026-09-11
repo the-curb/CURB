@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { describeAge } from '@/lib/doctrine/reading';
+import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
+import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
+import { getStoreAsync } from '@/lib/store';
 import { PositionSimulator } from '../../components/position-simulator';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +39,19 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const spec = seriesById(series);
   if (spec === null) notFound();
   const [a, b] = spec.components;
+  const now = new Date();
+  const store = await getStoreAsync();
+  const [evidence, ledger, reconciliation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id)]);
+  const deployment = deploymentView(spec.id);
+  const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
+  const FIELD = (f: { value: unknown; state: 'VERIFIED' | 'UNREAD'; reason: string | null }) =>
+    f.state === 'VERIFIED' ? (
+      <span className="text-(--color-paper)">{String(f.value)}</span>
+    ) : (
+      <span className="absent" title={f.reason ?? 'unread'}>
+        —
+      </span>
+    );
 
   return (
     <main className="px-3 py-8 sm:px-4 sm:py-10">
@@ -122,6 +139,136 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── evidence and status ─────────────────────────────────────────── */}
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+          <span className="kicker">
+            <b>Evidence and status</b> · what was fetched, what the chain said, what is deployed
+          </span>
+          <Link href={`/api/positions/${spec.id}/evidence`} className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+            as data →
+          </Link>
+        </div>
+        <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="cell p-6 sm:p-8">
+            <div className="kicker">Issuer sources · archived on a schedule, kept as received</div>
+            <ul className="mt-3 space-y-4">
+              {evidence.sources.map((s) => (
+                <li key={s.id} className="text-[13px] leading-relaxed">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+                    <span className="text-(--color-paper)">
+                      <span className="tabular text-(--color-accent)">{s.component}</span> {s.title}
+                    </span>
+                    <span
+                      className="tabular text-[10px] uppercase tracking-[0.14em]"
+                      style={{ color: s.latest === null ? 'var(--color-state-fog)' : s.latest.status === 'OK' ? 'var(--color-state-live)' : s.latest.status === 'ACCESS_DENIED' ? 'var(--color-state-stale)' : 'var(--color-state-dark)' }}
+                    >
+                      {s.latest === null ? 'not yet fetched' : s.latest.status.toLowerCase().replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="tabular mt-1 text-[11px] text-(--color-paper-faint)">
+                    {s.latest === null ? (
+                      s.storeFault ?? 'no observation on record'
+                    ) : (
+                      <>
+                        read {ageOf(s.latest.readAt)} ago · {s.latest.parse.toLowerCase().replace('_', ' ')} · {s.versions ?? '—'} version{s.versions === 1 ? '' : 's'}
+                        {s.latest.hash ? ` · sha256 ${s.latest.hash.slice(0, 12)}…` : ''}
+                      </>
+                    )}
+                  </div>
+                  {s.latest?.detail ? <div className="mt-1 text-[11px] text-(--color-paper-dim)">{s.latest.detail}</div> : null}
+                  <a href={s.url} className="mt-1 inline-block text-[11px] text-(--color-paper-faint) underline decoration-(--color-rule-2) underline-offset-4 hover:text-(--color-paper)" rel="noopener noreferrer" target="_blank">
+                    {s.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-6 border-t border-(--color-rule) pt-4">
+              <div className="kicker">Deployment · index · reconciliation</div>
+              <dl className="tabular mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[12px]">
+                <dt className="text-(--color-paper-faint)">Deployment</dt>
+                <dd className="text-(--color-paper-dim)">
+                  {deployment.state.toLowerCase().replace('_', ' ')}
+                  {deployment.address ? ` · ${deployment.address}` : ''}
+                </dd>
+                <dt className="text-(--color-paper-faint)">Index</dt>
+                <dd className="text-(--color-paper-dim)">{ledger.ledger === null ? 'none — nothing is read from a chain for a series that is not deployed' : `${ledger.events} events to block ${ledger.cursor}; ${ledger.ledger.n.toString()} lots outstanding`}</dd>
+                <dt className="text-(--color-paper-faint)">Reconciliation</dt>
+                <dd className="text-(--color-paper-dim)">
+                  {reconciliation.reconciliation === null
+                    ? 'none'
+                    : reconciliation.reconciliation.components.map((c) => `${c.component} ${c.finding.toLowerCase()}`).join(' · ')}
+                </dd>
+              </dl>
+              {deployment.detail ? <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">{deployment.detail}</p> : null}
+            </div>
+          </div>
+
+          <div className="cell p-6 sm:p-8">
+            <div className="kicker">
+              What the chain said · {evidence.verification ? `${evidence.verification.network} · read ${ageOf(evidence.verification.ranAt)} ago` : 'not yet read'}
+            </div>
+            {evidence.verification === null || evidence.verification.addresses.length === 0 ? (
+              <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-dim)">
+                {evidence.verificationStoreFault ?? 'No candidate address has been read on chain yet. The first daily run archives the issuers’ records, then reads every address they name.'}
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="tabular w-full min-w-[40rem] border-collapse text-[12px]">
+                  <thead>
+                    <tr className="kicker text-left">
+                      <th className="pb-2 pr-3 font-normal">Role</th>
+                      <th className="pb-2 pr-3 font-normal">Address</th>
+                      <th className="pb-2 pr-3 font-normal">Code</th>
+                      <th className="pb-2 pr-3 font-normal">Symbol</th>
+                      <th className="pb-2 pr-3 text-right font-normal">Dec.</th>
+                      <th className="pb-2 pr-3 font-normal">asset() vs claim</th>
+                      <th className="pb-2 font-normal">Answers as token</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evidence.verification.addresses.map((v) => (
+                      <tr key={`${v.role}-${v.address}`} className="border-t border-(--color-rule)">
+                        <td className="py-2 pr-3 text-(--color-paper)">
+                          <span className="text-(--color-accent)">{v.component}</span> {v.role.toLowerCase().replace('_', ' ')}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {v.explorer ? (
+                            <a href={v.explorer} className="text-(--color-paper-dim) underline decoration-(--color-rule-2) underline-offset-4 hover:text-(--color-paper)" rel="noopener noreferrer" target="_blank">
+                              {v.address.slice(0, 10)}…{v.address.slice(-6)}
+                            </a>
+                          ) : (
+                            <span className="text-(--color-paper-dim)">{v.address.slice(0, 10)}…{v.address.slice(-6)}</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3">{FIELD(v.hasCode)}</td>
+                        <td className="py-2 pr-3">{FIELD(v.symbol)}</td>
+                        <td className="py-2 pr-3 text-right">{FIELD(v.decimals)}</td>
+                        <td className="py-2 pr-3" style={{ color: v.assetMatchesClaim === 'MATCHES' ? 'var(--color-state-live)' : v.assetMatchesClaim === 'DRIFT' ? 'var(--color-state-dark)' : 'var(--color-paper-faint)' }}>
+                          {v.assetMatchesClaim.toLowerCase().replace('_', ' ')}
+                        </td>
+                        <td className="py-2" style={{ color: v.answersAsToken ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>
+                          {v.answersAsToken ? 'yes' : 'no'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-5 border-t border-(--color-rule) pt-4">
+              <div className="kicker">What this does not prove</div>
+              <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
+                {(evidence.verification?.addresses[0]?.notProven ?? ['that the unit balance stays static under a corporate action', 'holder eligibility', 'anything about the issuer’s reserves']).map((line) => (
+                  <li key={line}>— {line}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 

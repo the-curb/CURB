@@ -4,6 +4,7 @@ import { describeStore, getStoreAsync } from '@/lib/store';
 import { narrateClosedDay, yesterdayOf } from '@/lib/gazette/narrate';
 import { runAlerts } from '@/lib/ops/alerts';
 import { maintainRetention } from '@/lib/ops/maintenance';
+import { positionsMaintenance } from '@/lib/positions/maintenance';
 
 /**
  * A tick with the Tally, the Archivist and a narration due together runs thirty to forty seconds; the platform default of ten would kill it mid-run with the lock held and half the records written. The run lock TTL is 120 s, so a run that does overrun this limit is released within two minutes rather than never.
@@ -43,6 +44,10 @@ export async function POST(request: Request): Promise<Response> {
   const now = new Date();
   const alerts = dryRun ? null : await runAlerts(store, now);
   const retention = dryRun ? null : await maintainRetention(store, now);
+  // The position product's backend rides on the same tick: issuer evidence and
+  // on-chain verification once a day, the series index and reconciliation every
+  // run — or NOT_DEPLOYED, said plainly, while no reviewed deployment exists.
+  const positions = dryRun ? null : await positionsMaintenance(store, now);
 
   return Response.json(
     {
@@ -89,6 +94,8 @@ export async function POST(request: Request): Promise<Response> {
       alerts,
       /** The once-a-day prune: done today already, done now, or not confirmed. */
       retention,
+      /** The position product's backend: evidence, verification, index, reconciliation. */
+      positions,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

@@ -172,6 +172,10 @@ export interface LogEntry {
   readonly data: string;
   readonly blockNumber: string;
   readonly transactionHash: string;
+  /** Position of the log in its block. With the transaction hash, the identity of the event. */
+  readonly logIndex?: string;
+  /** The hash of the block the log is in — what tells a reorganised block from the one that was read. */
+  readonly blockHash?: string;
 }
 
 /**
@@ -231,6 +235,16 @@ export async function readHead(opts: RpcOptions): Promise<Reading<ChainHead>> {
     return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'latest block header undecodable' });
   }
   return { ...raw, value: { number, timestamp } };
+}
+
+/** The hash of the block at a height, for telling a reorganised block from the one that was indexed. */
+export async function readBlockHash(number: number, opts: RpcOptions): Promise<Reading<string>> {
+  const raw = await rpcCall<{ hash: string } | null>('eth_getBlockByNumber', [`0x${number.toString(16)}`, false], opts);
+  if (raw.state === 'UNREAD') return raw;
+  if (raw.value === null || typeof raw.value.hash !== 'string') {
+    return unread('SOURCE_MALFORMED', { source: raw.source, detail: `the node returned no block at height ${number}` });
+  }
+  return { ...raw, value: raw.value.hash.toLowerCase() };
 }
 
 /** Non-empty code is the difference between "a contract" and "an address someone typed". */

@@ -96,7 +96,7 @@ export async function request(
 /** One GET with a deadline, for the capture scripts. Throws on transport failure. */
 export async function getText(
   url: string,
-  opts: { readonly timeoutMs?: number; readonly accept?: string } = {},
+  opts: { readonly timeoutMs?: number; readonly accept?: string; readonly headers?: Readonly<Record<string, string>> } = {},
 ): Promise<TransportResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
@@ -107,7 +107,8 @@ export async function getText(
         method: 'GET',
         headers: {
           accept: opts.accept ?? 'application/json',
-          'user-agent': 'the-curb/capture (read-only; https://github.com)',
+          'user-agent': 'the-curb/capture (read-only; https://github.com/the-curb/CURB)',
+          ...(opts.headers ?? {}),
         },
       },
       controller.signal,

@@ -350,9 +350,26 @@ A revenue model never equates assets under management with transaction volume. A
 
 **Three instruments to keep apart:** the issuer component is the asset held; the company receipt is the proportional right to a series' components; CURB is a candidate ecosystem token whose need has to be proven on its own. If CURB is ever launched, the most sensible function to test is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. Governance, if ever used, may take proposals on research priorities or new series; a vote never changes a holder's balance, takes claim reserves, replaces an old series' components, or declares an issuer safe because many tokens said so. There is no basis yet for supply, allocation, vesting, buybacks, fee sharing or CURB as a loss guarantor; a launch on a launchpad does not change that. Positions never depend on a CURB price or a bridge.
 
-## 17. First work
+## 17. First work, and what exists today
 
 Three things can start now without a token or a public launch: complete the instrument candidate file; test the narrative against the two-tokens-in-a-wallet baseline; and prove the accounting with mocks. The ledger model and its tests in this repository are the beginning of the third; the [simulation](/positions/apple-s1) is the beginning of the second.
+
+What is implemented in this repository, as of 12 September 2026, and what is not:
+
+| Piece | Status | Where to check |
+| --- | --- | --- |
+| Ledger model (§7) with the blueprint's test cases | Implemented, tested | `lib/positions/ledger.ts`, `tests/positions.test.ts`, the simulation |
+| Issuer evidence archive: fetched daily, kept as received, versioned by hash (D02) | Implemented, running on the tick | `/api/positions/apple-s1/evidence` |
+| On-chain verification of every address the evidence names — code, symbol, decimals, `asset()` against the claimed raw token | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
+| Separate network profile for the product, with its own RPC override; chain id confirmed before any read (D05) | Implemented | `lib/chain/networks.ts`, `lib/chain/rpc.ts` |
+| Event codec, idempotent index with reorg rollback, replay to the ledger (D03) | Implemented, tested against fixtures; no contract to index | `lib/positions/index.ts`, `tests/positions-backend.test.ts` |
+| Reconciliation of units owed against `balanceOf` per component (D04) | Implemented; runs only for a configured deployment | `lib/positions/reconcile.ts` |
+| Product API (§10) with string amounts, previews that send nothing | Implemented | `/api/positions`, `/api/wallets/…`, `/api/status` |
+| Series contract, tests T09–T10, T13–T18, T20–T21, T25 | Not started | — |
+| Instrument file (R01), rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started | — |
+| Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
+
+The Ondo source records `ACCESS_DENIED`: its documented endpoint requires an API key this desk does not hold. That is archived as the finding; the example address in Ondo's specification is not used.
 
 ## 18. Questions people ask
 

@@ -21,9 +21,12 @@ Route (app)
 ├ ƒ /api/desk
 ├ ƒ /api/floor      the Floor board as data
 ├ ƒ /api/registry   the Registry roll as data
+├ ƒ /api/positions  the series, their evidence, previews — the product API
 ├ ƒ /api/session
-├ ƒ /api/state      the operator's page
+├ ƒ /api/state      the desk's operator page
+├ ƒ /api/status     the position product's status
 ├ ƒ /api/tick
+├ ƒ /api/wallets    a wallet's receipts and claims, from the index
 ├ ƒ /chambers       the terms watched, the conditions, the three numbers
 ├ ƒ /doctrine
 ├ ƒ /floor          the session, the book, the Warden, the wire
@@ -211,6 +214,45 @@ Both ride on the tick, and both are reported in its response.
   tick response shows `retention` as PRUNED, ALREADY_DONE, or UNCONFIRMED — the
   last is a prune the store would not confirm, which is not a prune of zero.
   `npm run db:prune -- --apply` still works by hand.
+
+## The position product's backend
+
+It rides on the same tick and is reported in the response under `positions`.
+Nothing in it depends on the desk's chain: it has its own network profile and
+its own RPC override.
+
+- **Network.** `CURB_POSITIONS_NETWORK` (default `ethereum-mainnet`) selects the
+  profile; `CURB_RPC_URL_ETHEREUM` overrides its node. The desk's
+  `CURB_RPC_URL` does not reach it, and every record either side writes
+  carries its chain id, so Robinhood Chain data and Ethereum data cannot be
+  merged by accident.
+- **Evidence, once a UTC day.** The issuers' documented endpoints are fetched
+  and archived as received: `evidence:<source>:latest` always moves, and a
+  body not seen before is kept under `evidence:<source>:v:<sha256>`. xStocks'
+  public asset record parses; Ondo's addresses endpoint needs an `x-api-key`
+  (`CURB_ONDO_API_KEY`) and without one records `ACCESS_DENIED` — that is the
+  finding. No address from an example in a specification is ever used.
+- **Verification, after the evidence.** Every EVM address the parsed evidence
+  names on the positions network is read on chain: code and its hash,
+  `symbol()`, `decimals()`, and for a wrapper `asset()` against the raw token
+  the issuer named beside it. The result is at
+  `/api/positions/<series>/evidence` and on the series page. What it does not
+  prove is listed with it.
+- **Index and reconciliation, every tick — when a series is deployed.**
+  `CURB_SERIES_DEPLOYMENTS` (JSON keyed by series id; see
+  `.env.local.example`) is filled only from a reviewed deployment record.
+  With it set, the tick reads the contract's events from `fromBlock` (idempotent
+  on transaction hash and log index; block hashes kept for reorg rollback),
+  replays them through the same ledger the simulation and tests use, and
+  reconciles what the series owes against `balanceOf` on each component:
+  MATCHED, SURPLUS, SHORTFALL, or UNKNOWN. Without it, every read of a chain
+  for that series is skipped and `/api/status` says `NOT_DEPLOYED`.
+- **Product API.** `/api/positions`, `/api/positions/<series>`,
+  `/api/positions/<series>/evidence`, `/api/positions/<series>/preview-mint?lots=`,
+  `/api/positions/<series>/preview-exit?lots=`, `/api/wallets/<address>/positions`,
+  `/api/wallets/<address>/claims`, `/api/status`. Every amount is a string of
+  integer base units. A preview sends nothing and estimates nothing; a value
+  it does not have is `NOT_AVAILABLE` with a reason, never zero.
 
 ## What is not covered here
 
