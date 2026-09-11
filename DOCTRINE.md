@@ -96,6 +96,15 @@ heartbeat**:
 An agent that fails quietly must not look identical to one that had nothing to
 say. That is the whole reason the heartbeat is unconditional.
 
+`NOTHING_TO_SAY` is also how an agent declines to repeat itself. The Bell files
+when the session changes phase; the Pillar files when the shape of the book
+changes — an exception appearing, a count moving, the exchange opening — and
+otherwise records that the book is unchanged since its last filing, with the
+time. The measurements are still written on every run: the snapshot a page
+reads and the series the Surveyor measures do not go quiet because the prose
+did. What is suppressed is the ninety-sixth identical filing of the day, and
+the heartbeat says that is what happened.
+
 A **dry run writes nothing at all** — no heartbeat, no publication, no block
 record. A rehearsal that moves the state you use to judge production is not a
 rehearsal.

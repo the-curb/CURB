@@ -17,7 +17,8 @@ import { getStoreAsync } from '../lib/store/index.ts';
 const id = process.argv[2] as AgentId | undefined;
 
 if (!id || !(id in AGENT_BY_ID)) {
-  console.error(`usage: node scripts/preview.ts <agentId>`);
+  console.error(`usage: node scripts/preview.ts <agentId> [--fresh]`);
+  console.error('  --fresh  rehearse as if the agent had never filed: an agent that stays quiet on an unchanged reading files in full');
   console.error(`known: ${Object.keys(AGENT_BY_ID).join(', ')}`);
   process.exit(1);
 }
@@ -31,11 +32,23 @@ if (!producer) {
 }
 
 const now = new Date();
-const store = await getStoreAsync();
+const real = await getStoreAsync();
+// --fresh hides the agent's own memory of what it last filed — the shape
+// snapshots the Bell and the Pillar compare against — so the rehearsal shows
+// the filing rather than the decision to stay quiet. Nothing else is altered,
+// and nothing is written either way.
+const fresh = process.argv.includes('--fresh');
+const store: typeof real = fresh
+  ? {
+      ...real,
+      snapshots: async (prefix: string) => (prefix.startsWith(`${id}:`) ? { state: 'VERIFIED' as const, value: [], source: 'rehearsal · hidden', retrievedAt: now.toISOString(), ageSeconds: 0, intervalSeconds: 60 } : real.snapshots(prefix)),
+      publicationsByAgent: async (agentId, limit) => (agentId === id ? { state: 'VERIFIED' as const, value: [], source: 'rehearsal · hidden', retrievedAt: now.toISOString(), ageSeconds: 0, intervalSeconds: 60 } : real.publicationsByAgent(agentId, limit)),
+    }
+  : real;
 const result = await producer({ spec, now, store });
 // The rehearsal is over; nothing else touches the store. Closing it here means
 // the process exits when the output ends, not when the pool times out.
-await store.close();
+await real.close();
 
 console.log(`\n${'='.repeat(72)}`);
 console.log(`${spec.name} · rehearsal at ${now.toISOString()} · nothing written`);

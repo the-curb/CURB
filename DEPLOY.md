@@ -121,6 +121,15 @@ renewed mid-run, which means the run may have overlapped another. It is reported
 rather than hidden because "we held it the whole time" is a claim that field
 exists to keep honest.
 
+**How the store grows.** Heartbeats arrive at about three hundred rows a day
+(the Bell every five minutes, mostly with nothing to say) and publications at a
+few dozen — the Pillar files only when the book changes shape, the Tally and
+the Warden hourly. That is on the order of 80 MB a year. Observations are held
+for the retention horizon and then pruned, so they hold steady at roughly
+half a million rows. The archive — heartbeats and publications — is the
+record and is not pruned; when it outgrows a tier, the answer is a bigger
+tier, not a shorter memory.
+
 ## The registries, and how to re-capture them
 
 Two generated modules hold every address the agents read, and both were
