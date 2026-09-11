@@ -175,15 +175,18 @@ export const AGENTS: readonly AgentSpec[] = [
     role: 'On-chain flow & concentration',
     line: 'Everyone shows you the price. I show you who is holding it.',
     posture: 'MEASURES',
-    intervalSeconds: 6 * HOURS,
+    // Hourly, because each run is a rate sample of about a minute of chain
+    // time; a series of samples is what shows the day. Sources: each settlement
+    // asset, and the stock-token roll as one.
+    intervalSeconds: 1 * HOURS,
     sourcesExpected: 3,
-    minimumSources: 2,
+    minimumSources: 1,
     refusal:
       'Reports holder distribution, transfers and depth as measured. Never says a concentration figure is good or bad.',
     reads: [
-      'Holder distribution and top-account share',
-      'Transfers above a stated size',
-      'Mint and burn events',
+      'Transfer logs for the settlement assets and every stock token, over a sample of about a minute of chain time — a rate, never a total',
+      'Transfers against distinct sending and receiving addresses — the pair that separates distribution from churn',
+      'Units entering and leaving supply through the zero address',
     ],
   },
   {

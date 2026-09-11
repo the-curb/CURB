@@ -137,7 +137,7 @@ export interface LogEntry {
  * "we were not allowed to look" must never arrive looking the same.
  */
 export async function readLogs(
-  address: string,
+  address: string | readonly string[],
   topics: readonly (string | null)[],
   fromBlock: number,
   toBlock: number,
