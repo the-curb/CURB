@@ -48,6 +48,10 @@ create table if not exists publications (
 create index if not exists publications_published_at
   on publications (published_at desc);
 
+-- An agent's own page reads its filings newest-first.
+create index if not exists publications_agent_published_at
+  on publications (agent_id, published_at desc);
+
 -- A blocked output is an event to look at, not a silence: the text and the rule
 -- it broke are both kept in full so the block can be reviewed rather than guessed.
 create table if not exists blocks (

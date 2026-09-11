@@ -642,6 +642,41 @@ export class PostgresStore implements Store {
     }
   }
 
+  async publicationsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly PublicationRecord[]>> {
+    try {
+      return await this.guard('publicationsByAgent', async () => {
+        const rows = await this.sql<PublicationRow[]>`
+          select id, agent_id, published_at, headline, body, figures, sources_reached
+          from publications
+          where agent_id = ${agentId}
+          order by published_at desc
+          limit ${limit}
+        `;
+        return readNow(rows.map(toPublication), `${SOURCE} · publications`);
+      });
+    } catch (cause) {
+      return unreadable('publications by agent', cause);
+    }
+  }
+
+  async heartbeatsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly HeartbeatRecord[]>> {
+    try {
+      return await this.guard('heartbeatsByAgent', async () => {
+        const rows = await this.sql<HeartbeatRow[]>`
+          select agent_id, run_at, outcome, sources_reached, sources_expected,
+                 oldest_input_at, publication_id, detail
+          from heartbeats
+          where agent_id = ${agentId}
+          order by run_at desc
+          limit ${limit}
+        `;
+        return readNow(rows.map(toHeartbeat), `${SOURCE} · heartbeats`);
+      });
+    } catch (cause) {
+      return unreadable('heartbeats by agent', cause);
+    }
+  }
+
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
     try {
       return await this.guard('recentBlocks', async () => {

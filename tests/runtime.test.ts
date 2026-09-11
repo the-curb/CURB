@@ -134,6 +134,16 @@ class MemoryStore implements Store {
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
     return this.read<readonly BlockRecord[]>(this.blocks.slice(-limit).reverse());
   }
+  async publicationsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly PublicationRecord[]>> {
+    return this.read<readonly PublicationRecord[]>(
+      this.publications.filter((p) => p.agentId === agentId).slice(-limit).reverse(),
+    );
+  }
+  async heartbeatsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly HeartbeatRecord[]>> {
+    return this.read<readonly HeartbeatRecord[]>(
+      this.heartbeats.filter((h) => h.agentId === agentId).slice(-limit).reverse(),
+    );
+  }
   async dayRecord(day: string): Promise<Reading<DayRecord>> {
     const on = (iso: string) => iso.slice(0, 10) === day;
     return this.read<DayRecord>({

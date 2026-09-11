@@ -360,6 +360,30 @@ export class FileSystemStore implements Store {
     return { ...all, value: days };
   }
 
+  async publicationsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly PublicationRecord[]>> {
+    const all = await readAll<PublicationRecord>(this.dir, FILES.publications);
+    if (all.state === 'UNREAD') return all;
+    return {
+      ...all,
+      value: all.value
+        .filter((p) => p.agentId === agentId)
+        .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+        .slice(0, limit),
+    };
+  }
+
+  async heartbeatsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly HeartbeatRecord[]>> {
+    const all = await readAll<HeartbeatRecord>(this.dir, FILES.heartbeats);
+    if (all.state === 'UNREAD') return all;
+    return {
+      ...all,
+      value: all.value
+        .filter((h) => h.agentId === agentId)
+        .sort((a, b) => b.runAt.localeCompare(a.runAt))
+        .slice(0, limit),
+    };
+  }
+
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
     const all = await readAll<BlockRecord>(this.dir, FILES.blocks);
     if (all.state === 'UNREAD') return all;

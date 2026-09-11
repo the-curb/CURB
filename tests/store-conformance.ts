@@ -293,6 +293,33 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('one agent’s history', () => {
+      it('returns that agent’s filings newest first, and nobody else’s', async () => {
+        const mine = publication('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '2026-09-10T10:00:00.000Z');
+        const mineLater = publication('ffffffff-ffff-4fff-8fff-ffffffffffff', '2026-09-10T12:00:00.000Z');
+        const theirs = { ...publication('12121212-1212-4121-8121-121212121212', '2026-09-10T11:00:00.000Z'), agentId: 'pillar' as AgentId };
+        for (const p of [mine, theirs, mineLater]) {
+          await store.publishAtomically(p, { ...heartbeat(p.publishedAt), agentId: p.agentId, publicationId: p.id });
+        }
+        const read = await store.publicationsByAgent(AGENT, 10);
+        assert.deepEqual(
+          read.state === 'VERIFIED' ? read.value.map((p) => p.id) : null,
+          [mineLater.id, mine.id],
+        );
+      });
+
+      it('returns every outcome for that agent, not only the published ones', async () => {
+        await store.writeHeartbeat(heartbeat('2026-09-10T10:00:00.000Z', 'NOTHING_TO_SAY'));
+        await store.writeHeartbeat(heartbeat('2026-09-10T11:00:00.000Z', 'PUBLISHED'));
+        await store.writeHeartbeat({ ...heartbeat('2026-09-10T12:00:00.000Z'), agentId: 'pillar' as AgentId });
+        const read = await store.heartbeatsByAgent(AGENT, 10);
+        assert.deepEqual(
+          read.state === 'VERIFIED' ? read.value.map((h) => h.outcome) : null,
+          ['PUBLISHED', 'NOTHING_TO_SAY'],
+        );
+      });
+    });
+
     describe('blocked outputs', () => {
       it('keeps the text and the breaches in full', async () => {
         await store.writeBlock({

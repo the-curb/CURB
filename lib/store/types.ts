@@ -201,6 +201,11 @@ export interface Store {
   dayRecord(day: string): Promise<Reading<DayRecord>>;
   /** Days with at least one publication, newest first — the paper's archive. */
   publicationDays(limit: number): Promise<Reading<readonly string[]>>;
+
+  /** One agent's filings, newest first. */
+  publicationsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly PublicationRecord[]>>;
+  /** One agent's runs, newest first — every outcome, not only the published ones. */
+  heartbeatsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly HeartbeatRecord[]>>;
 }
 
 /** One UTC day of the record, as the Gazette reads it. */

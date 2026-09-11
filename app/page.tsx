@@ -111,6 +111,10 @@ export default async function Home() {
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <div className="tracking-mark text-xs text-[--color-brass] sm:text-sm">{BRAND.name}</div>
           <nav className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+            <Link href="/agents" className="hover:text-[--color-paper]">
+              The agents
+            </Link>
+            <span className="mx-3">·</span>
             <Link href="/gazette" className="hover:text-[--color-paper]">
               {BRAND.paper.name} ›
             </Link>
