@@ -133,10 +133,15 @@ export function systemHealth(
   const scheduled = AGENTS.filter((a) => a.intervalSeconds !== null);
   const hourAgo = now.getTime() - 3600 * 1000;
 
+  // Reached and expected must cover the same agents, or the ratio lies in
+  // whichever direction the on-request agent last ran. It is scheduled for
+  // nothing, so it is counted in neither sum; its runs still set the oldest
+  // input, because a figure it published is a figure the paper carries.
+  const scheduledIds = new Set(scheduled.map((a) => a.id));
   let oldestInputAt: string | null = null;
   let sourcesReached = 0;
   for (const heartbeat of heartbeats) {
-    sourcesReached += heartbeat.sourcesReached;
+    if (scheduledIds.has(heartbeat.agentId)) sourcesReached += heartbeat.sourcesReached;
     if (heartbeat.oldestInputAt === null) continue;
     if (oldestInputAt === null || heartbeat.oldestInputAt < oldestInputAt) {
       oldestInputAt = heartbeat.oldestInputAt;
