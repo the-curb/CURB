@@ -369,22 +369,19 @@ export interface TickResult {
 }
 
 /**
- * How long a run may hold the lock before another tick may assume the holder
- * died.
+ * How long a run may hold the lock without renewing it.
  *
- * Sized to the worst case, not the usual one. When the chain endpoint is
- * unreachable every agent waits out its timeouts in turn — roughly nine calls
- * at fifteen seconds for the Registrar, eight each for the Pillar and the
- * Archivist, and the Tally's log reads at thirty — which comes to about eight
- * and a half minutes. A tick took 6.6 minutes exactly that way. With the
- * earlier five-minute TTL the lock expired while its holder was still running,
- * which is the one thing a lock must not do.
- *
- * The cost is that a process which dies holding the lock stops the system for
- * fifteen minutes. Refreshing the lock during a run would remove that trade,
- * and is the right next step; until then, the trade is stated here.
+ * Short on purpose, because the holder renews it while it works. The earlier
+ * design sized this to the worst-case run — fifteen minutes, so a tick spent
+ * waiting out upstream timeouts could not outlive its own lock — and paid for
+ * that with a fifteen-minute outage whenever a process died holding it. Renewal
+ * removes the trade: a live run keeps the lock indefinitely, and a dead one
+ * loses it after two minutes.
  */
-export const RUN_LOCK_TTL_SECONDS = 900;
+export const RUN_LOCK_TTL_SECONDS = 120;
+
+/** Renew well inside the TTL, so one missed renewal does not lose the lock. */
+export const RUN_LOCK_REFRESH_SECONDS = 40;
 
 /**
  * One timer serves every interval: each agent is asked whether its own interval
@@ -420,9 +417,24 @@ export async function tick(
       return { at: now.toISOString(), ran, notImplemented, notDue, undetermined, lock };
     }
 
+    // Renew while running. A renewal that fails is not fatal to this run — the
+    // lock may simply have lapsed under a stalled store — but it is recorded,
+    // because a run that finished after losing its lock may have overlapped
+    // another, and that is the fact an operator needs.
+    let renewalFault: string | null = null;
+    const renewal = setInterval(() => {
+      void store.refreshRunLock(holder, RUN_LOCK_TTL_SECONDS).then((outcome) => {
+        if (outcome.state === 'FAILED' && renewalFault === null) renewalFault = outcome.reason;
+      });
+    }, RUN_LOCK_REFRESH_SECONDS * 1000);
+
     try {
-      return await runDueAgents();
+      const result = await runDueAgents();
+      return renewalFault === null
+        ? result
+        : { ...result, lock: { state: 'ACQUIRED', holder, renewalFault } };
     } finally {
+      clearInterval(renewal);
       await store.releaseRunLock(holder);
     }
   }

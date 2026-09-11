@@ -9,6 +9,17 @@ import { FEED_COVERAGE } from '@/lib/chain/feeds';
 import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
 
 /**
+ * Rendered on every request, never prerendered.
+ *
+ * Without this, `next build` executed the page once, read the store at build
+ * time, and baked that reading into static HTML — a publication headline from
+ * the build machine, served forever as if it were current. A dashboard that
+ * shows a frozen moment while claiming to be live is the exact lie this page
+ * exists to refuse, and the build output said "static" in plain text.
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * Six states, six meanings. Fog and darkness are not the same colour, because
  * "we never looked" and "it was expected and never arrived" are not the same
  * fact — and a dashboard that paints them alike is the specific lie this whole

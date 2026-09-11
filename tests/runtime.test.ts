@@ -56,6 +56,16 @@ class MemoryStore implements Store {
     return { state: 'ACQUIRED', holder };
   }
 
+  refreshCount = 0;
+
+  async refreshRunLock(holder: string): Promise<WriteOutcome> {
+    if (this.lockHolder !== holder) {
+      return { state: 'FAILED', reason: `lock is no longer held by ${holder}` };
+    }
+    this.refreshCount += 1;
+    return { state: 'WRITTEN' };
+  }
+
   async releaseRunLock(holder: string): Promise<WriteOutcome> {
     if (this.lockHolder !== null && this.lockHolder !== holder) {
       return { state: 'FAILED', reason: 'held by somebody else' };

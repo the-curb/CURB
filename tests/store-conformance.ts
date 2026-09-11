@@ -293,6 +293,32 @@ export function runStoreConformance(target: ConformanceTarget): void {
         const stolen = await store.releaseRunLock('holder-b');
         assert.equal(stolen.state, 'FAILED');
       });
+
+      it('can be renewed by its holder', async () => {
+        await store.acquireRunLock('holder-a', 60);
+        const renewed = await store.refreshRunLock('holder-a', 60);
+        assert.equal(renewed.state, 'WRITTEN');
+        // Still held, still refused to anyone else.
+        const other = await store.acquireRunLock('holder-b', 60);
+        assert.notEqual(other.state, 'ACQUIRED');
+      });
+
+      it('refuses to renew a lock held by somebody else', async () => {
+        // A lapsed lock that another holder took is theirs; renewing it from
+        // the old holder would be theft, and would let two runs overlap.
+        await store.acquireRunLock('holder-a', 60);
+        const renewed = await store.refreshRunLock('holder-b', 60);
+        assert.equal(renewed.state, 'FAILED');
+      });
+
+      it('lets a lapsed lock be taken, and then refuses the old holder', async () => {
+        await store.acquireRunLock('holder-a', 1);
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const taken = await store.acquireRunLock('holder-b', 60);
+        assert.equal(taken.state, 'ACQUIRED');
+        const stale = await store.refreshRunLock('holder-a', 60);
+        assert.equal(stale.state, 'FAILED');
+      });
     });
   });
 }

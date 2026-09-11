@@ -54,7 +54,7 @@ async function append(
   try {
     await fs.mkdir(dir, { recursive: true });
     const payload = records.map((record) => `${JSON.stringify(record)}\n`).join('');
-    await fs.appendFile(path.join(dir, file), payload, 'utf8');
+    await fs.appendFile(path.join(/*turbopackIgnore: true*/ dir, file), payload, 'utf8');
     return { state: 'WRITTEN' };
   } catch (cause) {
     return { state: 'FAILED', reason: `${file}: ${failureReason(cause)}` };
@@ -76,7 +76,7 @@ async function append(
 async function readAll<T>(dir: string, file: string): Promise<Reading<T[]>> {
   let raw: string;
   try {
-    raw = await fs.readFile(path.join(dir, file), 'utf8');
+    raw = await fs.readFile(path.join(/*turbopackIgnore: true*/ dir, file), 'utf8');
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
       return readNow<T[]>([], `${SOURCE} · ${file} (not yet created)`);
@@ -139,7 +139,7 @@ export class FileSystemStore implements Store {
    * A database advisory lock does not have this gap.
    */
   async acquireRunLock(holder: string, ttlSeconds: number): Promise<LockOutcome> {
-    const file = path.join(this.dir, LOCK_FILE);
+    const file = path.join(/*turbopackIgnore: true*/ this.dir, LOCK_FILE);
     const payload: LockFile = {
       holder,
       expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
@@ -177,9 +177,29 @@ export class FileSystemStore implements Store {
     }
   }
 
+  /** Extends only a lock we still hold. A lock that lapsed and was taken by
+   *  another holder is theirs now; refreshing it would be theft. */
+  async refreshRunLock(holder: string, ttlSeconds: number): Promise<WriteOutcome> {
+    const file = path.join(/*turbopackIgnore: true*/ this.dir, LOCK_FILE);
+    try {
+      const held = JSON.parse(await fs.readFile(file, 'utf8')) as LockFile;
+      if (held.holder !== holder) {
+        return { state: 'FAILED', reason: `lock is held by ${held.holder}, not by ${holder}` };
+      }
+      const renewed: LockFile = {
+        holder,
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      };
+      await fs.writeFile(file, JSON.stringify(renewed), 'utf8');
+      return { state: 'WRITTEN' };
+    } catch (cause) {
+      return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
   /** Releases only a lock we still hold; never removes somebody else's. */
   async releaseRunLock(holder: string): Promise<WriteOutcome> {
-    const file = path.join(this.dir, LOCK_FILE);
+    const file = path.join(/*turbopackIgnore: true*/ this.dir, LOCK_FILE);
     try {
       const held = JSON.parse(await fs.readFile(file, 'utf8')) as LockFile;
       if (held.holder !== holder) {
@@ -284,7 +304,7 @@ export class FileSystemStore implements Store {
     const removed = all.value.length - kept.length;
     if (removed === 0) return readNow(0, `${SOURCE} · ${FILES.observations}`);
 
-    const target = path.join(this.dir, FILES.observations);
+    const target = path.join(/*turbopackIgnore: true*/ this.dir, FILES.observations);
     const staging = `${target}.pruning`;
     try {
       await fs.writeFile(staging, kept.map((r) => `${JSON.stringify(r)}\n`).join(''), 'utf8');

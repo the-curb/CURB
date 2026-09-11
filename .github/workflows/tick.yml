@@ -1,0 +1,61 @@
+# The scheduler, deliberately outside the hosting platform.
+#
+# A platform cron that quietly degrades — to once a day, or to nothing — is
+# indistinguishable from an agent that had nothing to say, which is the one
+# confusion this system exists to remove. GitHub's scheduler is a separate
+# machine on a separate provider; if it stops, the Warden's "agents reporting
+# in the last hour" goes to zero and says so.
+#
+# Required repository secrets:
+#   CURB_TICK_URL     https://<your deployment>/api/tick
+#   CURB_TICK_SECRET  the same value as the deployment's CURB_TICK_SECRET
+#
+# GitHub's cron is best-effort and can run minutes late under load. That is
+# fine: each agent decides its own due-ness from its last heartbeat, so a late
+# tick runs what is due and a doubled tick is refused by the run lock.
+
+name: tick
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'Rehearse without writing (dry run)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Call /api/tick
+        env:
+          URL: ${{ secrets.CURB_TICK_URL }}
+          SECRET: ${{ secrets.CURB_TICK_SECRET }}
+          DRY: ${{ inputs.dry && '?dry=1' || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then
+            echo "CURB_TICK_URL and CURB_TICK_SECRET must be set as repository secrets." >&2
+            exit 1
+          fi
+          # A non-2xx is a failure worth a red run; the body says which agent and why.
+          curl --fail-with-body --silent --show-error --max-time 840 \
+            -X POST "${URL}${DRY}" \
+            -H "Authorization: Bearer ${SECRET}" \
+            | tee tick.json
+          # Surface the summary so a glance at the run log answers "what ran".
+          node -e '
+            const t = JSON.parse(require("fs").readFileSync("tick.json","utf8"));
+            console.log("store:", t.store);
+            console.log("lock :", t.lock?.state, t.lock?.renewalFault ? "RENEWAL FAULT: "+t.lock.renewalFault : "");
+            for (const r of t.ran) console.log(" ", r.agentId.padEnd(10), r.outcome.padEnd(22), JSON.stringify(r.storage));
+            if (t.undetermined?.length) { console.log("UNDETERMINED:", JSON.stringify(t.undetermined)); process.exitCode = 1; }
+          '

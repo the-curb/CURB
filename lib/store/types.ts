@@ -119,7 +119,17 @@ export type PublishOutcome =
  * and it is not a lock that is free either.
  */
 export type LockOutcome =
-  | { readonly state: 'ACQUIRED'; readonly holder: string }
+  | {
+      readonly state: 'ACQUIRED';
+      readonly holder: string;
+      /**
+       * Set when a renewal failed during the run. The run completed, but it may
+       * have done so after losing the lock — which means it may have overlapped
+       * another tick. Reported rather than swallowed, because "we held it the
+       * whole time" is a claim this field exists to keep honest.
+       */
+      readonly renewalFault?: string;
+    }
   | { readonly state: 'HELD_ELSEWHERE'; readonly holder: string | null; readonly expiresAt: string | null }
   | { readonly state: 'UNDETERMINED'; readonly reason: string };
 
@@ -137,6 +147,16 @@ export interface Store {
    * system forever.
    */
   acquireRunLock(holder: string, ttlSeconds: number): Promise<LockOutcome>;
+  /**
+   * Extend a lock this holder still holds. Refused if it does not hold it —
+   * a refresh must never resurrect a lock that expired and was taken by
+   * someone else, which is what a blind update would do.
+   *
+   * With refresh, the TTL can be short: a run renews it while it works, so a
+   * process that dies holding the lock blocks the system for one TTL, not for
+   * the worst-case length of a run.
+   */
+  refreshRunLock(holder: string, ttlSeconds: number): Promise<WriteOutcome>;
   releaseRunLock(holder: string): Promise<WriteOutcome>;
 
   writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome>;

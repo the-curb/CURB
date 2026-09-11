@@ -353,6 +353,29 @@ export class PostgresStore implements Store {
     }
   }
 
+  /**
+   * The `where holder =` clause is the whole safety: a lapsed lock that another
+   * holder took updates no rows, and no rows updated is reported as a failure
+   * rather than as a renewal that did not happen.
+   */
+  async refreshRunLock(holder: string, ttlSeconds: number): Promise<WriteOutcome> {
+    try {
+      return await this.guard('refreshRunLock', async () => {
+        const renewed = await this.sql`
+          update run_lock
+            set expires_at = now() + make_interval(secs => ${ttlSeconds})
+          where id = 1 and holder = ${holder}
+          returning holder
+        `;
+        return renewed.length > 0
+          ? { state: 'WRITTEN' as const }
+          : { state: 'FAILED' as const, reason: `lock is no longer held by ${holder}` };
+      });
+    } catch (cause) {
+      return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
   async releaseRunLock(holder: string): Promise<WriteOutcome> {
     try {
       return await this.guard('releaseRunLock', async () => {
