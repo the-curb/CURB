@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #07080a;
+  --color-ink-2: #0d0f13;
+  --color-ink-3: #14171d;
+  --color-rule: #23272f;
+  --color-rule-2: #2f343d;
+  --color-paper: #e8e4da;
+  --color-paper-dim: #9aa0aa;
+  --color-paper-faint: #6b7280;
+
+  /* Brass — the deco accent. Used for the mark and for live state only. */
+  --color-brass: #c8a24a;
+  --color-brass-dim: #8a6f30;
+
+  /* State colours. These are load-bearing: they encode the doctrine.
+     Fog and darkness are deliberately different. NOT_OBSERVED is fog — we never
+     looked. ABSENT is dark — it was expected and it never arrived. A dashboard
+     that paints both the same colour is the thing this project exists to fix. */
+  --color-state-live: #4ea672;
+  --color-state-stale: #c8a24a;
+  --color-state-degraded: #cc7a3d;
+  --color-state-dark: #a8434a;
+  --color-state-fog: #4a5058;
+  --color-state-request: #6b8299;
+  --color-state-absent: #5b616b;
+  --color-state-closed: #7d8590;
+
+  --font-display: 'Georgia', 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, #171a21 0%, transparent 60%),
+    var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The hairline rule that separates every block — deco ledger ruling. */
+.rule-t {
+  border-top: 1px solid var(--color-rule);
+}
+
+.tracking-mark {
+  letter-spacing: 0.42em;
+}
+
+/* An absent figure. Never styled to look like a value. */
+.absent {
+  color: var(--color-state-absent);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
