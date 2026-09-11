@@ -322,7 +322,7 @@ If two eligible issuers are not available on Robinhood Chain, the thesis cannot 
 | T24 | Alternative mint or burn paths | No admin mint, no public burn that bypasses two-component bookkeeping. |
 | T25 | Backend down, mint permit expired, claim permit active or revoked | Claims follow on-chain state without a new backend signature; live restrictions shown exactly. |
 
-Fuzz and invariant tests vary the number of holders, the order of mint, allocation and claim, which component fails, and the lot count. The minimum lot must make every `q[i]` a positive integer. Mock tests come first; fork tests check real code but do not prove every future operating condition. The cases marked T01–T08, T11, T12, T19, T22, T23 and T24 already run against the ledger model in this repository; the rest wait for a contract.
+Fuzz and invariant tests vary the number of holders, the order of mint, allocation and claim, which component fails, and the lot count. The minimum lot must make every `q[i]` a positive integer. Mock tests come first; fork tests check real code but do not prove every future operating condition. The cases marked T01–T08, T11, T12, T19, T22, T23 and T24 run against the ledger model in this repository, and T01–T12, T17, T19, T20, T22–T25 run against the prototype contract in `contracts/`, with a fuzz run over sequences of mints, exits and claims. T13–T16, T18 and T21 wait for a real component, a fork test and a running index.
 
 ## 15. Validation and the measure of success
 
@@ -365,7 +365,10 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Event codec, idempotent index with reorg rollback, replay to the ledger (D03) | Implemented, tested against fixtures; no contract to index | `lib/positions/index.ts`, `tests/positions-backend.test.ts` |
 | Reconciliation of units owed against `balanceOf` per component (D04) | Implemented; runs only for a configured deployment | `lib/positions/reconcile.ts` |
 | Product API (§10) with string amounts, previews that send nothing | Implemented | `/api/positions`, `/api/wallets/…`, `/api/status` |
-| Series contract, tests T09–T10, T13–T18, T20–T21, T25 | Not started | — |
+| Series contract prototype (§7, §9.1, §11) with Solidity tests T01–T12, T17, T19, T20, T22–T25 and a fuzz run | Implemented in `contracts/`; unaudited, unreviewed, undeployed | `contracts/src/CompanySeries.sol`, `contracts/test/CompanySeries.t.sol` |
+| Tests T13–T16, T18, T21 (real component, fork, running index) | Not started | — |
+| Independent review and audit of the contract | Not started | — |
+| Issuer documents watched for change by the hash of their visible text (9 pages) | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
 | Instrument file (R01), rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started | — |
 | Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
 

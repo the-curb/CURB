@@ -69,6 +69,18 @@ The scheduler is `POST /api/tick` every five minutes from outside the host;
 retention, the registries and how to re-capture them, and what is deliberately
 not covered.
 
+## The contract prototype
+
+`contracts/` is a separate workspace: the series contract the mechanism
+proposes (`src/CompanySeries.sol`), the mocks that misbehave on demand, and
+the blueprint's test cases as Solidity tests with a fuzz run. Unaudited,
+unreviewed, undeployed — the site reports NOT_DEPLOYED until a reviewed
+deployment record is configured.
+
+```bash
+cd contracts && npm install && npm run build && npm test
+```
+
 ## What it will not do
 
 The position product makes three testable promises — a holder can know and

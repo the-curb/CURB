@@ -1,0 +1,15 @@
+{
+  "name": "the-curb-contracts",
+  "private": true,
+  "version": "0.0.1",
+  "description": "THE CURB — the series contract prototype and its tests. A design under test, unaudited, undeployed.",
+  "type": "module",
+  "scripts": {
+    "build": "hardhat build",
+    "test": "hardhat test solidity"
+  },
+  "devDependencies": {
+    "forge-std": "github:foundry-rs/forge-std#v1.16.2",
+    "hardhat": "^3.16.0"
+  }
+}

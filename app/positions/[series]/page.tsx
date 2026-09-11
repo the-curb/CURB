@@ -156,7 +156,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
           <div className="cell p-6 sm:p-8">
             <div className="kicker">Issuer sources · archived on a schedule, kept as received</div>
             <ul className="mt-3 space-y-4">
-              {evidence.sources.map((s) => (
+              {evidence.sources.filter((s) => s.kind !== 'page').map((s) => (
                 <li key={s.id} className="text-[13px] leading-relaxed">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4">
                     <span className="text-(--color-paper)">
@@ -186,6 +186,33 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                 </li>
               ))}
             </ul>
+
+            <div className="mt-6 border-t border-(--color-rule) pt-4">
+              <div className="kicker">
+                Documents watched · {evidence.sources.filter((s) => s.kind === 'page').length} · hashed, never read for meaning
+              </div>
+              <ul className="tabular mt-2 space-y-1 text-[11px]">
+                {evidence.sources
+                  .filter((s) => s.kind === 'page')
+                  .map((s) => (
+                    <li key={s.id} className="flex items-baseline gap-2">
+                      <span
+                        aria-hidden="true"
+                        style={{ color: s.latest === null ? 'var(--color-state-fog)' : s.latest.status !== 'OK' ? 'var(--color-state-stale)' : (s.versions ?? 1) > 1 ? 'var(--color-accent)' : 'var(--color-state-live)' }}
+                      >
+                        ●
+                      </span>
+                      <span className="text-(--color-accent)">{s.component}</span>
+                      <a href={s.url} className="text-(--color-paper-dim) hover:text-(--color-paper)" rel="noopener noreferrer" target="_blank">
+                        {s.title}
+                      </a>
+                      <span className="ml-auto whitespace-nowrap text-(--color-paper-faint)">
+                        {s.latest === null ? 'not fetched' : s.latest.status !== 'OK' ? s.latest.status.toLowerCase().replace('_', ' ') : (s.versions ?? 1) > 1 ? `changed · ${s.versions} versions` : `unchanged · ${ageOf(s.latest.readAt)}`}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
 
             <div className="mt-6 border-t border-(--color-rule) pt-4">
               <div className="kicker">Deployment · index · reconciliation</div>

@@ -12,3 +12,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# The contracts workspace builds and tests separately; Vercel builds the site only.
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
