@@ -1,3 +1,4 @@
+import { DeskNav } from '../components/desk-nav';
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 import { AGENTS, AGENT_COUNTS } from '@/lib/agents/registry';
@@ -28,7 +29,7 @@ export default async function AgentsIndex() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-12">
-        <div className="tracking-mark text-xs text-(--color-brass)">THE AGENTS</div>
+        <DeskNav current="THE AGENTS" />
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           {AGENT_COUNTS.total} agents, one job each. What each refuses to do is as defined as what it does.
         </h1>

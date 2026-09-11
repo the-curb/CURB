@@ -3,6 +3,8 @@ import { BRAND } from '@/lib/brand';
 import { Mark } from './mark';
 
 const LINKS: ReadonlyArray<readonly [string, string]> = [
+  ['Positions', '/positions'],
+  ['Mechanism', '/mechanism'],
   ['The Floor', '/floor'],
   ['The Registry', '/registry'],
   ['The Vault', '/vault'],
@@ -15,7 +17,7 @@ const LINKS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /**
- * The colophon. A heavy rule, then three columns: the thesis in the serif,
+ * The colophon. A heavy rule, then three columns: the thesis and the stage,
  * the mark and what the desk will not do, and every destination as a ruled
  * list. The folio line closes the sheet.
  */
@@ -26,14 +28,17 @@ export function SiteFooter() {
         <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)]">
           <div className="cell p-6 sm:p-8">
             <p className="display text-3xl leading-tight text-(--color-paper) sm:text-4xl">
-              The ticker tells you the exposure.
+              One company. Multiple issuers.
               <br />
-              <em className="text-(--color-paper-dim)">The Curb tells you the conditions.</em>
+              <em className="text-(--color-paper-dim)">One position.</em>
             </p>
             <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
-              Whether you hold a stock token or are only reading about one, the number you are shown has an age, a source, and
-              a set of conditions around it. This paper prints all three, and says when it could not.
+              {BRAND.name} began with a question about how share exposure is formed on a blockchain. A symbol names the company;
+              the issuer and its contract decide how that exposure is actually held. We are building a company position that
+              combines several stock-token issuers, discloses its components, and records a holder’s rights when the position is
+              formed and when it is unwound.
             </p>
+            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">{BRAND.stage}</p>
           </div>
           <div className="cell p-6 sm:p-8">
             <div className="flex items-center gap-3">
@@ -41,10 +46,14 @@ export function SiteFooter() {
               <span className="display text-xl tracking-[0.22em] text-(--color-paper)">{BRAND.name}</span>
             </div>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-(--color-paper-dim)">
-              Nine agents read Robinhood Chain and two published registries on a schedule, publish what they measured with a
-              source and a time on every figure, and refuse — in code, not in a prompt — to forecast, advise, rate, or print a
-              number they did not read. It places no orders, holds no token, sells nothing, and states no price for a token no
-              feed prices.
+              The product is at the design and testing stage. The risk of the share, of each issuer and of each contract remains,
+              and the ability to withdraw a component follows the state and terms of that instrument. No receipt is one share, no
+              exit is a cash redemption, and no CURB token is a condition of any of it.
+            </p>
+            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
+              Beneath it, a desk of nine agents reads Robinhood Chain and two published registries on a schedule, publishes what
+              it measured with a source and a time on every figure, and refuses — in code, not in a prompt — to forecast, advise,
+              rate, or print a number it did not read. {BRAND.desk.line}
             </p>
           </div>
           <div className="cell">
@@ -71,7 +80,7 @@ export function SiteFooter() {
         <span>
           {BRAND.paper.name} · {BRAND.paper.cadence}
         </span>
-        <span>Printed from the record · MIT</span>
+        <span>Design under test · printed from the record · MIT</span>
       </p>
     </footer>
   );

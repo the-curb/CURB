@@ -1,3 +1,4 @@
+import { DeskNav } from '../components/desk-nav';
 import Link from 'next/link';
 import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { STOCK_TOKENS_SOURCE, STOCK_TOKEN_BEACON } from '@/lib/chain/stock-tokens';
@@ -65,7 +66,7 @@ export default async function RegistryPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-12">
-        <div className="tracking-mark text-xs text-(--color-brass)">THE REGISTRY</div>
+        <DeskNav current="THE REGISTRY" />
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           {STOCK_TOKEN_COVERAGE.tokensInRegistry} stock tokens. One beacon behind all of them.{' '}
           {STOCK_TOKEN_COVERAGE.withFeed} with a price this system can read.

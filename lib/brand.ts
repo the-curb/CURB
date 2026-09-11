@@ -7,14 +7,30 @@ export const BRAND = {
   name: 'THE CURB',
   /** Technical slug: package name, cookie prefix, storage keys. */
   slug: 'the-curb',
-  /** One line, used in the meta description and the hero. */
-  descriptor: 'Stock tokens, with the conditions in view.',
+  /** One line, used in the meta description and the masthead. */
+  descriptor: 'One company. Multiple issuers. One position.',
   /**
-   * The thesis. Before the American Stock Exchange had a building it was the Curb
-   * Market: claims traded outside the official floor. A stock token is the same
-   * thing again. "Curb" is also a limit — which is the other half of the job.
+   * The thesis. A stock-token holder chooses a company and, in the same act,
+   * a particular way of getting exposure to it — an issuer, a contract, a set
+   * of terms and an exit. The Curb is where that second choice is made in the
+   * open: one position on one company, formed from several issuers, with the
+   * composition inspectable and the right to every component recorded.
    */
-  thesis: 'The ticker tells you the exposure. The curb tells you the conditions.',
+  thesis: 'One company. Multiple issuers. One position.',
+  /**
+   * Where the product stands. Public copy follows this line; it moves from
+   * "building" only when the stated function is actually available.
+   */
+  stage: 'Building — a design under test. No Curb contract, issuer integration, transaction or deployment exists yet.',
+  /**
+   * The desk beneath the product: the measuring agents and their line. Before
+   * the American Stock Exchange had a building it was the Curb Market: claims
+   * traded outside the official floor. A stock token is the same thing again.
+   * "Curb" is also a limit — which is the other half of the job.
+   */
+  desk: {
+    line: 'The ticker tells you the exposure. The desk tells you the conditions.',
+  },
   domain: 'thecurb.io',
   /** Narrative universe: original financial-noir. No licensed characters, ever. */
   universe: {

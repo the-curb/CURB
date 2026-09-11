@@ -12,7 +12,8 @@
 export type Inline =
   | { readonly kind: 'text'; readonly text: string }
   | { readonly kind: 'code'; readonly text: string }
-  | { readonly kind: 'strong'; readonly text: string };
+  | { readonly kind: 'strong'; readonly text: string }
+  | { readonly kind: 'link'; readonly text: string; readonly url: string };
 
 export type Block =
   | { readonly kind: 'heading'; readonly level: 1 | 2 | 3; readonly text: string; readonly id: string }
@@ -29,16 +30,17 @@ export function slugOf(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** `code` and **strong**, nothing nested. */
+/** `code`, **strong** and [links](url) — to http(s), a site path or an anchor — nothing nested. */
 export function parseInline(text: string): Inline[] {
   const out: Inline[] = [];
-  const pattern = /`([^`]+)`|\*\*([^*]+)\*\*/g;
+  const pattern = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(((?:https?:|\/|#)[^)\s]+)\)/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) out.push({ kind: 'text', text: text.slice(last, index) });
     if (match[1] !== undefined) out.push({ kind: 'code', text: match[1] });
     else if (match[2] !== undefined) out.push({ kind: 'strong', text: match[2] });
+    else if (match[3] !== undefined && match[4] !== undefined) out.push({ kind: 'link', text: match[3], url: match[4] });
     last = index + match[0].length;
   }
   if (last < text.length) out.push({ kind: 'text', text: text.slice(last) });

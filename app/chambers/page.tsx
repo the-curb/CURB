@@ -1,3 +1,4 @@
+import { DeskNav } from '../components/desk-nav';
 import { systemHealth } from '@/lib/agents/health';
 import { NEVER_DETERMINED } from '@/lib/chain/terms';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
@@ -75,7 +76,7 @@ export default async function ChambersPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-10">
-        <div className="tracking-mark text-xs text-(--color-brass)">CHAMBERS</div>
+        <DeskNav current="CHAMBERS" />
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           The terms, pointed at and watched. The system, with its three numbers showing.
         </h1>

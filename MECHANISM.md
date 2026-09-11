@@ -1,0 +1,386 @@
+# THE CURB — Mechanism, v1
+
+**One company. Multiple issuers. One position.**
+
+This is a proposed specification and a validation plan, written 12 September 2026. No Curb series contract, issuer integration, transaction or deployment has been made for it. Addresses, fees, compositions, receipt symbols and pilot limits that have not been verified are not production configuration and are labelled illustrative wherever they appear. Public copy follows product status: until a real pilot exists the words are *building*, *design* and *simulation*.
+
+## 1. The decision
+
+The Curb is proposed as the place to form a position on one company through several stock-token issuers, with a composition anyone can inspect and an exit that books the holder's right to every component separately.
+
+**The recommended MVP:** one company, two issuers that pass verification, one network, a fixed composition in token units, deposits of both components in kind, and withdrawal per component. The first experiment runs on mock tokens. A pilot with real assets is considered only after the instruments, the holder's rights, the contract and the costs have been shown to hold.
+
+The first research candidate is Apple, through the xStocks representation and the Ondo representation on Ethereum. Candidate status does not mean ready to integrate. For xStocks the unit under study is the official non-rebasing wrapper, not an assumption that raw AAPLx behaves like an ERC-20 with a static balance.
+
+A CURB token is not required by the MVP's accounting. A position receipt and a CURB token would have different functions. A launch of CURB on a launchpad, if it ever happens, is separate work and does not prove that the position's components are available on the same network.
+
+| Decision | Initial choice | Why |
+| --- | --- | --- |
+| Company exposure | One company per series | Keeps the economic aim and the components comparable. |
+| Number of issuers | Two, for the prototype | Tests the core mechanism with bounded room for failure. |
+| Network | One EVM; Ethereum is the integration candidate | The researched pair is documented there. Actual availability is still a gate. |
+| Composition | A fixed number of component units per lot | A holder's rights can be computed with no price oracle. |
+| Deposit | In kind: both specified components | Avoids an early dependency on swappers, RFQ and stablecoin liquidity. |
+| Withdrawal | Allocate every component, claim each separately | One failed transfer does not cancel the others. |
+| Rebalancing | None in an MVP series | A price fall caused by an issuer problem does not trigger automatic buying. |
+| Receipt transfer | Not available in the early experiment | Narrows scope. Restricted transfer would need its own eligibility design. |
+| Upgrade | A new series; old components are never swapped | Holders see the change and choose to migrate explicitly. |
+| Main token | Not a condition of using the MVP | The product's need can be tested without a speculative incentive. |
+
+## 2. Thesis and narrative
+
+A stock-token holder chooses a company, and in the same act accepts a particular way of getting exposure to it. Behind similar symbols sit different issuers, contracts, service providers, corporate-action rules and exits.
+
+The Curb gives the holder a way to manage that second choice: keep the company, split the position across issuers that are disclosed plainly.
+
+The longer form:
+
+A view on a company can be held through several stock tokens, each carrying its own issuance structure and terms. The Curb helps a holder form one company position from several issuers. The composition can be inspected, the right to every component is recorded, and every component has its own withdrawal. When one component is obstructed, the ledger still shows what can be transferred and what remains a claim. Every position still carries the risk of the company, the issuers and the contracts used. The Curb makes that structure something a holder can choose and check.
+
+**Testable promises:** a holder can know and prove the composition of their position; the ledger never erases a right to a component that cannot yet be transferred; mint and exit need no decision by a model.
+
+**Claims this product does not make:** capital is protected; it cannot be frozen; it is the same as holding the share directly; it is automatically safer; it can always be sold at the reference value; it earns more; the issuers or custodians are fully independent; it is the first of its kind.
+
+## 3. What is known, and the limits of novelty
+
+| Finding | Design consequence | Source and limit of evidence |
+| --- | --- | --- |
+| AAPLx documents Apple exposure and an Ethereum/ERC-20 deployment; Ondo documents AAPLon and an Ethereum launch. | A reasonable pair for one underlying on one chain. | [AAPLx](https://assets.backed.fi/products/apple-xstock), [Ondo](https://ondo.finance/blog/global-markets-is-live). No Curb integration verified. |
+| Both issuers describe instruments of economic exposure whose rights are not identical to a share. | The receipt must explain its claim on its components. | [xStocks FAQ](https://docs.xstocks.fi/docs/frequently-asked-questions), [Ondo disclaimers](https://docs.ondo.finance/legal/disclaimers). |
+| xStocks balances and multipliers need their own accounting. | An MVP component must have a unit balance that is verifiably static. | [xStocks corporate actions](https://docs.xstocks.fi/docs/dividends-and-stock-splits). |
+| xStocks offers a non-rebasing wrapper, distinguishes an older and a current version, and asks that address and underlying be verified. | Never choose a wrapper from a ticker or a field name. | [Wrapped xStocks](https://docs.xstocks.fi/developers/wrapped-xstocks). Its conversion prose must be matched against the contract. |
+| Ondo documents that smart contracts may hold the token, with access requirements still applying. | Technical ability to hold does not settle product or holder eligibility. | [Investing and redeeming](https://docs.ondo.finance/ondo-stocks/investing-and-redeeming), [Eligibility](https://docs.ondo.finance/ondo-stocks/eligibility). |
+| ERC-4626 is for one underlying token. | A two-component receipt is not marketed as standard ERC-4626. | [EIP-4626](https://eips.ethereum.org/EIPS/eip-4626). Components may use such wrappers individually. |
+| Baskets of several representations of one target, and per-component withdrawal, both have precedents. | What is tested is the product package: one share, several issuers. | [mStable](https://docs.mstable.org/assets/musd), [Stax](https://www.stax-index.com/whitepaper). |
+
+A limited search found no exact precedent for the proposition. That does not prove global novelty. No claim of patentability, of a financial principle discovered, or of a scientific finding is made.
+
+## 4. Who it is for, and the baseline it must beat
+
+The users worth studying first are stock-token holders who meet the access requirements and already understand their issuers, and integrators who need one position with an explicit composition. Size of funds is not evidence of need; interviews must test actual behaviour.
+
+| User | Job to be done | Evidence of need sought |
+| --- | --- | --- |
+| Holder of several representations of a share | Form, record and unwind a position with a consistent composition | Has managed such a position; can show today's problems and costs. |
+| Eligible allocator | Choose an initial issuer mix and check how its concentration changes | Has an allocation need that does not require weights to be maintained automatically. |
+| Integrator or wallet | Display or integrate one position with clear claims | Has a specific technical need and a written integration plan. |
+
+**The baseline is holding token A and token B in one wallet.** That already splits issuer exposure without a Curb receipt contract. Issuer diversification alone therefore does not prove the need for a receipt. The Curb has to add something measurable: consistent lot formation, an integrable ledger, fewer operational steps, or an integration that can accept one position. Acceptance as collateral, DEX listing and external wallet support are not in this blueprint.
+
+If users like the issuer split but reject the receipt layer and its cost, test a purchase-and-bookkeeping service that leaves the position in the user's wallet. That is a change of product; do not announce success of the receipt thesis on the strength of a different service.
+
+## 5. Product shape and terms
+
+The product name stays **The Curb**. A position is named for its company and series, for example **Apple Position — Series 1**. The symbol `cAAPL-S1` is illustrative for the specification; it is not an issued token or a checked name.
+
+| Term | Meaning in the Curb |
+| --- | --- |
+| Company / underlying | The company whose exposure the components carry. |
+| Issuer | The legal entity issuing a stock-token instrument. Not an exchange, not a chain. |
+| Component | The token the series contract actually holds, including a wrapper where one is used. |
+| Series | A package of components, units per lot, chain and rules, fixed when made. |
+| Lot / receipt | One unit of a series position; not automatically one share or one dollar. |
+| Indicative value | An estimate from a dated price source. |
+| Executable value | The result of a specific quote, for a specific size at a specific time. |
+| Exit allocation | The receipt is burned and the right to every component is recorded as the holder's claim. |
+| Component claim | Delivery of one component from the Curb to the entitled holder. |
+| Unwrap | Exchange of a wrapper for the stock token it wraps. |
+| Issuer redemption | Redemption through the issuer, on its terms, hours and mechanism. |
+
+The last four are never collapsed into one label such as "withdraw to cash". The MVP ends at delivery of components. Unwrapping, selling on a market and redeeming with the issuer are different operations.
+
+## 6. Flows and screens
+
+**Finding a position.** The front page shows one position available for simulation or pilot: the company, two issuers, the network, the composition per lot, access status and product status. Before anything is live the primary action is **Try the simulation**. A holder can open the map of related parties — issuer, broker, custodian, contract authority, wrapper, sources — with unknown dependencies marked *not known*, never replaced by an invented safety score.
+
+**Checking access and components.** The holder connects a wallet on the right network. Access is checked against the approved design for the pilot's regions and user categories; there is no assumption that every non-US user is eligible. In the in-kind MVP the holder must already hold the right components; if they hold raw AAPLx while the series asks for a specific wrapper, the interface explains the difference. The system never requests approval for the wrong asset and never routes anyone around a third party's restriction.
+
+**Forming a position.** The holder chooses a number of lots. The review screen shows the exact amount of each component, an estimated value with the time of its price, the allowances, an estimated gas cost and the number of receipts. It states that the receipt cannot be sent or sold as one token; exit is by component claim. The preview has a deadline and input limits. Both deposits and the receipt issue in one atomic transaction; if either component fails to arrive, the whole mint reverts.
+
+**Holding a position.** The position page shows receipts held, the component units they are entitled to, the current value weights, and any exit claims still open. Pending claims are never counted again as active backing. A 50:50 starting weight, if used to pick the units per lot, is indicative at one time; the market can make it 45:55. The series does not rebalance.
+
+**Unwinding.** The holder chooses lots to exit. All component rights are allocated. After that transaction, the holder claims component A and component B separately; a batch is a convenience, the single-component function always exists. If A cannot be transferred, A stays pending with a known reason or *cause not confirmed*, and B can be tried on its own. A pending claim is promised no date and no recovery value.
+
+| Screen | Function | Done when |
+| --- | --- | --- |
+| Front | Explains the position and the product's stage | Simulation / pilot / live is visible before a wallet is connected. |
+| Company detail | Components, issuers, rights, units per lot | Contract identities and documents can be traced. |
+| Form position | Preview, approval, mint | No receipt issues if one deposit fails. |
+| My position | Active receipts and open exit claims | No value is counted twice. |
+| Claim components | Allocation and individual claims | A failed A transfer is not a precondition of claiming B. |
+| Evidence and status | Reconciliation, source status, changes | Old, partial and unavailable data are told apart. |
+
+## 7. The ledger: lots with fixed components
+
+This section is a **design**, not audited contract code. The main simplification: the MVP only accepts components whose unit balance is proven not to change on its own. Economic value per unit may change.
+
+Each series stores exactly two distinct component addresses and the base units of each needed for one lot; those numbers never change for the life of the series. The receipt has `decimals = 0`: one unit of receipt is one whole lot, sized so a holder can still take a small enough fraction of a share. The interface explains the lot's indicative value as it moves with the market. Two distinct addresses must still be verified to come from the two intended issuers.
+
+```text
+n       = lots of receipt outstanding
+q[i]    = base units of component i per lot; positive integer, immutable
+A[i]    = active liability of component i        = n × q[i]
+R[i]    = base units of component i allocated for exit, not yet paid
+C[u,i]  = unpaid claim of holder u on component i
+B[i]    = real balance of component i held by the series
+L[i]    = total liability of component i        = A[i] + R[i]
+
+R[i] = Σ C[u,i] over all holders
+B[i] ≥ L[i] while the component is solvent, in token units
+```
+
+*Solvent* here means only: enough token units for the Curb's own bookkeeping. It says nothing about the issuer's share backing, a dollar value, or whether the token can be sold.
+
+A surplus from tokens sent straight to the contract changes no `q[i]`, no receipt count and no claim. The MVP never uses a donated raw balance to price a mint. The surplus is recorded separately and has no admin sweep in this version — so a wrongly sent asset can be locked; the interface tells holders to use the deposit function. A recovery policy would need its own design and review.
+
+### 7.1 Mint
+
+To mint `k` lots the holder deposits exactly `k × q[i]` of every component. Check eligibility and the mint limit, record the opening balances, transfer both components, then verify the correct increase. The receipt is minted only after both deposits are valid. Fee-on-transfer tokens and transfers that do not follow the specification are not supported.
+
+After the deposit the contract must check `B_after[i] ≥ (n + k) × q[i] + R[i]` for every component. A correct increase alone is not enough when there was already a backing shortfall. Maximum inputs and a deadline protect the holder from parameters that differ from the preview. An in-kind mint needs no NAV oracle: the composition per lot is fixed.
+
+The pilot cap counts every liability, including pending claims: `(n + k) × q[i] + R[i] ≤ capLots × q[i]` for every component. The cap is not merely outstanding receipts, so burning and re-minting cannot hide a build-up of claim reserves. The cap limits units; their dollar value still moves. `capLots × q[i]` must be valid without overflow from deployment.
+
+### 7.2 Exit allocation
+
+```text
+require the caller holds k lots
+burn k lots of receipt
+for every component i:
+    C[user,i] += k × q[i]
+    R[i]      += k × q[i]
+```
+
+Only the Curb's ledger changes. No external token, oracle or model is called. The fall in `A[i]` is matched by the rise in `R[i]`; total liability is unchanged. So a freeze on one component's transfers never has to stop the exit right from being recorded. There is no public `burn` or `burnFrom` that bypasses allocation of every component, and no admin mint. Supply changes only through a complete deposit or an exit allocation.
+
+### 7.3 Claiming one component
+
+`claimComponent(i)` pays the holder's whole claim on one component, to the claimant's own wallet only. It checks the right, the access status that applies to that recipient, the component's status, and that the balance covers the component's whole liability. The claim is marked paid before the transfer call; if the transfer fails or returns the wrong amount, the transaction reverts and the claim stays whole. Alternate recipients, transferable claims and partial claims are deferred.
+
+Claiming A never reads or calls B. After `x` units of A are paid, `B[A]` and `R[A]` fall by `x`; nobody else's liability changes. A recipient cannot be changed by anyone but the claimant.
+
+If a component's real balance is below its total liability, nominal payment from that component stops. This keeps the fastest holder from taking what remains before the shortfall is acknowledged. The MVP has no haircut, no automatic substitution, no sharing of recoveries. Those need a new specification; they are not improvised during an incident.
+
+### 7.4 A worked example
+
+The numbers are units only; no Apple price or address is used. One lot holds 10 units of A and 20 units of B. 100 lots are outstanding. Alice holds 25 lots and allocates all of them for exit.
+
+| State | Active receipts | A active | A reserved | B active | B reserved |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Before Alice exits | 100 | 1,000 | 0 | 2,000 | 0 |
+| After Alice's allocation | 75 | 750 | 250 | 1,500 | 500 |
+| A halts; Alice claims B | 75 | 750 | 250 | 1,500 | 0 |
+| Bob mints 10 lots | 85 | 850 | 250 | 1,700 | 0 |
+
+In the last row Bob deposits 100 new A and 200 new B. He receives no part of Alice's 250 pending A; Alice keeps that claim. If A transfers are halted so that Bob cannot deposit A, his mint must fail entirely — the last row applies only once A can be deposited again. The [simulation](/positions/apple-s1) runs exactly this table, and the tests in `tests/positions.test.ts` reproduce it row by row.
+
+### 7.5 The limit of 50:50
+
+A fixed unit composition does not keep the value weights at 50:50. Issuer fees, multipliers, dividends, token market prices and transaction obstacles all move the relative value. Once a series exists, the Curb does not buy more of a troubled token to restore the starting ratio. A new series may choose new units per lot after evaluation; existing holders decide for themselves whether to unwind, obtain the needed components and enter it. There is no forced migration by token vote.
+
+## 8. Corporate actions, prices, and what an exit means
+
+Three units are kept apart: component units held by the Curb; underlying-equivalent exposure computed from documentation; estimated money value. The MVP's withdrawal rights are set in the first.
+
+For an xStocks wrapper, the verified version and its contract method are used for display conversion and unwrap. No multiplier formula is copied from a summary, and no wrapper with a similar name is assumed to behave the same. For Ondo, the documentation describes dividend reinvestment in token pricing and display treatment that can differ across networks; that produces no separate cash dividend balance in the Curb. [Ondo corporate actions](https://docs.ondo.finance/ondo-stocks/corporate-actions).
+
+When a corporate action happens: archive the source and its time; match the affected tokens; check the conversion change and the indicative value; stop minting if the component assumptions are unconfirmed; publish the status. A component's identity in a series is never swapped quietly on a merger, a ticker change or a product discontinuation.
+
+Four statuses of a component stand on their own:
+
+- It can be transferred from the Curb contract to a wallet.
+- It can be unwrapped, if it is a wrapper.
+- There is a market offer to sell the intended size.
+- The holder is eligible and the service is available for redemption through the issuer.
+
+A successful wrapper transfer does not prove the underlying can be cashed. A stock token that has left for a wallet still carries its issuer's risk.
+
+For live value:
+
+```text
+indicative_receipt_value = Σ q[i] × indicative_price_per_base_unit[i]
+indicative_holder_value  = holder_lots × indicative_receipt_value
+```
+
+Pending claims are shown separately. Every price has a unit, a source, an effective time and a read time. A wrapper conversion is not a market price. When one price is unavailable, the page says *total value incomplete* and shows the subtotals it knows; a missing price is never replaced by zero, and a subtotal is never presented as a complete NAV. In the MVP, prices assist review and display; they decide no mint right and no claim. The contract can book an exit while the price interface is down, as long as its own rules allow it.
+
+## 9. Architecture
+
+Conceptually: the holder's wallet talks to the Curb interface; the interface shows access status and evidence, previews a composition, and hands the series contract the transaction. The series contract holds component A and component B and keeps the per-component claim ledger; claims of A and claims of B are separate transactions back to the holder. Contract events feed a chain index; issuer sources and prices feed deterministic checks; both land in Postgres and an evidence archive that the interface reads. Claims can live in the series contract itself; no separate escrow is required.
+
+| Module | Responsibility | Limit of authority |
+| --- | --- | --- |
+| `CompanySeries` | Immutable components, lots, mint, burn, reserved claims, individual claims | Swaps no asset, lends nothing, runs no strategy. |
+| Series receipt | Lot balances and the right to burn for exit allocation | Asserts no right to underlying shares or to CURB revenue. |
+| Access rules | Checks wallet or recipient against the pilot policy | Replaces no issuer requirement; every access decision is recorded. |
+| Incident control | Stops minting or a specific component's claims when needed | Cannot change a component address, move backing or rewrite a claim. |
+
+The MVP uses one series contract with the receipt built in, and no permissionless factory. A factory and a public series list are added only when a second series is actually needed. Access decisions are stored on chain: minting needs an unexpired mint permit; claiming uses a claim permit recorded for the holder, with no fresh backend signature per withdrawal; permits can be revoked explicitly under a published policy. Exit allocation uses the internal receipt right and needs no new external access check. A Curb permit never overrides an issuer's contract restriction. A backend that is down does not block claims while the on-chain permit holds, the chain works and the component transfers; a holder whose permit is revoked needs the settlement process set out in the pilot document. The MVP receipt refuses transfer to another wallet even when both wallets hold permits.
+
+The interface and data services keep the existing Next.js, TypeScript, React and Postgres stack; Solidity and Foundry are the proposed choices for the contract and its tests. The backend never holds a holder's private key. A model may compose explanations from facts the checker has already accepted; it decides no balance, no binding price, no recipient and no claim amount.
+
+**The desk's role.** The Registrar supplies component identity and authority changes; the Archivist, corporate-action context; Pillar and the Bell, price and session context; the Tally and the Warden, reconciliation; Counsel archives document changes for a human to review; the Gazette publishes verified changes. Those agents need new sources and tests for a new chain. A source reading *read* does not mean safe, legal for every holder, or backed by reserves the Curb has audited. The MVP takes the deterministic functions it needs; nine agents do not have to become nine new services.
+
+## 10. Data, API and events
+
+| Entity | Minimum fields |
+| --- | --- |
+| Issuer | Internal id, legal entity name, documents, stated jurisdictions, review time. |
+| Instrument | Underlying id/ISIN, issuer ticker, chain id, token address, decimals, wrapper and version, verification status. |
+| Dependency | Party type, name, relationship, source, known/unknown, effective time. |
+| Series | Contract address, two instruments, `q[i]`, lot denominator, mint status, series document, code version. |
+| ReceiptBalance | Wallet, series, lots, block number and hash, confirmation status. |
+| ComponentClaim | Wallet, series, component, reserved and claimed amounts, related transactions. |
+| Observation | Source, effective time, read time, payload hash, raw data, parsed result. |
+| Valuation | Input unit, price, amount, source, timestamp, completeness, reason if unavailable. |
+| Incident | Component, affected operation, evidence, time, operator action, resolution. |
+| AccessDecision | Wallet or recipient, policy version, status, validity, audit trail; no personal identity data published. |
+
+Proposed product API — every token amount is a string of integer base units, never a float:
+
+```text
+GET  /api/positions
+GET  /api/positions/{seriesId}
+GET  /api/positions/{seriesId}/evidence
+GET  /api/positions/{seriesId}/preview-mint?lots=...
+GET  /api/positions/{seriesId}/preview-exit?lots=...
+GET  /api/wallets/{address}/positions
+GET  /api/wallets/{address}/claims
+GET  /api/status
+```
+
+A preview sends no transaction and proves nothing about whether one would succeed. Access-specific or identity data needs authentication; a public address is not permission to open private data. Proposed contract events: `PositionMinted`, `ExitAllocated`, `ComponentClaimed`, `MintStatusChanged`, `ComponentClaimStatusChanged`, each carrying the series, the holder, the relevant component and amount, and the operator's reason where there is one. The chain index is idempotent on chain id, transaction hash and log index; it stores block hashes to detect reorgs; the interface tells pending, included and confirmed apart. The database is an index for display, never a source of liability that outranks the contract.
+
+## 11. Operator authority and incidents
+
+The pilot uses an operator multisig with published roles; quorum and people are decided before the pilot, and the blueprint does not assume signers exist. The current design allows a per-component stop on claims for exploit handling or a balance shortfall. That adds dependence on the operator and can delay withdrawal; the authority is shown in the series document. A design that can only stop minting has different trade-offs and is not mixed in without a reviewed decision.
+
+| Action | Proposed policy |
+| --- | --- |
+| Stop minting | Fast, with an event and a reason. |
+| Resume minting | Needs evidence the problem is over and a second review. |
+| Stop claims of A | A only, and only on exploit risk, insufficient bookkeeping, or a defined access obligation. |
+| Stop claims of B because A has a problem | Not default behaviour. |
+| Replace a series component | Not available. Needs a new series and the holder's choice. |
+| Take backing or alter a holder's rights | Not available. |
+| Raise the pilot series fee | Not available in a fee-free pilot version. |
+| Upgrade the series implementation | Not available in the immutable initial design. A critical bug means stopping the affected operations and a reviewed plan. |
+
+Incident order: identify the affected operation and component; stop what must stop; preserve evidence; show a specific status; reconcile rights and balances; decide the fix; test it; announce whether to resume or hold. Never write *the issuer is bankrupt* from one reverted transaction. A bad price status does not stop component claims, because claims are in units. An exploit of the core contract can affect every series and needs a broader response; separating claims removes none of the shared failures of the chain, the Curb contract, operator keys or common service providers.
+
+## 12. Scope and what is deferred
+
+| Stage | What is built | What must be visible |
+| --- | --- | --- |
+| A — product validation | Narrative, position detail, simulated flow, the two-tokens-in-a-wallet baseline | Users understand the benefit, cost and limits without a token incentive. |
+| B — accounting prototype | Two mock tokens, one series, mint, exit allocation, separate claims, event index | The ledger is right in the normal case, under a freeze, a donation, a failed transfer and a reordering. |
+| C — compatibility evidence | Canonical addresses, access documents, fork tests of real components at a recorded block | Every assumption about component behaviour matches the version to be used. |
+| D — limited pilot | Reviewed contract, participant access, lot cap, interface and incident procedure | Real funds only if every earlier gate passed. |
+
+Deferred: single-stablecoin deposit and automatic routing; cash redemption; dynamic rebalancing; leverage, lending, insurance, bridges; uncurated stock lists; permissionless series; free receipt transfer; a market for stuck claims; reward tokens; buybacks; governance able to change the backing of an old series. Deferral keeps the prototype small enough to prove the mechanism; it is not a promise that any of these will be added.
+
+## 13. Gates before real assets
+
+| Gate | Required evidence | Where it stands |
+| --- | --- | --- |
+| G1 — instrument | Two issuers, one underlying, one chain, canonical identities | Candidates appear in documentation; integration verification not done. |
+| G2 — rights and access | Review of rights, user categories, contract custody, receipt distribution, exit process | Not done. Technical ability to hold is not enough. |
+| G3 — components | Static balances, decimals, correct wrapper version, authority, real transfer and claim under test | Not done. |
+| G4 — contract | Invariants and adversarial tests pass; independent review; material findings closed | Not implemented. |
+| G5 — operations | Reconciliation, index recovery, incident drill, key management, direct claim interface | Not implemented. |
+| G6 — economics | Measured formation and exit cost, and user need against the baseline | Not validated. |
+
+If two eligible issuers are not available on Robinhood Chain, the thesis cannot be met by wrapping two tokens from the same issuer. Choose a chain that passes the gates or stay in simulation. There is no hidden bridge plan to cover the gap. Receipt terms may need their own structure and distribution arrangements; nontransferable or testnet status does not settle every obligation for a real-asset pilot. That is specific feasibility work, not a claim of regulatory approval.
+
+## 14. The engineering test plan
+
+| ID | Scenario | What must be shown |
+| --- | --- | --- |
+| T01 | Normal mint of two components | Both amounts right; receipts exact; liabilities never exceed balances. |
+| T02 | Second component transfer fails | Whole mint reverts; no receipt, no partial deposit becomes final. |
+| T03 | Exit allocation | Total liability per component unchanged; rights move from active to reserved. |
+| T04 | A cannot be transferred | A claim intact; B claim proceeds without calling A. |
+| T05 | Double claim or wrong recipient | No double payment; no reassignment of rights without consent. |
+| T06 | Mint after pending claims | New depositor gets no part of the exit reserve. |
+| T07 | Donation before the first mint and later | Changes no lot, no receipt count, no existing entitlement. |
+| T08 | Component balance below liability | Nominal claims of that component fail; no race for the remainder. |
+| T09 | Reentrancy callback or a token returning false | Rejected or rolled back with the ledger still right. |
+| T10 | Fee-on-transfer or raw rebasing token supplied | Rejected as an MVP component, or the integration gate fails. |
+| T11 | Zero supply with reserves still open | A new mint does not adopt old holders' claim assets. |
+| T12 | Different decimals and integer limits | No overflow, no unit mix-up, no loss of small components. |
+| T13 | Missing or stale price | Mint and exit rights unchanged; no false complete total. |
+| T14 | Corporate action on a real component | Unit balance and conversion behave as the chosen version says; no double multiplier. |
+| T15 | Upstream implementation or authority change | Detected; verification status re-reviewed; minting can be stopped. |
+| T16 | Reorg, duplicate event, RPC outage | No double balance; index recovers from chain; interface shows the limitation. |
+| T17 | Eligibility or recipient change | MVP receipt transfer always refused; claims only to an owner the claim policy admits. |
+| T18 | Website or backend down | The documented contract path still works for the entitled party while chain and contract work. |
+| T19 | Two components with the same address | Deployment refused; one balance is not counted as backing for two liabilities. |
+| T20 | `balanceOf(A)` reverts | Exit allocation and B claims still never call A. |
+| T21 | Wrapper transfers but unwrap fails | The interface never calls a wrapper transfer a cash exit or a recovery of the underlying. |
+| T22 | Repeated burn and mint while reserves are unclaimed | The whole-liability cap cannot be passed by lowering active supply. |
+| T23 | Exact deposit while an old shortfall exists | The total backing check refuses; the old loss is not covered quietly by a new depositor. |
+| T24 | Alternative mint or burn paths | No admin mint, no public burn that bypasses two-component bookkeeping. |
+| T25 | Backend down, mint permit expired, claim permit active or revoked | Claims follow on-chain state without a new backend signature; live restrictions shown exactly. |
+
+Fuzz and invariant tests vary the number of holders, the order of mint, allocation and claim, which component fails, and the lot count. The minimum lot must make every `q[i]` a positive integer. Mock tests come first; fork tests check real code but do not prove every future operating condition. The cases marked T01–T08, T11, T12, T19, T22, T23 and T24 already run against the ledger model in this repository; the rest wait for a contract.
+
+## 15. Validation and the measure of success
+
+Figures here are **proposed experiment targets**, not industry benchmarks or research already done. Start with 10–15 relevant prospective users, holders and a few integrators. Ask them to describe their last experience managing issuer exposure; do not ask whether the idea sounds interesting. Never offer a token allocation in exchange for choosing the product.
+
+Show three options with disclosed costs: one representation of a share; two representations in the user's own wallet; one Curb receipt. The Curb offer tested is exactly the MVP: direct component deposit, fixed lot, nontransferable receipt, per-component exit. Interest in a future tradable or collateralisable receipt is recorded as a separate hypothesis. Rotate the order so the Curb never gets the position advantage. Record reasons, task time, misunderstandings, willingness to pay and recurring needs.
+
+Suggested decision targets: at least five participants can show a real operational problem; at least three want to test again after seeing the added cost and risk; at least one integrator has a specific need for the receipt if integrators are the primary customer. These are early signals to continue, not proof of product-market fit.
+
+Required comprehension test: participants can explain that the share can still fall, a component can get stuck, a brand split does not prove separate custody, the MVP receipt cannot be sent or sold as one token, and the Curb guarantees no cash redemption. Systematic misunderstanding means revising copy and flow before a pilot.
+
+Stop or change the receipt thesis if people choose to hold the two tokens themselves after full information, if the added cost and contract risk have no measurable benefit, or if access requirements make the user segment too narrow for the chosen business.
+
+## 16. Revenue and the CURB token
+
+The prototype and an early technical pilot may charge no product fee, with gas paid as the flow requires. No fee logic goes into the contract before basic demand is shown. A paid release explains its cost in the preview and the series document.
+
+| Revenue | Source of value | Condition before it applies |
+| --- | --- | --- |
+| Position formation fee | Automation of acquiring components and forming the position | A real purchase path, and a benefit over doing it yourself. |
+| Integration / API fee | Position data, component rights, evidence, reconciliation for other applications | Active integrators with recurring need. |
+| Operational subscription | Reporting and management of several positions for relevant users | Tested willingness to pay. |
+
+A revenue model never equates assets under management with transaction volume. A hypothetical: US$1 million of paid volume a month at 0.10% is US$1,000 of gross revenue before costs — not a projection, a final rate, or a promise of scale. Spread, gas and issuer fees are not all Curb revenue.
+
+**Three instruments to keep apart:** the issuer component is the asset held; the company receipt is the proportional right to a series' components; CURB is a candidate ecosystem token whose need has to be proven on its own. If CURB is ever launched, the most sensible function to test is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. Governance, if ever used, may take proposals on research priorities or new series; a vote never changes a holder's balance, takes claim reserves, replaces an old series' components, or declares an issuer safe because many tokens said so. There is no basis yet for supply, allocation, vesting, buybacks, fee sharing or CURB as a loss guarantor; a launch on a launchpad does not change that. Positions never depend on a CURB price or a bridge.
+
+## 17. First work
+
+Three things can start now without a token or a public launch: complete the instrument candidate file; test the narrative against the two-tokens-in-a-wallet baseline; and prove the accounting with mocks. The ledger model and its tests in this repository are the beginning of the third; the [simulation](/positions/apple-s1) is the beginning of the second.
+
+## 18. Questions people ask
+
+**Is one receipt one share?** No. One receipt is one lot of the components the series describes. Its value and exposure depend on those components.
+
+**Do I receive cash dividends?** The MVP promises no cash dividend. A dividend's effect follows each component's own mechanism and shows in the economic right that component carries.
+
+**Are the weights always 50:50?** No. The unit composition per lot is fixed; the value weights move.
+
+**Can the early receipt be sold or sent?** Not in the proposed MVP. To exit, allocate the rights and claim the components. Transfer and other integrations are not available.
+
+**What happens when one token halts?** The Curb is designed to record every component's claim separately. The other component can be withdrawn if its transfer still works. Recovery of the halted component is not guaranteed.
+
+**Why not hold the two tokens myself?** That is a valid alternative. The Curb has to prove that lot formation, bookkeeping or integration is worth the added cost and contract risk.
+
+**Do I have to buy CURB?** Not for the proposed MVP. The position receipt and the CURB token have separate functions.
+
+## 19. Assumptions and open decisions
+
+| ID | Assumption or decision | How it is settled | If it fails |
+| --- | --- | --- | --- |
+| A01 | Two compatible components for Apple on one chain | Verify addresses, code, rights; integration tests | Change candidate or do not pilot. |
+| A02 | An issuer split that users find useful | Dependency map and experience-based interviews | Reduce the claimed benefit or change the proposition. |
+| A03 | A receipt adds value over two tokens in a wallet | Cost and task experiments | Stop the receipt thesis, or test a no-custody position service. |
+| A04 | Component units are static | Code and version review; fork tests of corporate actions | Exclude the component; never patch with an assumed formula. |
+| A05 | Vault and receipt use fits the intended access | Instrument and distribution review | Stay on mocks and testnet until clear. |
+| A06 | Costs are acceptable | Measure gas, spread, issuer fees and willingness to pay | Change segment, flow, or stop. |
+| A07 | A pilot can run with enough control | Independent review, drills, key management, gates | Do not run a real-funds pilot. |
+| A08 | The main token has a service need | Test real service customers | Never make the token a condition of the product. |
+
+Production decisions left blank on purpose: the final component pair, wrapper version and hash, final chain, `q[i]`, minimum lot, total pilot lot cap, participants and eligibility, operator quorum, auditor or reviewer, deployment addresses, fees and launch date. They stay blank so nobody mistakes an illustrative figure for an approved configuration. Once implementation results exist, each gate is updated with a commit link, contract version, test block, results, review date and decision owner. Public copy moves from *building* only once the stated function is actually available to the intended users.

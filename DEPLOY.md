@@ -16,7 +16,7 @@ reason; do not remove it. The only static route is `/_not-found`.
 
 ```
 Route (app)
-┌ ƒ /               the front page: the thesis, the districts, the desk's state
+┌ ƒ /               the front page: the position, its ledger, and the desk beneath it
 ├ ƒ /agents
 ├ ƒ /api/desk
 ├ ƒ /api/floor      the Floor board as data
@@ -28,6 +28,8 @@ Route (app)
 ├ ƒ /doctrine
 ├ ƒ /floor          the session, the book, the Warden, the wire
 ├ ƒ /gazette
+├ ƒ /mechanism      MECHANISM.md, rendered from the file
+├ ƒ /positions      the series in design, and /positions/[series] with the ledger simulation
 ├ ƒ /registry
 └ ƒ /vault          flow as an hourly rate sample
 ```

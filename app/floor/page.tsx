@@ -1,3 +1,4 @@
+import { DeskNav } from '../components/desk-nav';
 import { AGENT_BY_ID, AGENT_COUNTS } from '@/lib/agents/registry';
 import { systemHealth, type AgentHealth } from '@/lib/agents/health';
 import { PRODUCERS } from '@/lib/agents/producers';
@@ -132,7 +133,7 @@ export default async function FloorPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 sm:py-14">
       <div className="mb-10">
-        <div className="tracking-mark text-xs text-(--color-paper-faint)">THE FLOOR</div>
+        <DeskNav current="THE FLOOR" />
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           Every price has an age.
           <br />

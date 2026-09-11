@@ -1,3 +1,4 @@
+import { DeskNav } from '../../components/desk-nav';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BRAND } from '@/lib/brand';
@@ -89,7 +90,8 @@ export default async function AgentPage(props: { params: Params }) {
 
       <header className="mb-10">
         <div className="flex flex-wrap items-baseline gap-4">
-          <div className="tracking-mark text-xs text-(--color-brass)">{agent.district}</div>
+          <DeskNav current="THE AGENTS" />
+          <div className="kicker mt-3">{agent.district}</div>
           {status ? (
             <span className="text-[10px] uppercase tracking-[0.16em]" style={{ color: LIGHT[status.health] }}>
               ● {status.health.replace(/_/g, ' ')}

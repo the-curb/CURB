@@ -1,25 +1,23 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import Link from 'next/link';
-import { RULE_COUNT } from '@/lib/doctrine/policy';
-import { AGENT_COUNTS } from '@/lib/agents/registry';
+import { APPLE_S1, GATES } from '@/lib/positions/series';
 import { parseMarkdown, type Block } from '@/lib/docs/markdown';
 import { BlockView, Contents } from '../components/markdown-view';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Doctrine' };
+export const metadata = { title: 'Mechanism' };
 
 /**
- * DOCTRINE.md, rendered from the file. The document names the file that
- * enforces each rule, and this page shows the document rather than a copy of
- * it, so what the site says the rules are cannot drift from what they are.
- * If the file cannot be read, the page says so; it does not fall back to a
- * summary written by hand.
+ * MECHANISM.md, rendered from the file — the position product's blueprint:
+ * the decision, the ledger, the statuses a component has, who can touch
+ * what, and the gates a real-asset pilot has to pass. The page shows the
+ * document, not a summary of it, for the same reason the doctrine does.
  */
 
-const DOC = path.join(/*turbopackIgnore: true*/ process.cwd(), 'DOCTRINE.md');
+const DOC = path.join(/*turbopackIgnore: true*/ process.cwd(), 'MECHANISM.md');
 
-export default async function DoctrinePage() {
+export default async function MechanismPage() {
   let blocks: Block[] | null = null;
   let fault: string | null = null;
   try {
@@ -28,22 +26,22 @@ export default async function DoctrinePage() {
     fault = cause instanceof Error ? cause.message : 'unknown failure';
   }
   const sections = blocks?.filter((b): b is Extract<Block, { kind: 'heading' }> => b.kind === 'heading' && b.level === 2) ?? [];
+  const passed = GATES.filter((g) => g.status === 'PASSED').length;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-6">
         <div className="kicker">
-          <b>The desk</b> · Doctrine
+          <b>The position</b> · Mechanism v1
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
-          The rules the desk is built on. Each one names the file that enforces it.
+          One company. Multiple issuers. One position. How it would work, and what has to be true first.
         </h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-(--color-paper-dim)">
-          {RULE_COUNT} policy rules as code. {AGENT_COUNTS.measure} agents measure, {AGENT_COUNTS.promote} promotes,{' '}
-          {AGENT_COUNTS.execute} execute. This page is the document itself, read from the repository at request time —
-          not a summary of it. The position product’s own rules are in the{' '}
-          <Link href="/mechanism" className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
-            mechanism
+          {APPLE_S1.stageLine} {passed} of {GATES.length} gates before real assets have passed. This page is the
+          document itself, read from the repository at request time. The arithmetic in §7 runs in the{' '}
+          <Link href={`/positions/${APPLE_S1.id}`} className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
+            simulation
           </Link>
           .
         </p>
@@ -51,8 +49,7 @@ export default async function DoctrinePage() {
 
       {fault !== null || blocks === null ? (
         <p className="mt-8 text-base leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-          The doctrine file could not be read ({fault ?? 'no content'}). Nothing is shown in its place: a summary
-          written by hand would be a second document that could disagree with the first.
+          The mechanism file could not be read ({fault ?? 'no content'}). Nothing is shown in its place.
         </p>
       ) : (
         <>

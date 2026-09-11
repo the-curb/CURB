@@ -81,6 +81,7 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
 
   const body = [
     `${BRAND.thesis}`,
+    `${BRAND.stage}`,
     '',
     'WHAT IS RUNNING',
     rosterLine,

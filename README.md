@@ -1,20 +1,37 @@
 # THE CURB
 
-**The ticker tells you the exposure. The curb tells you the conditions.**
+**One company. Multiple issuers. One position.**
 
 Live at **https://the-curb.vercel.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
 
-A multi-agent intelligence desk for stock tokens on Robinhood Chain (chain id
-4663). Nine agents read the chain and two published registries on a schedule,
-publish what they measured with a source and a time on every figure, and refuse
-— in code, not in a prompt — to forecast, advise, rate, or print a number they
-did not read. A daily paper, *The Curb Gazette*, is composed from the record.
+A stock-token holder chooses a company and, in the same act, a particular way
+of getting exposure to it: an issuer, a contract, a set of terms and an exit.
+THE CURB is being built as the place where that second choice is made in the
+open — one position on one company, formed from several issuers, with the
+composition inspectable, the right to every component recorded, and every
+component withdrawn on its own.
+
+**Stage: building.** The product is a design under test. No Curb series
+contract, issuer integration, transaction or deployment exists yet. What
+exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
+the ledger model that implements its accounting (`lib/positions/`, tested
+against the blueprint's cases in `tests/positions.test.ts`), and a simulation
+of it at `/positions/apple-s1` — illustrative units, no prices, no chain.
+
+Beneath the product is the desk: a multi-agent intelligence desk for stock
+tokens on Robinhood Chain (chain id 4663). Nine agents read the chain and two
+published registries on a schedule, publish what they measured with a source
+and a time on every figure, and refuse — in code, not in a prompt — to
+forecast, advise, rate, or print a number they did not read. A daily paper,
+*The Curb Gazette*, is composed from the record. The desk is the evidence
+layer a position would stand on; for a new chain it needs new sources and new
+tests, and says so.
 
 Before the American Stock Exchange had a building it was the Curb Market:
 claims traded outside the official floor. A stock token is the same thing
 again. "Curb" is also a limit, which is the other half of the job.
 
-## What it watches
+## What the desk watches
 
 | District     | Agents                              | What is measured                                                                                                   |
 | ------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -54,9 +71,16 @@ not covered.
 
 ## What it will not do
 
-It places no orders, holds no token, sells nothing, and states no price for a
-token no feed prices. It does not say a token is backed, safe, or a scam, in
-either direction. When it could not look, it says it could not look.
+The position product makes three testable promises — a holder can know and
+prove the composition of their position; the ledger never erases a right to a
+component that cannot yet be transferred; mint and exit need no decision by a
+model — and refuses eight claims: capital protected, cannot be frozen, the
+same as holding the share, automatically safer, always sellable at the
+reference value, earns more, fully independent issuers, first of its kind.
+
+The desk places no orders, holds no token, sells nothing, and states no price
+for a token no feed prices. It does not say a token is backed, safe, or a
+scam, in either direction. When it could not look, it says it could not look.
 
 ## License
 

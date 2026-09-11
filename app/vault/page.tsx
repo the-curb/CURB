@@ -1,3 +1,4 @@
+import { DeskNav } from '../components/desk-nav';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { composeFlow, composeSeries, FLOW_SERIES, type Flow, type FlowSeries } from '@/lib/vault/flow';
 import { getStoreAsync } from '@/lib/store';
@@ -104,7 +105,7 @@ export default async function VaultPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-10">
-        <div className="tracking-mark text-xs text-(--color-brass)">THE VAULT</div>
+        <DeskNav current="THE VAULT" />
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           Flow, as a rate. Sampled every hour for about a minute of chain time.
         </h1>

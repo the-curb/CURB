@@ -174,3 +174,126 @@ export function CardsFigure() {
     </svg>
   );
 }
+
+/**
+ * Twenty-four rings, one per hour of a day the chain never closes. At ease 0
+ * they nest around one centre; at ease 1 they stand in a row, one dot per
+ * hour, and the rings that belong to the exchange's regular session — six
+ * and a half hours out of twenty-four — are drawn solid while the rest are
+ * dashed. The chain runs the whole row. The exchange runs the solid part.
+ */
+const HOURS = 24;
+const SESSION = { from: 9.5, to: 16 };
+
+export function ClocksFigure({ ease }: { ease: number }) {
+  const width = 1200;
+  const height = 460;
+  const cx = width / 2;
+  const cy = height / 2;
+  const spread = 520 * ease;
+  const ry = 140 - 36 * ease;
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-(--color-paper)" aria-label="Twenty-four rings, one per hour of the chain's day, fanning into a row; the exchange's session hours are drawn solid">
+      {Array.from({ length: HOURS }, (_, i) => {
+        const t = i / (HOURS - 1);
+        const x = cx + (t - 0.5) * 2 * spread;
+        const rx = 10 + (1 - ease) * (20 + i * 9);
+        const inSession = i + 0.5 > SESSION.from && i < SESSION.to;
+        return (
+          <g key={i}>
+            <ellipse cx={x} cy={cy} rx={Math.max(rx, 2)} ry={ry} fill="none" stroke="currentColor" strokeWidth={1} strokeDasharray={inSession ? undefined : '3 6'} opacity={inSession ? 0.9 : 0.55} />
+            <circle cx={x} cy={cy} r={3 + 6 * ease} fill={inSession ? 'var(--color-accent)' : 'currentColor'} opacity={0.2 + 0.8 * ease} />
+          </g>
+        );
+      })}
+      <circle cx={cx} cy={cy} r={14 * (1 - ease)} fill="var(--color-accent)" />
+    </svg>
+  );
+}
+
+/**
+ * Two issuers, one position. Units of component A (circles) and component B
+ * (squares) lie in two separate groups; as `p` runs from 0 to 1 they take
+ * their places in lots — ten A and twenty B to a lot, the blueprint's
+ * illustrative units — and each lot shows its two separate exits. The
+ * composition is the picture: nothing is blended, every unit stays itself.
+ */
+const LOT = { x: 430, w: 340, ys: [46, 186, 326], h: 96, perRow: 10, pitch: 30, qA: 10, qB: 20 };
+const ISLAND = { A: { cx: 175, cy: 230 }, B: { cx: 1025, cy: 230 } };
+
+function spiral(j: number, cx: number, cy: number, spacing: number): [number, number] {
+  const r = spacing * Math.sqrt(j + 0.5);
+  const a = j * 2.399963;
+  return [cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.85];
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+export function PositionFigure({ p }: { p: number }) {
+  const lots = LOT.ys.length;
+  const unitsA = Array.from({ length: lots * LOT.qA }, (_, j) => {
+    const lot = Math.floor(j / LOT.qA);
+    const col = j % LOT.qA;
+    const [sx, sy] = spiral(j, ISLAND.A.cx, ISLAND.A.cy, 17);
+    const tx = LOT.x + 25 + col * LOT.pitch;
+    const ty = LOT.ys[lot]! + 24;
+    const t = Math.min(1, Math.max(0, (p - j * 0.006) / 0.7));
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    return { x: lerp(sx, tx, e), y: lerp(sy, ty, e) };
+  });
+  const unitsB = Array.from({ length: lots * LOT.qB }, (_, j) => {
+    const lot = Math.floor(j / LOT.qB);
+    const within = j % LOT.qB;
+    const row = Math.floor(within / LOT.perRow);
+    const col = within % LOT.perRow;
+    const [sx, sy] = spiral(j, ISLAND.B.cx, ISLAND.B.cy, 16);
+    const tx = LOT.x + 25 + col * LOT.pitch;
+    const ty = LOT.ys[lot]! + 50 + row * 24;
+    const t = Math.min(1, Math.max(0, (p - j * 0.003) / 0.7));
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    return { x: lerp(sx, tx, e), y: lerp(sy, ty, e) };
+  });
+  const frame = Math.min(1, Math.max(0, (p - 0.35) / 0.4));
+  const exits = Math.min(1, Math.max(0, (p - 0.75) / 0.25));
+  const mono = { fontFamily: 'var(--font-mono)' } as const;
+
+  return (
+    <svg viewBox="0 0 1200 460" className="h-full w-full text-(--color-paper)" aria-label="Units from two issuers taking their places in lots of a fixed composition, each lot with a separate exit per component">
+      <text x={ISLAND.A.cx} y={412} textAnchor="middle" fontSize={11} letterSpacing={2.4} fill="currentColor" opacity={0.7} style={mono}>
+        ISSUER A · COMPONENT A
+      </text>
+      <text x={ISLAND.B.cx} y={412} textAnchor="middle" fontSize={11} letterSpacing={2.4} fill="currentColor" opacity={0.7} style={mono}>
+        ISSUER B · COMPONENT B
+      </text>
+      <text x={600} y={24} textAnchor="middle" fontSize={11} letterSpacing={2.4} fill="currentColor" opacity={0.75 * frame} style={mono}>
+        ONE POSITION · {lots} LOTS · {LOT.qA} A + {LOT.qB} B EACH
+      </text>
+      {LOT.ys.map((y, i) => (
+        <g key={i} opacity={frame}>
+          <rect x={LOT.x} y={y} width={LOT.w} height={LOT.h} fill="none" stroke="currentColor" strokeWidth={1} />
+          <text x={LOT.x - 12} y={y + LOT.h / 2 + 4} textAnchor="end" fontSize={11} fill="var(--color-accent)" style={mono}>
+            LOT {String(i + 1).padStart(2, '0')}
+          </text>
+          <g opacity={exits}>
+            <line x1={LOT.x + LOT.w} y1={y + 24} x2={LOT.x + LOT.w + 46} y2={y + 24} stroke="currentColor" strokeWidth={1} />
+            <text x={LOT.x + LOT.w + 54} y={y + 28} fontSize={10} letterSpacing={1.6} fill="currentColor" opacity={0.8} style={mono}>
+              CLAIM A
+            </text>
+            <line x1={LOT.x + LOT.w} y1={y + 62} x2={LOT.x + LOT.w + 46} y2={y + 62} stroke="var(--color-accent)" strokeWidth={1} />
+            <text x={LOT.x + LOT.w + 54} y={y + 66} fontSize={10} letterSpacing={1.6} fill="var(--color-accent)" style={mono}>
+              CLAIM B
+            </text>
+          </g>
+        </g>
+      ))}
+      {unitsA.map((u, j) => (
+        <circle key={`a-${j}`} cx={u.x} cy={u.y} r={5.5} fill="currentColor" opacity={0.95} />
+      ))}
+      {unitsB.map((u, j) => (
+        <rect key={`b-${j}`} x={u.x - 5} y={u.y - 5} width={10} height={10} fill="var(--color-accent)" opacity={0.9} />
+      ))}
+    </svg>
+  );
+}
