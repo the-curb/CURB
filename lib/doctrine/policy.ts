@@ -310,6 +310,27 @@ function screenAbsences(input: ScreenInput): PolicyBreach[] {
 /**
  * The gate. Nothing reaches a public channel without passing through here.
  */
+/**
+ * The figures inside a piece of text that is about to be printed — a failure
+ * detail, mostly: "HTTP 429", "logs matched by query exceeds limit of 10000".
+ * Those numbers came from the source named, at the time named, and printing
+ * them undeclared blocks the whole filing: the Tally lost a filing to the
+ * "429" in a rate-limit reason, and Counsel would have lost one to "11d ago".
+ * Declare what the text carries, from where it came, and the gate agrees.
+ */
+export function figuresIn(text: string, source: string, retrievedAt: string): DeclaredFigure[] {
+  const out: DeclaredFigure[] = [];
+  const seen = new Set<string>();
+  for (const match of maskCoordinates(text).matchAll(NUMERIC_RUN)) {
+    const norm = normaliseFigure(match[0]);
+    if (seen.has(norm) || INHERENTLY_ALLOWED.test(norm)) continue;
+    seen.add(norm);
+    // A trailing comma or full stop is punctuation, not a thousands separator.
+    out.push({ token: match[0].replace(/[,.]+$/, ''), source, retrievedAt });
+  }
+  return out;
+}
+
 export function screen(input: ScreenInput): PolicyVerdict {
   const breaches: PolicyBreach[] = [];
 

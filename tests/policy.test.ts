@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { screen, type DeclaredFigure } from '../lib/doctrine/policy.ts';
+import { figuresIn, screen, type DeclaredFigure } from '../lib/doctrine/policy.ts';
 import { read, unread } from '../lib/doctrine/reading.ts';
 import { UNKNOWABLE_FROM_CHAIN } from '../lib/chain/tokens.ts';
 
@@ -188,5 +188,29 @@ describe('clean copy', () => {
       figures: [],
     });
     assert.equal(verdict.decision, 'ALLOW');
+  });
+});
+
+describe('figuresIn — the numbers a failure line carries', () => {
+  it('declares status codes and limits from a refusal, sourced to the source that refused', () => {
+    const figures = figuresIn('SOURCE_UNREACHABLE — HTTP 429; rpc error -32000: logs matched by query exceeds limit of 10000', 'Robinhood Chain · as reported in a refusal', '2026-09-11T17:16:00.000Z');
+    assert.deepEqual(figures.map((f) => f.token).sort(), ['10000', '32000', '429'].sort());
+    assert.ok(figures.every((f) => f.source === 'Robinhood Chain · as reported in a refusal'));
+  });
+
+  it('skips coordinates, hex identifiers, years and small ordinals, and repeats', () => {
+    const figures = figuresIn('at 2026-09-11T17:16:00Z block 0x5fc5…d168 tried 3 times in 2026, HTTP 503, HTTP 503', 's', 't');
+    assert.deepEqual(figures.map((f) => f.token), ['503']);
+  });
+
+  it('makes the Tally’s rate-limited gap line pass the gate — the filing that was lost', () => {
+    const line = '— Stock tokens, blocks 60,338,000 to 60,338,499: not answered (SOURCE_UNREACHABLE — HTTP 429). Counts for this group exclude them; that is a gap, not a quiet stretch.';
+    const blocked = screen({ text: line, figures: [{ token: '60,338,000', source: 's', retrievedAt: 't' }, { token: '60,338,499', source: 's', retrievedAt: 't' }] });
+    assert.equal(blocked.decision, 'BLOCK');
+    const declared = screen({
+      text: line,
+      figures: [{ token: '60,338,000', source: 's', retrievedAt: 't' }, { token: '60,338,499', source: 's', retrievedAt: 't' }, ...figuresIn(line, 'Robinhood Chain · as reported in a refusal', 't')],
+    });
+    assert.equal(declared.decision, 'ALLOW', JSON.stringify(declared));
   });
 });

@@ -109,9 +109,14 @@ takes no lock and writes nothing, so it proves the wiring without moving the
 record. Then run it for real, and read the log: every agent, its outcome, and
 whether its write was atomic.
 
-GitHub's cron is best-effort and runs late under load. That is acceptable here:
-each agent decides its own due-ness from its last heartbeat, so a late tick
-runs what is due, and two ticks that overlap are refused by the run lock.
+GitHub's cron is best-effort: scheduled for every five minutes, it fired every
+twelve to nineteen minutes on the first evening (measured), and can run later
+under load. That is acceptable here: each agent decides its own due-ness from
+its last heartbeat, so a late tick runs what is due, and two ticks that overlap
+are refused by the run lock. The freshness thresholds (an agent's interval plus
+two hours of grace) absorb it. If a tighter cadence ever matters, an outside
+pinger calling POST /api/tick with the secret every five minutes is the fix;
+nothing in the app assumes the caller is GitHub.
 
 ## What to watch
 

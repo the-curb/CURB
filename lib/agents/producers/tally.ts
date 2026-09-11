@@ -22,7 +22,7 @@
  */
 
 import type { Producer, ProducerResult } from '../runtime.ts';
-import type { DeclaredFigure } from '../../doctrine/policy.ts';
+import { figuresIn, type DeclaredFigure } from '../../doctrine/policy.ts';
 import type { ObservationRecord } from '../../store/types.ts';
 import { isRead } from '../../doctrine/reading.ts';
 import { activeNetwork } from '../../chain/networks.ts';
@@ -235,6 +235,12 @@ export const tallyProducer: Producer = async (): Promise<ProducerResult> => {
       }
     }
   }
+
+  // A failure line carries whatever the source said, and what a source says can
+  // hold a number: "HTTP 429", "exceeds limit of 10000". Printing it undeclared
+  // blocks the whole filing. Those numbers came from that source, at this run;
+  // they are declared as such, and the gate agrees.
+  for (const line of notRead) figures.push(...figuresIn(line, `${network.label} · as reported in a refusal`, retrievedAt));
 
   const note = notRead.length > 0 ? notRead.join(' ').slice(0, 400) : undefined;
   if (sourcesReached === 0) {

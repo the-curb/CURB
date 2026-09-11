@@ -22,7 +22,7 @@
  */
 
 import type { Producer, ProducerResult } from '../runtime.ts';
-import type { DeclaredFigure } from '../../doctrine/policy.ts';
+import { figuresIn, type DeclaredFigure } from '../../doctrine/policy.ts';
 import type { ObservationRecord, SnapshotRecord } from '../../store/types.ts';
 import { isRead, type Reading } from '../../doctrine/reading.ts';
 import { activeNetwork } from '../../chain/networks.ts';
@@ -304,6 +304,14 @@ export const archivistProducer: Producer = async ({ now, store }): Promise<Produ
   const pending = answered.filter((v) => v.pending !== null);
   const issued = answered.filter((v) => v.supplyMoved === 'ISSUED');
   const redeemed = answered.filter((v) => v.supplyMoved === 'REDEEMED');
+  // A failure line carries whatever the source said, and what a source says can
+  // hold a number: "HTTP 429", "exceeds limit of 10000". Printing it undeclared
+  // blocks the whole filing. Those numbers came from that source, at this run;
+  // they are declared as such, and the gate agrees.
+  for (const v of verdicts) {
+    if (v.unreadBecause !== null) figures.push(...figuresIn(v.unreadBecause, `${network.label} · as reported in a refusal`, at));
+  }
+
   const unread = verdicts.filter((v) => v.unreadBecause !== null);
 
   const declareMultiplier = (v: TokenVerdict, value: bigint, fn: string) => {

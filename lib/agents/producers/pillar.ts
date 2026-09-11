@@ -25,7 +25,7 @@
  */
 
 import type { Producer, ProducerResult } from '../runtime.ts';
-import type { DeclaredFigure } from '../../doctrine/policy.ts';
+import { figuresIn, type DeclaredFigure } from '../../doctrine/policy.ts';
 import type { ObservationRecord, SnapshotRecord } from '../../store/types.ts';
 import { describeAge, isRead, type Reading } from '../../doctrine/reading.ts';
 import { activeNetwork } from '../../chain/networks.ts';
@@ -499,6 +499,12 @@ export const pillarProducer: Producer = async ({ now, store }): Promise<Producer
   } else {
     liveness = `— The chain head could not be read (${head.reason}), so nothing is said about whether blocks are being produced. That is an absence, not a stall.`;
   }
+
+  // A failure line carries whatever the source said, and what a source says can
+  // hold a number: "HTTP 429", "exceeds limit of 10000". Printing it undeclared
+  // blocks the whole filing. Those numbers came from that source, at this run;
+  // they are declared as such, and the gate agrees.
+  for (const line of notRead) figures.push(...figuresIn(line, `${network.label} · as reported in a refusal`, now.toISOString()));
 
   const directoryCount = String(FEED_COVERAGE.listedByDirectory);
   const tokenCount = String(STOCK_TOKEN_COVERAGE.tokensInRegistry);
