@@ -5,6 +5,7 @@ import { AGENTS, AGENT_BY_ID } from '../lib/agents/registry.ts';
 import { readNow, unread, type Reading } from '../lib/doctrine/reading.ts';
 import type {
   BlockRecord,
+  DayRecord,
   HeartbeatRecord,
   ObservationRecord,
   PublicationRecord,
@@ -132,6 +133,21 @@ class MemoryStore implements Store {
   }
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
     return this.read<readonly BlockRecord[]>(this.blocks.slice(-limit).reverse());
+  }
+  async dayRecord(day: string): Promise<Reading<DayRecord>> {
+    const on = (iso: string) => iso.slice(0, 10) === day;
+    return this.read<DayRecord>({
+      day,
+      publications: this.publications.filter((p) => on(p.publishedAt)),
+      heartbeats: this.heartbeats.filter((h) => on(h.runAt)),
+      blocks: this.blocks.filter((b) => on(b.blockedAt)),
+    });
+  }
+  async publicationDays(limit: number): Promise<Reading<readonly string[]>> {
+    const days = [...new Set(this.publications.map((p) => p.publishedAt.slice(0, 10)))]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, limit);
+    return this.read<readonly string[]>(days);
   }
 }
 

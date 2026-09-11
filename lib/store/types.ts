@@ -192,4 +192,23 @@ export interface Store {
 
   writeBlock(record: BlockRecord): Promise<WriteOutcome>;
   recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>>;
+
+  /**
+   * Everything recorded on one UTC calendar day. The Gazette is composed from
+   * exactly this and nothing else, so an edition is a derivation of the record
+   * rather than a second record that could disagree with it.
+   */
+  dayRecord(day: string): Promise<Reading<DayRecord>>;
+  /** Days with at least one publication, newest first — the paper's archive. */
+  publicationDays(limit: number): Promise<Reading<readonly string[]>>;
+}
+
+/** One UTC day of the record, as the Gazette reads it. */
+export interface DayRecord {
+  /** YYYY-MM-DD, UTC. */
+  readonly day: string;
+  readonly publications: readonly PublicationRecord[];
+  /** Every heartbeat that day, not just the latest — the ledger needs the failures. */
+  readonly heartbeats: readonly HeartbeatRecord[];
+  readonly blocks: readonly BlockRecord[];
 }

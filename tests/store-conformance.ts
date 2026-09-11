@@ -248,6 +248,51 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('the day record', () => {
+      it('returns everything on one UTC day and nothing from the next', async () => {
+        const a = publication('88888888-8888-4888-8888-888888888888', '2026-09-11T23:59:00.000Z');
+        const b = publication('99999999-9999-4999-8999-999999999999', '2026-09-12T00:01:00.000Z');
+        await store.publishAtomically(a, { ...heartbeat('2026-09-11T23:59:00.000Z'), publicationId: a.id });
+        await store.publishAtomically(b, { ...heartbeat('2026-09-12T00:01:00.000Z'), publicationId: b.id });
+        await store.writeHeartbeat(heartbeat('2026-09-11T10:00:00.000Z', 'NOTHING_TO_SAY'));
+        await store.writeBlock({
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          agentId: AGENT,
+          blockedAt: '2026-09-11T11:00:00.000Z',
+          headline: 'h',
+          body: 'b',
+          breaches: [],
+        });
+
+        const day = await store.dayRecord('2026-09-11');
+        assert.equal(day.state, 'VERIFIED');
+        const v = day.state === 'VERIFIED' ? day.value : null;
+        assert.equal(v?.publications.length, 1, 'one publication on the 11th');
+        assert.equal(v?.publications[0]?.id, a.id);
+        // Every heartbeat that day, not just the latest: the ledger needs the failures.
+        assert.equal(v?.heartbeats.length, 2);
+        assert.equal(v?.blocks.length, 1);
+      });
+
+      it('is an empty record for a day with nothing, not an unread one', async () => {
+        const day = await store.dayRecord('2020-01-01');
+        assert.equal(day.state, 'VERIFIED');
+        assert.equal(day.state === 'VERIFIED' ? day.value.publications.length : -1, 0);
+      });
+
+      it('lists publication days newest first', async () => {
+        for (const [id, at] of [
+          ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '2026-09-09T12:00:00.000Z'],
+          ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', '2026-09-11T12:00:00.000Z'],
+          ['dddddddd-dddd-4ddd-8ddd-dddddddddddd', '2026-09-11T13:00:00.000Z'],
+        ] as const) {
+          await store.publishAtomically(publication(id, at), { ...heartbeat(at), publicationId: id });
+        }
+        const days = await store.publicationDays(10);
+        assert.deepEqual(days.state === 'VERIFIED' ? [...days.value] : null, ['2026-09-11', '2026-09-09']);
+      });
+    });
+
     describe('blocked outputs', () => {
       it('keeps the text and the breaches in full', async () => {
         await store.writeBlock({

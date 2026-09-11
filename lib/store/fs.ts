@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type {
   BlockRecord,
+  DayRecord,
   HeartbeatRecord,
   ObservationRecord,
   PublicationRecord,
@@ -321,6 +322,42 @@ export class FileSystemStore implements Store {
 
   async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
     return append(this.dir, FILES.blocks, [record]);
+  }
+
+  async dayRecord(day: string): Promise<Reading<DayRecord>> {
+    const [pubs, beats, blocks] = await Promise.all([
+      readAll<PublicationRecord>(this.dir, FILES.publications),
+      readAll<HeartbeatRecord>(this.dir, FILES.heartbeats),
+      readAll<BlockRecord>(this.dir, FILES.blocks),
+    ]);
+    // A day is only readable if every log it draws on is. A ledger missing its
+    // failures would count as a good day, which is the wrong direction to fail.
+    for (const r of [pubs, beats, blocks]) if (r.state === 'UNREAD') return r;
+    const onDay = (iso: string) => iso.slice(0, 10) === day;
+    return readNow(
+      {
+        day,
+        publications: (pubs as { value: PublicationRecord[] }).value
+          .filter((p) => onDay(p.publishedAt))
+          .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt)),
+        heartbeats: (beats as { value: HeartbeatRecord[] }).value
+          .filter((h) => onDay(h.runAt))
+          .sort((a, b) => a.runAt.localeCompare(b.runAt)),
+        blocks: (blocks as { value: BlockRecord[] }).value
+          .filter((b) => onDay(b.blockedAt))
+          .sort((a, b) => a.blockedAt.localeCompare(b.blockedAt)),
+      },
+      `${SOURCE} · day ${day}`,
+    );
+  }
+
+  async publicationDays(limit: number): Promise<Reading<readonly string[]>> {
+    const all = await readAll<PublicationRecord>(this.dir, FILES.publications);
+    if (all.state === 'UNREAD') return all;
+    const days = [...new Set(all.value.map((p) => p.publishedAt.slice(0, 10)))]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, limit);
+    return { ...all, value: days };
   }
 
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {

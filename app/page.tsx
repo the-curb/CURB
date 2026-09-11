@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 import { AGENT_BY_ID, AGENT_COUNTS } from '@/lib/agents/registry';
 import { systemHealth, type AgentHealth } from '@/lib/agents/health';
@@ -107,7 +108,14 @@ export default async function Home() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
       <header className="mb-14">
-        <div className="tracking-mark text-xs text-[--color-brass] sm:text-sm">{BRAND.name}</div>
+        <div className="flex flex-wrap items-baseline justify-between gap-4">
+          <div className="tracking-mark text-xs text-[--color-brass] sm:text-sm">{BRAND.name}</div>
+          <nav className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+            <Link href="/gazette" className="hover:text-[--color-paper]">
+              {BRAND.paper.name} ›
+            </Link>
+          </nav>
+        </div>
         <h1 className="mt-8 max-w-3xl text-2xl leading-snug text-[--color-paper] sm:text-4xl sm:leading-tight">
           {BRAND.thesis}
         </h1>

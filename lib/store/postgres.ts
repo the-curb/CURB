@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import type {
   BlockRecord,
+  DayRecord,
   HeartbeatRecord,
   LockOutcome,
   ObservationRecord,
@@ -578,6 +579,66 @@ export class PostgresStore implements Store {
       });
     } catch (cause) {
       return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
+  async dayRecord(day: string): Promise<Reading<DayRecord>> {
+    try {
+      return await this.guard('dayRecord', async () => {
+        // Half-open UTC day. The bounds are computed here, not in SQL, so the
+        // same string means the same instant in every store.
+        const from = `${day}T00:00:00.000Z`;
+        const to = new Date(new Date(from).getTime() + 24 * 3600 * 1000).toISOString();
+        const [pubs, beats, blocks] = await Promise.all([
+          this.sql<PublicationRow[]>`
+            select id, agent_id, published_at, headline, body, figures, sources_reached
+            from publications
+            where published_at >= ${from} and published_at < ${to}
+            order by published_at asc
+          `,
+          this.sql<HeartbeatRow[]>`
+            select agent_id, run_at, outcome, sources_reached, sources_expected,
+                   oldest_input_at, publication_id, detail
+            from heartbeats
+            where run_at >= ${from} and run_at < ${to}
+            order by run_at asc
+          `,
+          this.sql<BlockRow[]>`
+            select id, agent_id, blocked_at, headline, body, breaches
+            from blocks
+            where blocked_at >= ${from} and blocked_at < ${to}
+            order by blocked_at asc
+          `,
+        ]);
+        return readNow<DayRecord>(
+          {
+            day,
+            publications: pubs.map(toPublication),
+            heartbeats: beats.map(toHeartbeat),
+            blocks: blocks.map(toBlock),
+          },
+          `${SOURCE} · day ${day}`,
+        );
+      });
+    } catch (cause) {
+      return unreadable('day record', cause);
+    }
+  }
+
+  async publicationDays(limit: number): Promise<Reading<readonly string[]>> {
+    try {
+      return await this.guard('publicationDays', async () => {
+        const rows = await this.sql<{ day: string }[]>`
+          select to_char(published_at at time zone 'UTC', 'YYYY-MM-DD') as day
+          from publications
+          group by 1
+          order by 1 desc
+          limit ${limit}
+        `;
+        return readNow(rows.map((r) => r.day), `${SOURCE} · publications`);
+      });
+    } catch (cause) {
+      return unreadable('publication days', cause);
     }
   }
 
