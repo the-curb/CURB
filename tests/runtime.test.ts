@@ -12,6 +12,7 @@ import type {
   LockOutcome,
   NarrationRecord,
   PublishOutcome,
+  RecordCounts,
   SnapshotRecord,
   Store,
   WriteOutcome,
@@ -155,6 +156,15 @@ class MemoryStore implements Store {
     return { state: 'WRITTEN' };
   }
   async close(): Promise<void> {}
+  async recordCounts(): Promise<Reading<RecordCounts>> {
+    return this.read<RecordCounts>({
+      heartbeats: this.heartbeats.length,
+      publications: this.publications.length,
+      blocks: this.blocks.length,
+      observations: this.observed.length,
+      snapshots: this.snapshotRows.size,
+    });
+  }
   snapshotRows = new Map<string, SnapshotRecord>();
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };

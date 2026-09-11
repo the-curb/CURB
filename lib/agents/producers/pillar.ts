@@ -29,6 +29,7 @@ import type { DeclaredFigure } from '../../doctrine/policy.ts';
 import type { ObservationRecord, SnapshotRecord } from '../../store/types.ts';
 import { describeAge, isRead, type Reading } from '../../doctrine/reading.ts';
 import { activeNetwork } from '../../chain/networks.ts';
+import { readHead } from '../../chain/rpc.ts';
 import { SELECTORS } from '../../chain/abi.ts';
 import { readMany, type Call } from '../../chain/multicall.ts';
 import {
@@ -44,6 +45,7 @@ import {
   CRYPTO_FEEDS,
   EQUITY_FEEDS,
   FEED_COVERAGE,
+  HEAD_STALL_SECONDS,
   SEQUENCER_FEED,
   STOCK_TOKEN_COVERAGE,
   tokenForFeed,
@@ -370,7 +372,7 @@ export const pillarProducer: Producer = async ({ now }): Promise<ProducerResult>
   const equity = verdicts.filter((v) => v.feed.marketHours === 'equity');
   const cryptoVerdicts = verdicts.filter((v) => v.feed.marketHours === 'crypto');
 
-  const sequencer = await readSequencer(SEQUENCER_FEED.proxy, opts, now);
+  const [sequencer, head] = await Promise.all([readSequencer(SEQUENCER_FEED.proxy, opts, now), readHead(opts)]);
 
   const figures: DeclaredFigure[] = [];
   const literals = new Set<string>();
@@ -441,6 +443,30 @@ export const pillarProducer: Producer = async ({ now }): Promise<ProducerResult>
     };
   }
 
+  // What the chain itself says about being alive: the head and its age. Not a
+  // sequencer check — there is no feed for that here — but a head that has
+  // stopped advancing is what an outage looks like from this side.
+  let liveness: string;
+  if (isRead(head)) {
+    const headAge = Math.max(0, Math.round(now.getTime() / 1000 - head.value.timestamp));
+    const headSource = `${network.label} · eth_getBlockByNumber latest`;
+    figures.push(
+      { token: head.value.number.toLocaleString('en-US'), source: headSource, retrievedAt: head.retrievedAt },
+      ageFigure(headAge, `${headSource} · timestamp`, head.retrievedAt),
+    );
+    snapshots.push({
+      key: 'chain:head',
+      observedAt: now.toISOString(),
+      payload: { number: head.value.number, timestamp: head.value.timestamp, ageSeconds: headAge, stalled: headAge > HEAD_STALL_SECONDS, retrievedAt: head.retrievedAt },
+    });
+    liveness =
+      headAge > HEAD_STALL_SECONDS
+        ? `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. Blocks arrive every tenth of a second here, so a head this old is the chain not producing, and every feed age above should be read with that in mind.`
+        : `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. Blocks being produced is not the same claim as the sequencer being healthy; it is the one liveness signal this chain offers, and it is offered as that.`;
+  } else {
+    liveness = `— The chain head could not be read (${head.reason}), so nothing is said about whether blocks are being produced. That is an absence, not a stall.`;
+  }
+
   const directoryCount = String(FEED_COVERAGE.listedByDirectory);
   const tokenCount = String(STOCK_TOKEN_COVERAGE.tokensInRegistry);
   const withoutFeed = String(STOCK_TOKEN_COVERAGE.withoutFeed);
@@ -468,10 +494,11 @@ export const pillarProducer: Producer = async ({ now }): Promise<ProducerResult>
     '',
     'WHAT THIS RUN DOES NOT ESTABLISH',
     sequencer.kind === 'NOT_CHECKED'
-      ? `— The sequencer was not checked: ${sequencer.reason}. This chain is a Layer 2, and during a sequencer outage a feed can go stale while still returning a value. Not checked is not the same as up.`
+      ? `— ${SEQUENCER_FEED.proxy === null ? `The sequencer: ${SEQUENCER_FEED.reason}` : `The sequencer was not checked: ${sequencer.reason}`}. This chain is a Layer 2, and during a sequencer outage a feed can go stale while still returning a value.`
       : sequencer.kind === 'DOWN'
         ? '— The sequencer uptime feed reports the sequencer is not up. Prices read during an outage should not be treated as current.'
         : `— The sequencer reports up, ${describeAge(sequencer.sinceSeconds)} since that status began.`,
+    liveness,
     `— Coverage: the vendor directory lists ${directoryCount} feeds for this network and every one is in this registry. The issuer's registry lists ${tokenCount} stock tokens on this chain, of which ${withoutFeed} have no feed this system can read: their prices are not stated anywhere here.`,
     '— A feed within its heartbeat is a feed that updated recently. It is not a statement that the value is correct, and nothing here verifies the data behind it.',
   ].join('\n');

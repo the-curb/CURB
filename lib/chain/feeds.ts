@@ -68,17 +68,29 @@ export const STOCK_TOKEN_COVERAGE = {
  * guidance is to confirm the sequencer is up before trusting any price: during
  * an outage feeds can go stale while still returning a value.
  *
- * The directory captured above lists no sequencer feed for this network, so
- * the address is configured, not captured. Unconfigured, the Pillar reports the
- * sequencer check as not performed rather than as passed. "Not checked" and
- * "up" are different claims, and only one of them is safe to assume.
+ * There is none for this network. The vendor's sequencer-feed page lists
+ * eleven networks, this is not one of them, and the page states that no new
+ * networks are being added (read 2026-09-11). So the sequencer is not checked
+ * through a feed, and the Pillar says exactly that. What is checked instead is
+ * the chain head's age against the clock — `readHead()` — which is the one
+ * liveness signal the chain itself offers. The env override remains for the
+ * unlikely day a feed is published.
  */
 export const SEQUENCER_FEED = {
   proxy: process.env.CURB_SEQUENCER_FEED ?? null,
-  state: process.env.CURB_SEQUENCER_FEED ? 'CONFIGURED' : 'SOURCE_NOT_CONNECTED',
+  state: process.env.CURB_SEQUENCER_FEED ? 'CONFIGURED' : 'NOT_PUBLISHED',
   reason:
-    'The L2 sequencer uptime feed address is not configured, so the sequencer was not checked. This is not a statement that the sequencer is up.',
+    'no sequencer uptime feed exists for this network — the vendor lists none and has stopped adding networks — so the sequencer is not checked through a feed. This is not a statement that the sequencer is up',
+  source: 'https://docs.chain.link/data-feeds/l2-sequencer-feeds',
+  observedAt: '2026-09-11T14:30:00Z',
 } as const;
+
+/**
+ * How old the chain head may be before the Pillar calls it stalled. Blocks
+ * arrive every tenth of a second here; two minutes without one is not a slow
+ * block, it is the chain not producing.
+ */
+export const HEAD_STALL_SECONDS = 120;
 
 export function feedByKey(key: string): FeedRecord | null {
   return FEEDS.find((f) => f.key === key) ?? null;

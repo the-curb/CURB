@@ -33,11 +33,13 @@ export async function GET(request: Request): Promise<Response> {
   let publication = null;
   let publicationUnread: string | null = null;
   if (run.publicationId !== null) {
-    const recent = await store.recentPublications(5);
-    if (recent.state === 'UNREAD') {
-      publicationUnread = `${recent.reason}${recent.detail ? `: ${recent.detail}` : ''}`;
+    // Its own filings, so a busy wire cannot push the row just written out of
+    // the window before it is read back.
+    const mine = await store.publicationsByAgent('surveyor', 5);
+    if (mine.state === 'UNREAD') {
+      publicationUnread = `${mine.reason}${mine.detail ? `: ${mine.detail}` : ''}`;
     } else {
-      publication = recent.value.find((p) => p.id === run.publicationId) ?? null;
+      publication = mine.value.find((p) => p.id === run.publicationId) ?? null;
     }
   }
 

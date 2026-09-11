@@ -20,10 +20,9 @@ import { BRAND } from '../../brand.ts';
 const STORE_SOURCE = 'the heartbeat and publication store, read at the moment of posting';
 
 export const heraldProducer: Producer = async ({ now, store }): Promise<ProducerResult> => {
-  const [heartbeatsRead, publicationsRead, blocksRead] = await Promise.all([
+  const [heartbeatsRead, countsRead] = await Promise.all([
     store.latestHeartbeats(),
-    store.recentPublications(200),
-    store.recentBlocks(200),
+    store.recordCounts(),
   ]);
 
   // The promoter is the last agent that should be allowed to round an unreadable
@@ -39,8 +38,11 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
   }
 
   const heartbeats = heartbeatsRead.value;
-  const publications = publicationsRead.state === 'UNREAD' ? null : publicationsRead.value;
-  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
+  // Real counts from the store, not the length of a bounded read: a window of
+  // the newest two hundred is two hundred forever once the store passes it,
+  // and a promoter quoting that as the number kept would be publishing a
+  // floor as a total.
+  const counts = countsRead.state === 'UNREAD' ? null : countsRead.value;
 
   const figures: DeclaredFigure[] = [];
   const declare = (token: string) =>
@@ -56,14 +58,14 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
   // publication count beside an unreadable block count would be picking the
   // flattering half of the pair.
   const tally =
-    publications === null || blocks === null
-      ? '— The publication and block counts could not both be read from the store, so neither is quoted here. Quoting the first without the second would be choosing the flattering half.'
+    counts === null
+      ? '— The publication and block counts could not be read from the store, so neither is quoted here. Quoting the first without the second would be choosing the flattering half.'
       : (() => {
-          const published = String(publications.length);
-          const blocked = String(blocks.length);
+          const published = String(counts.publications);
+          const blocked = String(counts.blocks);
           declare(published);
           declare(blocked);
-          return `— ${published} ${publications.length === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${blocks.length === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts come from the same store; the second is not hidden to make the first look better.`;
+          return `— ${published} ${counts.publications === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${counts.blocks === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts come from the same store; the second is not hidden to make the first look better.`;
         })();
 
   const neverRan = AGENTS.filter((agent) => !heartbeats.some((h) => h.agentId === agent.id));

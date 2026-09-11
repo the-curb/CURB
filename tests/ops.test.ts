@@ -72,6 +72,18 @@ describe('deriveConditions', () => {
     assert.deepEqual(out.map((c) => c.id), ['feed:rh-aapl-usd:PAUSED', 'feed:rh-nvda-usd:DRIFT', 'feed:rh-sgov-usd:STALE_IN_SESSION']);
   });
 
+  it('raises when the chain head had stalled at the Pillar’s last sample, and not otherwise', () => {
+    const base = { heartbeats: [beat('bell', 1)], feedSnapshots: [], lastRegistrar: null, now: NOW };
+    const stalled = deriveConditions({ ...base, headSnapshot: { key: 'chain:head', observedAt: NOW.toISOString(), payload: { number: 1, timestamp: 1, ageSeconds: 900, stalled: true } } });
+    assert.deepEqual(stalled.map((c) => c.id), ['chain:head:STALLED']);
+    assert.match(stalled[0]!.text, /900s old at the sample/);
+    const live = deriveConditions({ ...base, headSnapshot: { key: 'chain:head', observedAt: NOW.toISOString(), payload: { number: 1, timestamp: 1, ageSeconds: 1, stalled: false } } });
+    assert.deepEqual(live, []);
+    // A payload that does not say `stalled: true` is not a stall: absence is not the middle.
+    const unknown = deriveConditions({ ...base, headSnapshot: { key: 'chain:head', observedAt: NOW.toISOString(), payload: { stalled: 'yes' } } });
+    assert.deepEqual(unknown, []);
+  });
+
   it('raises when the last audit says the beacon changed', () => {
     const out = deriveConditions({
       heartbeats: [beat('bell', 1)],

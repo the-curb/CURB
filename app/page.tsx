@@ -6,7 +6,7 @@ import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { getStoreAsync } from '@/lib/store';
-import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
+import { FEED_COVERAGE, SEQUENCER_FEED, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
 import { composeBoard } from '@/lib/floor/board';
 import { FloorBoard } from './components/floor-board';
@@ -86,12 +86,24 @@ export default async function Home() {
   const session = readSession(now);
   const store = await getStoreAsync();
 
-  const [heartbeatsRead, publicationsRead, blocksRead, feedSnapshots] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, blocksRead, feedSnapshots, headSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(6),
     store.recentBlocks(5),
     store.snapshots('feed:'),
+    store.snapshots('chain:head'),
   ]);
+  // The chain head as the Pillar last read it. Checked field by field: it is stored JSON.
+  const headRow = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((sn) => sn.key === 'chain:head') ?? null);
+  const chainHead =
+    headRow && typeof headRow.payload.number === 'number' && typeof headRow.payload.ageSeconds === 'number'
+      ? {
+          number: headRow.payload.number,
+          ageSeconds: headRow.payload.ageSeconds,
+          stalled: headRow.payload.stalled === true,
+          sampleAgeSeconds: Math.max(0, Math.round((now.getTime() - new Date(headRow.observedAt).getTime()) / 1000)),
+        }
+      : null;
 
   /**
    * Null means the store would not answer. Rendering an empty roster here would
@@ -418,8 +430,17 @@ export default async function Home() {
         <Row label="Stock tokens with no feed this system can read">
           <span className="tabular">{STOCK_TOKEN_COVERAGE.withoutFeed}</span>
         </Row>
-        <Row label="Sequencer uptime check">
-          <Absent why="no sequencer feed configured — not checked, which is not the same as up" />
+        <Row label="Sequencer uptime feed">
+          <Absent why={SEQUENCER_FEED.reason} />
+        </Row>
+        <Row label="Chain head, as last read">
+          {chainHead === null ? (
+            <Absent why="the Pillar has not sampled the chain head into this store yet" />
+          ) : (
+            <span className="tabular text-xs" style={{ color: chainHead.stalled ? 'var(--color-state-dark)' : undefined }}>
+              block {chainHead.number.toLocaleString('en-US')} · {describeAge(chainHead.ageSeconds)} old at the sample · sampled {describeAge(chainHead.sampleAgeSeconds)} ago
+            </span>
+          )}
         </Row>
         <Row label="Agents wired">
           <span className="tabular">

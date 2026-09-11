@@ -27,12 +27,16 @@ const SESSION_SOURCE = 'exchange session calendar · computed (NYSE/Nasdaq rules
 async function lastPublishedPhase(
   store: Parameters<Producer>[0]['store'],
 ): Promise<{ phase: string | null } | { undetermined: string }> {
-  const recent = await store.recentPublications(25);
-  if (recent.state === 'UNREAD') {
-    return { undetermined: `${recent.reason}${recent.detail ? `: ${recent.detail}` : ''}` };
+  // Its own filings, not the newest N of everyone's: the Pillar alone files
+  // four times an hour, and a window of recent publications stops holding the
+  // Bell's last one within an afternoon — after which it would announce the
+  // same session again as if it were news.
+  const mine = await store.publicationsByAgent('bell', 1);
+  if (mine.state === 'UNREAD') {
+    return { undetermined: `${mine.reason}${mine.detail ? `: ${mine.detail}` : ''}` };
   }
-  const mine = recent.value.find((p) => p.agentId === 'bell');
-  return { phase: mine ? (mine.headline.match(/^[A-Z\- ]+/)?.[0]?.trim() ?? null) : null };
+  const last = mine.value[0];
+  return { phase: last ? (last.headline.match(/^[A-Z\- ]+/)?.[0]?.trim() ?? null) : null };
 }
 
 function narrate(session: SessionState, blockToken: string | null): string {

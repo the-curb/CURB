@@ -85,14 +85,14 @@ export const AUDIT_ROTATION: readonly AuditSubject[] = [
 
 /** Audit one subject per run, choosing whichever has gone longest unreported. */
 async function nextSubject(store: Parameters<Producer>[0]['store']): Promise<AuditSubject> {
-  const recent = await store.recentPublications(200);
+  // Its own filings — one a day — rather than the newest N of everyone's,
+  // which at the Pillar's cadence covers a day and would keep returning the
+  // first two subjects forever. Enough history to see every subject once.
+  const recent = await store.publicationsByAgent('registrar', AUDIT_ROTATION.length * 2);
   // An unreadable history means we cannot tell which subject is least recently
   // reported. Rotation degrades to the first entry rather than failing the run:
   // auditing the same token twice is a smaller fault than auditing none.
-  const reported =
-    recent.state === 'UNREAD'
-      ? []
-      : recent.value.filter((p) => p.agentId === 'registrar').map((p) => p.headline);
+  const reported = recent.state === 'UNREAD' ? [] : recent.value.map((p) => p.headline);
   const mentions = (s: AuditSubject) => reported.findIndex((h) => h.includes(` ${s.symbol} `));
 
   for (const subject of AUDIT_ROTATION) {

@@ -157,6 +157,36 @@ export async function readLogs(
   );
 }
 
+export interface ChainHead {
+  readonly number: number;
+  /** Unix seconds, as the block header states it. */
+  readonly timestamp: number;
+}
+
+/**
+ * The head block with its timestamp. Its age against the clock is the one
+ * liveness signal this chain offers: the vendor publishes no sequencer uptime
+ * feed for it and has stopped adding them, and a sequencer that stops is a
+ * head that stops advancing.
+ */
+export async function readHead(opts: RpcOptions): Promise<Reading<ChainHead>> {
+  const raw = await rpcCall<{ number: string; timestamp: string } | null>(
+    'eth_getBlockByNumber',
+    ['latest', false],
+    opts,
+  );
+  if (raw.state === 'UNREAD') return raw;
+  if (raw.value === null) {
+    return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'the node returned no latest block' });
+  }
+  const number = Number(raw.value.number);
+  const timestamp = Number(raw.value.timestamp);
+  if (!Number.isFinite(number) || !Number.isFinite(timestamp) || timestamp <= 0) {
+    return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'latest block header undecodable' });
+  }
+  return { ...raw, value: { number, timestamp } };
+}
+
 /** Non-empty code is the difference between "a contract" and "an address someone typed". */
 export async function readCode(
   address: string,

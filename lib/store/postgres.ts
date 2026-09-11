@@ -9,6 +9,7 @@ import type {
   ObservationRecord,
   PublicationRecord,
   PublishOutcome,
+  RecordCounts,
   RunOutcome,
   SnapshotRecord,
   Store,
@@ -384,6 +385,36 @@ export class PostgresStore implements Store {
    * A client handed in by a test is left alone — there is nothing to rebuild it
    * from, and the test owns its lifecycle.
    */
+  async recordCounts(): Promise<Reading<RecordCounts>> {
+    try {
+      return await this.guard('recordCounts', async () => {
+        // Exact counts, one round trip. These tables are small enough that an
+        // exact count is cheap, and an estimate would be a different claim.
+        const rows = await this.sql<{ heartbeats: string; publications: string; blocks: string; observations: string; snapshots: string }[]>`
+          select
+            (select count(*) from heartbeats)   as heartbeats,
+            (select count(*) from publications) as publications,
+            (select count(*) from blocks)       as blocks,
+            (select count(*) from observations) as observations,
+            (select count(*) from snapshots)    as snapshots
+        `;
+        const row = rows[0]!;
+        return readNow(
+          {
+            heartbeats: Number(row.heartbeats),
+            publications: Number(row.publications),
+            blocks: Number(row.blocks),
+            observations: Number(row.observations),
+            snapshots: Number(row.snapshots),
+          },
+          `${SOURCE} · counts`,
+        );
+      });
+    } catch (cause) {
+      return unreadable('recordCounts', cause);
+    }
+  }
+
   async close(): Promise<void> {
     // A client handed in by a test is the test's to end.
     if (this.provided !== null) return;

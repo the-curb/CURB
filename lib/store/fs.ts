@@ -9,6 +9,7 @@ import type {
   LockOutcome,
   NarrationRecord,
   PublishOutcome,
+  RecordCounts,
   SnapshotRecord,
   Store,
   WriteOutcome,
@@ -402,6 +403,29 @@ export class FileSystemStore implements Store {
 
   async close(): Promise<void> {
     // Nothing is held open between calls.
+  }
+
+  async recordCounts(): Promise<Reading<RecordCounts>> {
+    const [heartbeats, publications, blocks, observations, snapshots] = await Promise.all([
+      readAll<HeartbeatRecord>(this.dir, FILES.heartbeats),
+      readAll<PublicationRecord>(this.dir, FILES.publications),
+      readAll<BlockRecord>(this.dir, FILES.blocks),
+      readAll<ObservationRecord>(this.dir, FILES.observations),
+      this.snapshots(''),
+    ]);
+    for (const read of [heartbeats, publications, blocks, observations, snapshots]) {
+      if (read.state === 'UNREAD') return read;
+    }
+    return readNow(
+      {
+        heartbeats: heartbeats.state === 'UNREAD' ? 0 : heartbeats.value.length,
+        publications: publications.state === 'UNREAD' ? 0 : publications.value.length,
+        blocks: blocks.state === 'UNREAD' ? 0 : blocks.value.length,
+        observations: observations.state === 'UNREAD' ? 0 : observations.value.length,
+        snapshots: snapshots.state === 'UNREAD' ? 0 : snapshots.value.length,
+      },
+      `${SOURCE} · counts`,
+    );
   }
 
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {

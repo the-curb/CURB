@@ -216,6 +216,24 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('counts', () => {
+      it('counts every row, not the length of a bounded read', async () => {
+        const empty = await store.recordCounts();
+        assert.deepEqual(empty.state === 'VERIFIED' ? empty.value : null, { heartbeats: 0, publications: 0, blocks: 0, observations: 0, snapshots: 0 });
+        for (let i = 0; i < 3; i += 1) {
+          await store.writeHeartbeat({ agentId: 'bell', runAt: `2026-09-10T1${i}:00:00.000Z`, outcome: 'NOTHING_TO_SAY', sourcesReached: 1, sourcesExpected: 1, oldestInputAt: null, publicationId: null, detail: null });
+        }
+        await store.writeObservations([
+          { key: 'a', observedAt: '2026-09-10T10:00:00.000Z', value: 1, source: 's' },
+          { key: 'b', observedAt: '2026-09-10T10:00:00.000Z', value: 2, source: 's' },
+        ]);
+        await store.writeSnapshots([{ key: 'feed:x', observedAt: '2026-09-10T10:00:00.000Z', payload: {} }]);
+        await store.writeSnapshots([{ key: 'feed:x', observedAt: '2026-09-10T11:00:00.000Z', payload: {} }]);
+        const counts = await store.recordCounts();
+        assert.deepEqual(counts.state === 'VERIFIED' ? counts.value : null, { heartbeats: 3, publications: 0, blocks: 0, observations: 2, snapshots: 1 });
+      });
+    });
+
     describe('snapshots', () => {
       it('reads none as an empty list, not as unread', async () => {
         const read = await store.snapshots('feed:');

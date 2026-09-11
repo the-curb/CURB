@@ -37,7 +37,11 @@ const ALERTING_HEALTH: ReadonlySet<AgentHealth> = new Set(['ABSENT', 'DEGRADED',
 export function deriveConditions(input: {
   readonly heartbeats: readonly HeartbeatRecord[] | null;
   readonly feedSnapshots: readonly SnapshotRecord[] | null;
+  /** Why the snapshots could not be read, when they could not. Carried into the condition. */
+  readonly feedSnapshotsFault?: string | null;
   readonly lastRegistrar: PublicationRecord | null;
+  /** The 'chain:head' snapshot, when the store has one. */
+  readonly headSnapshot?: SnapshotRecord | null;
   readonly now: Date;
 }): Condition[] {
   const out: Condition[] = [];
@@ -62,8 +66,16 @@ export function deriveConditions(input: {
   }
 
   if (feedSnapshots === null) {
-    out.push({ id: 'store:snapshots:UNREAD', severity: 'STALE', text: 'the snapshot store could not be read; the board cannot be drawn' });
+    out.push({ id: 'store:snapshots:UNREAD', severity: 'STALE', text: `the snapshot store could not be read (${input.feedSnapshotsFault ?? 'no reason recorded'}); the board cannot be drawn` });
   } else {
+    // The chain's own liveness, as the Pillar last read it. Judged at the
+    // moment of the sample: a stalled head at sample time is the condition,
+    // not the sample itself ageing on the shelf, which the board state covers.
+    const head = input.headSnapshot;
+    if (head && head.payload.stalled === true) {
+      const age = typeof head.payload.ageSeconds === 'number' ? ` — head was ${Math.round(head.payload.ageSeconds)}s old at the sample` : '';
+      out.push({ id: 'chain:head:STALLED', severity: 'DARK', text: `the chain head had stopped advancing when the Pillar last read it${age}; blocks were not being produced` });
+    }
     const board = composeBoard(feedSnapshots, now);
     if (board.sampleState === 'ABSENT') {
       out.push({ id: 'board:sample:ABSENT', severity: 'DARK', text: 'the Pillar has not sampled the feeds within its absence threshold; the board is a memory' });
@@ -164,17 +176,20 @@ export interface AlertRun {
  * than being marked as sent.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
     store.snapshots(ALERT_STATE_KEY),
+    store.snapshots('chain:head'),
   ]);
 
   const current = deriveConditions({
     heartbeats: heartbeats.state === 'UNREAD' ? null : heartbeats.value,
     feedSnapshots: feedSnapshots.state === 'UNREAD' ? null : feedSnapshots.value,
+    feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
+    headSnapshot: head.state === 'UNREAD' ? null : (head.value.find((s) => s.key === 'chain:head') ?? null),
     now,
   });
 

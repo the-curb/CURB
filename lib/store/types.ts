@@ -91,6 +91,14 @@ export interface SnapshotRecord {
   readonly payload: Readonly<Record<string, unknown>>;
 }
 
+export interface RecordCounts {
+  readonly heartbeats: number;
+  readonly publications: number;
+  readonly blocks: number;
+  readonly observations: number;
+  readonly snapshots: number;
+}
+
 /**
  * The result of a write.
  *
@@ -205,6 +213,14 @@ export interface Store {
    * quietly until it is the problem.
    */
   pruneObservations(before: Date): Promise<Reading<number>>;
+
+  /**
+   * How many rows of each kind the store holds. A count, not the length of a
+   * bounded read: `recentPublications(200).length` is 200 forever once the
+   * store passes it, and a promoter quoting that as "publications kept" would
+   * be publishing a floor as a total.
+   */
+  recordCounts(): Promise<Reading<RecordCounts>>;
 
   /** Replace the snapshot for each key. One row per key, ever. */
   writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome>;

@@ -12,11 +12,12 @@ import { deriveConditions } from '@/lib/ops/alerts';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeatsRead, blocksRead, feedSnapshots, registrar] = await Promise.all([
+  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
+    store.snapshots('chain:head'),
   ]);
 
   // A store that will not answer is its own response. Serving an empty roster
@@ -43,9 +44,12 @@ export async function GET(): Promise<Response> {
   const conditions = deriveConditions({
     heartbeats: heartbeatsRead.value,
     feedSnapshots: feedSnapshots.state === 'UNREAD' ? null : feedSnapshots.value,
+    feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
+    headSnapshot: headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null),
     now,
   });
+  const head = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null);
 
   return Response.json(
     {
@@ -65,6 +69,8 @@ export async function GET(): Promise<Response> {
        * the same record. Empty is a real empty: every condition was checked.
        */
       conditions,
+      /** The chain head as the Pillar last read it: the one liveness signal this chain offers. Null means never sampled. */
+      chainHead: head === null ? null : { ...head.payload, sampledAt: head.observedAt },
       alerting: process.env.CURB_ALERT_WEBHOOK ? 'CONFIGURED' : 'NOT_CONFIGURED',
       agents: health.statuses.map((status) => ({
         ...status,
