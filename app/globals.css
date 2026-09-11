@@ -160,3 +160,27 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* The loading state: one rule sweeping a cell while a page's record is read. */
+.sweep {
+  position: relative;
+  overflow: hidden;
+}
+.sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -40%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--color-rule), transparent);
+  animation: sweep 1.4s linear infinite;
+}
+@keyframes sweep {
+  to {
+    left: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sweep::after {
+    animation: none;
+  }
+}

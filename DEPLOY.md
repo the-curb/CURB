@@ -94,6 +94,17 @@ Done once.
    # 401 — the Surveyor runs on request, and the request carries the secret
    ```
 
+5. The functions must run next to the store. `vercel.json` pins them to
+   `sin1` because the Supabase project is in `ap-southeast-1`; if the store is
+   ever created elsewhere, change the region to match it, not the other way
+   round. This is not a preference. Every page reads the record on demand
+   through a pool of one connection, so a page is a handful of round trips in
+   sequence, and the connection itself is three or four more the first time.
+   Measured from Washington (`iad1`, the default) to Singapore that was 1.3 to
+   5 seconds to first byte on every navigation; in-region it is the store's
+   own time. `curl -sI https://<deployment>/api/state | grep x-vercel-id` shows
+   the region that served the request as the second segment.
+
 ## 3. Scheduler — GitHub Actions
 
 `.github/workflows/tick.yml` calls `POST /api/tick` every five minutes.
