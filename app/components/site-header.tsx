@@ -34,7 +34,7 @@ export function SiteHeader() {
             <Mark size={26} className="text-(--color-accent)" />
             <span className="display whitespace-nowrap text-[1.2rem] tracking-[0.22em] sm:text-[1.4rem]">{BRAND.name}</span>
           </Link>
-          <span className="hidden text-[13px] text-(--color-paper-faint) lg:inline">{BRAND.descriptor}</span>
+          <span className="hidden whitespace-nowrap text-[13px] text-(--color-paper-faint) xl:inline">{BRAND.descriptor}</span>
 
           <nav className="ml-auto hidden h-full items-stretch lg:flex" aria-label="Sections">
             {SECTIONS.map(([label, href]) => (
