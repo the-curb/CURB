@@ -15,7 +15,7 @@ import { EQUITY_FEEDS, CRYPTO_FEEDS, FEEDS, tokenForFeed, type FeedRecord } from
 import { STOCK_TOKENS, STOCK_TOKEN_BEACON } from '../lib/chain/stock-tokens.ts';
 import { FEED_DIRECTORY_SOURCE } from '../lib/chain/feed-directory.ts';
 import { screen } from '../lib/doctrine/policy.ts';
-import { read, unread, type Reading } from '../lib/doctrine/reading.ts';
+import { readNow, unread, type Reading } from '../lib/doctrine/reading.ts';
 import { readSession } from '../lib/market/session.ts';
 import type { RoundData } from '../lib/chain/oracle.ts';
 
@@ -34,7 +34,9 @@ const SGOV = FEEDS.find((f) => f.key === 'rh-sgov-usd')!;
 const BTC = FEEDS.find((f) => f.key === 'btc-usd')!;
 
 function ok<T>(value: T): Reading<T> {
-  return read({ value, source: 'test', retrievedAt: AT, intervalSeconds: 900 });
+  // Taken now, not at a fixed instant: a fixture with a fixed retrievedAt ages
+  // against the real clock and turns itself UNREAD a few hours after it is written.
+  return readNow(value, 'test');
 }
 function round(answer: bigint, ageSeconds: number): Reading<RoundData> {
   const updatedAt = BigInt(Math.floor(NOW.getTime() / 1000) - ageSeconds);

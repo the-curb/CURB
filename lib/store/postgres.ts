@@ -105,7 +105,7 @@ export function buildSql(url: string, options: SqlOptions = {}): Sql {
      * same query in one. A second connection is the difference between a
      * degraded server and a stuck one.
      */
-    max: Number(process.env.CURB_POSTGRES_MAX ?? (isServerless() ? 1 : 2)),
+    max: poolSize(),
     idle_timeout: 20,
     connect_timeout: 15,
     /**
@@ -116,6 +116,43 @@ export function buildSql(url: string, options: SqlOptions = {}): Sql {
     ...(declaresSsl ? {} : { ssl: 'require' as const }),
     ...(options.schema ? { connection: { search_path: options.schema } } : {}),
   });
+}
+
+/** How many connections the pool holds, and so how many statements may be in flight. */
+export function poolSize(): number {
+  return Number(process.env.CURB_POSTGRES_MAX ?? (isServerless() ? 1 : 2));
+}
+
+/**
+ * A counting semaphore the size of the pool. The driver queues statements
+ * when every connection is busy, and a timer started before the queue would
+ * count the wait as the statement's own time — which is how six parallel
+ * reads on a pool of one produced a "did not return within 10000ms" for a
+ * database that was answering every statement in under a second, and then
+ * discarded the client and dropped the five behind it. The timer starts when
+ * a slot is held, so it measures the statement and nothing else.
+ */
+export class Slots {
+  private free: number;
+  private readonly waiting: Array<() => void> = [];
+
+  constructor(size: number) {
+    this.free = Math.max(1, size);
+  }
+
+  async acquire(): Promise<void> {
+    if (this.free > 0) {
+      this.free -= 1;
+      return;
+    }
+    await new Promise<void>((resolve) => this.waiting.push(resolve));
+  }
+
+  release(): void {
+    const next = this.waiting.shift();
+    if (next) next();
+    else this.free += 1;
+  }
 }
 
 /** One client for the process. Never build one per request. */
@@ -331,10 +368,12 @@ export class PostgresStore implements Store {
   /** Set when a client was handed in (tests); it is never replaced. */
   private readonly provided: Sql | null;
   private current: Sql;
+  private readonly slots: Slots;
 
   constructor(sql?: Sql) {
     this.provided = sql ?? null;
     this.current = sql ?? getSql();
+    this.slots = new Slots(poolSize());
   }
 
   private get sql(): Sql {
@@ -348,20 +387,27 @@ export class PostgresStore implements Store {
    * rejection into UNREAD or FAILED, so nothing above this sees a hang.
    */
   private async guard<T>(label: string, run: () => Promise<T>): Promise<T> {
+    // Hold a slot for the whole attempt, retry included: the timer inside
+    // measures a statement that has a connection, not one waiting for it.
+    await this.slots.acquire();
     try {
-      return await this.timed(label, run);
-    } catch (cause) {
-      if (cause instanceof QueryTimeout) {
-        this.discardClient();
-        throw cause;
+      try {
+        return await this.timed(label, run);
+      } catch (cause) {
+        if (cause instanceof QueryTimeout) {
+          this.discardClient();
+          throw cause;
+        }
+        // A socket that was dropped between two statements is not an answer
+        // from the database; it is the network. The driver reconnects on the
+        // next statement, so that statement is sent once more — once. A second
+        // failure is reported as it is, and a query the database rejected is
+        // never resent at all.
+        if (!isConnectionFault(cause)) throw cause;
+        return await this.timed(label, run);
       }
-      // A socket that was dropped between two statements is not an answer
-      // from the database; it is the network. The driver reconnects on the
-      // next statement, so that statement is sent once more — once. A second
-      // failure is reported as it is, and a query the database rejected is
-      // never resent at all.
-      if (!isConnectionFault(cause)) throw cause;
-      return await this.timed(label, run);
+    } finally {
+      this.slots.release();
     }
   }
 

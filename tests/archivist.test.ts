@@ -5,7 +5,7 @@ import { AGENT_BY_ID } from '../lib/agents/registry.ts';
 import { STOCK_TOKENS } from '../lib/chain/stock-tokens.ts';
 import { TOKENS } from '../lib/chain/tokens.ts';
 import { MULTIPLIER_SCALE } from '../lib/chain/oracle.ts';
-import { read, unread, type Reading } from '../lib/doctrine/reading.ts';
+import { readNow, unread, type Reading } from '../lib/doctrine/reading.ts';
 
 const NOW = new Date('2026-09-11T18:00:00.000Z');
 const AT = NOW.toISOString();
@@ -13,7 +13,8 @@ const ONE = MULTIPLIER_SCALE;
 const AAPL = STOCK_TOKENS.find((t) => t.ticker === 'AAPL')!;
 
 function ok<T>(value: T): Reading<T> {
-  return read({ value, source: 'test', retrievedAt: AT, intervalSeconds: 6 * 3600 });
+  // Taken now: a fixed retrievedAt would age against the real clock and turn UNREAD.
+  return readNow(value, 'test');
 }
 function readOf(over: Partial<TokenRead> = {}): TokenRead {
   return {

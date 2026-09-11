@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { isTooManyLogs, LOG_RESULT_CAP, MIN_PAGE_BLOCKS, readLogWindow } from '../lib/chain/logs.ts';
 import { perMinute, SAMPLE_BLOCKS, tallyFlows, type Subject } from '../lib/agents/producers/tally.ts';
 import { AGENT_BY_ID } from '../lib/agents/registry.ts';
-import { read, unread, type Reading } from '../lib/doctrine/reading.ts';
+import { readNow, unread, type Reading } from '../lib/doctrine/reading.ts';
 import type { LogEntry, readLogs } from '../lib/chain/rpc.ts';
 
 /**
@@ -39,7 +39,8 @@ function scriptedNode(maxWidth: number, perBlock: number, fail?: (from: number) 
     }
     const logs: LogEntry[] = [];
     for (let b = from; b <= to; b += 1) for (let i = 0; i < perBlock; i += 1) logs.push(entry('0xaa', '0x01', '0x02', 1n, b));
-    return read<LogEntry[]>({ value: logs, source: 'fake', retrievedAt: AT, intervalSeconds: 3600 }) as Reading<LogEntry[]>;
+    // Taken now: a fixed retrievedAt would age against the real clock and turn UNREAD.
+    return readNow<LogEntry[]>(logs, 'fake');
   };
   return { fetch, calls };
 }
