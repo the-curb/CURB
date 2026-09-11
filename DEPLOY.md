@@ -150,6 +150,10 @@ Both ride on the tick, and both are reported in its response.
   once. A condition that persists is not re-sent. The current set is always
   visible at `/api/state` under `conditions`, with `alerting` saying whether a
   webhook is configured. Unconfigured is a reported state, not a silent one.
+  One thing alerting cannot do is notice that the scheduler has stopped: no
+  tick, no comparison, no message. That case is `reportingLastHour` going to
+  zero on `/api/state`, and it needs a probe from outside — any uptime monitor
+  that fetches the endpoint and checks the field.
 - **Retention.** Once a UTC day the first tick prunes observations older than
   the horizon in `lib/store/retention.ts` and records what it removed. The
   tick response shows `retention` as PRUNED, ALREADY_DONE, or UNCONFIRMED — the
