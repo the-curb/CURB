@@ -42,8 +42,26 @@ const MEANINGS: Record<AgentHealth, string> = {
 };
 
 export const wardenProducer: Producer = async ({ now, store }): Promise<ProducerResult> => {
-  const heartbeats = await store.latestHeartbeats();
-  const blocks = await store.recentBlocks(50);
+  const [heartbeatsRead, blocksRead] = await Promise.all([
+    store.latestHeartbeats(),
+    store.recentBlocks(50),
+  ]);
+
+  // The failure this agent must never get wrong. An unreadable record is not a
+  // system with nothing in it, and reporting "no agents reporting" here would be
+  // the loudest possible version of the quiet lie this project exists to stop.
+  if (heartbeatsRead.state === 'UNREAD') {
+    return {
+      publication: null,
+      sourcesReached: 0,
+      oldestInputAt: null,
+      note: `the heartbeat store could not be read (${heartbeatsRead.reason}${heartbeatsRead.detail ? `: ${heartbeatsRead.detail}` : ''}), so no health figures are published. An unreadable record is not a healthy system and is not an empty one.`,
+    };
+  }
+
+  const heartbeats = heartbeatsRead.value;
+  /** Null means the block log could not be read — never rendered as a count. */
+  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
   const health = systemHealth(heartbeats, now);
 
   if (heartbeats.length === 0) {
@@ -84,13 +102,19 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
     numbers.push(`— Oldest input still behind a published figure: ${age} old.`);
   }
 
-  const blockCount = String(blocks.length);
-  declare(blockCount);
-  numbers.push(
-    blocks.length === 0
-      ? `— Outputs blocked by policy and kept for review: ${blockCount}.`
-      : `— Outputs blocked by policy and kept for review: ${blockCount}. Each one is stored in full, with the rule it broke, because a blocked output is an event to look at rather than a silence.`,
-  );
+  if (blocks === null) {
+    numbers.push(
+      '— Outputs blocked by policy: the block log could not be read, so the count is reported as absent. It is not a count of zero.',
+    );
+  } else {
+    const blockCount = String(blocks.length);
+    declare(blockCount);
+    numbers.push(
+      blocks.length === 0
+        ? `— Outputs blocked by policy and kept for review: ${blockCount}.`
+        : `— Outputs blocked by policy and kept for review: ${blockCount}. Each one is stored in full, with the rule it broke, because a blocked output is an event to look at rather than a silence.`,
+    );
+  }
 
   // The roster, worst state first.
   const roster: string[] = [];

@@ -136,6 +136,24 @@ export function read<T>(input: ReadInput<T>): Reading<T> {
   };
 }
 
+/**
+ * A reading of something we just queried ourselves — a store, a computation.
+ *
+ * Staleness is not a property these can have: the value is exactly as current as
+ * the call that produced it. They still carry a source, because "which store,
+ * queried when" is provenance a reader can check, and because a store that
+ * cannot answer must be able to come back UNREAD like any other source.
+ */
+export function readNow<T>(value: T, source: string, now: Date = new Date()): VerifiedReading<T> {
+  return {
+    state: 'VERIFIED',
+    value,
+    ageSeconds: 0,
+    source,
+    retrievedAt: now.toISOString(),
+  };
+}
+
 export function unread(
   reason: UnreadReason,
   opts: { source?: string | null; now?: Date; detail?: string } = {},

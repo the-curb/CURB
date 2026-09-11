@@ -1,5 +1,6 @@
 import type { AgentId } from '../agents/registry.ts';
 import type { DeclaredFigure, PolicyBreach } from '../doctrine/policy.ts';
+import type { Reading } from '../doctrine/reading.ts';
 
 /**
  * How a run ended. Every one of these is written to the heartbeat, including the
@@ -55,29 +56,83 @@ export interface BlockRecord {
  * One sampled price, kept so a series can accumulate.
  *
  * These are our own observations at our own sampling rate — not daily closes
- * from an exchange, and never described as such. A figure computed from them is
- * honest about how many samples it had and when the first one was taken.
+ * from an exchange, and never described as such.
+ *
+ * `value` is a convenience for arithmetic, and it is LOSSY. A token with
+ * eighteen decimals needs more significant digits than a double carries: round
+ * tripping one WETH supply through this field loses millions of wei. `raw` and
+ * `decimals` are the record of record, so a durable store can persist the
+ * integer the chain actually gave and scale it on read. A precision loss at
+ * write time cannot be undone afterwards.
  */
 export interface ObservationRecord {
   readonly key: string;
   readonly observedAt: string;
   readonly value: number;
+  /** The integer exactly as the chain gave it, when it came from one. */
+  readonly raw?: string;
+  readonly decimals?: number;
   readonly source: string;
 }
 
+/**
+ * The result of a write.
+ *
+ * Writes report rather than throw, for the same reason reads return a Reading:
+ * a heartbeat that failed to save is a fact about the system, and an exception
+ * thrown up through a scheduler is a fact nobody records.
+ */
+export type WriteOutcome =
+  | { readonly state: 'WRITTEN' }
+  | { readonly state: 'FAILED'; readonly reason: string };
+
+/**
+ * The result of publishing.
+ *
+ * `atomic` is the store telling the truth about itself. A publication and its
+ * heartbeat describe one event: a publication with no heartbeat went out without
+ * being recorded as having run, and a heartbeat pointing at a publication that
+ * was never written describes something that does not exist.
+ *
+ * A store that cannot offer a transaction reports `atomic: false` rather than
+ * implying a guarantee it does not provide. On failure, `partial` says whether
+ * one of the two landed anyway — which is the state an operator has to repair.
+ */
+export type PublishOutcome =
+  | { readonly state: 'WRITTEN'; readonly atomic: boolean }
+  | { readonly state: 'FAILED'; readonly reason: string; readonly partial: boolean };
+
+/**
+ * Reads return a Reading, so a store that cannot answer comes back UNREAD
+ * rather than empty.
+ *
+ * This is the whole reason the interface changed. An outage that returns `[]`
+ * reads exactly like a system where no agent has ever run, and nothing
+ * downstream can tell the two apart — the specific confusion this project
+ * exists to remove, sitting in its own interface.
+ */
 export interface Store {
-  writeHeartbeat(record: HeartbeatRecord): Promise<void>;
+  writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome>;
   /** The most recent heartbeat per agent. Agents that never ran are absent. */
-  latestHeartbeats(): Promise<readonly HeartbeatRecord[]>;
-  latestHeartbeat(agentId: AgentId): Promise<HeartbeatRecord | null>;
+  latestHeartbeats(): Promise<Reading<readonly HeartbeatRecord[]>>;
+  latestHeartbeat(agentId: AgentId): Promise<Reading<HeartbeatRecord | null>>;
 
-  writePublication(record: PublicationRecord): Promise<void>;
-  recentPublications(limit: number): Promise<readonly PublicationRecord[]>;
+  /**
+   * Write a publication and its heartbeat together. The only supported way to
+   * publish: the two records must not be able to disagree about whether the
+   * run happened.
+   */
+  publishAtomically(
+    publication: PublicationRecord,
+    heartbeat: HeartbeatRecord,
+  ): Promise<PublishOutcome>;
 
-  writeObservations(records: readonly ObservationRecord[]): Promise<void>;
+  recentPublications(limit: number): Promise<Reading<readonly PublicationRecord[]>>;
+
+  writeObservations(records: readonly ObservationRecord[]): Promise<WriteOutcome>;
   /** Oldest first, so the series is ready to compute over. */
-  observations(key: string, limit: number): Promise<readonly ObservationRecord[]>;
+  observations(key: string, limit: number): Promise<Reading<readonly ObservationRecord[]>>;
 
-  writeBlock(record: BlockRecord): Promise<void>;
-  recentBlocks(limit: number): Promise<readonly BlockRecord[]>;
+  writeBlock(record: BlockRecord): Promise<WriteOutcome>;
+  recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>>;
 }

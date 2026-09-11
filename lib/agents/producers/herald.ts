@@ -20,11 +20,27 @@ import { BRAND } from '../../brand.ts';
 const STORE_SOURCE = 'the heartbeat and publication store, read at the moment of posting';
 
 export const heraldProducer: Producer = async ({ now, store }): Promise<ProducerResult> => {
-  const [heartbeats, publications, blocks] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, blocksRead] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(200),
     store.recentBlocks(200),
   ]);
+
+  // The promoter is the last agent that should be allowed to round an unreadable
+  // store down to a flattering zero, so it refuses to post at all rather than
+  // describe a roster it could not see.
+  if (heartbeatsRead.state === 'UNREAD') {
+    return {
+      publication: null,
+      sourcesReached: 0,
+      oldestInputAt: null,
+      note: `the heartbeat store could not be read (${heartbeatsRead.reason}), so nothing is claimed about what is running`,
+    };
+  }
+
+  const heartbeats = heartbeatsRead.value;
+  const publications = publicationsRead.state === 'UNREAD' ? null : publicationsRead.value;
+  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
 
   const figures: DeclaredFigure[] = [];
   const declare = (token: string) =>
@@ -33,10 +49,22 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
   const observedAgents = String(heartbeats.length);
   const totalAgents = String(AGENT_COUNTS.total);
   const measuring = String(AGENT_COUNTS.measure);
-  const published = String(publications.length);
-  const blocked = String(blocks.length);
   const rules = String(RULE_COUNT);
-  [observedAgents, totalAgents, measuring, published, blocked, rules].forEach(declare);
+  [observedAgents, totalAgents, measuring, rules].forEach(declare);
+
+  // Both counts are declared only when both were read. A promoter reporting a
+  // publication count beside an unreadable block count would be picking the
+  // flattering half of the pair.
+  const tally =
+    publications === null || blocks === null
+      ? '— The publication and block counts could not both be read from the store, so neither is quoted here. Quoting the first without the second would be choosing the flattering half.'
+      : (() => {
+          const published = String(publications.length);
+          const blocked = String(blocks.length);
+          declare(published);
+          declare(blocked);
+          return `— ${published} ${publications.length === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${blocks.length === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts come from the same store; the second is not hidden to make the first look better.`;
+        })();
 
   const neverRan = AGENTS.filter((agent) => !heartbeats.some((h) => h.agentId === agent.id));
   const neverRanCount = String(neverRan.length);
@@ -55,7 +83,7 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
     'WHAT IS RUNNING',
     rosterLine,
     `— ${measuring} of the agents measure and report. This one promotes, and says so in the line appended below every time it posts.`,
-    `— ${published} ${publications.length === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${blocks.length === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts are read from the same store; the second is not hidden to make the first look better.`,
+    tally,
     // Worded around the forbidden phrases rather than quoting them: the gate
     // reads text, not intent, and it is not given an exception for this file.
     `— ${rules} publication rules run in code ahead of every post, including this one. The rules against forecasting, and against naming a level to trade at, bind this agent exactly as they bind the measuring ones.`,

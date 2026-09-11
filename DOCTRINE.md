@@ -106,13 +106,48 @@ nothing to say, which is the one confusion this system exists to remove. Agents
 described in the registry but not yet wired are reported by name as
 `notImplemented` rather than blending in with the quiet ones.
 
-### The store is not production-ready, and says so
+### The store answers in readings, not in empties
 
-`lib/store/fs.ts` is an append-only JSONL log on local disk. It is enough to
-develop the runtime against and deliberately not clever. A serverless deployment
-has no durable local disk and two instances would each keep their own file, so
-`Store` must be implemented against a real database before deploy. The interface
-exists so that swap touches nothing above it.
+`lib/store/types.ts`
+
+Every read on `Store` returns a `Reading`. This is the doctrine applied to the
+system's own record: a store that will not answer comes back UNREAD, because an
+outage that returns `[]` reads exactly like a system where no agent has ever run,
+and nothing downstream can tell the two apart.
+
+The consequences are load-bearing, not cosmetic:
+
+- **The Warden refuses to report.** An unreadable heartbeat log publishes nothing
+  rather than "0 of 9 agents reporting", which would be the loudest possible
+  version of the quiet lie.
+- **`tick()` runs nothing it cannot judge.** Due-ness is derived from the last
+  run, so an unreadable store means the question has no answer. Running blind can
+  publish twice; assuming not-due can silence an agent forever while the
+  dashboard looks fine. It reports `undetermined` and names each agent.
+- **The dashboard and `/api/state` say so.** The endpoint answers 503 with
+  `STORE_UNREADABLE` instead of serving an empty roster.
+
+### Publishing is one event, written once
+
+`publishAtomically()` is the only supported way to publish. A publication and its
+heartbeat describe the same run: a publication with no heartbeat went out without
+being recorded, and a heartbeat pointing at a publication that was never written
+describes something that does not exist.
+
+A store that cannot offer a transaction reports `atomic: false` rather than
+implying a guarantee it does not have — and `lib/store/fs.ts` reports exactly
+that on every publish, in the API response, where it is visible rather than
+buried in a comment. On failure, `partial` names which of the two landed, which
+is the state an operator has to repair.
+
+### The store is still not production-ready
+
+`lib/store/fs.ts` is an append-only JSONL log on local disk, and its limits are
+properties of the medium: no durable disk on serverless, one file per instance,
+no transaction, and observation values that round-trip through a lossy double
+(`ObservationRecord` documents which fields are the record of record). It must be
+reimplemented against a database before deploy. The interface exists so that swap
+touches nothing above it.
 
 ## 6. Code computes, the model narrates
 

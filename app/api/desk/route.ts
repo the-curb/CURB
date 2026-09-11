@@ -28,10 +28,18 @@ export async function GET(request: Request): Promise<Response> {
   const run = await runAgent(spec, producer, { dryRun });
   const store = getStore();
 
-  const publication =
-    run.publicationId === null
-      ? null
-      : ((await store.recentPublications(5)).find((p) => p.id === run.publicationId) ?? null);
+  // Three outcomes, not two: no publication, the publication, or a store that
+  // would not say. The last one must not be served as the first.
+  let publication = null;
+  let publicationUnread: string | null = null;
+  if (run.publicationId !== null) {
+    const recent = await store.recentPublications(5);
+    if (recent.state === 'UNREAD') {
+      publicationUnread = `${recent.reason}${recent.detail ? `: ${recent.detail}` : ''}`;
+    } else {
+      publication = recent.value.find((p) => p.id === run.publicationId) ?? null;
+    }
+  }
 
   return Response.json(
     {
@@ -40,6 +48,8 @@ export async function GET(request: Request): Promise<Response> {
       dryRun,
       /** Null is a real answer here: too few observations to measure anything. */
       publication,
+      /** Set only when the store refused to hand back what was just written. */
+      publicationUnread,
       breaches: run.breaches,
       heartbeat: run.heartbeat,
     },

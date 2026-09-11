@@ -89,6 +89,16 @@ export interface RunRecord {
   readonly breaches: readonly PolicyBreach[];
   /** False for a dry run — nothing was persisted. */
   readonly persisted: boolean;
+  /**
+   * What the store did with this run, so a write failure is visible rather than
+   * swallowed. `atomic: false` is the store reporting that the publication and
+   * its heartbeat were written separately and could, on a crash, disagree.
+   * Null on a dry run, which writes nothing by design.
+   */
+  readonly storage:
+    | { readonly state: 'WRITTEN'; readonly atomic?: boolean }
+    | { readonly state: 'FAILED'; readonly reason: string; readonly partial?: boolean }
+    | null;
 }
 
 /**
@@ -145,8 +155,16 @@ export async function runAgent(
   const finish = async (
     hb: HeartbeatRecord,
     breaches: readonly PolicyBreach[] = [],
+    storage: RunRecord['storage'] = null,
   ): Promise<RunRecord> => {
-    if (!dryRun) await store.writeHeartbeat(hb);
+    let stored = storage;
+    if (!dryRun && stored === null) {
+      const written = await store.writeHeartbeat(hb);
+      // A heartbeat that failed to save is a fact about the system. It travels
+      // back to the caller instead of vanishing into a void the scheduler
+      // cannot see — the run happened whether or not the record of it landed.
+      stored = written.state === 'WRITTEN' ? { state: 'WRITTEN' } : written;
+    }
     return {
       agentId: spec.id,
       outcome: hb.outcome,
@@ -154,6 +172,7 @@ export async function runAgent(
       publicationId: hb.publicationId,
       breaches,
       persisted: !dryRun,
+      storage: stored,
     };
   };
 
@@ -168,9 +187,22 @@ export async function runAgent(
 
   // Measurements are recorded before any gate runs. What was measured and what
   // is publishable are different questions, and the record answers the first.
+  //
+  // A failed observation write does not stop the run — the reading still
+  // happened and is still publishable — but it is not swallowed either: a gap in
+  // the series changes what the Surveyor can compute later, so it rides along on
+  // the heartbeat where somebody will see it.
+  let seriesFault: string | null = null;
   if (!dryRun && result.observations && result.observations.length > 0) {
-    await store.writeObservations(result.observations);
+    const written = await store.writeObservations(result.observations);
+    if (written.state === 'FAILED') {
+      seriesFault = `observations not stored: ${written.reason}`;
+    }
   }
+
+  /** Join whatever the run has to explain into one heartbeat detail line. */
+  const withFault = (detail: string | null): string | null =>
+    [detail, seriesFault].filter(Boolean).join(' · ') || null;
 
   // ── COVERAGE ───────────────────────────────────────────────────────────────
   // Below the stated minimum, no reading is declared and no figures are offered.
@@ -185,12 +217,14 @@ export async function runAgent(
         result.sourcesReached,
         result.oldestInputAt,
         null,
-        [
-          `reached ${result.sourcesReached} of a required minimum ${spec.minimumSources}`,
-          result.note,
-        ]
-          .filter(Boolean)
-          .join(' · '),
+        withFault(
+          [
+            `reached ${result.sourcesReached} of a required minimum ${spec.minimumSources}`,
+            result.note,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        ),
       ),
     );
   }
@@ -204,7 +238,7 @@ export async function runAgent(
         result.sourcesReached,
         result.oldestInputAt,
         null,
-        null,
+        withFault(result.note ?? null),
       ),
     );
   }
@@ -224,7 +258,7 @@ export async function runAgent(
         result.sourcesReached,
         result.oldestInputAt,
         null,
-        provenanceFault,
+        withFault(provenanceFault),
       ),
     );
   }
@@ -259,13 +293,18 @@ export async function runAgent(
         result.sourcesReached,
         result.oldestInputAt,
         null,
-        verdict.breaches.map((b) => `${b.rule}:${b.matched}`).join(' · '),
+        withFault(verdict.breaches.map((b) => `${b.rule}:${b.matched}`).join(' · ')),
       ),
       verdict.breaches,
     );
   }
 
-  // ── PUBLISH ────────────────────────────────────────────────────────────────
+  // ── PUBLISH + HEARTBEAT ────────────────────────────────────────────────────
+  // Written together, because they describe one event. A publication with no
+  // heartbeat went out without being recorded as having run, and a heartbeat
+  // pointing at a publication that was never written describes something that
+  // does not exist. Which of those two an operator is looking at is exactly
+  // what `partial` tells them.
   const publication: PublicationRecord = {
     id: randomUUID(),
     agentId: spec.id,
@@ -275,19 +314,25 @@ export async function runAgent(
     figures: candidate.figures,
     sourcesReached: result.sourcesReached,
   };
-  if (!dryRun) await store.writePublication(publication);
+  const beat = heartbeat(
+    spec,
+    now,
+    'PUBLISHED',
+    result.sourcesReached,
+    result.oldestInputAt,
+    publication.id,
+    withFault(null),
+  );
 
-  // ── HEARTBEAT ──────────────────────────────────────────────────────────────
+  if (dryRun) return finish(beat);
+
+  const stored = await store.publishAtomically(publication, beat);
   return finish(
-    heartbeat(
-      spec,
-      now,
-      'PUBLISHED',
-      result.sourcesReached,
-      result.oldestInputAt,
-      publication.id,
-      null,
-    ),
+    beat,
+    [],
+    stored.state === 'WRITTEN'
+      ? { state: 'WRITTEN', atomic: stored.atomic }
+      : { state: 'FAILED', reason: stored.reason, partial: stored.partial },
   );
 }
 
@@ -301,6 +346,18 @@ export interface TickResult {
   readonly notImplemented: readonly AgentId[];
   /** Agents whose interval had not elapsed, and on-request agents. */
   readonly notDue: readonly AgentId[];
+  /**
+   * Agents we could not decide about, because the heartbeat store would not say
+   * when they last ran.
+   *
+   * This is its own outcome on purpose. Due-ness is derived from the last run,
+   * so an unreadable store means the question has no answer — and neither
+   * default is safe to assume. Running blind risks publishing twice; silently
+   * treating it as not-due risks an agent that never runs again while the
+   * dashboard shows nothing wrong. So it runs nothing and says which agents it
+   * could not judge.
+   */
+  readonly undetermined: readonly { readonly agentId: AgentId; readonly reason: string }[];
 }
 
 /**
@@ -318,11 +375,22 @@ export async function tick(
   const ran: RunRecord[] = [];
   const notImplemented: AgentId[] = [];
   const notDue: AgentId[] = [];
+  const undetermined: { agentId: AgentId; reason: string }[] = [];
 
   for (const spec of AGENTS) {
     const last = await store.latestHeartbeat(spec.id);
-    const lastRunAt = last ? new Date(last.runAt) : null;
 
+    // An unreadable store does not mean the agent never ran. Due-ness cannot be
+    // derived from an absence we could not confirm, so nothing is assumed.
+    if (last.state === 'UNREAD') {
+      undetermined.push({
+        agentId: spec.id,
+        reason: `${last.reason}${last.detail ? ` — ${last.detail}` : ''}`,
+      });
+      continue;
+    }
+
+    const lastRunAt = last.value ? new Date(last.value.runAt) : null;
     if (!isDue(spec, lastRunAt, now)) {
       notDue.push(spec.id);
       continue;
@@ -335,5 +403,5 @@ export async function tick(
     ran.push(await runAgent(spec, producer, { ...opts, now, store }));
   }
 
-  return { at: now.toISOString(), ran, notImplemented, notDue };
+  return { at: now.toISOString(), ran, notImplemented, notDue, undetermined };
 }

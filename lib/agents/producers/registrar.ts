@@ -39,9 +39,13 @@ async function nextToken(
   store: Parameters<Producer>[0]['store'],
 ): Promise<TokenRecord> {
   const recent = await store.recentPublications(50);
-  const reported = recent
-    .filter((p) => p.agentId === 'registrar')
-    .map((p) => p.headline);
+  // An unreadable history means we cannot tell which token is least recently
+  // reported. Rotation degrades to the first entry rather than failing the run:
+  // auditing the same token twice is a smaller fault than auditing none.
+  const reported =
+    recent.state === 'UNREAD'
+      ? []
+      : recent.value.filter((p) => p.agentId === 'registrar').map((p) => p.headline);
 
   for (const token of TOKENS) {
     if (!reported.some((headline) => headline.includes(token.observedSymbol))) return token;

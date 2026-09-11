@@ -17,12 +17,22 @@ import { phaseLabel, readSession, type SessionState } from '../../market/session
 const SESSION_SOURCE = 'exchange session calendar · computed (NYSE/Nasdaq rules)';
 
 /** The phase this agent last told anyone about, or null if it never has. */
+/**
+ * The phase this agent last told anyone about.
+ *
+ * Three answers, not two. `UNDETERMINED` means the store would not say — and
+ * that is deliberately not folded into "never published", because the two lead
+ * to opposite behaviour: one means stay quiet, the other means speak.
+ */
 async function lastPublishedPhase(
   store: Parameters<Producer>[0]['store'],
-): Promise<string | null> {
+): Promise<{ phase: string | null } | { undetermined: string }> {
   const recent = await store.recentPublications(25);
-  const mine = recent.find((p) => p.agentId === 'bell');
-  return mine ? (mine.headline.match(/^[A-Z\- ]+/)?.[0]?.trim() ?? null) : null;
+  if (recent.state === 'UNREAD') {
+    return { undetermined: `${recent.reason}${recent.detail ? `: ${recent.detail}` : ''}` };
+  }
+  const mine = recent.value.find((p) => p.agentId === 'bell');
+  return { phase: mine ? (mine.headline.match(/^[A-Z\- ]+/)?.[0]?.trim() ?? null) : null };
 }
 
 function narrate(session: SessionState, blockToken: string | null): string {
@@ -86,7 +96,13 @@ export const bellProducer: Producer = async ({ now, store }): Promise<ProducerRe
   }
 
   const phase = phaseLabel(session.phase);
-  if ((await lastPublishedPhase(store)) === phase) {
+  const previous = await lastPublishedPhase(store);
+
+  // When the store will not say what we last published, the safe side is to
+  // speak: a duplicate session line is harmless, a missed change is not.
+  const undetermined = 'undetermined' in previous ? previous.undetermined : null;
+
+  if (!('undetermined' in previous) && previous.phase === phase) {
     // Nothing changed. Say nothing, and leave a heartbeat saying so.
     return { publication: null, sourcesReached, oldestInputAt };
   }
@@ -100,5 +116,10 @@ export const bellProducer: Producer = async ({ now, store }): Promise<ProducerRe
     },
     sourcesReached,
     oldestInputAt,
+    ...(undetermined === null
+      ? {}
+      : {
+          note: `could not read what was last published (${undetermined}), so this may repeat a line already sent`,
+        }),
   };
 };

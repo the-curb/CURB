@@ -11,15 +11,37 @@ import { getStore } from '@/lib/store/fs';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = getStore();
-  const [heartbeats, blocks] = await Promise.all([
+  const [heartbeatsRead, blocksRead] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
   ]);
-  const health = systemHealth(heartbeats, now);
+
+  // A store that will not answer is its own response. Serving an empty roster
+  // would say "no agent has ever run", which is a different claim entirely and
+  // one this endpoint has no evidence for.
+  if (heartbeatsRead.state === 'UNREAD') {
+    return Response.json(
+      {
+        observedAt: now.toISOString(),
+        state: 'STORE_UNREADABLE',
+        reason: heartbeatsRead.reason,
+        detail: heartbeatsRead.detail ?? null,
+        source: heartbeatsRead.source,
+        note: 'No agent state is reported. This is not a statement that nothing has run.',
+        policyRules: RULE_COUNT,
+        counts: AGENT_COUNTS,
+      },
+      { status: 503, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+
+  const health = systemHealth(heartbeatsRead.value, now);
+  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
 
   return Response.json(
     {
       observedAt: health.observedAt,
+      state: 'READ',
       /** The Warden's three unfakeable numbers, printed even when they look bad. */
       warden: {
         sourcesReached: health.sourcesReached,
@@ -36,14 +58,20 @@ export async function GET(): Promise<Response> {
         cadence: absenceLabel(AGENT_BY_ID[status.id]),
         refusal: AGENT_BY_ID[status.id].refusal,
       })),
-      /** Blocked outputs are events to look at, not silences. */
-      recentBlocks: blocks.map((b) => ({
-        id: b.id,
-        agentId: b.agentId,
-        blockedAt: b.blockedAt,
-        headline: b.headline,
-        breaches: b.breaches,
-      })),
+      /**
+       * Blocked outputs are events to look at, not silences. Null means the
+       * block log itself could not be read — which is not an empty log.
+       */
+      recentBlocks:
+        blocks === null
+          ? null
+          : blocks.map((b) => ({
+              id: b.id,
+              agentId: b.agentId,
+              blockedAt: b.blockedAt,
+              headline: b.headline,
+              breaches: b.breaches,
+            })),
     },
     { headers: { 'cache-control': 'no-store' } },
   );

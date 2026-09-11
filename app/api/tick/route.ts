@@ -37,10 +37,18 @@ export async function POST(request: Request): Promise<Response> {
         detail: r.heartbeat.detail,
         breaches: r.breaches,
         persisted: r.persisted,
+        /** What the store did. `atomic: false` means the pair could disagree. */
+        storage: r.storage,
       })),
       /** Named, never hidden: these are described in the registry but not wired. */
       notImplemented: result.notImplemented,
       notDue: result.notDue,
+      /**
+       * Agents whose due-ness could not be decided because the store would not
+       * say when they last ran. Nothing was run for them, and the reason is
+       * given per agent rather than folded into notDue.
+       */
+      undetermined: result.undetermined,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

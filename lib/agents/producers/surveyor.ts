@@ -49,12 +49,29 @@ function round(value: number, places: number): string {
 export const surveyorProducer: Producer = async ({ store }): Promise<ProducerResult> => {
   // Measure whichever feed has the deepest series; a thin one tells us nothing
   // and picking a favourite would hide that.
-  const candidates = await Promise.all(
-    FEEDS.map(async (feed) => ({
-      feed,
-      series: await store.observations(feed.key, LONG_WINDOW),
-    })),
+  const read = await Promise.all(
+    FEEDS.map(async (feed) => ({ feed, reading: await store.observations(feed.key, LONG_WINDOW) })),
   );
+
+  // If no series could be read at all, that is an unreadable store, not a token
+  // that has never been sampled. Structure is not computed from an absence.
+  const unreadable = read.filter((r) => r.reading.state === 'UNREAD');
+  if (unreadable.length === read.length) {
+    const first = unreadable[0]?.reading;
+    return {
+      publication: null,
+      sourcesReached: 0,
+      oldestInputAt: null,
+      note:
+        first && first.state === 'UNREAD'
+          ? `no observation series could be read (${first.reason}), so nothing was computed`
+          : 'no observation series could be read, so nothing was computed',
+    };
+  }
+
+  const candidates = read
+    .filter((r) => r.reading.state !== 'UNREAD')
+    .map((r) => ({ feed: r.feed, series: r.reading.value ?? [] }));
   const deepest = candidates.sort((a, b) => b.series.length - a.series.length)[0];
 
   if (!deepest || deepest.series.length === 0) {

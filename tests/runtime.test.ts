@@ -1,50 +1,92 @@
 import { strict as assert } from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
-import { runAgent, type Producer } from '../lib/agents/runtime.ts';
-import { AGENT_BY_ID } from '../lib/agents/registry.ts';
-import { unread } from '../lib/doctrine/reading.ts';
+import { runAgent, tick, type Producer } from '../lib/agents/runtime.ts';
+import { AGENTS, AGENT_BY_ID } from '../lib/agents/registry.ts';
+import { readNow, unread, type Reading } from '../lib/doctrine/reading.ts';
 import type {
   BlockRecord,
   HeartbeatRecord,
   ObservationRecord,
   PublicationRecord,
+  PublishOutcome,
   Store,
+  WriteOutcome,
 } from '../lib/store/types.ts';
 import type { AgentId } from '../lib/agents/registry.ts';
 
-/** An in-memory Store, so the runtime is tested without touching a disk. */
+/**
+ * An in-memory Store, so the runtime is tested without touching a disk.
+ *
+ * `readsFail` simulates a store that will not answer — the case the interface
+ * was changed for. Nothing above the Store should turn that into an empty list.
+ */
 class MemoryStore implements Store {
   heartbeats: HeartbeatRecord[] = [];
   publications: PublicationRecord[] = [];
   blocks: BlockRecord[] = [];
   observed: ObservationRecord[] = [];
+  readsFail = false;
+  writesFail = false;
+  /** Simulates a crash between the publication and the heartbeat. */
+  heartbeatWritesFail = false;
 
-  async writeHeartbeat(record: HeartbeatRecord) {
+  private read<T>(value: T): Reading<T> {
+    return this.readsFail
+      ? (unread('SOURCE_UNREACHABLE', { source: 'memory', detail: 'simulated outage' }) as Reading<T>)
+      : readNow(value, 'memory store');
+  }
+
+  private write(): WriteOutcome {
+    return this.writesFail ? { state: 'FAILED', reason: 'simulated write failure' } : { state: 'WRITTEN' };
+  }
+
+  async writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome> {
+    if (this.writesFail || this.heartbeatWritesFail) {
+      return { state: 'FAILED', reason: 'simulated write failure' };
+    }
     this.heartbeats.push(record);
+    return { state: 'WRITTEN' };
   }
-  async latestHeartbeats() {
-    return this.heartbeats;
+  async latestHeartbeats(): Promise<Reading<readonly HeartbeatRecord[]>> {
+    return this.read<readonly HeartbeatRecord[]>(this.heartbeats);
   }
-  async latestHeartbeat(agentId: AgentId) {
-    return this.heartbeats.filter((h) => h.agentId === agentId).at(-1) ?? null;
+  async latestHeartbeat(agentId: AgentId): Promise<Reading<HeartbeatRecord | null>> {
+    return this.read(this.heartbeats.filter((h) => h.agentId === agentId).at(-1) ?? null);
   }
-  async writePublication(record: PublicationRecord) {
-    this.publications.push(record);
+  async publishAtomically(
+    publication: PublicationRecord,
+    heartbeat: HeartbeatRecord,
+  ): Promise<PublishOutcome> {
+    if (this.writesFail) {
+      return { state: 'FAILED', reason: 'simulated write failure', partial: false };
+    }
+    this.publications.push(publication);
+    if (this.heartbeatWritesFail) {
+      return { state: 'FAILED', reason: 'simulated heartbeat failure', partial: true };
+    }
+    this.heartbeats.push(heartbeat);
+    return { state: 'WRITTEN', atomic: true };
   }
-  async recentPublications(limit: number) {
-    return this.publications.slice(-limit).reverse();
+  async recentPublications(limit: number): Promise<Reading<readonly PublicationRecord[]>> {
+    return this.read<readonly PublicationRecord[]>(this.publications.slice(-limit).reverse());
   }
-  async writeObservations(records: readonly ObservationRecord[]) {
-    this.observed.push(...records);
+  async writeObservations(records: readonly ObservationRecord[]): Promise<WriteOutcome> {
+    const outcome = this.write();
+    if (outcome.state === 'WRITTEN') this.observed.push(...records);
+    return outcome;
   }
-  async observations(key: string, limit: number) {
-    return this.observed.filter((o) => o.key === key).slice(-limit);
+  async observations(key: string, limit: number): Promise<Reading<readonly ObservationRecord[]>> {
+    return this.read<readonly ObservationRecord[]>(
+      this.observed.filter((o) => o.key === key).slice(-limit),
+    );
   }
-  async writeBlock(record: BlockRecord) {
-    this.blocks.push(record);
+  async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
+    const outcome = this.write();
+    if (outcome.state === 'WRITTEN') this.blocks.push(record);
+    return outcome;
   }
-  async recentBlocks(limit: number) {
-    return this.blocks.slice(-limit).reverse();
+  async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
+    return this.read<readonly BlockRecord[]>(this.blocks.slice(-limit).reverse());
   }
 }
 
@@ -231,6 +273,73 @@ describe('a dry run moves nothing', () => {
     await runAgent(BELL, advice, { store, now: NOW, dryRun: true });
     assert.equal(store.blocks.length, 0);
     assert.equal(store.heartbeats.length, 0);
+  });
+});
+
+describe('an unreadable store is not an empty one', () => {
+  it('publishes the pair together, so neither can exist alone', async () => {
+    await runAgent(BELL, clean, { store, now: NOW });
+    assert.equal(store.publications.length, 1);
+    assert.equal(store.heartbeats.length, 1);
+    assert.equal(store.heartbeats[0]?.publicationId, store.publications[0]?.id);
+  });
+
+  it('reports whether the write was actually atomic', async () => {
+    const run = await runAgent(BELL, clean, { store, now: NOW });
+    assert.equal(run.storage?.state, 'WRITTEN');
+    assert.equal(run.storage?.state === 'WRITTEN' && run.storage.atomic, true);
+  });
+
+  it('surfaces a publication that landed without its heartbeat', async () => {
+    // The exact repair state an operator has to know about.
+    store.heartbeatWritesFail = true;
+    const run = await runAgent(BELL, clean, { store, now: NOW });
+    assert.equal(run.storage?.state, 'FAILED');
+    assert.equal(run.storage?.state === 'FAILED' && run.storage.partial, true);
+    assert.equal(store.publications.length, 1);
+    assert.equal(store.heartbeats.length, 0);
+  });
+
+  it('does not swallow a failed heartbeat write', async () => {
+    store.writesFail = true;
+    const quiet: Producer = async () => ({
+      publication: null,
+      sourcesReached: 2,
+      oldestInputAt: NOW,
+    });
+    const run = await runAgent(BELL, quiet, { store, now: NOW });
+    assert.equal(run.outcome, 'NOTHING_TO_SAY');
+    assert.equal(run.storage?.state, 'FAILED');
+  });
+
+  it('records an observation write failure on the heartbeat', async () => {
+    store.writesFail = true;
+    const measuring: Producer = async () => ({
+      publication: null,
+      sourcesReached: 2,
+      oldestInputAt: NOW,
+      observations: [{ key: 'k', observedAt: NOW.toISOString(), value: 1, source: 's' }],
+    });
+    const run = await runAgent(BELL, measuring, { store, now: NOW });
+    assert.match(run.heartbeat.detail ?? '', /observations not stored/);
+  });
+
+  it('runs nothing it cannot judge as due, and names it', async () => {
+    // Due-ness is derived from the last run. An unreadable store means the
+    // question has no answer, and neither default is safe: running blind can
+    // publish twice, and assuming not-due can silence an agent forever.
+    store.readsFail = true;
+    const result = await tick({ bell: clean }, { store, now: NOW });
+    assert.equal(result.ran.length, 0);
+    assert.equal(result.notDue.length, 0);
+    assert.equal(result.undetermined.length, AGENTS.length);
+    assert.match(result.undetermined[0]?.reason ?? '', /SOURCE_UNREACHABLE/);
+  });
+
+  it('still runs normally once the store answers', async () => {
+    const result = await tick({ bell: clean }, { store, now: NOW });
+    assert.equal(result.undetermined.length, 0);
+    assert.equal(result.ran.length, 1);
   });
 });
 

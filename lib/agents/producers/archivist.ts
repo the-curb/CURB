@@ -71,8 +71,11 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
       const formatted = formatUnits(supply.value, scale);
       const current = Number(supply.value) / 10 ** scale;
 
-      const previous = await store.observations(`${token.key}:supply`, 2);
-      const last = previous[previous.length - 1];
+      // Null means the earlier reading could not be read — which is not the
+      // same as there being no earlier reading, and produces a different line.
+      const previousRead = await store.observations(`${token.key}:supply`, 2);
+      const previous = previousRead.state === 'UNREAD' ? null : previousRead.value;
+      const last = previous ? previous[previous.length - 1] : undefined;
       observations.push({
         key: `${token.key}:supply`,
         observedAt: supply.retrievedAt,
@@ -86,7 +89,11 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
         retrievedAt: supply.retrievedAt,
       });
 
-      if (last === undefined) {
+      if (previous === null) {
+        observed.push(
+          `— ${token.observedSymbol}: supply ${formatted}. The earlier readings could not be read back, so no comparison is made — this is not a statement that the supply is unchanged.`,
+        );
+      } else if (last === undefined) {
         observed.push(
           `— ${token.observedSymbol}: supply ${formatted}. This is the first reading kept for this token, so there is nothing yet to compare it against.`,
         );
@@ -113,8 +120,9 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
       sourcesReached += 1;
       const shown = formatMultiplier(multiplier.value);
       const current = Number(multiplier.value) / Number(MULTIPLIER_SCALE);
-      const previous = await store.observations(`${token.key}:multiplier`, 2);
-      const last = previous[previous.length - 1];
+      const previousRead = await store.observations(`${token.key}:multiplier`, 2);
+      const previous = previousRead.state === 'UNREAD' ? null : previousRead.value;
+      const last = previous ? previous[previous.length - 1] : undefined;
 
       observations.push({
         key: `${token.key}:multiplier`,
@@ -129,9 +137,11 @@ export const archivistProducer: Producer = async ({ store }): Promise<ProducerRe
       });
 
       observed.push(
-        last === undefined || last.value === current
-          ? `— ${token.observedSymbol}: shares per token ${shown}${last === undefined ? ', first reading kept' : ', unchanged since the previous reading'}.`
-          : `— ${token.observedSymbol}: shares per token ${shown}. The multiplier MOVED since the previous reading: one token now represents a different number of shares, and any figure derived from the older value is wrong by that ratio.`,
+        previous === null
+          ? `— ${token.observedSymbol}: shares per token ${shown}. The earlier readings could not be read back, so no comparison is made — this is not a statement that the multiplier held steady.`
+          : last === undefined || last.value === current
+            ? `— ${token.observedSymbol}: shares per token ${shown}${last === undefined ? ', first reading kept' : ', unchanged since the previous reading'}.`
+            : `— ${token.observedSymbol}: shares per token ${shown}. The multiplier MOVED since the previous reading: one token now represents a different number of shares, and any figure derived from the older value is wrong by that ratio.`,
       );
 
       if (isRead(pending.next) && pending.next.value !== multiplier.value) {

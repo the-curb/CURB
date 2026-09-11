@@ -71,12 +71,25 @@ export default async function Home() {
   const session = readSession(now);
   const store = getStore();
 
-  const [heartbeats, publications, blocks] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, blocksRead] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(6),
     store.recentBlocks(5),
   ]);
-  const health = systemHealth(heartbeats, now);
+
+  /**
+   * Null means the store would not answer. Rendering an empty roster here would
+   * paint nine agents as never-observed, which reads as a young system rather
+   * than a blind one — the exact substitution this page exists to refuse.
+   */
+  const heartbeats = heartbeatsRead.state === 'UNREAD' ? null : heartbeatsRead.value;
+  const publications = publicationsRead.state === 'UNREAD' ? null : publicationsRead.value;
+  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
+  const health = heartbeats === null ? null : systemHealth(heartbeats, now);
+  const storeFault =
+    heartbeatsRead.state === 'UNREAD'
+      ? `${heartbeatsRead.reason}${heartbeatsRead.detail ? ` — ${heartbeatsRead.detail}` : ''}`
+      : null;
   const priceAge = describePriceAge(null, session, now);
   const closed = session.phase === 'CLOSED';
 
@@ -165,6 +178,16 @@ export default async function Home() {
         title="The Warden · operations"
         note="Three numbers that cannot be faked, printed when they look bad. Sources reached counts what answered on the last run of each agent, against what a healthy run expects."
       >
+        {health === null ? (
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: 'var(--color-state-stale)' }}
+          >
+            The heartbeat store could not be read ({storeFault}). No agent state is shown, and
+            none should be inferred — an unreadable record is not a system where nothing has run.
+          </p>
+        ) : (
+          <>
         <div className="grid gap-x-12 sm:grid-cols-2">
           <div>
             <Row label="Sources reached">
@@ -187,7 +210,11 @@ export default async function Home() {
               )}
             </Row>
             <Row label="Blocked outputs kept">
-              <span className="tabular">{blocks.length}</span>
+              {blocks === null ? (
+                <Absent why="the block log could not be read — this is not a count of zero" />
+              ) : (
+                <span className="tabular">{blocks.length}</span>
+              )}
             </Row>
           </div>
         </div>
@@ -248,6 +275,8 @@ export default async function Home() {
             expected and never arrived.
           </p>
         </div>
+          </>
+        )}
       </Panel>
 
       {/* ── THE WIRE ──────────────────────────────────────────────────────── */}
@@ -255,7 +284,12 @@ export default async function Home() {
         title="The wire · what the agents published"
         note="Every line below passed provenance and policy before it was written. Nothing is summarised here; this is the output itself."
       >
-        {publications.length === 0 ? (
+        {publications === null ? (
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
+            The publication log could not be read. Nothing is shown, and nothing should be read
+            into that — this is not a wire with no traffic on it.
+          </p>
+        ) : publications.length === 0 ? (
           <p className="text-sm text-[--color-paper-faint]">
             Nothing published yet. That is an absence of output, not an absence of agents — the
             lights above say which.
