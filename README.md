@@ -57,3 +57,7 @@ not covered.
 It places no orders, holds no token, sells nothing, and states no price for a
 token no feed prices. It does not say a token is backed, safe, or a scam, in
 either direction. When it could not look, it says it could not look.
+
+## License
+
+MIT — see [LICENSE](LICENSE). The doctrine is the part worth copying.
