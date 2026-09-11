@@ -1,5 +1,5 @@
 /**
- * Eight agents, one job each. What each of them refuses to do is as defined as
+ * Nine agents, one job each. What each of them refuses to do is as defined as
  * what it does, and the refusal is enforced in `doctrine/policy.ts`, not in a
  * prompt.
  *
@@ -11,6 +11,7 @@
  * `intervalSeconds: null` means on request — never scheduled, never counted as a
  * failure for staying quiet.
  */
+import { absenceSeconds, freshnessSeconds } from '../doctrine/reading.ts';
 
 export type AgentId =
   | 'registrar'
@@ -143,13 +144,13 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'I can tell you what the market is doing. Not what you should do.',
     posture: 'MEASURES',
     intervalSeconds: null,
-    sourcesExpected: 2,
+    sourcesExpected: 1,
     minimumSources: 1,
     refusal:
       'Explains structure. Gives no entry, no stop, no target — even when asked.',
     reads: [
-      'Daily closes for the underlying equity',
-      'Realised volatility, trend strength normalised on residual dispersion, RSI(14), range position',
+      'This desk’s own samples of the deepest equity feed series, as the Pillar took them — never exchange closes, and never described as such',
+      'Realised volatility annualised on the observed sampling rate, trend strength, RSI(14), range position — each declared only above its stated minimum of samples',
     ],
   },
   {
@@ -249,9 +250,19 @@ export const AGENT_COUNTS = {
  */
 export function absenceLabel(spec: AgentSpec): string {
   if (spec.intervalSeconds === null) return 'on request · never a fault for staying quiet';
-  const hours = spec.intervalSeconds / 3600;
-  const cadence = hours >= 1 ? `every ${hours}h` : `every ${spec.intervalSeconds / 60}m`;
-  return `${cadence} · absent after ${(spec.intervalSeconds * 2 + 7200) / 3600}h`;
+  return `every ${describeSpan(spec.intervalSeconds)} · stale after ${describeSpan(freshnessSeconds(spec.intervalSeconds))} · absent after ${describeSpan(absenceSeconds(spec.intervalSeconds))}`;
+}
+
+/** A span in whole units a reader can hold: "5m", "2h 10m", "50h", "1d 2h". */
+export function describeSpan(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 72) return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  return restHours === 0 ? `${days}d` : `${days}d ${restHours}h`;
 }
 
 export function isDue(spec: AgentSpec, lastRunAt: Date | null, now: Date = new Date()): boolean {

@@ -33,15 +33,61 @@ export interface RpcOptions {
   readonly intervalSeconds: number;
 }
 
+/** How long a confirmed chain id is trusted before it is asked for again. */
+export const CHAIN_CONFIRM_SECONDS = 10 * 60;
+/** How long a failed confirmation is held before the endpoint is asked again. */
+const CHAIN_RETRY_SECONDS = 60;
+
+const confirmations = new Map<string, { until: number; fault: Reading<never> | null }>();
+
+/**
+ * The endpoint's own chain id, compared with the profile's, before any other
+ * call is trusted. Asked once per process per endpoint and again after
+ * `CHAIN_CONFIRM_SECONDS`. Multicall3 carries the same bytecode on every chain
+ * it is deployed to, so the pinned code hash cannot tell chains apart; only the
+ * id can. A mismatch makes every read UNREAD with the endpoint named, rather
+ * than a clean-looking record of the wrong chain.
+ */
+export async function chainFault(opts: RpcOptions): Promise<Reading<never> | null> {
+  const profile = opts.profile ?? activeNetwork();
+  const url = rpcUrl(profile);
+  const held = confirmations.get(url);
+  const now = Date.now();
+  if (held && held.until > now) return held.fault;
+
+  const id = await readChainId(opts);
+  let fault: Reading<never> | null = null;
+  if (id.state === 'UNREAD') {
+    fault = id;
+  } else if (id.value !== profile.chainId) {
+    fault = unread('SOURCE_MALFORMED', {
+      source: id.source,
+      detail: `the endpoint reports chain ${id.value}; the ${profile.id} profile expects ${profile.chainId} — nothing from it is read`,
+    });
+  }
+  confirmations.set(url, { until: now + (fault === null ? CHAIN_CONFIRM_SECONDS : CHAIN_RETRY_SECONDS) * 1000, fault });
+  return fault;
+}
+
+/** Forgets every confirmation. For tests that stand up a different endpoint. */
+export function forgetChainConfirmations(): void {
+  confirmations.clear();
+}
+
 /**
  * One RPC call, returned as a reading. `source` names the endpoint host so the
- * provenance line points at something a reader could check themselves.
+ * provenance line points at something a reader could check themselves. Every
+ * method but `eth_chainId` itself waits on the chain being confirmed first.
  */
 export async function rpcCall<T>(
   method: string,
   params: readonly unknown[],
   opts: RpcOptions,
 ): Promise<Reading<T>> {
+  if (method !== 'eth_chainId') {
+    const fault = await chainFault(opts);
+    if (fault !== null) return fault;
+  }
   const profile = opts.profile ?? activeNetwork();
   const url = rpcUrl(profile);
   const source = `${new URL(url).host} · ${method}`;
