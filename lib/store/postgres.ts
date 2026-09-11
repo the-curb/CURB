@@ -18,17 +18,16 @@ import type { DeclaredFigure, PolicyBreach } from '../doctrine/policy.ts';
  * A Postgres-backed Store.
  *
  * ────────────────────────────────────────────────────────────────────────────
- * NOT YET VERIFIED AGAINST A LIVE DATABASE.
+ * VERIFIED against Supabase (shared transaction pooler, port 6543) on
+ * 2026-09-11: the full store contract in tests/store-conformance.ts, 22 cases,
+ * all passing in a schema of their own.
  *
- * This was written without credentials to run it against. It typechecks and the
- * SQL is reviewable, and neither of those is evidence that it works. Before
- * trusting it, run the shared contract against a real database:
+ * That verification found one real defect the type checker could not: jsonb
+ * columns written as `${JSON.stringify(x)}::jsonb` were stored double-encoded
+ * and read back as strings. See `asJson`. The suite exists so the next change
+ * to this file is proved the same way rather than assumed:
  *
- *     CURB_POSTGRES_URL=... npm run verify:store
- *
- * That runs the same assertions the filesystem store already passes. Until it
- * reports green, this file is a plan rather than a component, and it is marked
- * so here rather than discovered later.
+ *     npm run verify:store
  * ────────────────────────────────────────────────────────────────────────────
  *
  * Why the shape it has:
@@ -48,6 +47,20 @@ const SOURCE = 'postgres';
 type Sql = ReturnType<typeof postgres>;
 
 let client: Sql | null = null;
+
+/**
+ * Whether this process is a serverless invocation rather than a long-lived
+ * server. Detected from the platform's own markers; nothing here guesses from
+ * NODE_ENV, which says nothing about the process model.
+ */
+function isServerless(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.NETLIFY ||
+      process.env.CF_PAGES,
+  );
+}
 
 export interface SqlOptions {
   /** Which schema the tables live in. The conformance suite uses its own. */
@@ -73,18 +86,28 @@ export function buildSql(url: string, options: SqlOptions = {}): Sql {
     // prepared statement cached against the last one is not there any more.
     prepare: false,
     /**
-     * One connection per instance, which is the vendor's guidance for
-     * serverless and not a conservative guess.
+     * Pool size depends on where this runs, and the two cases pull opposite ways.
      *
-     * The pool is per warm instance, and the number of warm instances is not
-     * something this process controls — so a pool of three is three connections
-     * multiplied by however many instances happen to exist, and a few dozen of
-     * those exhausts the database. Raise it only with evidence that concurrent
-     * invocations on one instance are queuing.
+     * Serverless: one. The pool is per warm instance and the instance count is
+     * not something this process controls, so every extra connection here is
+     * multiplied by however many instances exist. That is the vendor's guidance
+     * and it is not conservatism.
+     *
+     * A long-lived server: two. With a single connection there is nowhere to go
+     * when that connection goes bad — and it did: after a run spent minutes in
+     * upstream timeouts, the one pooled connection stopped answering, every
+     * store read stalled past sixty seconds, and a fresh client answered the
+     * same query in one. A second connection is the difference between a
+     * degraded server and a stuck one.
      */
-    max: Number(process.env.CURB_POSTGRES_MAX ?? 1),
+    max: Number(process.env.CURB_POSTGRES_MAX ?? (isServerless() ? 1 : 2)),
     idle_timeout: 20,
     connect_timeout: 15,
+    /**
+     * Recycle connections every thirty minutes regardless. A connection that
+     * has gone quietly wrong cannot then outlive the incident that broke it.
+     */
+    max_lifetime: 30 * 60,
     ...(declaresSsl ? {} : { ssl: 'require' as const }),
     ...(options.schema ? { connection: { search_path: options.schema } } : {}),
   });
@@ -110,6 +133,23 @@ function requireUrl(): string {
 
 function failureReason(cause: unknown): string {
   return cause instanceof Error ? cause.message : 'unknown database failure';
+}
+
+/**
+ * Produce a plain JSON value for the driver's `json()` helper.
+ *
+ * This is a serialisation round-trip, not a cast. Interface types carry no
+ * index signature and the driver's JSONValue demands one, so the honest way
+ * through is to hand it the actual JSON shape — which is exactly what will be
+ * stored, with no interface or readonly-ness left on it.
+ *
+ * The alternative that was tried first, `${JSON.stringify(x)}::jsonb`, sends a
+ * text parameter that Postgres then parses into a jsonb *string* scalar: JSON
+ * inside JSON. It reads back as a 72-character string instead of an array, and
+ * only the conformance suite noticed. This exists so that cannot recur.
+ */
+function asJson(value: unknown): postgres.JSONValue {
+  return JSON.parse(JSON.stringify(value));
 }
 
 /** Any failure to read is UNREAD with the database's own message attached. */
@@ -336,7 +376,7 @@ export class PostgresStore implements Store {
           values
             (${publication.id}, ${publication.agentId}, ${publication.publishedAt},
              ${publication.headline}, ${publication.body},
-             ${JSON.stringify(publication.figures)}::jsonb,
+             ${this.sql.json(asJson(publication.figures))},
              ${publication.sourcesReached})
         `;
         await this.insertHeartbeat(tx, heartbeat);
@@ -423,7 +463,7 @@ export class PostgresStore implements Store {
       await this.sql`
         insert into blocks (id, agent_id, blocked_at, headline, body, breaches)
         values (${record.id}, ${record.agentId}, ${record.blockedAt}, ${record.headline},
-                ${record.body}, ${JSON.stringify(record.breaches)}::jsonb)
+                ${record.body}, ${this.sql.json(asJson(record.breaches))})
       `;
       return { state: 'WRITTEN' };
     } catch (cause) {

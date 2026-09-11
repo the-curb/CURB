@@ -370,10 +370,21 @@ export interface TickResult {
 
 /**
  * How long a run may hold the lock before another tick may assume the holder
- * died. Long enough to cover a slow run against a slow endpoint; short enough
- * that a crashed process does not stop the system for an hour.
+ * died.
+ *
+ * Sized to the worst case, not the usual one. When the chain endpoint is
+ * unreachable every agent waits out its timeouts in turn — roughly nine calls
+ * at fifteen seconds for the Registrar, eight each for the Pillar and the
+ * Archivist, and the Tally's log reads at thirty — which comes to about eight
+ * and a half minutes. A tick took 6.6 minutes exactly that way. With the
+ * earlier five-minute TTL the lock expired while its holder was still running,
+ * which is the one thing a lock must not do.
+ *
+ * The cost is that a process which dies holding the lock stops the system for
+ * fifteen minutes. Refreshing the lock during a run would remove that trade,
+ * and is the right next step; until then, the trade is stated here.
  */
-export const RUN_LOCK_TTL_SECONDS = 300;
+export const RUN_LOCK_TTL_SECONDS = 900;
 
 /**
  * One timer serves every interval: each agent is asked whether its own interval

@@ -1,6 +1,6 @@
 import { PRODUCERS } from '@/lib/agents/producers';
 import { tick } from '@/lib/agents/runtime';
-import { describeStore } from '@/lib/store';
+import { describeStore, getStoreAsync } from '@/lib/store';
 
 /**
  * The scheduler's entry point.
@@ -23,7 +23,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const dryRun = new URL(request.url).searchParams.get('dry') === '1';
-  const result = await tick(PRODUCERS, { dryRun });
+  const store = await getStoreAsync();
+  const result = await tick(PRODUCERS, { dryRun, store });
 
   return Response.json(
     {

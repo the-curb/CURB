@@ -25,8 +25,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const dryRun = new URL(request.url).searchParams.get('dry') === '1';
-  const run = await runAgent(spec, producer, { dryRun });
   const store = await getStoreAsync();
+  const run = await runAgent(spec, producer, { dryRun, store });
 
   // Three outcomes, not two: no publication, the publication, or a store that
   // would not say. The last one must not be served as the first.

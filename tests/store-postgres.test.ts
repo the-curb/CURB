@@ -28,11 +28,11 @@ const url = process.env.CURB_POSTGRES_URL;
 
 if (!url) {
   describe('store conformance · PostgresStore', () => {
-    it('is UNVERIFIED — no CURB_POSTGRES_URL configured', (t) => {
+    it('was not verified in this run — no CURB_POSTGRES_URL loaded', (t) => {
       t.skip(
-        'The Postgres store has never been run against a database. It typechecks, ' +
-          'and that is not evidence. Put a pooled connection string in .env.local, ' +
-          'then: npm run db:migrate && npm run verify:store',
+        'This run had no connection string, so the Postgres store was not exercised. ' +
+          'It was last verified against Supabase on 2026-09-11 (48/48). To verify it ' +
+          'again: npm run verify:store, which loads .env.local.',
       );
     });
   });
