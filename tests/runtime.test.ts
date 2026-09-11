@@ -10,6 +10,7 @@ import type {
   ObservationRecord,
   PublicationRecord,
   LockOutcome,
+  NarrationRecord,
   PublishOutcome,
   Store,
   WriteOutcome,
@@ -143,6 +144,14 @@ class MemoryStore implements Store {
     return this.read<readonly HeartbeatRecord[]>(
       this.heartbeats.filter((h) => h.agentId === agentId).slice(-limit).reverse(),
     );
+  }
+  narrations: NarrationRecord[] = [];
+  async narration(day: string): Promise<Reading<NarrationRecord | null>> {
+    return this.read<NarrationRecord | null>(this.narrations.find((n) => n.day === day) ?? null);
+  }
+  async writeNarration(record: NarrationRecord): Promise<WriteOutcome> {
+    this.narrations = [...this.narrations.filter((n) => n.day !== record.day), record];
+    return { state: 'WRITTEN' };
   }
   async dayRecord(day: string): Promise<Reading<DayRecord>> {
     const on = (iso: string) => iso.slice(0, 10) === day;

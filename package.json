@@ -18,6 +18,7 @@
     "db:prune": "node --env-file-if-exists=.env.local scripts/prune.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
     "next": "16.3.4",
     "postgres": "^3.4.5",
     "react": "19.2.8",

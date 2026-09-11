@@ -1,6 +1,7 @@
 import { PRODUCERS } from '@/lib/agents/producers';
 import { tick } from '@/lib/agents/runtime';
 import { describeStore, getStoreAsync } from '@/lib/store';
+import { narrateClosedDay, yesterdayOf } from '@/lib/gazette/narrate';
 
 /**
  * The scheduler's entry point.
@@ -25,6 +26,10 @@ export async function POST(request: Request): Promise<Response> {
   const dryRun = new URL(request.url).searchParams.get('dry') === '1';
   const store = await getStoreAsync();
   const result = await tick(PRODUCERS, { dryRun, store });
+
+  // Yesterday's edition is closed and stable; narrate it once. A dry run does
+  // not, because a narration is a write. Never today: its record is still moving.
+  const narration = dryRun ? null : await narrateClosedDay(store, yesterdayOf(new Date()));
 
   return Response.json(
     {
@@ -58,6 +63,11 @@ export async function POST(request: Request): Promise<Response> {
       lock: result.lock,
       /** Which store answered — a deployment on the wrong one should be visible. */
       store: describeStore(),
+      /**
+       * What became of yesterday's lede. ALREADY_DONE is the usual answer;
+       * ATTEMPTED carries the outcome, including a refusal or a policy block.
+       */
+      narration,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

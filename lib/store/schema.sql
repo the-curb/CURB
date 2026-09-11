@@ -87,3 +87,18 @@ create table if not exists run_lock (
   expires_at timestamptz not null,
   constraint run_lock_is_singular check (id = 1)
 );
+
+-- A narrated lede for one closed day. The model writes prose over the day's
+-- record; it never supplies a figure. `edition_hash` pins which composition of
+-- the record the prose was written for, so a narration cannot outlive the
+-- edition it describes. `outcome` records refusals and policy blocks as real
+-- outcomes rather than silently substituting the templated lede.
+create table if not exists narrations (
+  day          text        primary key,
+  edition_hash text        not null,
+  outcome      text        not null,
+  standfirst   text,
+  model        text,
+  detail       text,
+  generated_at timestamptz not null
+);

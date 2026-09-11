@@ -320,6 +320,43 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('narrations', () => {
+      const attempt = (outcome: 'NARRATED' | 'REFUSED', hash: string) => ({
+        day: '2026-09-10',
+        editionHash: hash,
+        outcome,
+        standfirst: outcome === 'NARRATED' ? 'One agent filed.' : null,
+        model: 'claude-opus-5',
+        detail: outcome === 'REFUSED' ? 'declined' : null,
+        generatedAt: '2026-09-11T00:10:00.000Z',
+      }) as const;
+
+      it('reads no narration as null, not as unread', async () => {
+        const read = await store.narration('2026-09-10');
+        assert.equal(read.state, 'VERIFIED');
+        assert.equal(read.state === 'VERIFIED' ? read.value : 'x', null);
+      });
+
+      it('keeps one row per day, the latest attempt winning', async () => {
+        await store.writeNarration(attempt('REFUSED', 'aaaa'));
+        await store.writeNarration(attempt('NARRATED', 'bbbb'));
+        const read = await store.narration('2026-09-10');
+        const v = read.state === 'VERIFIED' ? read.value : null;
+        assert.equal(v?.outcome, 'NARRATED');
+        assert.equal(v?.editionHash, 'bbbb');
+        assert.equal(v?.standfirst, 'One agent filed.');
+      });
+
+      it('keeps a refusal as a refusal', async () => {
+        await store.writeNarration(attempt('REFUSED', 'cccc'));
+        const read = await store.narration('2026-09-10');
+        const v = read.state === 'VERIFIED' ? read.value : null;
+        assert.equal(v?.outcome, 'REFUSED');
+        assert.equal(v?.standfirst, null);
+        assert.equal(v?.detail, 'declined');
+      });
+    });
+
     describe('blocked outputs', () => {
       it('keeps the text and the breaches in full', async () => {
         await store.writeBlock({

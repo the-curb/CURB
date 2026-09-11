@@ -7,6 +7,7 @@ import type {
   ObservationRecord,
   PublicationRecord,
   LockOutcome,
+  NarrationRecord,
   PublishOutcome,
   Store,
   WriteOutcome,
@@ -39,6 +40,7 @@ const FILES = {
   publications: 'publications.jsonl',
   blocks: 'blocks.jsonl',
   observations: 'observations.jsonl',
+  narrations: 'narrations.jsonl',
 } as const;
 
 const SOURCE = 'filesystem JSONL store (development)';
@@ -382,6 +384,18 @@ export class FileSystemStore implements Store {
         .sort((a, b) => b.runAt.localeCompare(a.runAt))
         .slice(0, limit),
     };
+  }
+
+  async narration(day: string): Promise<Reading<NarrationRecord | null>> {
+    const all = await readAll<NarrationRecord>(this.dir, FILES.narrations);
+    if (all.state === 'UNREAD') return all;
+    // Append-only log, so the last row for a day is the current one.
+    const mine = all.value.filter((n) => n.day === day);
+    return { ...all, value: mine[mine.length - 1] ?? null };
+  }
+
+  async writeNarration(record: NarrationRecord): Promise<WriteOutcome> {
+    return append(this.dir, FILES.narrations, [record]);
   }
 
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {

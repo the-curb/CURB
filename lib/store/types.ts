@@ -206,6 +206,35 @@ export interface Store {
   publicationsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly PublicationRecord[]>>;
   /** One agent's runs, newest first — every outcome, not only the published ones. */
   heartbeatsByAgent(agentId: AgentId, limit: number): Promise<Reading<readonly HeartbeatRecord[]>>;
+
+  /** The narrated lede for a closed day, if one was ever attempted. */
+  narration(day: string): Promise<Reading<NarrationRecord | null>>;
+  /** Replaces any earlier narration for the day: one row per day, ever. */
+  writeNarration(record: NarrationRecord): Promise<WriteOutcome>;
+}
+
+/**
+ * How a narration attempt ended. Every attempt is recorded, including the ones
+ * that produced no prose — a lede the model refused to write is a fact about the
+ * day, and substituting the templated one silently would hide it.
+ */
+export type NarrationOutcome =
+  | 'NARRATED'
+  | 'POLICY_BLOCKED'
+  | 'REFUSED'
+  | 'MODEL_FAILED'
+  | 'NOT_CONFIGURED';
+
+export interface NarrationRecord {
+  readonly day: string;
+  /** Pins the composition the prose was written for. */
+  readonly editionHash: string;
+  readonly outcome: NarrationOutcome;
+  /** Present only when outcome is NARRATED. */
+  readonly standfirst: string | null;
+  readonly model: string | null;
+  readonly detail: string | null;
+  readonly generatedAt: string;
 }
 
 /** One UTC day of the record, as the Gazette reads it. */

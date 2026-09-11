@@ -1,0 +1,307 @@
+/**
+ * The narrated lede.
+ *
+ * Code computes, the model narrates. That sentence is a contract here, not a
+ * slogan, and this file is where it is enforced:
+ *
+ *   - The model receives the day's record and the exact list of figures it may
+ *     repeat. It may use those figures verbatim. It may not introduce, round,
+ *     convert, or estimate any number.
+ *   - Its prose passes `screen()` — the same gate every agent passes — with the
+ *     edition's declared figures. A number that is not in the record blocks the
+ *     lede. A forecast, a verdict, or advice blocks the lede.
+ *   - A blocked, refused, or failed narration is recorded as that outcome. The
+ *     templated lede stands, and the page says a narration was attempted and
+ *     what became of it. Nothing is substituted silently.
+ *
+ * Only closed days are narrated. Today's edition changes with every tick, and
+ * prose written over a moving record describes a moment that has already gone.
+ * Yesterday is stable: one call, one row, ever — pinned to a hash of the
+ * composition it was written for.
+ */
+
+import { createHash } from 'node:crypto';
+import Anthropic from '@anthropic-ai/sdk';
+import { screen, type DeclaredFigure } from '../doctrine/policy.ts';
+import type { NarrationRecord, Store } from '../store/types.ts';
+import { composeEdition, type Edition } from './edition.ts';
+import { BRAND } from '../brand.ts';
+
+export const NARRATION_MODEL = 'claude-opus-5';
+
+/**
+ * Pins a narration to the composition it was written for. Only the parts the
+ * prose can be about are hashed: a change in `composedAt` is not a change in
+ * the day.
+ */
+export function editionHash(edition: Edition): string {
+  const material = {
+    day: edition.day,
+    headline: edition.headline,
+    sections: edition.sections.map((s) => [s.agent.id, s.headline, s.body, s.publishedAt, s.filings]),
+    notRead: edition.notRead.map((n) => [n.agent.id, n.outcome, n.at, n.detail]),
+    ledger: edition.ledger,
+    blocked: edition.blockedOutputs,
+  };
+  return createHash('sha256').update(JSON.stringify(material)).digest('hex').slice(0, 16);
+}
+
+export interface NarrationPrompt {
+  readonly system: string;
+  readonly user: string;
+  /** Every figure the model is permitted to repeat, and the gate will check against. */
+  readonly figures: readonly DeclaredFigure[];
+  readonly allowedLiterals: readonly string[];
+}
+
+const SYSTEM = `You write the lede for ${BRAND.paper.name}, a daily paper about stock tokens on Robinhood Chain.
+
+The paper's rule is that code computes and you narrate. Every number in the record you are given was measured by an agent and carries its source. You may repeat those numbers exactly as they are written. You may not introduce any number that is not in the record, and you may not round, convert, total, or estimate one.
+
+You never forecast, advise, rate, or judge. You do not say what will happen, what a reader should do, or whether anything is good, bad, safe, risky, healthy, high, or low. You describe what was measured, what could not be read, and what was stopped.
+
+What was not read is as much the story as what was. When agents could not complete a reading, say so plainly and name them. When nothing was stopped by policy, you may say so.
+
+Write two to four sentences of plain, dry, specific prose. No headline. No bullet points. No preamble. Do not address the reader.`;
+
+/**
+ * Builds the prompt from the edition and, separately, the figure set the gate
+ * will enforce. The two are derived from the same object so they cannot drift:
+ * a figure the model is told it may use is a figure the gate will accept.
+ */
+export function buildNarrationPrompt(edition: Edition): NarrationPrompt {
+  const figures: DeclaredFigure[] = [];
+  const seen = new Set<string>();
+  for (const section of edition.sections) {
+    for (const figure of section.figures) {
+      const key = `${figure.token}|${figure.source}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      figures.push(figure);
+    }
+  }
+
+  // The ledger's counts are the paper's own arithmetic over the record. They
+  // are declared with that as their source, so the model may say "six agents
+  // filed" and the gate will accept the six.
+  const ledgerSource = `the day's ledger, counted by code over the record for ${edition.day}`;
+  const ledgerAt = edition.composedAt;
+  for (const n of Object.values(edition.ledger)) {
+    if (n > 0) figures.push({ token: String(n), source: ledgerSource, retrievedAt: ledgerAt });
+  }
+  const agentsFiled = new Set(edition.sections.map((s) => s.agent.id)).size;
+  if (agentsFiled > 0) figures.push({ token: String(agentsFiled), source: ledgerSource, retrievedAt: ledgerAt });
+  if (edition.notRead.length > 0) figures.push({ token: String(edition.notRead.length), source: ledgerSource, retrievedAt: ledgerAt });
+  if (edition.blockedOutputs > 0) figures.push({ token: String(edition.blockedOutputs), source: ledgerSource, retrievedAt: ledgerAt });
+
+  const filings = edition.sections
+    .map(
+      (s) =>
+        `[${s.agent.name} · ${s.district}]${s.filings > 1 ? ` (latest of ${s.filings} filings)` : ''}\n${s.headline}\n${s.body}`,
+    )
+    .join('\n\n');
+
+  const notRead =
+    edition.notRead.length === 0
+      ? '(every agent that ran completed its reading)'
+      : edition.notRead
+          .map((n) => `- ${n.agent.name}: ${n.outcome}${n.detail ? ` — ${n.detail}` : ''}`)
+          .join('\n');
+
+  const ledger = Object.entries(edition.ledger)
+    .map(([k, v]) => `${k.toLowerCase().replace(/_/g, ' ')} ${v}`)
+    .join(' · ');
+
+  const figureList = figures.map((f) => `- ${f.token}  (${f.source})`).join('\n');
+
+  const user = `DAY: ${edition.day} — a closed edition; the record is final.
+
+FRONT PAGE HEADLINE
+${edition.headline}
+
+FILINGS
+${filings || '(no agent filed)'}
+
+NOT READ
+${notRead}
+
+LEDGER
+${ledger} · outputs stopped by policy ${edition.blockedOutputs}
+
+FIGURES YOU MAY REPEAT, EXACTLY AS WRITTEN
+${figureList || '(none — the record holds no figures today; write without numbers)'}
+
+Write the lede.`;
+
+  return {
+    system: SYSTEM,
+    user,
+    figures,
+    // Years and small ordinals pass the gate already; nothing else is exempted.
+    allowedLiterals: [],
+  };
+}
+
+/**
+ * The one call this module makes, as a type — so a test can hand in a fake
+ * that returns a scripted Message without standing up the whole SDK client.
+ */
+export interface NarrationClient {
+  readonly messages: {
+    create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
+  };
+}
+
+export interface NarrateOptions {
+  /** Injected for tests. Defaults to a client reading ANTHROPIC_API_KEY. */
+  readonly client?: NarrationClient;
+  readonly now?: Date;
+}
+
+export function narrationConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+}
+
+/**
+ * Narrate one closed edition. Every path returns a record; none throws. The
+ * record is what gets stored, whatever happened — a day the model refused is a
+ * day the model refused, and that stays in the archive.
+ */
+export async function narrateEdition(
+  edition: Edition,
+  opts: NarrateOptions = {},
+): Promise<NarrationRecord> {
+  const now = opts.now ?? new Date();
+  const hash = editionHash(edition);
+  const base = { day: edition.day, editionHash: hash, generatedAt: now.toISOString() };
+
+  if (edition.isToday) {
+    return {
+      ...base,
+      outcome: 'MODEL_FAILED',
+      standfirst: null,
+      model: null,
+      detail: 'refused to narrate a live edition: the record is still changing',
+    };
+  }
+
+  if (!opts.client && !narrationConfigured()) {
+    return { ...base, outcome: 'NOT_CONFIGURED', standfirst: null, model: null, detail: 'no ANTHROPIC_API_KEY' };
+  }
+
+  const prompt = buildNarrationPrompt(edition);
+  const client = opts.client ?? new Anthropic();
+
+  let text: string;
+  let served: string;
+  try {
+    const response = await client.messages.create({
+      model: NARRATION_MODEL,
+      // A lede is two to four sentences. The cap is a hard reason, not a lowball.
+      max_tokens: 1024,
+      output_config: { effort: 'medium' },
+      system: [{ type: 'text', text: prompt.system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: prompt.user }],
+    });
+
+    if (response.stop_reason === 'refusal') {
+      return {
+        ...base,
+        outcome: 'REFUSED',
+        standfirst: null,
+        model: response.model,
+        detail: response.stop_details?.explanation ?? 'the model declined without an explanation',
+      };
+    }
+
+    text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+      .trim();
+    served = response.model;
+  } catch (cause) {
+    const detail =
+      cause instanceof Anthropic.AuthenticationError
+        ? 'authentication failed'
+        : cause instanceof Anthropic.RateLimitError
+          ? 'rate limited'
+          : cause instanceof Anthropic.APIError
+            ? `API error ${cause.status}: ${cause.message}`
+            : cause instanceof Error
+              ? cause.message
+              : 'unknown failure';
+    return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: NARRATION_MODEL, detail };
+  }
+
+  if (text === '') {
+    return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: served, detail: 'the model returned no text' };
+  }
+
+  // The same gate as every agent. The model is not exempt for being the model.
+  const verdict = screen({ text, figures: prompt.figures, allowedLiterals: prompt.allowedLiterals });
+  if (verdict.decision === 'BLOCK') {
+    return {
+      ...base,
+      outcome: 'POLICY_BLOCKED',
+      standfirst: null,
+      model: served,
+      detail: verdict.breaches.map((b) => `${b.rule}: "${b.matched}"`).join(' · '),
+    };
+  }
+
+  return { ...base, outcome: 'NARRATED', standfirst: text, model: served, detail: null };
+}
+
+export type NarrateDayResult =
+  | { readonly state: 'ALREADY_DONE'; readonly day: string }
+  | { readonly state: 'RECORD_UNREADABLE'; readonly day: string; readonly reason: string }
+  | { readonly state: 'ATTEMPTED'; readonly day: string; readonly record: NarrationRecord; readonly stored: boolean };
+
+/**
+ * Narrate one closed day, once.
+ *
+ * Idempotent by hash: a day already narrated for the same composition is left
+ * alone. A day whose composition changed — a late row, a corrected record —
+ * gets narrated again, because the old prose was about a different edition.
+ * Called from the scheduler after the agents run, for yesterday.
+ */
+export async function narrateClosedDay(
+  store: Store,
+  day: string,
+  now: Date = new Date(),
+  opts: NarrateOptions = {},
+): Promise<NarrateDayResult> {
+  const record = await store.dayRecord(day);
+  if (record.state === 'UNREAD') {
+    return { state: 'RECORD_UNREADABLE', day, reason: record.reason };
+  }
+  const edition = composeEdition(record.value, now);
+  if (edition.isToday) return { state: 'ALREADY_DONE', day };
+
+  // An empty day has nothing to narrate. The record already says nothing was
+  // recorded; asking a model to say it again would spend a call to add nothing,
+  // and the page has no front section to show the result on anyway.
+  if (edition.sections.length === 0 && edition.notRead.length === 0) {
+    return { state: 'ALREADY_DONE', day };
+  }
+
+  const hash = editionHash(edition);
+  const existing = await store.narration(day);
+  if (existing.state === 'VERIFIED' && existing.value?.editionHash === hash) {
+    // NOT_CONFIGURED is not a result to keep: the moment a key appears, the day
+    // should be narrated. Every other outcome — including a refusal — stands.
+    if (existing.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) {
+      return { state: 'ALREADY_DONE', day };
+    }
+  }
+
+  const narration = await narrateEdition(edition, { ...opts, now });
+  const written = await store.writeNarration(narration);
+  return { state: 'ATTEMPTED', day, record: narration, stored: written.state === 'WRITTEN' };
+}
+
+/** YYYY-MM-DD of the UTC day before `now`. */
+export function yesterdayOf(now: Date): string {
+  return new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+}

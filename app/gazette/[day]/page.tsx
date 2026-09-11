@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { composeEdition, isValidDay, utcDay, type Edition } from '@/lib/gazette/edition';
 import { getStoreAsync } from '@/lib/store';
+import { editionHash } from '@/lib/gazette/narrate';
 import { BRAND } from '@/lib/brand';
 import { ABSENT_GLYPH } from '@/lib/doctrine/reading';
 
@@ -100,6 +101,15 @@ export default async function EditionPage(props: { params: Params }) {
   const isFuture = day > utcDay(now);
   const districts = [...new Set(edition.sections.map((s) => s.district))];
 
+  // The narrated lede, if one was attempted for this exact composition. A
+  // narration pinned to an older hash is stale prose about a different edition
+  // and is not shown as current.
+  const narrationRead = edition.isToday ? null : await store.narration(day);
+  const narration =
+    narrationRead && narrationRead.state === 'VERIFIED' && narrationRead.value
+      ? { ...narrationRead.value, current: narrationRead.value.editionHash === editionHash(edition) }
+      : null;
+
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
       <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
@@ -133,7 +143,37 @@ export default async function EditionPage(props: { params: Params }) {
             >
               {edition.headline}
             </h2>
-            <p className="text-base leading-relaxed text-[--color-paper-dim]">{edition.standfirst}</p>
+
+            {narration?.current && narration.outcome === 'NARRATED' && narration.standfirst ? (
+              <>
+                <p
+                  className="text-lg leading-relaxed text-[--color-paper]"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {narration.standfirst}
+                </p>
+                <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+                  Written by {narration.model} over the record · every figure in it is the record&apos;s · passed the same gate as every agent
+                </p>
+                <p className="mt-4 border-l-2 border-[--color-rule-2] pl-4 text-sm leading-relaxed text-[--color-paper-dim]">
+                  {edition.standfirst}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base leading-relaxed text-[--color-paper-dim]">{edition.standfirst}</p>
+                {narration && narration.current && narration.outcome !== 'NARRATED' ? (
+                  <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
+                    A narration was attempted and {narration.outcome.replace(/_/g, ' ').toLowerCase()}
+                    {narration.detail ? ` — ${narration.detail}` : ''}. The paper&apos;s own count stands.
+                  </p>
+                ) : narration && !narration.current ? (
+                  <p className="mt-3 text-xs leading-relaxed text-[--color-paper-faint]">
+                    An earlier narration exists for a different composition of this day and is not shown.
+                  </p>
+                ) : null}
+              </>
+            )}
           </section>
 
           {/* ── Districts ──────────────────────────────────────────────── */}

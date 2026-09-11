@@ -4,6 +4,8 @@ import type {
   DayRecord,
   HeartbeatRecord,
   LockOutcome,
+  NarrationOutcome,
+  NarrationRecord,
   ObservationRecord,
   PublicationRecord,
   PublishOutcome,
@@ -224,6 +226,28 @@ function toBlock(row: BlockRow): BlockRecord {
     headline: row.headline,
     body: row.body,
     breaches: row.breaches,
+  };
+}
+
+interface NarrationRow {
+  day: string;
+  edition_hash: string;
+  outcome: string;
+  standfirst: string | null;
+  model: string | null;
+  detail: string | null;
+  generated_at: Date;
+}
+
+function toNarration(row: NarrationRow): NarrationRecord {
+  return {
+    day: row.day,
+    editionHash: row.edition_hash,
+    outcome: row.outcome as NarrationOutcome,
+    standfirst: row.standfirst,
+    model: row.model,
+    detail: row.detail,
+    generatedAt: row.generated_at.toISOString(),
   };
 }
 
@@ -674,6 +698,47 @@ export class PostgresStore implements Store {
       });
     } catch (cause) {
       return unreadable('heartbeats by agent', cause);
+    }
+  }
+
+  async narration(day: string): Promise<Reading<NarrationRecord | null>> {
+    try {
+      return await this.guard('narration', async () => {
+        const rows = await this.sql<NarrationRow[]>`
+          select day, edition_hash, outcome, standfirst, model, detail, generated_at
+          from narrations
+          where day = ${day}
+        `;
+        const row = rows[0];
+        return readNow(row ? toNarration(row) : null, `${SOURCE} · narrations`);
+      });
+    } catch (cause) {
+      return unreadable('narration', cause);
+    }
+  }
+
+  /** Upsert: one row per day, and a later attempt replaces the earlier one. */
+  async writeNarration(record: NarrationRecord): Promise<WriteOutcome> {
+    try {
+      return await this.guard('writeNarration', async () => {
+        await this.sql`
+          insert into narrations
+            (day, edition_hash, outcome, standfirst, model, detail, generated_at)
+          values
+            (${record.day}, ${record.editionHash}, ${record.outcome}, ${record.standfirst},
+             ${record.model}, ${record.detail}, ${record.generatedAt})
+          on conflict (day) do update set
+            edition_hash = excluded.edition_hash,
+            outcome      = excluded.outcome,
+            standfirst   = excluded.standfirst,
+            model        = excluded.model,
+            detail       = excluded.detail,
+            generated_at = excluded.generated_at
+        `;
+        return { state: 'WRITTEN' as const };
+      });
+    } catch (cause) {
+      return { state: 'FAILED', reason: failureReason(cause) };
     }
   }
 
