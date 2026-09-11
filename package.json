@@ -13,8 +13,8 @@
     "typecheck": "tsc --noEmit",
     "typegen": "next typegen",
     "test": "node --test \"tests/*.test.ts\"",
-    "db:migrate": "node scripts/migrate.ts",
-    "verify:store": "node --test \"tests/store-*.test.ts\""
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.ts",
+    "verify:store": "node --env-file-if-exists=.env.local --test \"tests/store-*.test.ts\""
   },
   "dependencies": {
     "next": "16.3.4",

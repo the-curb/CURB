@@ -49,15 +49,41 @@ type Sql = ReturnType<typeof postgres>;
 
 let client: Sql | null = null;
 
-/** One client for the process. Never build one per request. */
-export function getSql(url: string = requireUrl()): Sql {
-  client ??= postgres(url, {
+export interface SqlOptions {
+  /** Which schema the tables live in. The conformance suite uses its own. */
+  readonly schema?: string;
+}
+
+/**
+ * Build a client.
+ *
+ * SSL: when the connection string already says `sslmode`, the driver honours it
+ * and nothing is overridden here. Otherwise this defaults to `require`, which
+ * encrypts the connection but does NOT verify the server's certificate chain.
+ *
+ * That is a real, stated trade: `require` protects the password from a passive
+ * listener but not from an active machine-in-the-middle. `verify-full` is the
+ * correct setting and needs the provider's CA bundle; put `?sslmode=verify-full`
+ * in the URL once that is in place, and this default stops applying.
+ */
+export function buildSql(url: string, options: SqlOptions = {}): Sql {
+  const declaresSsl = /[?&]sslmode=/.test(url);
+  return postgres(url, {
     // A transaction pooler hands back a different session each time, so a
     // prepared statement cached against the last one is not there any more.
     prepare: false,
     max: Number(process.env.CURB_POSTGRES_MAX ?? 3),
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: 15,
+    ...(declaresSsl ? {} : { ssl: 'require' as const }),
+    ...(options.schema ? { connection: { search_path: options.schema } } : {}),
+  });
+}
+
+/** One client for the process. Never build one per request. */
+export function getSql(url: string = requireUrl()): Sql {
+  client ??= buildSql(url, {
+    ...(process.env.CURB_POSTGRES_SCHEMA ? { schema: process.env.CURB_POSTGRES_SCHEMA } : {}),
   });
   return client;
 }

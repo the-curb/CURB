@@ -1,4 +1,6 @@
-import { describe, it } from 'node:test';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { after, describe, it } from 'node:test';
 import { runStoreConformance } from './store-conformance.ts';
 
 /**
@@ -10,10 +12,18 @@ import { runStoreConformance } from './store-conformance.ts';
  * production would be exactly the kind of reassuring, empty answer this project
  * exists to refuse.
  *
- *     CURB_POSTGRES_URL=postgres://... node scripts/migrate.ts
- *     CURB_POSTGRES_URL=postgres://... npm run verify:store
+ *     node --env-file-if-exists=.env.local scripts/migrate.ts
+ *     npm run verify:store
+ *
+ * SAFETY: these cases empty their tables between runs, so they are given a
+ * schema of their own — created here, dropped at the end, and never `public`.
+ * An earlier draft truncated whatever the connection string pointed at and
+ * guarded it with a name check, which would have been one careless URL away
+ * from deleting real data. A separate schema removes the question instead of
+ * answering it carefully.
  */
 
+const TEST_SCHEMA = 'curb_conformance';
 const url = process.env.CURB_POSTGRES_URL;
 
 if (!url) {
@@ -21,30 +31,37 @@ if (!url) {
     it('is UNVERIFIED — no CURB_POSTGRES_URL configured', (t) => {
       t.skip(
         'The Postgres store has never been run against a database. It typechecks, ' +
-          'and that is not evidence. Set CURB_POSTGRES_URL, apply lib/store/schema.sql ' +
-          'with scripts/migrate.ts, then run: npm run verify:store',
+          'and that is not evidence. Put a pooled connection string in .env.local, ' +
+          'then: npm run db:migrate && npm run verify:store',
       );
     });
   });
 } else {
-  const { PostgresStore, getSql } = await import('../lib/store/postgres.ts');
+  const { PostgresStore, buildSql } = await import('../lib/store/postgres.ts');
+
+  const sql = buildSql(url, { schema: TEST_SCHEMA });
+  const schemaSql = await fs.readFile(
+    path.join(process.cwd(), 'lib', 'store', 'schema.sql'),
+    'utf8',
+  );
+
+  // Build the tables inside our own schema. search_path is already set on the
+  // connection, so the unqualified names in schema.sql land here and nowhere else.
+  await sql.unsafe(`create schema if not exists ${TEST_SCHEMA}`);
+  await sql.unsafe(schemaSql);
+
+  after(async () => {
+    await sql.unsafe(`drop schema if exists ${TEST_SCHEMA} cascade`);
+    await sql.end({ timeout: 5 });
+  });
 
   runStoreConformance({
-    name: 'PostgresStore',
+    name: `PostgresStore (schema ${TEST_SCHEMA})`,
     fresh: async () => {
-      const sql = getSql(url);
-      // Each case starts from an empty store, exactly as the filesystem target
-      // does. Truncating is destructive, so this refuses to run against anything
-      // that does not announce itself as a test database.
-      if (!/test|dev|local/i.test(url)) {
-        throw new Error(
-          'CURB_POSTGRES_URL does not look like a test database. The conformance ' +
-            'suite truncates every table and will not do that to an unrecognised target. ' +
-            'Point it at a database whose name contains "test", "dev" or "local".',
-        );
-      }
       await sql.unsafe(
-        'truncate heartbeats, publications, blocks, observations, run_lock restart identity',
+        `truncate ${TEST_SCHEMA}.heartbeats, ${TEST_SCHEMA}.publications, ` +
+          `${TEST_SCHEMA}.blocks, ${TEST_SCHEMA}.observations, ${TEST_SCHEMA}.run_lock ` +
+          `restart identity`,
       );
       return new PostgresStore(sql);
     },
