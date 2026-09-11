@@ -1,7 +1,7 @@
 import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { runAgent } from '@/lib/agents/runtime';
-import { getStore } from '@/lib/store/fs';
+import { getStoreAsync } from '@/lib/store';
 
 /**
  * The desk — an on-request agent, answered here.
@@ -26,7 +26,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const dryRun = new URL(request.url).searchParams.get('dry') === '1';
   const run = await runAgent(spec, producer, { dryRun });
-  const store = getStore();
+  const store = await getStoreAsync();
 
   // Three outcomes, not two: no publication, the publication, or a store that
   // would not say. The last one must not be served as the first.

@@ -12,7 +12,7 @@
 import { AGENT_BY_ID, type AgentId } from '../lib/agents/registry.ts';
 import { PRODUCERS } from '../lib/agents/producers/index.ts';
 import { screen } from '../lib/doctrine/policy.ts';
-import { getStore } from '../lib/store/fs.ts';
+import { getStoreAsync } from '../lib/store/index.ts';
 
 const id = process.argv[2] as AgentId | undefined;
 
@@ -31,7 +31,7 @@ if (!producer) {
 }
 
 const now = new Date();
-const result = await producer({ spec, now, store: getStore() });
+const result = await producer({ spec, now, store: await getStoreAsync() });
 
 console.log(`\n${'='.repeat(72)}`);
 console.log(`${spec.name} · rehearsal at ${now.toISOString()} · nothing written`);

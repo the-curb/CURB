@@ -8,6 +8,7 @@ import type {
   HeartbeatRecord,
   ObservationRecord,
   PublicationRecord,
+  LockOutcome,
   PublishOutcome,
   Store,
   WriteOutcome,
@@ -38,6 +39,29 @@ class MemoryStore implements Store {
 
   private write(): WriteOutcome {
     return this.writesFail ? { state: 'FAILED', reason: 'simulated write failure' } : { state: 'WRITTEN' };
+  }
+
+  /** Null when free; otherwise the holder that took it. */
+  lockHolder: string | null = null;
+  lockChecksFail = false;
+
+  async acquireRunLock(holder: string): Promise<LockOutcome> {
+    if (this.lockChecksFail) {
+      return { state: 'UNDETERMINED', reason: 'simulated lock outage' };
+    }
+    if (this.lockHolder !== null) {
+      return { state: 'HELD_ELSEWHERE', holder: this.lockHolder, expiresAt: null };
+    }
+    this.lockHolder = holder;
+    return { state: 'ACQUIRED', holder };
+  }
+
+  async releaseRunLock(holder: string): Promise<WriteOutcome> {
+    if (this.lockHolder !== null && this.lockHolder !== holder) {
+      return { state: 'FAILED', reason: 'held by somebody else' };
+    }
+    this.lockHolder = null;
+    return { state: 'WRITTEN' };
   }
 
   async writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome> {
@@ -340,6 +364,50 @@ describe('an unreadable store is not an empty one', () => {
     const result = await tick({ bell: clean }, { store, now: NOW });
     assert.equal(result.undetermined.length, 0);
     assert.equal(result.ran.length, 1);
+  });
+});
+
+describe('the run lock', () => {
+  it('takes the lock, runs, and gives it back', async () => {
+    const result = await tick({ bell: clean }, { store, now: NOW });
+    assert.equal(result.lock?.state, 'ACQUIRED');
+    assert.equal(result.ran.length, 1);
+    // Released, or the next tick would be locked out forever.
+    assert.equal(store.lockHolder, null);
+  });
+
+  it('runs nothing while another holder has it', async () => {
+    // The overlap the external scheduler makes possible: a tick that overran
+    // its interval meets the next one. Both would see the same agents as due.
+    store.lockHolder = 'another-tick';
+    const result = await tick({ bell: clean }, { store, now: NOW });
+    assert.equal(result.lock?.state, 'HELD_ELSEWHERE');
+    assert.equal(result.ran.length, 0);
+    assert.equal(store.publications.length, 0);
+    // It did not steal a lock it does not hold.
+    assert.equal(store.lockHolder, 'another-tick');
+  });
+
+  it('runs nothing when it cannot tell whether the lock is free', async () => {
+    store.lockChecksFail = true;
+    const result = await tick({ bell: clean }, { store, now: NOW });
+    assert.equal(result.lock?.state, 'UNDETERMINED');
+    assert.equal(result.ran.length, 0);
+  });
+
+  it('releases the lock even when an agent throws', async () => {
+    const boom: Producer = async () => {
+      throw new Error('source exploded');
+    };
+    await tick({ bell: boom }, { store, now: NOW });
+    assert.equal(store.lockHolder, null);
+  });
+
+  it('takes no lock on a rehearsal, and cannot block a real run', async () => {
+    // A dry run writes nothing, and taking a lock is a write.
+    const result = await tick({ bell: clean }, { store, now: NOW, dryRun: true });
+    assert.equal(result.lock, null);
+    assert.equal(store.lockHolder, null);
   });
 });
 

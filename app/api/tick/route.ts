@@ -1,5 +1,6 @@
 import { PRODUCERS } from '@/lib/agents/producers';
 import { tick } from '@/lib/agents/runtime';
+import { describeStore } from '@/lib/store';
 
 /**
  * The scheduler's entry point.
@@ -49,6 +50,13 @@ export async function POST(request: Request): Promise<Response> {
        * given per agent rather than folded into notDue.
        */
       undetermined: result.undetermined,
+      /**
+       * Whether this tick held the run lock. Null on a rehearsal, which takes
+       * none. Anything other than ACQUIRED means nothing ran.
+       */
+      lock: result.lock,
+      /** Which store answered — a deployment on the wrong one should be visible. */
+      store: describeStore(),
     },
     { headers: { 'cache-control': 'no-store' } },
   );

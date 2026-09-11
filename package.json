@@ -12,10 +12,13 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "typegen": "next typegen",
-    "test": "node --test \"tests/*.test.ts\""
+    "test": "node --test \"tests/*.test.ts\"",
+    "db:migrate": "node scripts/migrate.ts",
+    "verify:store": "node --test \"tests/store-*.test.ts\""
   },
   "dependencies": {
     "next": "16.3.4",
+    "postgres": "^3.4.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

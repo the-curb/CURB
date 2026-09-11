@@ -2,7 +2,7 @@ import { AGENT_COUNTS, absenceLabel, AGENT_BY_ID } from '@/lib/agents/registry';
 import { systemHealth } from '@/lib/agents/health';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
-import { getStore } from '@/lib/store/fs';
+import { getStoreAsync } from '@/lib/store';
 
 /**
  * THE WARDEN, as an endpoint. Every figure here is read back from the heartbeat
@@ -10,7 +10,7 @@ import { getStore } from '@/lib/store/fs';
  */
 export async function GET(): Promise<Response> {
   const now = new Date();
-  const store = getStore();
+  const store = await getStoreAsync();
   const [heartbeatsRead, blocksRead] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),

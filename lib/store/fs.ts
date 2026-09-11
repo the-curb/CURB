@@ -5,6 +5,7 @@ import type {
   HeartbeatRecord,
   ObservationRecord,
   PublicationRecord,
+  LockOutcome,
   PublishOutcome,
   Store,
   WriteOutcome,
@@ -45,11 +46,15 @@ function failureReason(cause: unknown): string {
   return cause instanceof Error ? cause.message : 'unknown store failure';
 }
 
-async function append(file: string, records: readonly unknown[]): Promise<WriteOutcome> {
+async function append(
+  dir: string,
+  file: string,
+  records: readonly unknown[],
+): Promise<WriteOutcome> {
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.mkdir(dir, { recursive: true });
     const payload = records.map((record) => `${JSON.stringify(record)}\n`).join('');
-    await fs.appendFile(path.join(DATA_DIR, file), payload, 'utf8');
+    await fs.appendFile(path.join(dir, file), payload, 'utf8');
     return { state: 'WRITTEN' };
   } catch (cause) {
     return { state: 'FAILED', reason: `${file}: ${failureReason(cause)}` };
@@ -68,10 +73,10 @@ async function append(file: string, records: readonly unknown[]): Promise<WriteO
  * source so that "no records" stays distinguishable from "records we could not
  * parse".
  */
-async function readAll<T>(file: string): Promise<Reading<T[]>> {
+async function readAll<T>(dir: string, file: string): Promise<Reading<T[]>> {
   let raw: string;
   try {
-    raw = await fs.readFile(path.join(DATA_DIR, file), 'utf8');
+    raw = await fs.readFile(path.join(dir, file), 'utf8');
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === 'ENOENT') {
       return readNow<T[]>([], `${SOURCE} · ${file} (not yet created)`);
@@ -100,13 +105,100 @@ async function readAll<T>(file: string): Promise<Reading<T[]>> {
   return readNow(records, source);
 }
 
+const LOCK_FILE = 'run.lock';
+
+interface LockFile {
+  readonly holder: string;
+  readonly expiresAt: string;
+}
+
 export class FileSystemStore implements Store {
+  /**
+   * Defaults to the configured directory; tests pass a private one.
+   *
+   * Written as a declared field and an assignment rather than a parameter
+   * property, because Node runs this TypeScript by stripping types and never
+   * transforming them — and a parameter property is a transformation. Anything
+   * that is not pure erasure will not load here.
+   */
+  private readonly dir: string;
+
+  constructor(dir: string = DATA_DIR) {
+    this.dir = dir;
+  }
+
+  /**
+   * A lockfile taken with an exclusive create, which is atomic on a single
+   * filesystem. An expired lock is stolen, so a process that died holding it
+   * does not stop the system forever.
+   *
+   * DECLARED LIMITATION: stealing an expired lock is read-then-write, so two
+   * processes racing for the same expired lock could both take it. On one
+   * machine, with one scheduler, that window is not reachable in practice — and
+   * across machines this store is already the wrong answer for other reasons.
+   * A database advisory lock does not have this gap.
+   */
+  async acquireRunLock(holder: string, ttlSeconds: number): Promise<LockOutcome> {
+    const file = path.join(this.dir, LOCK_FILE);
+    const payload: LockFile = {
+      holder,
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+    };
+
+    try {
+      await fs.mkdir(this.dir, { recursive: true });
+      const handle = await fs.open(file, 'wx');
+      await handle.writeFile(JSON.stringify(payload), 'utf8');
+      await handle.close();
+      return { state: 'ACQUIRED', holder };
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') {
+        return { state: 'UNDETERMINED', reason: failureReason(cause) };
+      }
+    }
+
+    let held: LockFile;
+    try {
+      held = JSON.parse(await fs.readFile(file, 'utf8')) as LockFile;
+    } catch (cause) {
+      // A lockfile we cannot read is not a lock we may take.
+      return { state: 'UNDETERMINED', reason: `lock unreadable: ${failureReason(cause)}` };
+    }
+
+    if (new Date(held.expiresAt).getTime() > Date.now()) {
+      return { state: 'HELD_ELSEWHERE', holder: held.holder, expiresAt: held.expiresAt };
+    }
+
+    try {
+      await fs.writeFile(file, JSON.stringify(payload), 'utf8');
+      return { state: 'ACQUIRED', holder };
+    } catch (cause) {
+      return { state: 'UNDETERMINED', reason: `could not take expired lock: ${failureReason(cause)}` };
+    }
+  }
+
+  /** Releases only a lock we still hold; never removes somebody else's. */
+  async releaseRunLock(holder: string): Promise<WriteOutcome> {
+    const file = path.join(this.dir, LOCK_FILE);
+    try {
+      const held = JSON.parse(await fs.readFile(file, 'utf8')) as LockFile;
+      if (held.holder !== holder) {
+        return { state: 'FAILED', reason: `lock is held by ${held.holder}, not by ${holder}` };
+      }
+      await fs.rm(file, { force: true });
+      return { state: 'WRITTEN' };
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === 'ENOENT') return { state: 'WRITTEN' };
+      return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
   async writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome> {
-    return append(FILES.heartbeats, [record]);
+    return append(this.dir, FILES.heartbeats, [record]);
   }
 
   async latestHeartbeats(): Promise<Reading<readonly HeartbeatRecord[]>> {
-    const all = await readAll<HeartbeatRecord>(FILES.heartbeats);
+    const all = await readAll<HeartbeatRecord>(this.dir, FILES.heartbeats);
     if (all.state === 'UNREAD') return all;
 
     const latest = new Map<AgentId, HeartbeatRecord>();
@@ -132,11 +224,11 @@ export class FileSystemStore implements Store {
     publication: PublicationRecord,
     heartbeat: HeartbeatRecord,
   ): Promise<PublishOutcome> {
-    const published = await append(FILES.publications, [publication]);
+    const published = await append(this.dir, FILES.publications, [publication]);
     if (published.state === 'FAILED') {
       return { state: 'FAILED', reason: published.reason, partial: false };
     }
-    const beat = await append(FILES.heartbeats, [heartbeat]);
+    const beat = await append(this.dir, FILES.heartbeats, [heartbeat]);
     if (beat.state === 'FAILED') {
       return {
         state: 'FAILED',
@@ -148,7 +240,7 @@ export class FileSystemStore implements Store {
   }
 
   async recentPublications(limit: number): Promise<Reading<readonly PublicationRecord[]>> {
-    const all = await readAll<PublicationRecord>(FILES.publications);
+    const all = await readAll<PublicationRecord>(this.dir, FILES.publications);
     if (all.state === 'UNREAD') return all;
     return {
       ...all,
@@ -160,11 +252,11 @@ export class FileSystemStore implements Store {
 
   async writeObservations(records: readonly ObservationRecord[]): Promise<WriteOutcome> {
     if (records.length === 0) return { state: 'WRITTEN' };
-    return append(FILES.observations, records);
+    return append(this.dir, FILES.observations, records);
   }
 
   async observations(key: string, limit: number): Promise<Reading<readonly ObservationRecord[]>> {
-    const all = await readAll<ObservationRecord>(FILES.observations);
+    const all = await readAll<ObservationRecord>(this.dir, FILES.observations);
     if (all.state === 'UNREAD') return all;
     return {
       ...all,
@@ -176,11 +268,11 @@ export class FileSystemStore implements Store {
   }
 
   async writeBlock(record: BlockRecord): Promise<WriteOutcome> {
-    return append(FILES.blocks, [record]);
+    return append(this.dir, FILES.blocks, [record]);
   }
 
   async recentBlocks(limit: number): Promise<Reading<readonly BlockRecord[]>> {
-    const all = await readAll<BlockRecord>(FILES.blocks);
+    const all = await readAll<BlockRecord>(this.dir, FILES.blocks);
     if (all.state === 'UNREAD') return all;
     return {
       ...all,

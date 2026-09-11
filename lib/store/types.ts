@@ -111,7 +111,34 @@ export type PublishOutcome =
  * downstream can tell the two apart — the specific confusion this project
  * exists to remove, sitting in its own interface.
  */
+/**
+ * The outcome of trying to take the run lock.
+ *
+ * Three states, because the third one matters: we hold it, somebody else holds
+ * it, or we could not find out. A lock we could not check is not a lock we hold,
+ * and it is not a lock that is free either.
+ */
+export type LockOutcome =
+  | { readonly state: 'ACQUIRED'; readonly holder: string }
+  | { readonly state: 'HELD_ELSEWHERE'; readonly holder: string | null; readonly expiresAt: string | null }
+  | { readonly state: 'UNDETERMINED'; readonly reason: string };
+
 export interface Store {
+  /**
+   * Try to take the run lock.
+   *
+   * The scheduler fires from outside this system and does not wait for the
+   * previous run to finish. Without a lock, a tick that overruns its interval
+   * meets the next one: both read the same last-run time, both decide the same
+   * agents are due, and both publish. The duplicate is not a crash — it is a
+   * second reading of the same moment, which is worse, because it looks real.
+   *
+   * The lock carries a TTL so a process that dies holding it does not stop the
+   * system forever.
+   */
+  acquireRunLock(holder: string, ttlSeconds: number): Promise<LockOutcome>;
+  releaseRunLock(holder: string): Promise<WriteOutcome>;
+
   writeHeartbeat(record: HeartbeatRecord): Promise<WriteOutcome>;
   /** The most recent heartbeat per agent. Agents that never ran are absent. */
   latestHeartbeats(): Promise<Reading<readonly HeartbeatRecord[]>>;

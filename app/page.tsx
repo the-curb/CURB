@@ -4,7 +4,7 @@ import { systemHealth, type AgentHealth } from '@/lib/agents/health';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
-import { getStore } from '@/lib/store/fs';
+import { getStoreAsync } from '@/lib/store';
 import { FEED_COVERAGE } from '@/lib/chain/feeds';
 import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
 
@@ -69,7 +69,7 @@ function Panel({ title, note, children }: { title: string; note?: string; childr
 export default async function Home() {
   const now = new Date();
   const session = readSession(now);
-  const store = getStore();
+  const store = await getStoreAsync();
 
   const [heartbeatsRead, publicationsRead, blocksRead] = await Promise.all([
     store.latestHeartbeats(),

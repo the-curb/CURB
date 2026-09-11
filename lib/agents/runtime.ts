@@ -20,12 +20,13 @@ import { randomUUID } from 'node:crypto';
 import { AGENTS, isDue, type AgentId, type AgentSpec } from './registry.ts';
 import { screen, type DeclaredFigure, type PolicyBreach } from '../doctrine/policy.ts';
 import type { Reading } from '../doctrine/reading.ts';
-import { getStore } from '../store/fs.ts';
+import { getStore } from '../store/index.ts';
 import type {
   BlockRecord,
   ObservationRecord,
   HeartbeatRecord,
   PublicationRecord,
+  LockOutcome,
   RunOutcome,
   Store,
 } from '../store/types.ts';
@@ -77,6 +78,8 @@ export type Producer = (ctx: ProducerContext) => Promise<ProducerResult>;
 
 export interface RunOptions {
   readonly store?: Store;
+  /** Identifies the lock holder. Generated per tick when not supplied. */
+  readonly holder?: string;
   readonly now?: Date;
   readonly dryRun?: boolean;
 }
@@ -358,7 +361,19 @@ export interface TickResult {
    * could not judge.
    */
   readonly undetermined: readonly { readonly agentId: AgentId; readonly reason: string }[];
+  /**
+   * Whether this tick held the run lock. Null on a dry run, which takes no lock
+   * because taking one is itself a write.
+   */
+  readonly lock: LockOutcome | null;
 }
+
+/**
+ * How long a run may hold the lock before another tick may assume the holder
+ * died. Long enough to cover a slow run against a slow endpoint; short enough
+ * that a crashed process does not stop the system for an hour.
+ */
+export const RUN_LOCK_TTL_SECONDS = 300;
 
 /**
  * One timer serves every interval: each agent is asked whether its own interval
@@ -371,12 +386,39 @@ export async function tick(
 ): Promise<TickResult> {
   const now = opts.now ?? new Date();
   const store = opts.store ?? getStore();
+  const dryRun = opts.dryRun === true;
 
   const ran: RunRecord[] = [];
   const notImplemented: AgentId[] = [];
   const notDue: AgentId[] = [];
   const undetermined: { agentId: AgentId; reason: string }[] = [];
 
+  /**
+   * A dry run takes no lock, because taking one is a write and a rehearsal
+   * writes nothing. It also means a rehearsal cannot block a real run.
+   */
+  let lock: LockOutcome | null = null;
+  if (!dryRun) {
+    const holder = opts.holder ?? randomUUID();
+    lock = await store.acquireRunLock(holder, RUN_LOCK_TTL_SECONDS);
+
+    // Anything but ACQUIRED means we do not run. Not held is not the same as
+    // held elsewhere, and neither is the same as a lock we could not check —
+    // but none of the three licenses a second set of publications.
+    if (lock.state !== 'ACQUIRED') {
+      return { at: now.toISOString(), ran, notImplemented, notDue, undetermined, lock };
+    }
+
+    try {
+      return await runDueAgents();
+    } finally {
+      await store.releaseRunLock(holder);
+    }
+  }
+
+  return runDueAgents();
+
+  async function runDueAgents(): Promise<TickResult> {
   for (const spec of AGENTS) {
     const last = await store.latestHeartbeat(spec.id);
 
@@ -403,5 +445,6 @@ export async function tick(
     ran.push(await runAgent(spec, producer, { ...opts, now, store }));
   }
 
-  return { at: now.toISOString(), ran, notImplemented, notDue, undetermined };
+    return { at: now.toISOString(), ran, notImplemented, notDue, undetermined, lock };
+  }
 }
