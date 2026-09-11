@@ -35,10 +35,10 @@ export function HeroSection({ children }: { children: ReactNode }) {
 
   return (
     <section ref={ref} className="relative md:h-[175vh]">
-      <div className="md:sticky md:top-[6.5rem]">
+      <div className="md:sticky md:top-[var(--masthead-h)]">
         <div className="cells grid-cols-1">
-          <div className="cell grid-dots relative flex items-center justify-center overflow-hidden" style={{ height: 'min(52vh, 480px)' }}>
-            <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-[--color-paper]" aria-label="Twenty-four rings, one per hour of the chain's day, fanning into a row; the exchange's session hours are drawn solid">
+          <div className="cell ledger relative flex items-center justify-center overflow-hidden" style={{ height: 'clamp(200px, 32vw + 80px, 480px)' }}>
+            <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-(--color-paper)" aria-label="Twenty-four rings, one per hour of the chain's day, fanning into a row; the exchange's session hours are drawn solid">
               {Array.from({ length: HOURS }, (_, i) => {
                 const t = i / (HOURS - 1);
                 const x = cx + (t - 0.5) * 2 * spread;
@@ -57,13 +57,13 @@ export function HeroSection({ children }: { children: ReactNode }) {
                       strokeDasharray={inSession ? undefined : '3 6'}
                       opacity={inSession ? 0.9 : 0.55}
                     />
-                    <circle cx={x} cy={cy} r={3 + 6 * ease} fill="currentColor" opacity={0.2 + 0.8 * ease} />
+                    <circle cx={x} cy={cy} r={3 + 6 * ease} fill={inSession ? 'var(--color-accent)' : 'currentColor'} opacity={0.2 + 0.8 * ease} />
                   </g>
                 );
               })}
-              <circle cx={cx} cy={cy} r={14 * (1 - ease)} fill="currentColor" />
+              <circle cx={cx} cy={cy} r={14 * (1 - ease)} fill="var(--color-accent)" />
             </svg>
-            <div className="pointer-events-none absolute bottom-3 left-4 text-[10px] uppercase tracking-[0.2em] text-[--color-paper-faint]">
+            <div className="pointer-events-none absolute bottom-3 left-4 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
               24 hours of chain · 6½ hours of exchange · drawn solid
             </div>
           </div>

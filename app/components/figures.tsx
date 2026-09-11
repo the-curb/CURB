@@ -25,12 +25,12 @@ export function WavesFigure() {
     [286, 358, 18],
   ];
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-[--color-paper]" aria-label="A field of quiet lines, and three points that drifted off them">
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-(--color-paper)" aria-label="A field of quiet lines, and three points that drifted off them">
       {paths.map((d, i) => (
         <path key={i} d={d} fill="none" stroke="currentColor" strokeWidth={0.8} opacity={0.55} />
       ))}
       {dots.map(([x, y, r], i) => (
-        <circle key={i} cx={x} cy={y} r={r} fill="currentColor" />
+        <circle key={i} cx={x} cy={y} r={r} fill="var(--color-accent)" />
       ))}
     </svg>
   );
@@ -67,7 +67,7 @@ const BLOCKS = [
 export function CityFigure() {
   const s = 44;
   return (
-    <svg viewBox="-300 -80 600 460" className="h-full w-full text-[--color-paper]" aria-label="Six district blocks on an isometric board, traced with lines and terminals">
+    <svg viewBox="-300 -80 600 460" className="h-full w-full text-(--color-paper)" aria-label="Six district blocks on an isometric board, traced with lines and terminals">
       <g stroke="currentColor" strokeWidth={0.6} fill="none" opacity={0.3}>
         {Array.from({ length: 13 }, (_, i) => {
           const [x1, y1] = iso(i * 0.5, -0.5, 0, s);
@@ -91,7 +91,7 @@ export function CityFigure() {
             <g key={i}>
               <line x1={x1 - 40} y1={y1 + 23} x2={x1} y2={y1} />
               <line x1={x1} y1={y1} x2={x2} y2={y2} />
-              <circle cx={x1 - 40} cy={y1 + 23} r={2.5} fill="currentColor" />
+              <circle cx={x1 - 40} cy={y1 + 23} r={2.5} fill="var(--color-accent)" />
             </g>
           );
         })}
@@ -138,9 +138,9 @@ export function DotsFigure({ total, withFeed }: { total: number; withFeed: numbe
     return { x: cx + Math.cos(angle) * (r + jitter), y: cy + Math.sin(angle) * (r + jitter) * 0.82, lit: i % Math.round(total / withFeed) === 0 };
   });
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-[--color-paper]" aria-label={`${total} dots in a spiral, ${withFeed} of them drawn full`}>
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full text-(--color-paper)" aria-label={`${total} dots in a spiral, ${withFeed} of them drawn full`}>
       {dots.map((d, i) => (
-        <rect key={i} x={d.x - 2} y={d.y - 2} width={4} height={4} fill="currentColor" opacity={d.lit ? 0.95 : 0.28} />
+        <rect key={i} x={d.x - 2} y={d.y - 2} width={4} height={4} fill={d.lit ? 'var(--color-accent)' : 'currentColor'} opacity={d.lit ? 0.95 : 0.3} />
       ))}
     </svg>
   );
@@ -154,14 +154,14 @@ export function CardsFigure() {
     { title: 'Terms register', lines: ['5 issuer pages', 'hashed daily', 'never read for meaning'] },
   ];
   return (
-    <svg viewBox="0 0 900 260" className="h-full w-full text-[--color-paper]" aria-label="Three folded cards on a shelf: the feed directory, the asset registry, the terms register">
+    <svg viewBox="0 0 900 260" className="h-full w-full text-(--color-paper)" aria-label="Three folded cards on a shelf: the feed directory, the asset registry, the terms register">
       <line x1="0" y1="236" x2="900" y2="236" stroke="currentColor" strokeWidth="1" opacity="0.5" />
       {cards.map((c, i) => {
         const x = 40 + i * 290;
         return (
           <g key={c.title} transform={`translate(${x},40) skewY(-12)`}>
             <path d="M0,20 L40,20 L48,6 L120,6 L128,20 L240,20 L240,180 L0,180 Z" fill="var(--color-ink)" stroke="currentColor" strokeWidth="1" />
-            <text x="18" y="52" fontSize="15" fill="currentColor" style={{ fontFamily: 'var(--font-sans)' }}>{c.title}</text>
+            <text x="18" y="54" fontSize="20" fill="currentColor" style={{ fontFamily: 'var(--font-serif)' }}>{c.title}</text>
             {c.lines.map((l, j) => (
               <text key={l} x="18" y={84 + j * 24} fontSize="12" fill="currentColor" opacity="0.75" style={{ fontFamily: 'var(--font-mono)' }}>
                 {l}

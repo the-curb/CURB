@@ -51,25 +51,22 @@ export default async function GazetteIndex() {
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
 
       <header className="mb-10">
-        <div className="border-t-2 border-[--color-paper]" />
+        <div className="border-t-2 border-(--color-paper)" />
         <div className="py-6 text-center">
-          <h1
-            className="text-4xl tracking-[0.18em] text-[--color-paper] sm:text-6xl"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
+          <h1 className="display text-5xl tracking-[0.06em] text-(--color-paper) sm:text-7xl">
             {BRAND.paper.name.toUpperCase()}
           </h1>
-          <p className="mt-3 text-[10px] uppercase tracking-[0.2em] text-[--color-paper-faint]">
+          <p className="mt-3 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
             {BRAND.paper.cadence} · The agents are the reporters.
           </p>
         </div>
-        <div className="border-t-2 border-[--color-paper]" />
+        <div className="border-t-2 border-(--color-paper)" />
       </header>
 
       <ol className="space-y-0">
         {editions.map(({ day, edition, reason }) => (
-          <li key={day} className="border-t border-[--color-rule] py-6 first:border-t-0">
-            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
+          <li key={day} className="border-t border-(--color-rule) py-6 first:border-t-0">
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">
               <span>{longDate(day)}</span>
               <span>{day === today ? 'Live edition' : 'Edition'}</span>
             </div>
@@ -81,18 +78,18 @@ export default async function GazetteIndex() {
               <>
                 <Link href={`/gazette/${day}`} className="group block">
                   <h2
-                    className="text-2xl leading-tight text-[--color-paper] group-hover:text-[--color-brass] sm:text-3xl"
-                    style={{ fontFamily: 'var(--font-display)' }}
+                    className="text-2xl leading-tight text-(--color-paper) group-hover:text-(--color-brass) sm:text-3xl"
+                    style={{ fontFamily: 'var(--font-serif)' }}
                   >
                     {edition.headline}
                   </h2>
                 </Link>
-                <p className="mt-2 text-sm leading-relaxed text-[--color-paper-dim]">
+                <p className="mt-2 text-sm leading-relaxed text-(--color-paper-dim)">
                   {edition.standfirst}
                 </p>
                 <Link
                   href={`/gazette/${day}`}
-                  className="mt-3 inline-block text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint] hover:text-[--color-paper]"
+                  className="mt-3 inline-block text-[11px] uppercase tracking-[0.16em] text-(--color-paper-faint) hover:text-(--color-paper)"
                 >
                   Read the edition ›
                 </Link>
@@ -102,7 +99,7 @@ export default async function GazetteIndex() {
         ))}
       </ol>
 
-      <footer className="mt-12 border-t border-[--color-rule] pt-6 text-[11px] leading-relaxed text-[--color-paper-faint]">
+      <footer className="mt-12 border-t border-(--color-rule) pt-6 text-[11px] leading-relaxed text-(--color-paper-faint)">
         Every edition is composed from that day&apos;s record and adds nothing to it. What was not
         read is printed beside what was. Nothing here is investment, legal or tax advice.
       </footer>

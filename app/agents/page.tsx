@@ -28,11 +28,11 @@ export default async function AgentsIndex() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-12">
-        <div className="tracking-mark text-xs text-[--color-brass]">THE AGENTS</div>
-        <h1 className="mt-4 max-w-2xl text-2xl leading-snug text-[--color-paper] sm:text-3xl">
+        <div className="tracking-mark text-xs text-(--color-brass)">THE AGENTS</div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           {AGENT_COUNTS.total} agents, one job each. What each refuses to do is as defined as what it does.
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
           {AGENT_COUNTS.measure} measure. {AGENT_COUNTS.promote} promotes, and says so in every post.
           {' '}{AGENT_COUNTS.execute} execute — nothing here touches a venue or places an order.
           None of them answers outside its own trade.
@@ -51,10 +51,10 @@ export default async function AgentsIndex() {
         return (
           <section key={district.id} className="mb-10">
             <div className="mb-3 flex items-baseline gap-4">
-              <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-brass]">{district.name}</h2>
-              <span className="text-[10px] text-[--color-paper-faint]">{district.holds}</span>
+              <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-brass)">{district.name}</h2>
+              <span className="text-[10px] text-(--color-paper-faint)">{district.holds}</span>
             </div>
-            <div className="grid gap-px border border-[--color-rule] bg-[--color-rule] sm:grid-cols-2">
+            <div className="grid gap-px border border-(--color-rule) bg-(--color-rule) sm:grid-cols-2">
               {here.map((agent) => {
                 const status = statusOf(agent.id);
                 const wired = PRODUCERS[agent.id] !== undefined;
@@ -62,10 +62,10 @@ export default async function AgentsIndex() {
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
-                    className="group block bg-[--color-ink-2] p-5 transition-colors hover:bg-[--color-ink-3]"
+                    className="group block bg-(--color-ink-2) p-5 transition-colors hover:bg-(--color-ink-3)"
                   >
                     <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="text-sm tracking-[0.14em] text-[--color-paper] group-hover:text-[--color-brass]">
+                      <h3 className="text-sm tracking-[0.14em] text-(--color-paper) group-hover:text-(--color-brass)">
                         {agent.name}
                       </h3>
                       {status ? (
@@ -74,11 +74,11 @@ export default async function AgentsIndex() {
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-xs text-[--color-paper-faint]">
+                    <p className="mt-1 text-xs text-(--color-paper-faint)">
                       {agent.role}
                       {!wired ? ' · not wired' : ''}
                     </p>
-                    <p className="mt-3 text-sm italic leading-relaxed text-[--color-paper-dim]">“{agent.line}”</p>
+                    <p className="mt-3 text-sm italic leading-relaxed text-(--color-paper-dim)">“{agent.line}”</p>
                   </Link>
                 );
               })}

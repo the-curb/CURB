@@ -4,54 +4,58 @@ import { Mark } from './mark';
 import { ThemeToggle } from './theme-toggle';
 
 /**
- * The header: one ruled strip of cells, fixed at the top. The mark, the
- * wordmark, a two-by-two of the districts, two wide cells for the paper and
- * the rules, and the half-moon. On a narrow screen the strip wraps into two
- * rows of cells rather than collapsing into a menu; the grid is the identity.
+ * The masthead. A folio strip — where the desk sits, and the ink switch —
+ * over the title row: the mark in the second ink, the name in the serif,
+ * and the sections as a ruled run of small capitals. Under it the paper's
+ * rule, a hairline over a heavy line. It stays at the top; the sheet scrolls
+ * beneath it. On a narrow screen the sections become a third row that
+ * scrolls sideways rather than a menu that hides them.
  */
-const DISTRICT_LINKS: ReadonlyArray<readonly [string, string]> = [
+const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ['The Floor', '/floor'],
   ['The Registry', '/registry'],
   ['The Vault', '/vault'],
   ['Chambers', '/chambers'],
+  ['Gazette', '/gazette'],
+  ['Doctrine', '/doctrine'],
 ];
 
 export function SiteHeader() {
   return (
-    <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4">
-      <div className="cells grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto]">
-        <Link href="/" className="cell flex items-center justify-center px-4 py-3 text-[--color-paper]" aria-label={`${BRAND.name} home`}>
-          <Mark size={28} />
-        </Link>
-        <Link href="/" className="cell flex items-center px-4 py-3">
-          <span className="tracking-mark text-sm font-medium text-[--color-paper] sm:text-lg">{BRAND.name}</span>
-        </Link>
-
-        <nav className="cell hidden sm:grid" aria-label="Districts">
-          <div className="grid h-full grid-cols-2 gap-px bg-[--color-rule]">
-            {DISTRICT_LINKS.map(([label, href]) => (
-              <Link key={href} href={href} className="cell flex items-center justify-center px-4 py-2 text-[13px] text-[--color-paper-dim] hover:text-[--color-paper]">
-                {label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-        <Link href="/gazette" className="cell hidden items-center justify-center px-5 text-center text-[13px] leading-snug text-[--color-paper-dim] hover:text-[--color-paper] sm:flex">
-          The Curb
-          <br />
-          Gazette
-        </Link>
-        <Link href="/doctrine" className="cell hidden items-center justify-center px-5 text-[13px] text-[--color-paper-dim] hover:text-[--color-paper] sm:flex">
-          Doctrine
-        </Link>
-        <div className="cell flex items-center justify-center px-3 text-[--color-paper]">
+    <header className="sticky top-0 z-50 bg-(--color-ink)">
+      <div className="masthead-rule">
+        <div className="tabular flex h-7 items-center justify-between gap-4 border-b border-(--color-rule) px-4 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
+          <span className="truncate">A desk on Robinhood Chain · 4663</span>
           <ThemeToggle />
         </div>
 
-        {/* Narrow screens: the districts as a second ruled row. */}
-        <nav className="cell col-span-3 grid grid-cols-3 gap-px bg-[--color-rule] sm:hidden" aria-label="Sections">
-          {[...DISTRICT_LINKS, ['Gazette', '/gazette'] as const, ['Doctrine', '/doctrine'] as const].map(([label, href]) => (
-            <Link key={href} href={href} className="cell flex items-center justify-center px-2 py-2 text-[11px] text-[--color-paper-dim]">
+        <div className="flex h-12 items-center gap-5 px-4 sm:h-14">
+          <Link href="/" className="flex items-center gap-3 text-(--color-paper)" aria-label={`${BRAND.name} home`}>
+            <Mark size={26} className="text-(--color-accent)" />
+            <span className="display text-[1.55rem] tracking-[0.1em] sm:text-[1.8rem]">{BRAND.name}</span>
+          </Link>
+          <span className="display hidden text-lg italic text-(--color-paper-faint) lg:inline">{BRAND.descriptor}</span>
+
+          <nav className="ml-auto hidden h-full items-stretch sm:flex" aria-label="Sections">
+            {SECTIONS.map(([label, href]) => (
+              <Link
+                key={href}
+                href={href}
+                className="tabular flex items-center border-l border-(--color-rule) px-4 text-[11px] uppercase tracking-[0.16em] text-(--color-paper-dim) hover:text-(--color-paper)"
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <nav className="scrollrow flex h-9 items-stretch overflow-x-auto border-t border-(--color-rule) sm:hidden" aria-label="Sections">
+          {SECTIONS.map(([label, href]) => (
+            <Link
+              key={href}
+              href={href}
+              className="tabular flex shrink-0 items-center border-r border-(--color-rule) px-4 text-[11px] uppercase tracking-[0.14em] text-(--color-paper-dim)"
+            >
               {label}
             </Link>
           ))}

@@ -37,7 +37,7 @@ function Flag({ row }: { row: BoardRow }) {
         </span>
       );
     case 'CLEAR':
-      return <span className="text-[--color-paper-faint]">clear</span>;
+      return <span className="text-(--color-paper-faint)">clear</span>;
     case 'UNREAD':
       return (
         <span className="absent" title="the pause flag could not be read — not readable is not the same as clear">
@@ -45,7 +45,7 @@ function Flag({ row }: { row: BoardRow }) {
         </span>
       );
     case 'NOT_ASKED':
-      return <span className="text-[--color-paper-faint]" title="a crypto feed has no issuer pause flag">n/a</span>;
+      return <span className="text-(--color-paper-faint)" title="a crypto feed has no issuer pause flag">n/a</span>;
     default:
       return (
         <span className="absent" title="the snapshot does not record the flag">
@@ -68,14 +68,14 @@ function Heartbeat({ row }: { row: BoardRow }) {
       past
     </span>
   ) : (
-    <span className="text-[--color-paper-faint]">within</span>
+    <span className="text-(--color-paper-faint)">within</span>
   );
 }
 
 function Identity({ row }: { row: BoardRow }) {
   switch (row.identity) {
     case 'MATCHES':
-      return <span className="text-[--color-paper-faint]">as recorded</span>;
+      return <span className="text-(--color-paper-faint)">as recorded</span>;
     case 'DRIFT':
       return (
         <span style={{ color: 'var(--color-state-dark)' }} title="the feed no longer describes itself as it did at capture; its price is withheld">
@@ -101,9 +101,9 @@ function Rows({ rows }: { rows: readonly BoardRow[] }) {
   return (
     <>
       {rows.map((row) => (
-        <tr key={row.key} className="border-t border-[--color-rule]">
+        <tr key={row.key} className="border-t border-(--color-rule)">
           <td className="py-2 pr-4 align-baseline">
-            <span className="text-sm tracking-[0.06em] text-[--color-paper]" title={row.name}>
+            <span className="text-sm tracking-[0.06em] text-(--color-paper)" title={row.name}>
               {row.label}
             </span>
           </td>
@@ -113,13 +113,13 @@ function Rows({ rows }: { rows: readonly BoardRow[] }) {
                 {ABSENT_GLYPH}
               </span>
             ) : (
-              <span className="tabular text-sm text-[--color-paper]">{row.price}</span>
+              <span className="tabular text-sm text-(--color-paper)">{row.price}</span>
             )}
           </td>
-          <td className="py-2 pr-4 text-right align-baseline text-xs text-[--color-paper-dim]">
+          <td className="py-2 pr-4 text-right align-baseline text-xs text-(--color-paper-dim)">
             <Age seconds={row.feedAgeSeconds} why={row.notPricedBecause ?? 'no round was read'} />
           </td>
-          <td className="py-2 pr-4 text-right align-baseline text-xs text-[--color-paper-faint]">
+          <td className="py-2 pr-4 text-right align-baseline text-xs text-(--color-paper-faint)">
             <Age seconds={row.sampleAgeSeconds} why="" />
           </td>
           <td className="py-2 pr-4 align-baseline text-xs">
@@ -140,7 +140,7 @@ function Rows({ rows }: { rows: readonly BoardRow[] }) {
 function Head() {
   return (
     <thead>
-      <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+      <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
         <th className="pb-2 pr-4 font-normal">Feed</th>
         <th className="pb-2 pr-4 text-right font-normal">Price · USD</th>
         <th className="pb-2 pr-4 text-right font-normal" title="how long since the oracle last published">
@@ -175,7 +175,7 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
           ● {state.label}
           {board.sampleAgeSeconds === null ? '' : ` · sampled ${describeAge(board.sampleAgeSeconds)} ago`}
         </span>
-        <span className="tabular text-[11px] text-[--color-paper-faint]">
+        <span className="tabular text-[11px] text-(--color-paper-faint)">
           {board.counts.priced} of {board.counts.equity} equity feeds priced · {board.counts.pastHeartbeat} past heartbeat ·{' '}
           {board.counts.paused} paused · {board.counts.drift} identity changed
         </span>
@@ -189,7 +189,7 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
       ) : null}
 
       {board.rows.length === 0 ? (
-        <p className="mt-6 text-sm text-[--color-paper-faint]">
+        <p className="mt-6 text-sm text-(--color-paper-faint)">
           No feed has been sampled into this store yet. That is an absence of samples, not an
           absence of feeds.
         </p>
@@ -205,8 +205,8 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
           </div>
 
           {board.crypto.length > 0 ? (
-            <details className="mt-6 border-t border-[--color-rule] pt-4">
-              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
+            <details className="mt-6 border-t border-(--color-rule) pt-4">
+              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">
                 Crypto feeds · {board.crypto.length} sampled in rotation
               </summary>
               <div className="mt-4 overflow-x-auto">
@@ -222,13 +222,13 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
         </>
       )}
 
-      <p className="mt-6 text-xs leading-relaxed text-[--color-paper-faint]">
+      <p className="mt-6 text-xs leading-relaxed text-(--color-paper-faint)">
         Two ages per row, kept apart: how long since the oracle published, and how long since
         this system read it. A feed within its heartbeat is a feed that updated recently — not a
         statement that its value is correct. The issuer registry lists{' '}
         {STOCK_TOKEN_COVERAGE.tokensInRegistry} stock tokens; {STOCK_TOKEN_COVERAGE.withoutFeed} of
         them have no feed this system can read and are not on this board — see{' '}
-        <Link href="/registry" className="text-[--color-paper-dim] hover:text-[--color-paper]">
+        <Link href="/registry" className="text-(--color-paper-dim) hover:text-(--color-paper)">
           the Registry
         </Link>
         .

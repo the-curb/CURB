@@ -5,10 +5,10 @@ import { useEffect, useState } from 'react';
 type Theme = 'dark' | 'light';
 
 /**
- * The half-moon. One click flips the whole site between the two themes; the
- * choice is remembered per browser. The root attribute is set before first
- * paint by the inline script in the layout, so there is no flash — this
- * component only reads what that script decided and lets the reader change it.
+ * INK · PAPER. One click flips the whole site between the two; the choice is
+ * remembered per browser. The root attribute is set before first paint by
+ * the inline script in the layout, so there is no flash — this component
+ * only reads what that script decided and lets the reader change it.
  */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('dark');
@@ -29,18 +29,20 @@ export function ThemeToggle() {
     setTheme(next);
   };
 
+  const on = 'text-(--color-paper)';
+  const off = 'text-(--color-paper-faint)';
+
   return (
     <button
       type="button"
       onClick={flip}
-      aria-label={theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'}
-      title={theme === 'dark' ? 'Light' : 'Dark'}
-      className="flex h-full w-full items-center justify-center"
+      aria-label={theme === 'dark' ? 'Switch to paper' : 'Switch to ink'}
+      title={theme === 'dark' ? 'Paper' : 'Ink'}
+      className="tabular flex h-full items-center gap-2 text-[10px] uppercase tracking-[0.2em]"
     >
-      <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
-        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="1.25" />
-        <path d="M20 2 A18 18 0 0 0 20 38 Z" fill="currentColor" />
-      </svg>
+      <span className={theme === 'dark' ? on : off}>Ink</span>
+      <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full border border-current" style={{ background: theme === 'dark' ? 'transparent' : 'currentColor' }} />
+      <span className={theme === 'light' ? on : off}>Paper</span>
     </button>
   );
 }

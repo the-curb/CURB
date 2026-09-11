@@ -38,8 +38,8 @@ function Absent({ why }: { why: string }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 border-t border-[--color-rule] py-2.5 first:border-t-0">
-      <span className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">{label}</span>
+    <div className="flex items-baseline justify-between gap-6 border-t border-(--color-rule) py-2.5 first:border-t-0">
+      <span className="text-[11px] uppercase tracking-[0.16em] text-(--color-paper-faint)">{label}</span>
       <span className="text-right text-sm">{children}</span>
     </div>
   );
@@ -75,20 +75,20 @@ export default async function ChambersPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-10">
-        <div className="tracking-mark text-xs text-[--color-brass]">CHAMBERS</div>
-        <h1 className="mt-4 max-w-2xl text-2xl leading-snug text-[--color-paper] sm:text-3xl">
+        <div className="tracking-mark text-xs text-(--color-brass)">CHAMBERS</div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           The terms, pointed at and watched. The system, with its three numbers showing.
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
           Counsel can read you the terms; it cannot tell you they apply to you. What it can do is fetch each page every day,
           hash its visible text, and say whether that hash changed. What changed is the page to read.
         </p>
       </header>
 
       {/* ── THE TERMS ─────────────────────────────────────────────────────── */}
-      <section className="mb-10 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
+      <section className="mb-10 border border-(--color-rule) bg-(--color-ink-2) p-6 sm:p-8">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">The register, watched</h2>
+          <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">The register, watched</h2>
           {state && table ? (
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: state.colour }} title={state.means}>
               ● {state.label}
@@ -102,14 +102,14 @@ export default async function ChambersPage() {
           </p>
         ) : (
           <>
-            <p className="mt-4 tabular text-[11px] text-[--color-paper-faint]">
+            <p className="mt-4 tabular text-[11px] text-(--color-paper-faint)">
               {table.counts.read} read for meaning · {table.counts.linkOnly} held as links · {table.counts.watched} watched ·{' '}
               {table.counts.changed} changed since first seen
             </p>
             <div className="mt-6 overflow-x-auto">
               <table className="w-full min-w-[44rem] border-collapse">
                 <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+                  <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
                     <th className="pb-2 pr-4 font-normal">Page</th>
                     <th className="pb-2 pr-4 font-normal">Authority for</th>
                     <th className="pb-2 pr-4 font-normal">Register</th>
@@ -121,38 +121,38 @@ export default async function ChambersPage() {
                 </thead>
                 <tbody>
                   {table.rows.map((row) => (
-                    <tr key={row.source.key} className="border-t border-[--color-rule]">
+                    <tr key={row.source.key} className="border-t border-(--color-rule)">
                       <td className="py-2 pr-4 align-baseline">
-                        <a href={row.source.url} className="text-sm text-[--color-paper] hover:text-[--color-brass]" rel="noopener noreferrer" target="_blank">
+                        <a href={row.source.url} className="text-sm text-(--color-paper) hover:text-(--color-brass)" rel="noopener noreferrer" target="_blank">
                           {row.source.title}
                         </a>
                       </td>
-                      <td className="py-2 pr-4 align-baseline text-xs text-[--color-paper-dim]">{row.source.covers}</td>
+                      <td className="py-2 pr-4 align-baseline text-xs text-(--color-paper-dim)">{row.source.covers}</td>
                       <td className="py-2 pr-4 align-baseline text-xs">
                         {row.source.state === 'READ' ? (
-                          <span className="text-[--color-paper-dim]" title={`recorded ${row.source.readAt}: ${row.source.recorded}`}>read {row.source.readAt?.slice(0, 10)}</span>
+                          <span className="text-(--color-paper-dim)" title={`recorded ${row.source.readAt}: ${row.source.recorded}`}>read {row.source.readAt?.slice(0, 10)}</span>
                         ) : (
-                          <span className="text-[--color-paper-faint]">link only</span>
+                          <span className="text-(--color-paper-faint)">link only</span>
                         )}
                       </td>
-                      <td className="py-2 pr-4 align-baseline text-xs text-[--color-paper-dim]">
+                      <td className="py-2 pr-4 align-baseline text-xs text-(--color-paper-dim)">
                         {row.watch === null ? <Absent why={row.unreadBecause ?? 'not watched'} /> : <span className="tabular">{row.watch.firstSeenAt.slice(0, 10)}</span>}
                       </td>
                       <td className="py-2 pr-4 align-baseline text-xs">
                         {row.watch === null ? (
                           <Absent why={row.unreadBecause ?? 'not watched'} />
                         ) : row.watch.lastChangedAt === null ? (
-                          <span className="text-[--color-paper-faint]">unchanged</span>
+                          <span className="text-(--color-paper-faint)">unchanged</span>
                         ) : (
                           <span className="tabular" style={{ color: 'var(--color-brass)' }} title={`${row.watch.changes} change(s) seen`}>
                             {row.watch.lastChangedAt.slice(0, 10)}
                           </span>
                         )}
                       </td>
-                      <td className="py-2 pr-4 text-right align-baseline text-xs text-[--color-paper-faint]">
+                      <td className="py-2 pr-4 text-right align-baseline text-xs text-(--color-paper-faint)">
                         {row.watch === null ? <Absent why={row.unreadBecause ?? 'not watched'} /> : <span className="tabular">{row.watch.chars.toLocaleString('en-US')}</span>}
                       </td>
-                      <td className="py-2 text-right align-baseline text-xs text-[--color-paper-faint]">
+                      <td className="py-2 text-right align-baseline text-xs text-(--color-paper-faint)">
                         {row.sampleAgeSeconds === null ? <Absent why="not yet fetched" /> : <span className="tabular">{describeAge(row.sampleAgeSeconds)} ago</span>}
                       </td>
                     </tr>
@@ -162,11 +162,11 @@ export default async function ChambersPage() {
             </div>
           </>
         )}
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">Never determined here</div>
+        <div className="mt-6 border-t border-(--color-rule) pt-5">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">Never determined here</div>
           <ul className="space-y-1.5">
             {NEVER_DETERMINED.map((line) => (
-              <li key={line} className="text-xs leading-relaxed text-[--color-paper-faint]">
+              <li key={line} className="text-xs leading-relaxed text-(--color-paper-faint)">
                 — {line}
               </li>
             ))}
@@ -175,8 +175,8 @@ export default async function ChambersPage() {
       </section>
 
       {/* ── THE WARDEN ────────────────────────────────────────────────────── */}
-      <section className="mb-10 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-        <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">Change control · what a person should know now</h2>
+      <section className="mb-10 border border-(--color-rule) bg-(--color-ink-2) p-6 sm:p-8">
+        <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">Change control · what a person should know now</h2>
         {health === null ? (
           <p className="mt-4 text-sm" style={{ color: 'var(--color-state-stale)' }}>
             The heartbeat store could not be read. No numbers are shown, and none should be inferred.
@@ -201,8 +201,8 @@ export default async function ChambersPage() {
             </div>
           </div>
         )}
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
+        <div className="mt-6 border-t border-(--color-rule) pt-5">
+          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">
             Active conditions · {conditions.length === 0 ? 'none — every condition was checked' : conditions.length}
           </div>
           {conditions.length > 0 ? (
@@ -210,14 +210,14 @@ export default async function ChambersPage() {
               {conditions.map((c) => (
                 <li key={c.id} className="flex items-baseline gap-3 text-xs leading-relaxed">
                   <span style={{ color: SEVERITY[c.severity] }}>●</span>
-                  <span className="text-[--color-paper-dim]">
-                    <span className="tabular text-[--color-paper-faint]">{c.id}</span> — {c.text}
+                  <span className="text-(--color-paper-dim)">
+                    <span className="tabular text-(--color-paper-faint)">{c.id}</span> — {c.text}
                   </span>
                 </li>
               ))}
             </ul>
           ) : null}
-          <p className="mt-4 text-xs leading-relaxed text-[--color-paper-faint]">
+          <p className="mt-4 text-xs leading-relaxed text-(--color-paper-faint)">
             The same set is derived after every tick and compared with the set last delivered; what was raised or cleared is
             posted once to the webhook when one is configured. A condition that persists is not re-sent. What alerting cannot
             notice is a scheduler that has stopped: that is the reporting count above going to zero, watched from outside.

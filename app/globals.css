@@ -1,33 +1,38 @@
 @import 'tailwindcss';
 
 /*
- * One palette, no colour: black, white, and the greys between. Every block sits
- * inside a 1px cell and the cells butt against each other, so the page reads
- * as one drawn grid. The only colour on the site is the six state lights,
- * because they encode the doctrine and a light is not decoration.
+ * A desk sheet. Warm ink, warm paper, and one colour — vermilion — used the
+ * way a printer uses a second ink: for the mark, the section numerals, the
+ * live point on the tape, and nothing decorative. The state lights keep
+ * their own colours because they encode the doctrine and a light is not
+ * decoration.
  *
- * Two themes, the same tokens. Dark is the default; the half-moon in the
- * header flips `data-theme` and everything follows, because nothing anywhere
- * names a colour directly.
+ * Two themes, the same tokens. Ink (dark) is the default; the INK / PAPER
+ * switch in the masthead flips `data-theme` and everything follows, because
+ * nothing anywhere names a colour directly.
  */
 @theme {
-  --color-ink: #0e0e0e;
-  --color-ink-2: #0e0e0e;
-  --color-ink-3: #161616;
-  --color-rule: #3a3a3a;
-  --color-rule-2: #4a4a4a;
-  --color-paper: #dadada;
-  --color-paper-dim: #a6a6a6;
-  --color-paper-faint: #7a7a7a;
+  --color-ink: #121110;
+  --color-ink-2: #121110;
+  --color-ink-3: #1b1917;
+  --color-rule: #3b3733;
+  --color-rule-2: #4b4640;
+  --color-paper: #e6e0d4;
+  --color-paper-dim: #aaa398;
+  --color-paper-faint: #7c766d;
 
-  /* The inverted cell: white ground, black text. CTAs and edge labels. */
-  --color-invert: #e6e6e6;
-  --color-invert-ink: #0e0e0e;
+  /* The inverted block: paper ground, ink text. */
+  --color-invert: #e6e0d4;
+  --color-invert-ink: #121110;
 
-  /* Brass is retired as an accent; the name is kept so nothing has to move.
-     Where it used to glow it now reads as the paper itself. */
-  --color-brass: #dadada;
-  --color-brass-dim: #7a7a7a;
+  /* The second ink. */
+  --color-accent: #d8452a;
+  --color-accent-ink: #121110;
+
+  /* Brass was the first accent; the name is kept so nothing has to move,
+     and it now resolves to the second ink. */
+  --color-brass: #d8452a;
+  --color-brass-dim: #7c766d;
 
   /* State colours. These are load-bearing: they encode the doctrine.
      Fog and darkness are deliberately different. NOT_OBSERVED is fog — we never
@@ -43,30 +48,48 @@
   --color-state-closed: #7d8590;
 
   --font-sans: var(--font-grotesk), 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font-serif: var(--font-instrument), 'Instrument Serif', 'Iowan Old Style', 'Times New Roman', serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
 }
 
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* The masthead's height, so pinned sections know where the top is. */
+  --masthead-h: 7.5rem;
+}
+
+@media (min-width: 640px) {
+  html {
+    --masthead-h: 5.75rem;
+  }
 }
 
 html[data-theme='light'] {
   color-scheme: light;
-  --color-ink: #e9e9e9;
-  --color-ink-2: #e9e9e9;
-  --color-ink-3: #dedede;
-  --color-rule: #9c9c9c;
-  --color-rule-2: #8a8a8a;
-  --color-paper: #111111;
-  --color-paper-dim: #3d3d3d;
-  --color-paper-faint: #6a6a6a;
-  --color-invert: #111111;
-  --color-invert-ink: #e9e9e9;
-  --color-brass: #111111;
-  --color-brass-dim: #6a6a6a;
+  --color-ink: #efe9df;
+  --color-ink-2: #efe9df;
+  --color-ink-3: #e5ded2;
+  --color-rule: #a69e91;
+  --color-rule-2: #948c7f;
+  --color-paper: #17150f;
+  --color-paper-dim: #4a463f;
+  --color-paper-faint: #736d63;
+  --color-invert: #17150f;
+  --color-invert-ink: #efe9df;
+  --color-accent: #b8371f;
+  --color-accent-ink: #efe9df;
+  --color-brass: #b8371f;
+  --color-brass-dim: #736d63;
+  /* The lights, darkened enough to read as text on paper. */
+  --color-state-live: #2f7a4f;
+  --color-state-stale: #8a6a1e;
+  --color-state-degraded: #a0521f;
+  --color-state-dark: #8f2f36;
   --color-state-fog: #b5b9c0;
+  --color-state-request: #4f6a85;
   --color-state-absent: #8b9099;
+  --color-state-closed: #6b7380;
 }
 
 body {
@@ -96,15 +119,23 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── The cell grammar ──────────────────────────────────────────────────────
-   A `.cell` is a bordered block. Put cells side by side inside a `.cells`
+/* ── The column grammar ────────────────────────────────────────────────────
+   A `.cell` is a block of the sheet. Put cells side by side inside a `.cells`
    grid and the shared edges collapse to one hairline, so a row of cells reads
-   as one ruled table rather than a row of boxes. */
+   as ruled columns on a page — rules above and below, none at the margins,
+   the way a broadsheet is set. `.boxed` adds the side rules where a block
+   must stand alone. */
 .cells {
   display: grid;
   gap: 1px;
   background: var(--color-rule);
-  border: 1px solid var(--color-rule);
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.boxed {
+  border-left: 1px solid var(--color-rule);
+  border-right: 1px solid var(--color-rule);
 }
 
 .cell {
@@ -121,43 +152,93 @@ body {
   color: inherit;
 }
 
-/* A dotted drafting grid behind the hero figure. */
-.grid-dots {
-  background-image:
-    linear-gradient(to right, var(--color-rule) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--color-rule) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 40%, transparent 100%);
+.cell-accent {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
-/* A vertical label on the edge of a section, read bottom to top. */
-.edge-label {
-  writing-mode: vertical-rl;
-  text-orientation: sideways;
-  transform: rotate(180deg);
-  letter-spacing: 0.08em;
+/* The masthead rule: a hairline over a heavy line, as a paper's title carries. */
+.masthead-rule {
+  border-bottom: 1px solid var(--color-rule);
+  box-shadow: 0 3px 0 0 var(--color-paper);
 }
 
-/* Display type: the big words. */
+/* Ledger paper: ruled lines behind a figure, fading at the edges. */
+.ledger {
+  background-image: linear-gradient(to bottom, var(--color-rule) 1px, transparent 1px);
+  background-size: 100% 28px;
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* Display type: the big words, set in the serif. */
 .display {
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+
+.display em,
+.display i {
+  font-style: italic;
+}
+
+/* A section's running head: numeral in the second ink, title in small caps. */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-paper-faint);
+}
+
+.kicker b {
   font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
+  color: var(--color-accent);
 }
 
-/* A striped texture for the footer's display line. */
-.stripes {
-  background-image: repeating-linear-gradient(
-    100deg,
-    var(--color-rule) 0 1px,
-    transparent 1px 7px
-  );
+/* A row with a dotted leader between its two ends, as a table of contents. */
+.leader {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+.leader::before {
+  content: '';
+  order: 2;
+  flex: 1 1 auto;
+  border-bottom: 1px dotted var(--color-rule-2);
+  transform: translateY(-0.3em);
+}
+
+.leader > :first-child {
+  order: 1;
+}
+
+.leader > :last-child {
+  order: 3;
+}
+
+/* The tape: one strip of readings, moving. Paused when a hand rests on it,
+   still when the reader has asked for stillness. */
+.tape {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tape-run {
+  display: inline-flex;
+  animation: tape 90s linear infinite;
+}
+
+.tape:hover .tape-run {
+  animation-play-state: paused;
+}
+
+@keyframes tape {
+  to {
+    transform: translateX(-50%);
   }
 }
 
@@ -166,6 +247,7 @@ body {
   position: relative;
   overflow: hidden;
 }
+
 .sweep::after {
   content: '';
   position: absolute;
@@ -174,13 +256,33 @@ body {
   background: linear-gradient(90deg, transparent, var(--color-rule), transparent);
   animation: sweep 1.4s linear infinite;
 }
+
 @keyframes sweep {
   to {
     left: 100%;
   }
 }
+
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .tape {
+    overflow-x: auto;
+  }
+
+  .tape-run,
   .sweep::after {
     animation: none;
   }
+}
+
+/* A row that scrolls sideways without showing a bar for it. */
+.scrollrow {
+  scrollbar-width: none;
+}
+
+.scrollrow::-webkit-scrollbar {
+  display: none;
 }

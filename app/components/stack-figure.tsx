@@ -6,9 +6,9 @@ import { useScrollProgress } from './use-scroll-progress';
 /**
  * Six slabs on an isometric floor, one per district, rising with the scroll.
  *
- * The floor is a ruled isometric grid with a few traced lines and terminals,
- * like a board. Each slab lifts into place in turn as the reader moves down
- * the list beside it; at rest they lie flat on the board.
+ * The floor is a ruled isometric grid, like a board. Each slab lifts into
+ * place in turn as the reader moves down the list beside it; at rest they
+ * lie flat on the board. A lifted slab shows its ordinal in the second ink.
  */
 const ISO = { dx: 0.866, dy: 0.5 };
 
@@ -44,14 +44,14 @@ export function StackSection({ aside, children }: { aside: ReactNode; children: 
 
   return (
     <section ref={ref} className="relative">
-      <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)_auto]">
+      <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="cell">
-          <div className="lg:sticky lg:top-[6.5rem]">{aside}</div>
+          <div className="lg:sticky lg:top-[var(--masthead-h)]">{aside}</div>
           {children}
         </div>
         <div className="cell relative hidden lg:block">
-          <div className="sticky top-[6.5rem]" style={{ height: 'calc(100vh - 7rem)' }}>
-            <svg viewBox="-270 -90 540 420" className="h-full w-full text-[--color-paper]" aria-label="Six slabs on an isometric board, one per district, rising as the list beside them is read">
+          <div className="sticky top-[var(--masthead-h)]" style={{ height: 'calc(100vh - var(--masthead-h) - 1rem)' }}>
+            <svg viewBox="-270 -90 540 420" className="h-full w-full text-(--color-paper)" aria-label="Six slabs on an isometric board, one per district, rising as the list beside them is read">
               <g stroke="currentColor" strokeWidth={0.75} opacity={0.35} fill="none">
                 {Array.from({ length: 11 }, (_, i) => {
                   const [x1, y1] = iso(i * 0.5, 0);
@@ -68,26 +68,31 @@ export function StackSection({ aside, children }: { aside: ReactNode; children: 
               </g>
               {SLABS.map((s, i) => {
                 const local = Math.min(1, Math.max(0, (p - i * 0.12) / 0.3));
+                const lifted = local > 0.95;
                 const lift = local * (34 + (5 - i) * 6);
                 const thickness = 6 + local * 10;
                 const path = slabPath(s.x, s.y, s.w, s.d, lift, thickness);
                 const [lx, ly] = iso(s.x + s.w / 2, s.y + s.d / 2, lift);
+                const [nx, ny] = iso(s.x + 0.22, s.y + 0.22, lift);
                 return (
                   <g key={s.label}>
                     <path d={path.left} fill="var(--color-ink)" stroke="currentColor" strokeWidth={1} opacity={0.9} />
                     <path d={path.right} fill="var(--color-ink-3)" stroke="currentColor" strokeWidth={1} opacity={0.9} />
-                    <path d={path.top} fill={local > 0.95 ? 'var(--color-invert)' : 'var(--color-ink)'} stroke="currentColor" strokeWidth={1} />
+                    <path d={path.top} fill={lifted ? 'var(--color-invert)' : 'var(--color-ink)'} stroke="currentColor" strokeWidth={1} />
                     <text
                       x={lx}
                       y={ly + 3}
                       textAnchor="middle"
                       fontSize={8.5}
                       letterSpacing={1.5}
-                      fill={local > 0.95 ? 'var(--color-invert-ink)' : 'currentColor'}
+                      fill={lifted ? 'var(--color-invert-ink)' : 'currentColor'}
                       opacity={0.3 + 0.7 * local}
                       style={{ fontFamily: 'var(--font-mono)' }}
                     >
                       {s.label}
+                    </text>
+                    <text x={nx} y={ny + 3} fontSize={9} fill="var(--color-accent)" opacity={local} style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+                      {String(i + 1).padStart(2, '0')}
                     </text>
                   </g>
                 );
@@ -95,14 +100,9 @@ export function StackSection({ aside, children }: { aside: ReactNode; children: 
               {/* terminals: the feeds, as pins along the floor's edge */}
               {Array.from({ length: 12 }, (_, i) => {
                 const [x, y] = iso(0.15 + i * 0.16, -0.35);
-                return <circle key={i} cx={x} cy={y} r={2.5} fill="currentColor" opacity={0.4 + 0.6 * Math.min(1, p * 2)} />;
+                return <circle key={i} cx={x} cy={y} r={2.5} fill="var(--color-accent)" opacity={0.4 + 0.6 * Math.min(1, p * 2)} />;
               })}
             </svg>
-          </div>
-        </div>
-        <div className="cell cell-invert hidden lg:block">
-          <div className="sticky top-[6.5rem] flex items-end justify-center px-3 py-6" style={{ height: 'calc(100vh - 7rem)' }}>
-            <span className="edge-label text-sm">WHY THE CURB?</span>
           </div>
         </div>
       </div>

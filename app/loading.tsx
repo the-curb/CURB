@@ -8,12 +8,15 @@
  */
 export default function Loading() {
   return (
-    <main className="px-3 sm:px-4" aria-busy="true" aria-live="polite">
+    <main className="px-3 pt-8 sm:px-4" aria-busy="true" aria-live="polite">
       <div className="cells grid-cols-1">
-        <div className="cell sweep flex items-center px-6 py-5 sm:px-8">
-          <span className="tabular text-[11px] uppercase tracking-[0.2em] text-[--color-paper-faint]">Reading the record</span>
+        <div className="cell sweep flex items-baseline gap-4 px-6 py-5 sm:px-8">
+          <span className="kicker">
+            <b>№ —</b>
+          </span>
+          <span className="display text-xl italic text-(--color-paper-faint)">Reading the record.</span>
         </div>
-        <div className="cell" style={{ height: 'min(52vh, 480px)' }} />
+        <div className="cell" style={{ height: 'clamp(200px, 32vw + 80px, 480px)' }} />
         <div className="cells !border-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
           <div className="cell" style={{ height: '14rem' }} />
           <div className="cell" style={{ height: '14rem' }} />

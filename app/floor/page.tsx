@@ -50,8 +50,8 @@ function Light({ health }: { health: AgentHealth }) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 border-t border-[--color-rule] py-2.5 first:border-t-0">
-      <span className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+    <div className="flex items-baseline justify-between gap-6 border-t border-(--color-rule) py-2.5 first:border-t-0">
+      <span className="text-[11px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
         {label}
       </span>
       <span className="text-sm text-right">{children}</span>
@@ -69,10 +69,10 @@ function Absent({ why }: { why: string }) {
 
 function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-      <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">{title}</h2>
+    <section className="mb-12 border border-(--color-rule) bg-(--color-ink-2) p-6 sm:p-8">
+      <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">{title}</h2>
       {note ? (
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">{note}</p>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">{note}</p>
       ) : null}
       <div className="mt-6">{children}</div>
     </section>
@@ -132,22 +132,22 @@ export default async function FloorPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 sm:py-14">
       <div className="mb-10">
-        <div className="tracking-mark text-xs text-[--color-paper-faint]">THE FLOOR</div>
-        <h1 className="display mt-3 max-w-3xl text-3xl text-[--color-paper] sm:text-5xl">
+        <div className="tracking-mark text-xs text-(--color-paper-faint)">THE FLOOR</div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           Every price has an age.
           <br />
           Most places hide it.
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
           The session, every tokenized-equity feed with both ages attached, the Warden&rsquo;s three numbers, and the wire — read from the record, never from the chain at page time.
         </p>
       </div>
 
 
       {/* ── THE BELL ──────────────────────────────────────────────────────── */}
-      <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
+      <section className="mb-12 border border-(--color-rule) bg-(--color-ink-2) p-6 sm:p-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">
+          <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
             The Bell · session
           </h2>
           <span
@@ -157,7 +157,7 @@ export default async function FloorPage() {
             ● {phaseLabel(session.phase)}
           </span>
         </div>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
           The chain never closes. The exchange does. Those are not the same clock — and a price
           carried across a closed market is a memory, not a quote.
         </p>
@@ -203,13 +203,13 @@ export default async function FloorPage() {
           </div>
         </div>
 
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
+        <div className="mt-6 border-t border-(--color-rule) pt-5">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">
             Declared blind spots
           </div>
           <ul className="space-y-1.5">
             {session.blindSpots.map((spot) => (
-              <li key={spot} className="text-xs leading-relaxed text-[--color-paper-faint]">
+              <li key={spot} className="text-xs leading-relaxed text-(--color-paper-faint)">
                 — {spot}
               </li>
             ))}
@@ -218,11 +218,11 @@ export default async function FloorPage() {
       </section>
 
       {/* ── THE FLOOR ─────────────────────────────────────────────────────── */}
-      <section id="floor" className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-        <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">
+      <section id="floor" className="mb-12 border border-(--color-rule) bg-(--color-ink-2) p-6 sm:p-8">
+        <h2 className="text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
           The Floor · the book
         </h2>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
           Every tokenized-equity feed on Robinhood Chain, as the Pillar last read it: the price,
           how long since the oracle published it, how long since we read it, and the two flags
           that decide whether the price means what it appears to mean.
@@ -278,27 +278,27 @@ export default async function FloorPage() {
           </div>
         </div>
 
-        <div className="mt-7 border-t border-[--color-rule] pt-5">
+        <div className="mt-7 border-t border-(--color-rule) pt-5">
           {health.statuses.map((status) => {
             const spec = AGENT_BY_ID[status.id];
             const wired = PRODUCERS[status.id] !== undefined;
             return (
               <div
                 key={status.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-[--color-rule] py-3 last:border-b-0"
+                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-(--color-rule) py-3 last:border-b-0"
               >
                 <div className="min-w-[10rem]">
-                  <span className="text-sm tracking-[0.1em] text-[--color-paper]">
+                  <span className="text-sm tracking-[0.1em] text-(--color-paper)">
                     {status.name}
                   </span>
                   {!wired ? (
-                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em] text-[--color-state-fog]">
+                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em] text-(--color-state-fog)">
                       not wired
                     </span>
                   ) : null}
                 </div>
-                <span className="text-xs text-[--color-paper-faint]">{spec.role}</span>
-                <span className="tabular text-xs text-[--color-paper-faint]">
+                <span className="text-xs text-(--color-paper-faint)">{spec.role}</span>
+                <span className="tabular text-xs text-(--color-paper-faint)">
                   {status.sourcesReached === null ? (
                     <Absent why="never ran" />
                   ) : (
@@ -314,22 +314,22 @@ export default async function FloorPage() {
           })}
         </div>
 
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
+        <div className="mt-6 border-t border-(--color-rule) pt-5">
+          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-(--color-paper-faint)">
             What the lights mean
           </div>
           <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
             {(Object.keys(LIGHTS) as AgentHealth[]).map((state) => (
               <div key={state} className="flex items-baseline gap-3 text-xs">
                 <span style={{ color: LIGHTS[state].colour }}>●</span>
-                <span className="w-28 shrink-0 uppercase tracking-[0.12em] text-[--color-paper-dim]">
+                <span className="w-28 shrink-0 uppercase tracking-[0.12em] text-(--color-paper-dim)">
                   {state.replace(/_/g, ' ')}
                 </span>
-                <span className="text-[--color-paper-faint]">{LIGHTS[state].means}</span>
+                <span className="text-(--color-paper-faint)">{LIGHTS[state].means}</span>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs leading-relaxed text-[--color-paper-faint]">
+          <p className="mt-4 text-xs leading-relaxed text-(--color-paper-faint)">
             A reading we could not take goes into fog, never into darkness. Dark already means
             expected and never arrived.
           </p>
@@ -349,31 +349,31 @@ export default async function FloorPage() {
             into that — this is not a wire with no traffic on it.
           </p>
         ) : publications.length === 0 ? (
-          <p className="text-sm text-[--color-paper-faint]">
+          <p className="text-sm text-(--color-paper-faint)">
             Nothing published yet. That is an absence of output, not an absence of agents — the
             lights above say which.
           </p>
         ) : (
           <div className="space-y-6">
             {publications.map((pub) => (
-              <article key={pub.id} className="border-t border-[--color-rule] pt-5 first:border-t-0 first:pt-0">
+              <article key={pub.id} className="border-t border-(--color-rule) pt-5 first:border-t-0 first:pt-0">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h3 className="text-sm tracking-[0.1em] text-[--color-brass]">{pub.headline}</h3>
-                  <span className="tabular text-[10px] text-[--color-paper-faint]">
+                  <h3 className="text-sm tracking-[0.1em] text-(--color-brass)">{pub.headline}</h3>
+                  <span className="tabular text-[10px] text-(--color-paper-faint)">
                     {AGENT_BY_ID[pub.agentId].name} · {pub.publishedAt}
                   </span>
                 </div>
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-[--color-paper-dim]">
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-(--color-paper-dim)">
                   {pub.body}
                 </pre>
                 {pub.figures.length > 0 ? (
                   <details className="mt-3">
-                    <summary className="cursor-pointer text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+                    <summary className="cursor-pointer text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
                       {pub.figures.length} declared figures, with provenance
                     </summary>
                     <ul className="mt-2 space-y-1">
                       {pub.figures.map((f, i) => (
-                        <li key={`${i}-${f.token}`} className="tabular text-[11px] text-[--color-paper-faint]">
+                        <li key={`${i}-${f.token}`} className="tabular text-[11px] text-(--color-paper-faint)">
                           {f.token} — {f.source} @ {f.retrievedAt}
                         </li>
                       ))}
@@ -427,7 +427,7 @@ export default async function FloorPage() {
         </Row>
       </Panel>
 
-      <footer className="border-t border-[--color-rule] pt-6 text-xs leading-relaxed text-[--color-paper-faint]">
+      <footer className="border-t border-(--color-rule) pt-6 text-xs leading-relaxed text-(--color-paper-faint)">
         <p>
           A figure that could not be read is shown as absent, with its reason — never as zero.
           Below a stated minimum of sources no reading is declared at all: that is unknown, and it

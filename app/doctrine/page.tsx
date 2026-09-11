@@ -24,13 +24,13 @@ function Inlines({ inlines }: { inlines: readonly Inline[] }) {
         switch (inline.kind) {
           case 'code':
             return (
-              <code key={i} className="rounded-sm bg-[--color-ink-3] px-1 py-0.5 font-mono text-[0.85em] text-[--color-paper]">
+              <code key={i} className="rounded-sm bg-(--color-ink-3) px-1 py-0.5 font-mono text-[0.85em] text-(--color-paper)">
                 {inline.text}
               </code>
             );
           case 'strong':
             return (
-              <strong key={i} className="font-medium text-[--color-paper]">
+              <strong key={i} className="font-medium text-(--color-paper)">
                 {inline.text}
               </strong>
             );
@@ -54,8 +54,8 @@ function BlockView({ block }: { block: Block }) {
           id={block.id}
           className={
             block.level === 2
-              ? 'mt-14 scroll-mt-8 border-t border-[--color-rule] pt-8 text-lg leading-snug text-[--color-paper]'
-              : 'mt-8 scroll-mt-8 text-[11px] uppercase tracking-[0.24em] text-[--color-brass]'
+              ? 'mt-14 scroll-mt-8 border-t border-(--color-rule) pt-8 text-lg leading-snug text-(--color-paper)'
+              : 'mt-8 scroll-mt-8 text-[11px] uppercase tracking-[0.24em] text-(--color-brass)'
           }
         >
           {block.text}
@@ -64,7 +64,7 @@ function BlockView({ block }: { block: Block }) {
     }
     case 'paragraph':
       return (
-        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-3xl text-sm leading-relaxed text-(--color-paper-dim)">
           <Inlines inlines={block.inlines} />
         </p>
       );
@@ -72,8 +72,8 @@ function BlockView({ block }: { block: Block }) {
       return (
         <ul className="mt-4 max-w-3xl space-y-2">
           {block.items.map((item, i) => (
-            <li key={i} className="text-sm leading-relaxed text-[--color-paper-dim]">
-              <span className="mr-2 text-[--color-paper-faint]">—</span>
+            <li key={i} className="text-sm leading-relaxed text-(--color-paper-dim)">
+              <span className="mr-2 text-(--color-paper-faint)">—</span>
               <Inlines inlines={item} />
             </li>
           ))}
@@ -81,7 +81,7 @@ function BlockView({ block }: { block: Block }) {
       );
     case 'code':
       return (
-        <pre className="mt-4 overflow-x-auto border border-[--color-rule] bg-[--color-ink] p-4 font-mono text-xs leading-relaxed text-[--color-paper]">
+        <pre className="mt-4 overflow-x-auto border border-(--color-rule) bg-(--color-ink) p-4 font-mono text-xs leading-relaxed text-(--color-paper)">
           {block.text}
         </pre>
       );
@@ -90,7 +90,7 @@ function BlockView({ block }: { block: Block }) {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
+              <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
                 {block.header.map((cell, i) => (
                   <th key={i} className="pb-2 pr-6 font-normal">
                     <Inlines inlines={cell} />
@@ -100,9 +100,9 @@ function BlockView({ block }: { block: Block }) {
             </thead>
             <tbody>
               {block.rows.map((row, r) => (
-                <tr key={r} className="border-t border-[--color-rule]">
+                <tr key={r} className="border-t border-(--color-rule)">
                   {row.map((cell, c) => (
-                    <td key={c} className="py-2 pr-6 align-baseline text-[--color-paper-dim]">
+                    <td key={c} className="py-2 pr-6 align-baseline text-(--color-paper-dim)">
                       <Inlines inlines={cell} />
                     </td>
                   ))}
@@ -129,11 +129,11 @@ export default async function DoctrinePage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
 
       <header className="mb-6">
-        <div className="tracking-mark text-xs text-[--color-brass]">DOCTRINE</div>
-        <h1 className="mt-4 max-w-2xl text-2xl leading-snug text-[--color-paper] sm:text-3xl">
+        <div className="tracking-mark text-xs text-(--color-brass)">DOCTRINE</div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           The rules this system is built on. Each one names the file that enforces it.
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-[--color-paper-dim]">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
           {RULE_COUNT} policy rules as code. {AGENT_COUNTS.measure} agents measure, {AGENT_COUNTS.promote} promotes,{' '}
           {AGENT_COUNTS.execute} execute. This page is the document itself, read from the repository at request time —
           not a summary of it.
@@ -148,10 +148,10 @@ export default async function DoctrinePage() {
       ) : (
         <>
           {sections.length > 0 ? (
-            <ol className="mb-8 grid gap-x-8 gap-y-1 border-t border-[--color-rule] pt-6 sm:grid-cols-2">
+            <ol className="mb-8 grid gap-x-8 gap-y-1 border-t border-(--color-rule) pt-6 sm:grid-cols-2">
               {sections.map((s) => (
                 <li key={s.id} className="text-xs">
-                  <a href={`#${s.id}`} className="text-[--color-paper-faint] hover:text-[--color-paper]">
+                  <a href={`#${s.id}`} className="text-(--color-paper-faint) hover:text-(--color-paper)">
                     {s.text}
                   </a>
                 </li>
