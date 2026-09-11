@@ -1,466 +1,277 @@
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
-import { AGENT_BY_ID, AGENT_COUNTS } from '@/lib/agents/registry';
+import { AGENTS, AGENT_COUNTS } from '@/lib/agents/registry';
 import { systemHealth, type AgentHealth } from '@/lib/agents/health';
-import { PRODUCERS } from '@/lib/agents/producers';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
-import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
-import { getStoreAsync } from '@/lib/store';
-import { FEED_COVERAGE, SEQUENCER_FEED, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
-import { describePriceAge, phaseLabel, readSession } from '@/lib/market/session';
+import { describeAge } from '@/lib/doctrine/reading';
+import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { composeBoard } from '@/lib/floor/board';
-import { FloorBoard } from './components/floor-board';
-import { CityMap } from './components/city-map';
+import { getStoreAsync } from '@/lib/store';
+import { HeroSection } from './components/hero-figure';
+import { StackSection } from './components/stack-figure';
+import { CardsFigure, CityFigure, DotsFigure, WavesFigure } from './components/figures';
+import { Mark } from './components/mark';
 
-/**
- * Rendered on every request, never prerendered.
- *
- * Without this, `next build` executed the page once, read the store at build
- * time, and baked that reading into static HTML — a publication headline from
- * the build machine, served forever as if it were current. A dashboard that
- * shows a frozen moment while claiming to be live is the exact lie this page
- * exists to refuse, and the build output said "static" in plain text.
- */
 export const dynamic = 'force-dynamic';
 
-/**
- * Six states, six meanings. Fog and darkness are not the same colour, because
- * "we never looked" and "it was expected and never arrived" are not the same
- * fact — and a dashboard that paints them alike is the specific lie this whole
- * system was built to stop telling.
- */
-const LIGHTS: Record<AgentHealth, { colour: string; means: string }> = {
-  LIVE: { colour: 'var(--color-state-live)', means: 'ran within its interval' },
-  STALE: { colour: 'var(--color-state-stale)', means: 'ran, but past its freshness threshold' },
-  DEGRADED: { colour: 'var(--color-state-degraded)', means: 'ran, produced nothing publishable' },
-  ABSENT: { colour: 'var(--color-state-dark)', means: 'expected, and never arrived' },
-  ON_REQUEST: { colour: 'var(--color-state-request)', means: 'no interval — never a fault for staying quiet' },
-  NOT_OBSERVED: { colour: 'var(--color-state-fog)', means: 'never looked at — not the same as absent' },
+const LIGHT: Record<AgentHealth, string> = {
+  LIVE: 'var(--color-state-live)',
+  STALE: 'var(--color-state-stale)',
+  DEGRADED: 'var(--color-state-degraded)',
+  ABSENT: 'var(--color-state-dark)',
+  ON_REQUEST: 'var(--color-state-request)',
+  NOT_OBSERVED: 'var(--color-state-fog)',
 };
 
-function Light({ health }: { health: AgentHealth }) {
-  return (
-    <span
-      className="text-[10px] uppercase tracking-[0.16em] whitespace-nowrap"
-      style={{ color: LIGHTS[health].colour }}
-      title={LIGHTS[health].means}
-    >
-      ● {health.replace(/_/g, ' ')}
-    </span>
-  );
-}
+const RULES = [
+  { title: 'Three States, Not Two', body: 'A reading is verified, stale, or unread with a reason. An unread figure renders as an absence — never as zero.' },
+  { title: 'Absence Is Not The Middle', body: 'Below a stated minimum of sources the answer is unknown, never neutral. Neutral is a measurement; unknown is the lack of one.' },
+  { title: 'One Interval, Three Consequences', body: 'Each agent declares one cadence. Freshness, absence, and the promise the site makes all derive from it.' },
+  { title: 'Policy Is Code, Not A Prompt', body: `${RULE_COUNT} rules run ahead of every filing. A number without a source, a forecast, a verdict, a piece of advice — stopped, and kept as an event.` },
+  { title: 'Code Computes, The Model Narrates', body: 'The paper’s lede is written by a model that may repeat the record’s figures and may not add one. It passes the same gate.' },
+];
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 border-t border-[--color-rule] py-2.5 first:border-t-0">
-      <span className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        {label}
-      </span>
-      <span className="text-sm text-right">{children}</span>
-    </div>
-  );
-}
+const DISTRICTS = [
+  { name: 'THE FLOOR', body: 'The session, and every tokenized-equity feed with two ages kept apart: since the oracle published, and since we read it. The issuer’s pause flag beside each.' },
+  { name: 'THE REGISTRY', body: 'Every stock token the issuer lists, the one beacon they all delegate to, and shares-per-token — the on-chain record of every split and reinvested distribution.' },
+  { name: 'THE VAULT', body: 'Transfer flow as an hourly rate sample, never as a total the public node cannot answer. Sending and receiving addresses counted apart.' },
+  { name: 'CHAMBERS', body: 'The published terms, pointed at and watched for change without being read for meaning. And the three numbers the system cannot fake.' },
+  { name: 'THE PRESS', body: 'One story a day, composed from the record. Its lede narrated by a model under the same policy gate as every agent.' },
+  { name: 'THE CAGE', body: 'The declared promoter, kept apart, with its disclosure appended by code on every post it makes.' },
+];
 
-function Absent({ why }: { why: string }) {
-  return (
-    <span className="absent" title={why}>
-      {ABSENT_GLYPH}
-    </span>
-  );
-}
-
-function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-      <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">{title}</h2>
-      {note ? (
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">{note}</p>
-      ) : null}
-      <div className="mt-6">{children}</div>
-    </section>
-  );
-}
+const PIPELINE = ['PRODUCE', 'PROVENANCE', 'POLICY', 'PUBLISH', 'HEARTBEAT'];
 
 export default async function Home() {
   const now = new Date();
-  const session = readSession(now);
   const store = await getStoreAsync();
+  const [heartbeats, feeds] = await Promise.all([store.latestHeartbeats(), store.snapshots('feed:')]);
+  const health = heartbeats.state === 'UNREAD' ? null : systemHealth(heartbeats.value, now);
+  const board = feeds.state === 'UNREAD' ? null : composeBoard(feeds.value, now);
+  const byId = new Map(health?.statuses.map((s) => [s.id, s]) ?? []);
 
-  const [heartbeatsRead, publicationsRead, blocksRead, feedSnapshots, headSnapshots] = await Promise.all([
-    store.latestHeartbeats(),
-    store.recentPublications(6),
-    store.recentBlocks(5),
-    store.snapshots('feed:'),
-    store.snapshots('chain:head'),
-  ]);
-  // The chain head as the Pillar last read it. Checked field by field: it is stored JSON.
-  const headRow = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((sn) => sn.key === 'chain:head') ?? null);
-  const chainHead =
-    headRow && typeof headRow.payload.number === 'number' && typeof headRow.payload.ageSeconds === 'number'
-      ? {
-          number: headRow.payload.number,
-          ageSeconds: headRow.payload.ageSeconds,
-          stalled: headRow.payload.stalled === true,
-          sampleAgeSeconds: Math.max(0, Math.round((now.getTime() - new Date(headRow.observedAt).getTime()) / 1000)),
-        }
-      : null;
+  const liveLine =
+    board === null
+      ? 'The record could not be read for this page; nothing is inferred from that.'
+      : board.sampleState === 'NONE'
+        ? 'No feed has been sampled into the record yet.'
+        : `${board.counts.priced} of ${board.counts.equity} tokenized-equity feeds priced, sampled ${board.sampleAgeSeconds === null ? 'at an unknown time' : `${describeAge(board.sampleAgeSeconds)} ago`}; ${board.counts.pastHeartbeat} past heartbeat, ${board.counts.paused} paused.`;
 
-  /**
-   * Null means the store would not answer. Rendering an empty roster here would
-   * paint nine agents as never-observed, which reads as a young system rather
-   * than a blind one — the exact substitution this page exists to refuse.
-   */
-  const heartbeats = heartbeatsRead.state === 'UNREAD' ? null : heartbeatsRead.value;
-  const publications = publicationsRead.state === 'UNREAD' ? null : publicationsRead.value;
-  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
-  const health = heartbeats === null ? null : systemHealth(heartbeats, now);
-  const storeFault =
-    heartbeatsRead.state === 'UNREAD'
-      ? `${heartbeatsRead.reason}${heartbeatsRead.detail ? ` — ${heartbeatsRead.detail}` : ''}`
-      : null;
-  const board = feedSnapshots.state === 'UNREAD' ? null : composeBoard(feedSnapshots.value, now);
-  const boardFault =
-    feedSnapshots.state === 'UNREAD'
-      ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}`
-      : null;
-  // The freshest equity sample on the board is the last equity price this
-  // system read. Its verdict is judged against the session, like every price.
-  const freshestEquity = board?.equity
-    .filter((r) => r.price !== null)
-    .reduce<(typeof board.equity)[number] | null>((best, r) => (best === null || r.sampleAgeSeconds < best.sampleAgeSeconds ? r : best), null) ?? null;
-  const priceAge = describePriceAge(freshestEquity ? new Date(freshestEquity.sampledAt) : null, session, now);
-  const closed = session.phase === 'CLOSED';
-  const healthById = health === null ? null : Object.fromEntries(health.statuses.map((st) => [st.id, st.health]));
+  let line = 0;
+  const num = () => String(++line).padStart(2, '0');
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
-      <header className="mb-14">
-        <div className="flex flex-wrap items-baseline justify-between gap-4">
-          <div className="tracking-mark text-xs text-[--color-brass] sm:text-sm">{BRAND.name}</div>
-          <nav className="text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-            <Link href="/agents" className="hover:text-[--color-paper]">
-              The agents
-            </Link>
-            <span className="mx-3">·</span>
-            <Link href="/registry" className="hover:text-[--color-paper]">
-              The Registry
-            </Link>
-            <span className="mx-3">·</span>
-            <Link href="/doctrine" className="hover:text-[--color-paper]">
-              Doctrine
-            </Link>
-            <span className="mx-3">·</span>
-            <Link href="/gazette" className="hover:text-[--color-paper]">
-              {BRAND.paper.name} ›
-            </Link>
-          </nav>
-        </div>
-        <h1 className="mt-8 max-w-3xl text-2xl leading-snug text-[--color-paper] sm:text-4xl sm:leading-tight">
-          {BRAND.thesis}
-        </h1>
-        <p className="mt-5 max-w-xl text-sm leading-relaxed text-[--color-paper-dim]">
-          {BRAND.descriptor} {AGENT_COUNTS.measure} agents measure, {AGENT_COUNTS.promote}{' '}
-          promotes and declares it, {AGENT_COUNTS.execute} execute. Nothing here places an order.
-        </p>
-      </header>
-
-      <CityMap healthById={healthById} />
-
-      {/* ── THE BELL ──────────────────────────────────────────────────────── */}
-      <section className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">
-            The Bell · session
-          </h2>
-          <span
-            className="text-[11px] uppercase tracking-[0.18em]"
-            style={{ color: closed ? 'var(--color-state-closed)' : 'var(--color-state-live)' }}
-          >
-            ● {phaseLabel(session.phase)}
-          </span>
-        </div>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
-          The chain never closes. The exchange does. Those are not the same clock — and a price
-          carried across a closed market is a memory, not a quote.
-        </p>
-
-        <div className="mt-6 grid gap-x-12 sm:grid-cols-2">
-          <div>
-            <Row label="Exchange day (ET)">
-              <span className="tabular">{session.calendarDay}</span>
-            </Row>
-            <Row label="Trading day">{session.isTradingDay ? 'yes' : 'no'}</Row>
-            <Row label="Non-trading reason">
-              {session.holiday ?? <Absent why="a trading day — no reason to give" />}
-            </Row>
-            <Row label="Early close">{session.earlyClose ? '13:00 ET' : 'no'}</Row>
+    <main className="px-3 sm:px-4">
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <HeroSection>
+        <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <div className="cell flex items-center p-6 sm:p-10 md:row-span-2">
+            <h1 className="display text-4xl text-[--color-paper] md:text-[clamp(2rem,4.4vw,4.5rem)]">
+              The Ticker Tells You &gt;&gt;&gt;
+              <br />
+              &gt;&gt;&gt;The Exposure.
+            </h1>
           </div>
-          <div>
-            <Row label="Closed for">
-              {session.secondsSinceRegularClose === null ? (
-                <Absent why="the market is open — there is no time since close" />
-              ) : (
-                <span className="tabular">{describeAge(session.secondsSinceRegularClose)}</span>
-              )}
-            </Row>
-            <Row label="Next regular open">
-              {session.nextRegularOpenUtc ? (
-                <span className="tabular text-xs">{session.nextRegularOpenUtc}</span>
-              ) : (
-                <Absent why="could not be determined" />
-              )}
-            </Row>
-            <Row label="Last equity price read">
-              {freshestEquity === null ? (
-                <Absent why={board === null ? 'the snapshot store could not be read' : 'no equity feed has been sampled into this store yet'} />
-              ) : (
-                <span className="tabular text-xs">
-                  {freshestEquity.label} · {describeAge(freshestEquity.sampleAgeSeconds)} ago
-                </span>
-              )}
-            </Row>
-            <Row label="Price verdict">
-              <span className="text-xs">{priceAge.kind.replace(/_/g, ' ').toLowerCase()}</span>
-            </Row>
+          <div className="cell p-6 sm:p-8">
+            <p className="text-lg leading-relaxed text-[--color-paper]">
+              The Curb Tells You The Conditions. A Desk Of Nine Agents Reads Robinhood Chain And Two Published
+              Registries On A Schedule, And Prints What It Measured — <strong className="font-bold">With A Source And A Time On Every Figure</strong>,
+              And An Honest Absence Where It Could Not Look.
+            </p>
+            <p className="tabular mt-4 text-[12px] text-[--color-paper-faint]">{liveLine}</p>
           </div>
+          <Link href="/doctrine" className="cell cell-invert flex items-center justify-center p-6 text-2xl sm:text-3xl">
+            Read The Doctrine
+          </Link>
         </div>
+      </HeroSection>
 
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
-            Declared blind spots
-          </div>
-          <ul className="space-y-1.5">
-            {session.blindSpots.map((spot) => (
-              <li key={spot} className="text-xs leading-relaxed text-[--color-paper-faint]">
-                — {spot}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      {/* ── THE FLOOR ─────────────────────────────────────────────────────── */}
-      <section id="floor" className="mb-12 border border-[--color-rule] bg-[--color-ink-2] p-6 sm:p-8">
-        <h2 className="text-[11px] uppercase tracking-[0.28em] text-[--color-paper-faint]">
-          The Floor · the book
-        </h2>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[--color-paper-dim]">
-          Every tokenized-equity feed on Robinhood Chain, as the Pillar last read it: the price,
-          how long since the oracle published it, how long since we read it, and the two flags
-          that decide whether the price means what it appears to mean.
-        </p>
-        <div className="mt-6">
-          <FloorBoard board={board} unreadable={boardFault} />
-        </div>
-      </section>
-
-      {/* ── THE WARDEN ────────────────────────────────────────────────────── */}
-      <Panel
-        title="The Warden · operations"
-        note="Three numbers that cannot be faked, printed when they look bad. Sources reached counts what answered on the last run of each agent, against what a healthy run expects."
-      >
-        {health === null ? (
-          <p
-            className="text-sm leading-relaxed"
-            style={{ color: 'var(--color-state-stale)' }}
-          >
-            The heartbeat store could not be read ({storeFault}). No agent state is shown, and
-            none should be inferred — an unreadable record is not a system where nothing has run.
-          </p>
-        ) : (
-          <>
-        <div className="grid gap-x-12 sm:grid-cols-2">
-          <div>
-            <Row label="Sources reached">
-              <span className="tabular">
-                {health.sourcesReached} / {health.sourcesExpected}
-              </span>
-            </Row>
-            <Row label="Agents reporting, last hour">
-              <span className="tabular">
-                {health.reportingLastHour} / {health.agentsTotal}
-              </span>
-            </Row>
-          </div>
-          <div>
-            <Row label="Oldest input">
-              {health.oldestInputAt ? (
-                <span className="tabular text-xs">{health.oldestInputAt}</span>
-              ) : (
-                <Absent why="nothing has been read yet — reported as absent, not as an age of zero" />
-              )}
-            </Row>
-            <Row label="Blocked outputs kept">
-              {blocks === null ? (
-                <Absent why="the block log could not be read — this is not a count of zero" />
-              ) : (
-                <span className="tabular">{blocks.length}</span>
-              )}
-            </Row>
-          </div>
-        </div>
-
-        <div className="mt-7 border-t border-[--color-rule] pt-5">
-          {health.statuses.map((status) => {
-            const spec = AGENT_BY_ID[status.id];
-            const wired = PRODUCERS[status.id] !== undefined;
-            return (
-              <div
-                key={status.id}
-                className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-[--color-rule] py-3 last:border-b-0"
-              >
-                <div className="min-w-[10rem]">
-                  <span className="text-sm tracking-[0.1em] text-[--color-paper]">
-                    {status.name}
-                  </span>
-                  {!wired ? (
-                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em] text-[--color-state-fog]">
-                      not wired
-                    </span>
-                  ) : null}
-                </div>
-                <span className="text-xs text-[--color-paper-faint]">{spec.role}</span>
-                <span className="tabular text-xs text-[--color-paper-faint]">
-                  {status.sourcesReached === null ? (
-                    <Absent why="never ran" />
-                  ) : (
-                    `${status.sourcesReached}/${status.sourcesExpected}`
-                  )}
-                  {status.dataAgeSeconds === null
-                    ? ''
-                    : ` · ${describeAge(status.dataAgeSeconds)} ago`}
-                </span>
-                <Light health={status.health} />
+      {/* ── THE DISTRICTS ────────────────────────────────────────────────── */}
+      <div className="mt-3 sm:mt-4">
+        <StackSection
+          aside={
+            <div className="cells !border-x-0 !border-t-0 grid-cols-1">
+              <div className="cell overflow-hidden whitespace-nowrap px-4 py-3 text-2xl leading-none tracking-[-0.1em] text-[--color-paper-faint]" aria-hidden="true">
+                ›››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››››
               </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 border-t border-[--color-rule] pt-5">
-          <div className="mb-3 text-[10px] uppercase tracking-[0.18em] text-[--color-paper-faint]">
-            What the lights mean
-          </div>
-          <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-            {(Object.keys(LIGHTS) as AgentHealth[]).map((state) => (
-              <div key={state} className="flex items-baseline gap-3 text-xs">
-                <span style={{ color: LIGHTS[state].colour }}>●</span>
-                <span className="w-28 shrink-0 uppercase tracking-[0.12em] text-[--color-paper-dim]">
-                  {state.replace(/_/g, ' ')}
-                </span>
-                <span className="text-[--color-paper-faint]">{LIGHTS[state].means}</span>
+              <div className="cell p-6 sm:p-8">
+                <h2 className="display text-5xl text-[--color-paper] sm:text-6xl">
+                  Reading
+                  <br />
+                  The -
+                  <br />
+                  Conditions
+                </h2>
+              </div>
+            </div>
+          }
+        >
+          <div className="cells !border-x-0 !border-b-0 grid-cols-1">
+            <div className="cell p-6 sm:p-8">
+              <p className="text-base font-bold leading-relaxed text-[--color-paper]">
+                As Stock Tokens Move On Chain <span className="text-[--color-paper-faint]">XXXXXXXXXXXXXXXXXXXXXXXX</span> What The Price Means Depends On Conditions Nobody Prints.{' '}
+                <span className="text-[--color-paper-faint]">XXXXXXXXXXXXX</span>
+              </p>
+              <p className="mt-4 text-base leading-relaxed text-[--color-paper-dim]">
+                {BRAND.name} keeps six parts of one record so those conditions are in view, and says when they are not.
+              </p>
+            </div>
+            {DISTRICTS.map((d) => (
+              <div key={d.name} className="cell p-6 sm:p-8">
+                <h3 className="text-base font-bold text-[--color-paper]">{d.name}</h3>
+                <p className="mt-2 max-w-md text-base leading-relaxed text-[--color-paper-dim]">{d.body}</p>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs leading-relaxed text-[--color-paper-faint]">
-            A reading we could not take goes into fog, never into darkness. Dark already means
-            expected and never arrived.
-          </p>
-        </div>
-          </>
-        )}
-      </Panel>
+        </StackSection>
+      </div>
 
-      {/* ── THE WIRE ──────────────────────────────────────────────────────── */}
-      <Panel
-        title="The wire · what the agents published"
-        note="Every line below passed provenance and policy before it was written. Nothing is summarised here; this is the output itself."
-      >
-        {publications === null ? (
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-            The publication log could not be read. Nothing is shown, and nothing should be read
-            into that — this is not a wire with no traffic on it.
-          </p>
-        ) : publications.length === 0 ? (
-          <p className="text-sm text-[--color-paper-faint]">
-            Nothing published yet. That is an absence of output, not an absence of agents — the
-            lights above say which.
-          </p>
-        ) : (
-          <div className="space-y-6">
-            {publications.map((pub) => (
-              <article key={pub.id} className="border-t border-[--color-rule] pt-5 first:border-t-0 first:pt-0">
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h3 className="text-sm tracking-[0.1em] text-[--color-brass]">{pub.headline}</h3>
-                  <span className="tabular text-[10px] text-[--color-paper-faint]">
-                    {AGENT_BY_ID[pub.agentId].name} · {pub.publishedAt}
-                  </span>
-                </div>
-                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-[--color-paper-dim]">
-                  {pub.body}
-                </pre>
-                {pub.figures.length > 0 ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-[10px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-                      {pub.figures.length} declared figures, with provenance
-                    </summary>
-                    <ul className="mt-2 space-y-1">
-                      {pub.figures.map((f, i) => (
-                        <li key={`${i}-${f.token}`} className="tabular text-[11px] text-[--color-paper-faint]">
-                          {f.token} — {f.source} @ {f.retrievedAt}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : null}
-              </article>
-            ))}
+      {/* ── THE PROBLEM ──────────────────────────────────────────────────── */}
+      <section className="mt-3 sm:mt-4">
+        <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)_auto]">
+          <div className="cell overflow-hidden lg:row-span-3" style={{ minHeight: '40vh' }}>
+            <WavesFigure />
           </div>
-        )}
-      </Panel>
+          <div className="cell p-6 sm:p-8">
+            <h2 className="display text-4xl text-[--color-paper] sm:text-5xl">
+              A Price
+              <br />
+              Has An Age.
+            </h2>
+            <p className="mt-6 text-base leading-relaxed text-[--color-paper-dim]">
+              Today, The Number You Are Shown For A Stock Token Was Published By An Oracle At Some Moment, While The Exchange Was Open Or Closed, With The Issuer&rsquo;s Pause Flag Set Or Clear. Most Places Print The Number And Hide The Rest.
+            </p>
+          </div>
+          <div className="cell cell-invert row-span-3 hidden items-center justify-center px-3 py-6 lg:flex">
+            <span className="edge-label text-sm">The Problem We&rsquo;re Solving</span>
+          </div>
+          <div className="cell p-6 sm:p-8">
+            <p className="text-base leading-relaxed text-[--color-paper]">
+              {BRAND.name} Exists To Print The Rest, Because <strong className="font-bold">A Figure That Cannot Carry Its Source And Its Time Does Not Go Out.</strong>
+            </p>
+          </div>
+          <Link href="/floor" className="cell cell-invert flex items-center justify-center p-6 text-2xl sm:text-3xl">
+            Open The Floor
+          </Link>
+        </div>
+      </section>
 
-      {/* ── COVERAGE ──────────────────────────────────────────────────────── */}
-      <Panel
-        title="Coverage · what is not here"
-        note="Stated so it cannot be mistaken for completeness. A registry that shows only what it holds looks finished; this one shows the gap."
-      >
-        <Row label="Price feeds in the vendor directory">
-          <span className="tabular">{FEED_COVERAGE.listedByDirectory}</span>
-        </Row>
-        <Row label="Feeds captured and verified on chain">
-          <span className="tabular">
-            {FEED_COVERAGE.capturedHere} / {FEED_COVERAGE.verifiedOnChain}
-          </span>
-        </Row>
-        <Row label="Tokenized-equity feeds">
-          <span className="tabular">{FEED_COVERAGE.equity}</span>
-        </Row>
-        <Row label="Stock tokens in the issuer registry">
-          <span className="tabular">{STOCK_TOKEN_COVERAGE.tokensInRegistry}</span>
-        </Row>
-        <Row label="Stock tokens with no feed this system can read">
-          <span className="tabular">{STOCK_TOKEN_COVERAGE.withoutFeed}</span>
-        </Row>
-        <Row label="Sequencer uptime feed">
-          <Absent why={SEQUENCER_FEED.reason} />
-        </Row>
-        <Row label="Chain head, as last read">
-          {chainHead === null ? (
-            <Absent why="the Pillar has not sampled the chain head into this store yet" />
-          ) : (
-            <span className="tabular text-xs" style={{ color: chainHead.stalled ? 'var(--color-state-dark)' : undefined }}>
-              block {chainHead.number.toLocaleString('en-US')} · {describeAge(chainHead.ageSeconds)} old at the sample · sampled {describeAge(chainHead.sampleAgeSeconds)} ago
-            </span>
-          )}
-        </Row>
-        <Row label="Agents wired">
-          <span className="tabular">
-            {Object.keys(PRODUCERS).length} / {AGENT_COUNTS.total}
-          </span>
-        </Row>
-      </Panel>
+      {/* ── THE RULES ────────────────────────────────────────────────────── */}
+      <section className="mt-3 sm:mt-4">
+        <div className="cells grid-cols-1 md:grid-cols-[minmax(0,3fr)_minmax(0,4fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,3fr)_minmax(0,6fr)]">
+          <div className="cell p-6 sm:p-8">
+            <h2 className="display text-5xl uppercase leading-[1.05] text-[--color-paper] sm:text-6xl">
+              Nine
+              <br />
+              Agents
+              <br />
+              One
+              <br />
+              Gate
+            </h2>
+            <p className="mt-8 text-base leading-relaxed text-[--color-paper-dim]">
+              {AGENT_COUNTS.measure} Measure. {AGENT_COUNTS.promote} Promotes, And Says So On Every Post. {AGENT_COUNTS.execute} Execute — Nothing Here Touches A Venue Or Places An Order. Every Filing Travels One Pipeline, And Every Rule In It Is Code.
+            </p>
+          </div>
+          <div className="cell p-6 sm:p-8">
+            <ul className="space-y-7">
+              {RULES.map((r) => (
+                <li key={r.title}>
+                  <h3 className="text-lg font-bold leading-tight text-[--color-paper]">{r.title}</h3>
+                  <p className="mt-2 text-base leading-relaxed text-[--color-paper-dim]">{r.body}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="cell hidden overflow-hidden lg:block">
+            <CityFigure />
+          </div>
+        </div>
+      </section>
 
-      <footer className="border-t border-[--color-rule] pt-6 text-xs leading-relaxed text-[--color-paper-faint]">
-        <p>
-          A figure that could not be read is shown as absent, with its reason — never as zero.
-          Below a stated minimum of sources no reading is declared at all: that is unknown, and it
-          is not the same as neutral. {RULE_COUNT} publication rules run in code before anything
-          reaches a channel, not asked for in a prompt.
-        </p>
-        <p className="mt-4">
-          Nothing here is investment, legal or tax advice. No agent touches a venue and none of
-          them places an order.
-        </p>
-      </footer>
+      {/* ── THE REGISTRIES ───────────────────────────────────────────────── */}
+      <section className="mt-3 sm:mt-4">
+        <div className="cells grid-cols-1">
+          <div className="cell hidden overflow-hidden sm:block" style={{ height: '34vh' }}>
+            <CardsFigure />
+          </div>
+          <div className="cells !border-0 grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="cell p-6 sm:p-8">
+              <h2 className="display text-4xl text-[--color-paper] sm:text-5xl">
+                Two Registries,
+                <br />
+                Verified On Chain
+              </h2>
+            </div>
+            <div className="cell p-6 sm:p-8">
+              <p className="text-base leading-relaxed text-[--color-paper-dim]">
+                The Vendor&rsquo;s Feed Directory And The Issuer&rsquo;s Asset Registry Are Captured With A Hash And A Block, And Every Entry Is Verified On Chain Before It Is Read By Anyone: {FEED_COVERAGE.listedByDirectory} Feeds, {STOCK_TOKEN_COVERAGE.tokensInRegistry} Stock Tokens, One Beacon Behind All Of Them.
+              </p>
+              <p className="mt-4 text-base leading-relaxed text-[--color-paper-dim]">
+                When The World Moves On From The Capture, The Registrar Says So The Same Day — And The Remedy Is A Re-Capture, Never A Hand Edit.
+              </p>
+            </div>
+            <div className="cell flex items-center justify-center px-10 py-8 text-[--color-paper]">
+              <Mark size={96} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── THE PRESS ────────────────────────────────────────────────────── */}
+      <section className="mt-3 sm:mt-4">
+        <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="cell relative overflow-hidden" style={{ minHeight: '52vh' }}>
+            <DotsFigure total={STOCK_TOKEN_COVERAGE.tokensInRegistry} withFeed={STOCK_TOKEN_COVERAGE.withFeed} />
+            <div className="absolute bottom-5 left-5 max-w-xs border border-[--color-rule] bg-[--color-ink]">
+              <div className="cell-invert px-4 py-2 text-base">{BRAND.paper.name}</div>
+              <p className="px-4 py-3 text-lg leading-snug text-[--color-paper]">
+                One Story A Day.
+                <br />
+                Every Claim Sourced.
+                <br />
+                Every Absence Named.
+              </p>
+            </div>
+          </div>
+          <div className="cell p-5 sm:p-6">
+            <pre className="tabular overflow-x-auto text-[11px] leading-[1.7] text-[--color-paper-dim] xl:text-[12px]">
+              {`${num()} ${'-'.repeat(44)}
+${num()} <PIPELINE  every filing, in order
+${PIPELINE.map((step) => `${num()} /          ${step}`).join('\n')}
+${num()} ${'-'.repeat(44)}
+${num()} <AGENTS    as of ${now.toISOString().slice(11, 16)} UTC
+${AGENTS.map((a) => {
+  const st = byId.get(a.id);
+  const light = st ? st.health : 'NOT_OBSERVED';
+  return `${num()} / ${a.name.padEnd(14)} ${light.toLowerCase().replace('_', ' ').padEnd(12)} ${a.role}`;
+}).join('\n')}
+${num()} ${'-'.repeat(44)}
+${num()} <GATE      ${RULE_COUNT} rules, code, ahead of every post
+${num()} /          forecast · advice · verdict · unsourced figure
+${num()} ${'-'.repeat(44)}`}
+            </pre>
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[--color-paper-faint]">
+              {(Object.keys(LIGHT) as AgentHealth[]).map((h) => (
+                <span key={h} className="flex items-center gap-1.5">
+                  <span style={{ color: LIGHT[h] }}>●</span>
+                  {h.toLowerCase().replace('_', ' ')}
+                </span>
+              ))}
+            </div>
+            <div className="mt-6 cells !border-0 grid-cols-2">
+              <Link href="/gazette" className="cell cell-invert flex items-center justify-center px-4 py-4 text-base">
+                Read Today&rsquo;s Edition
+              </Link>
+              <Link href="/agents" className="cell flex items-center justify-center px-4 py-4 text-base text-[--color-paper] hover:bg-[--color-ink-3]">
+                Meet The Agents
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="h-3 sm:h-4" />
     </main>
   );
 }

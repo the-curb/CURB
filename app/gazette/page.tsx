@@ -49,11 +49,6 @@ export default async function GazetteIndex() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">
-          ‹ {BRAND.name}
-        </Link>
-      </nav>
 
       <header className="mb-10">
         <div className="border-t-2 border-[--color-paper]" />

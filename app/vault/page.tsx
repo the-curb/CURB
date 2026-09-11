@@ -1,6 +1,3 @@
-import Link from 'next/link';
-import { BRAND } from '@/lib/brand';
-import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { composeFlow, composeSeries, FLOW_SERIES, type Flow, type FlowSeries } from '@/lib/vault/flow';
 import { getStoreAsync } from '@/lib/store';
@@ -105,13 +102,6 @@ export default async function VaultPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">‹ {BRAND.name}</Link>
-        <span className="mx-3">·</span>
-        <Link href="/registry" className="hover:text-[--color-paper]">The Registry</Link>
-        <span className="mx-3">·</span>
-        <Link href="/agents/tally" className="hover:text-[--color-paper]">{AGENT_BY_ID.tally.name}</Link>
-      </nav>
 
       <header className="mb-10">
         <div className="tracking-mark text-xs text-[--color-brass]">THE VAULT</div>

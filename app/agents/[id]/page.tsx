@@ -86,14 +86,6 @@ export default async function AgentPage(props: { params: Params }) {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 flex flex-wrap items-baseline justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/agents" className="hover:text-[--color-paper]">‹ All agents</Link>
-        <span>
-          <Link href={`/agents/${prev.id}`} className="hover:text-[--color-paper]">‹ {prev.name}</Link>
-          <span className="mx-3">·</span>
-          <Link href={`/agents/${next.id}`} className="hover:text-[--color-paper]">{next.name} ›</Link>
-        </span>
-      </nav>
 
       <header className="mb-10">
         <div className="flex flex-wrap items-baseline gap-4">

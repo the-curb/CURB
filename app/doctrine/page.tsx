@@ -1,7 +1,5 @@
-import Link from 'next/link';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { BRAND } from '@/lib/brand';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { AGENT_COUNTS } from '@/lib/agents/registry';
 import { parseMarkdown, type Block, type Inline } from '@/lib/docs/markdown';
@@ -129,13 +127,6 @@ export default async function DoctrinePage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">‹ {BRAND.name}</Link>
-        <span className="mx-3">·</span>
-        <Link href="/agents" className="hover:text-[--color-paper]">The agents</Link>
-        <span className="mx-3">·</span>
-        <Link href="/registry" className="hover:text-[--color-paper]">The Registry</Link>
-      </nav>
 
       <header className="mb-6">
         <div className="tracking-mark text-xs text-[--color-brass]">DOCTRINE</div>

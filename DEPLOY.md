@@ -9,14 +9,14 @@ so.
 
 ## Before anything: what the build has to be
 
-`next build` must show `/` as **ƒ (Dynamic)**. If it says `○ (Static)`, the
-dashboard was prerendered with whatever the store held at build time and will
-serve that forever. `app/page.tsx` sets `dynamic = 'force-dynamic'` for this
-reason; do not remove it.
+`next build` must show every page as **ƒ (Dynamic)**. If one says `○ (Static)`,
+it was prerendered with whatever the store held at build time and will serve
+that forever. Every page under `app/` sets `dynamic = 'force-dynamic'` for this
+reason; do not remove it. The only static route is `/_not-found`.
 
 ```
 Route (app)
-┌ ƒ /              ← must be ƒ, and so must every other route
+┌ ƒ /               the front page: the thesis, the districts, the desk's state
 ├ ƒ /agents
 ├ ƒ /api/desk
 ├ ƒ /api/floor      the Floor board as data
@@ -24,11 +24,12 @@ Route (app)
 ├ ƒ /api/session
 ├ ƒ /api/state      the operator's page
 ├ ƒ /api/tick
-├ ƒ /chambers        the terms watched, the conditions, the three numbers
+├ ƒ /chambers       the terms watched, the conditions, the three numbers
 ├ ƒ /doctrine
+├ ƒ /floor          the session, the book, the Warden, the wire
 ├ ƒ /gazette
 ├ ƒ /registry
-└ ƒ /vault           flow as an hourly rate sample
+└ ƒ /vault          flow as an hourly rate sample
 ```
 
 `/api/tick` and `/api/desk` declare `maxDuration = 60`. A tick with the Tally,

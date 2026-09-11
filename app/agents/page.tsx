@@ -26,9 +26,6 @@ export default async function AgentsIndex() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">‹ {BRAND.name}</Link>
-      </nav>
 
       <header className="mb-12">
         <div className="tracking-mark text-xs text-[--color-brass]">THE AGENTS</div>

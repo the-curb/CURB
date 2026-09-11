@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { composeEdition, isValidDay, utcDay, type Edition } from '@/lib/gazette/edition';
 import { getStoreAsync } from '@/lib/store';
@@ -112,15 +111,6 @@ export default async function EditionPage(props: { params: Params }) {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/gazette" className="hover:text-[--color-paper]">
-          ‹ All editions
-        </Link>
-        <span className="mx-3">·</span>
-        <Link href="/" className="hover:text-[--color-paper]">
-          {BRAND.name}
-        </Link>
-      </nav>
 
       <Masthead edition={edition} />
 

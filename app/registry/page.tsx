@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { BRAND } from '@/lib/brand';
 import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { STOCK_TOKENS_SOURCE, STOCK_TOKEN_BEACON } from '@/lib/chain/stock-tokens';
 import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
@@ -64,11 +63,6 @@ export default async function RegistryPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">‹ {BRAND.name}</Link>
-        <span className="mx-3">·</span>
-        <Link href="/agents" className="hover:text-[--color-paper]">The agents</Link>
-      </nav>
 
       <header className="mb-12">
         <div className="tracking-mark text-xs text-[--color-brass]">THE REGISTRY</div>
@@ -237,7 +231,7 @@ export default async function RegistryPage() {
                         {row.feedName === null ? (
                           <span className="absent" title="no Chainlink feed prices this token; its price is not stated anywhere on this site">{ABSENT_GLYPH}</span>
                         ) : (
-                          <Link href="/#floor" className="text-[--color-paper-faint] hover:text-[--color-paper]" title={row.feedName}>
+                          <Link href="/floor" className="text-[--color-paper-faint] hover:text-[--color-paper]" title={row.feedName}>
                             on the floor
                           </Link>
                         )}

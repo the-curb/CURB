@@ -1,6 +1,3 @@
-import Link from 'next/link';
-import { BRAND } from '@/lib/brand';
-import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { systemHealth } from '@/lib/agents/health';
 import { NEVER_DETERMINED } from '@/lib/chain/terms';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
@@ -76,13 +73,6 @@ export default async function ChambersPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <nav className="mb-8 text-[11px] uppercase tracking-[0.16em] text-[--color-paper-faint]">
-        <Link href="/" className="hover:text-[--color-paper]">‹ {BRAND.name}</Link>
-        <span className="mx-3">·</span>
-        <Link href="/agents/counsel" className="hover:text-[--color-paper]">{AGENT_BY_ID.counsel.name}</Link>
-        <span className="mx-3">·</span>
-        <Link href="/agents/warden" className="hover:text-[--color-paper]">{AGENT_BY_ID.warden.name}</Link>
-      </nav>
 
       <header className="mb-10">
         <div className="tracking-mark text-xs text-[--color-brass]">CHAMBERS</div>

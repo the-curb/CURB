@@ -1,18 +1,33 @@
 @import 'tailwindcss';
 
+/*
+ * One palette, no colour: black, white, and the greys between. Every block sits
+ * inside a 1px cell and the cells butt against each other, so the page reads
+ * as one drawn grid. The only colour on the site is the six state lights,
+ * because they encode the doctrine and a light is not decoration.
+ *
+ * Two themes, the same tokens. Dark is the default; the half-moon in the
+ * header flips `data-theme` and everything follows, because nothing anywhere
+ * names a colour directly.
+ */
 @theme {
-  --color-ink: #07080a;
-  --color-ink-2: #0d0f13;
-  --color-ink-3: #14171d;
-  --color-rule: #23272f;
-  --color-rule-2: #2f343d;
-  --color-paper: #e8e4da;
-  --color-paper-dim: #9aa0aa;
-  --color-paper-faint: #6b7280;
+  --color-ink: #0e0e0e;
+  --color-ink-2: #0e0e0e;
+  --color-ink-3: #161616;
+  --color-rule: #3a3a3a;
+  --color-rule-2: #4a4a4a;
+  --color-paper: #dadada;
+  --color-paper-dim: #a6a6a6;
+  --color-paper-faint: #7a7a7a;
 
-  /* Brass — the deco accent. Used for the mark and for live state only. */
-  --color-brass: #c8a24a;
-  --color-brass-dim: #8a6f30;
+  /* The inverted cell: white ground, black text. CTAs and edge labels. */
+  --color-invert: #e6e6e6;
+  --color-invert-ink: #0e0e0e;
+
+  /* Brass is retired as an accent; the name is kept so nothing has to move.
+     Where it used to glow it now reads as the paper itself. */
+  --color-brass: #dadada;
+  --color-brass-dim: #7a7a7a;
 
   /* State colours. These are load-bearing: they encode the doctrine.
      Fog and darkness are deliberately different. NOT_OBSERVED is fog — we never
@@ -27,24 +42,41 @@
   --color-state-absent: #5b616b;
   --color-state-closed: #7d8590;
 
-  --font-display: 'Georgia', 'Times New Roman', serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+  --font-sans: var(--font-grotesk), 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Menlo, monospace;
 }
 
 html {
   color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-ink: #e9e9e9;
+  --color-ink-2: #e9e9e9;
+  --color-ink-3: #dedede;
+  --color-rule: #9c9c9c;
+  --color-rule-2: #8a8a8a;
+  --color-paper: #111111;
+  --color-paper-dim: #3d3d3d;
+  --color-paper-faint: #6a6a6a;
+  --color-invert: #111111;
+  --color-invert-ink: #e9e9e9;
+  --color-brass: #111111;
+  --color-brass-dim: #6a6a6a;
+  --color-state-fog: #b5b9c0;
+  --color-state-absent: #8b9099;
 }
 
 body {
-  background:
-    radial-gradient(ellipse 120% 80% at 50% -20%, #171a21 0%, transparent 60%),
-    var(--color-ink);
+  background: var(--color-ink);
   color: var(--color-paper);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* The hairline rule that separates every block — deco ledger ruling. */
+/* The hairline rule that separates every block. */
 .rule-t {
   border-top: 1px solid var(--color-rule);
 }
@@ -60,5 +92,71 @@ body {
 }
 
 .tabular {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── The cell grammar ──────────────────────────────────────────────────────
+   A `.cell` is a bordered block. Put cells side by side inside a `.cells`
+   grid and the shared edges collapse to one hairline, so a row of cells reads
+   as one ruled table rather than a row of boxes. */
+.cells {
+  display: grid;
+  gap: 1px;
+  background: var(--color-rule);
+  border: 1px solid var(--color-rule);
+}
+
+.cell {
+  background: var(--color-ink);
+  min-width: 0;
+}
+
+.cell-invert {
+  background: var(--color-invert);
+  color: var(--color-invert-ink);
+}
+
+.cell-invert a {
+  color: inherit;
+}
+
+/* A dotted drafting grid behind the hero figure. */
+.grid-dots {
+  background-image:
+    linear-gradient(to right, var(--color-rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-rule) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, #000 40%, transparent 100%);
+}
+
+/* A vertical label on the edge of a section, read bottom to top. */
+.edge-label {
+  writing-mode: vertical-rl;
+  text-orientation: sideways;
+  transform: rotate(180deg);
+  letter-spacing: 0.08em;
+}
+
+/* Display type: the big words. */
+.display {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+/* A striped texture for the footer's display line. */
+.stripes {
+  background-image: repeating-linear-gradient(
+    100deg,
+    var(--color-rule) 0 1px,
+    transparent 1px 7px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
