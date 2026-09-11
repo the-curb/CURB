@@ -6,7 +6,9 @@
  * exception that some caller quietly turns into a zero.
  */
 
+import https from 'node:https';
 import { activeNetwork, rpcUrl, type NetworkProfile } from './networks.ts';
+import { dohEnabled, dohLookup } from './doh.ts';
 import { read, unread, type Reading } from '../doctrine/reading.ts';
 
 interface RpcSuccess {
@@ -32,6 +34,71 @@ export interface RpcOptions {
   readonly intervalSeconds: number;
 }
 
+interface TransportResponse {
+  readonly ok: boolean;
+  readonly status: number;
+  readonly text: string;
+}
+
+/**
+ * The transport, in two shapes that behave the same from the caller's side.
+ *
+ * By default this is `fetch`, which resolves through the system resolver. When
+ * DNS over HTTPS is enabled it becomes `node:https` with a custom lookup, so the
+ * address comes from an encrypted query instead of the network's resolver —
+ * while TLS still validates against the real hostname. Nothing about the
+ * request, the timeout, or the error handling differs between the two.
+ */
+async function post(url: string, body: string, signal: AbortSignal): Promise<TransportResponse> {
+  if (!dohEnabled()) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+      signal,
+      cache: 'no-store',
+    });
+    return { ok: response.ok, status: response.status, text: await response.text() };
+  }
+
+  const target = new URL(url);
+  return new Promise<TransportResponse>((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: target.hostname,
+        port: target.port === '' ? 443 : Number(target.port),
+        path: `${target.pathname}${target.search}`,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+        // The only line that differs from the default path: where the address
+        // comes from. `servername` stays the hostname, so the certificate is
+        // still checked against what we asked for, not what we were given.
+        lookup: dohLookup,
+        signal,
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('error', reject);
+        response.on('end', () => {
+          const status = response.statusCode ?? 0;
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            text: Buffer.concat(chunks).toString('utf8'),
+          });
+        });
+      },
+    );
+    request.on('error', reject);
+    request.write(body);
+    request.end();
+  });
+}
+
 /**
  * One RPC call, returned as a reading. `source` names the endpoint host so the
  * provenance line points at something a reader could check themselves.
@@ -49,13 +116,11 @@ export async function rpcCall<T>(
   const startedAt = new Date();
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: ++requestId, method, params }),
-      signal: controller.signal,
-      cache: 'no-store',
-    });
+    const response = await post(
+      url,
+      JSON.stringify({ jsonrpc: '2.0', id: ++requestId, method, params }),
+      controller.signal,
+    );
 
     if (!response.ok) {
       return unread('SOURCE_UNREACHABLE', {
@@ -64,7 +129,7 @@ export async function rpcCall<T>(
       });
     }
 
-    const body = (await response.json()) as RpcSuccess | RpcFailure;
+    const body = JSON.parse(response.text) as RpcSuccess | RpcFailure;
     if ('error' in body) {
       // A revert is not malformed data. The node answered correctly; the
       // contract declined to. Calling a function a contract does not implement
