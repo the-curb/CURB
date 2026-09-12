@@ -215,5 +215,111 @@
       "name": "Transfer",
       "type": "event"
     }
+  ],
+  "functions": [
+    {
+      "name": "allocateExit",
+      "inputs": [
+        {
+          "name": "lots",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "claimComponent",
+      "inputs": [
+        {
+          "name": "component",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "mint",
+      "inputs": [
+        {
+          "name": "lots",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "setClaimPaused",
+      "inputs": [
+        {
+          "name": "component",
+          "type": "uint8"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "setClaimPermit",
+      "inputs": [
+        {
+          "name": "holder",
+          "type": "address"
+        },
+        {
+          "name": "permitted",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "setMintPaused",
+      "inputs": [
+        {
+          "name": "paused",
+          "type": "bool"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "setMintPermit",
+      "inputs": [
+        {
+          "name": "holder",
+          "type": "address"
+        },
+        {
+          "name": "until",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "transferOperator",
+      "inputs": [
+        {
+          "name": "next",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    }
   ]
 }

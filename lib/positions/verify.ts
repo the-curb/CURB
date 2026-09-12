@@ -23,6 +23,7 @@ import { isRead, unread, type Reading } from '../doctrine/reading.ts';
 import type { SnapshotRecord, Store } from '../store/types.ts';
 import { latestEvidence, type EvidenceSource } from './evidence.ts';
 import type { OndoAsset, XstocksAsset } from './issuers.ts';
+import { driftKey } from './journal.ts';
 
 /** The reads are on request; this is the interval they are aged against. */
 export const VERIFY_INTERVAL_SECONDS = 24 * 3600;
@@ -241,7 +242,18 @@ export async function verifySeriesCandidates(store: Store, seriesId: string, now
       lastDrift: drift.length > 0 ? drift : previous.run?.lastDrift ?? [],
     } as unknown as Record<string, unknown>,
   };
-  const written = await store.writeSnapshots([record]);
+  const records: SnapshotRecord[] = [record];
+  // A drift is also journalled under its own key, one row per run that found
+  // one, so the day it happened keeps it after the latest run has moved on.
+  if (drift.length > 0) {
+    const at = now.toISOString();
+    records.push({
+      key: driftKey(seriesId, at),
+      observedAt: at,
+      payload: { seriesId, chainId: profile.chainId, network: profile.id, at, previousRanAt: previous.run?.ranAt ?? null, drift } as unknown as Record<string, unknown>,
+    });
+  }
+  const written = await store.writeSnapshots(records);
   return {
     seriesId,
     chainId: profile.chainId,

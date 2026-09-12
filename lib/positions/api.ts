@@ -15,6 +15,17 @@ import { latestReconciliation, type Reconciliation } from './reconcile.ts';
 import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.ts';
 import { latestVerification, type AddressVerification } from './verify.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
+import { allocateExitCall, approveCall, claimCall, mintCall, type PreparedCall } from './calldata.ts';
+
+/**
+ * The calls a wallet would sign, when there is a contract to sign against.
+ * The site prepares bytes; it never holds a key and never sends. Absent a
+ * deployment the field says why, and nothing is prepared.
+ */
+function signItYourself(status: DeploymentStatus, calls: (d: SeriesDeployment) => readonly PreparedCall[]) {
+  if (status.state !== 'CONFIGURED') return { state: status.state, reason: 'there is no contract to sign against; nothing is prepared', calls: [] as readonly PreparedCall[] };
+  return { state: 'PREPARED' as const, reason: null, calls: calls(status.deployment) };
+}
 
 export interface DeploymentView {
   readonly state: DeploymentStatus['state'];
@@ -200,7 +211,17 @@ export function previewMint(spec: SeriesSpec, lotsRaw: string | null) {
     exit: 'by exit allocation and a separate claim per component',
     sendsTransaction: false,
     deployment: deploymentView(spec.id),
+    signItYourself: signItYourself(status, (d) => [
+      approveCall(d.components.A, d.address, lots * d.q.A, spec.components[0].instrument),
+      approveCall(d.components.B, d.address, lots * d.q.B, spec.components[1].instrument),
+      mintCall(d.address, lots, deadlineFromNow()),
+    ]),
   };
+}
+
+/** A mint expires a quarter of an hour after it was prepared: long enough to read, short enough to be the thing that was read. */
+function deadlineFromNow(now = Date.now()): bigint {
+  return BigInt(Math.floor(now / 1000) + 15 * 60);
 }
 
 export function previewExit(spec: SeriesSpec, lotsRaw: string | null) {
@@ -219,6 +240,7 @@ export function previewExit(spec: SeriesSpec, lotsRaw: string | null) {
     promisedRecoveryValue: null,
     sendsTransaction: false,
     deployment: deploymentView(spec.id),
+    signItYourself: signItYourself(status, (d) => [allocateExitCall(d.address, lots), claimCall(d.address, 'A'), claimCall(d.address, 'B')]),
   };
 }
 

@@ -250,6 +250,12 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     ? 'none'
                     : reconciliation.reconciliation.components.map((c) => `${c.component} ${c.finding.toLowerCase()}`).join(' · ')}
                 </dd>
+                <dt className="text-(--color-paper-faint)">Sign it yourself</dt>
+                <dd className="text-(--color-paper-dim)">
+                  {deployment.state === 'CONFIGURED'
+                    ? `/api/positions/${spec.id}/preview-mint?lots=N and preview-exit?lots=N return the approvals and the call as bytes for your own wallet; the site holds no key and sends nothing`
+                    : 'nothing is prepared for a series that is not deployed; when one is, the preview endpoints return the bytes for your own wallet, and the site still sends nothing'}
+                </dd>
               </dl>
               {deployment.detail ? <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">{deployment.detail}</p> : null}
             </div>

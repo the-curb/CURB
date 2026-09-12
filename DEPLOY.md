@@ -244,9 +244,12 @@ its own RPC override.
   With it set, the tick reads the contract's events from `fromBlock` (idempotent
   on transaction hash and log index; block hashes kept for reorg rollback),
   replays them through the same ledger the simulation and tests use, and
-  reconciles what the series owes against `balanceOf` on each component:
-  MATCHED, SURPLUS, SHORTFALL, or UNKNOWN. Without it, every read of a chain
-  for that series is skipped and `/api/status` says `NOT_DEPLOYED`.
+  reconciles what the series owes against `balanceOf` on each component,
+  read at the block the index reached so owed and held are measured at the
+  same height: MATCHED, SURPLUS, SHORTFALL, or UNKNOWN (a node that no
+  longer serves that block's state says so, and nothing is compared across
+  heights). Without it, every read of a chain for that series is skipped
+  and `/api/status` says `NOT_DEPLOYED`.
 - **Documents watched.** The nine pages the issuers publish about the
   instruments are fetched on the same daily run and kept as the hash of their
   visible text — never read for meaning. A change raises a NOTE condition for
@@ -258,6 +261,12 @@ its own RPC override.
   owes, a balance that could not be read, and an event the ledger model
   refuses. They appear on `/api/state` under `conditions` and on Chambers,
   and are posted to the webhook once when raised and once when cleared.
+- **The Gazette's positions section.** Each day's edition carries the
+  product's verified changes: a body first archived or changed (by the
+  archive's version rows, dated when first seen) and an address that moved
+  between verification runs (by the drift rows the verification writes under
+  `positions:drift:<series>:<time>`). It is derived from those rows on every
+  request and adds nothing to them; an empty day is printed as empty.
 - **Fork evidence.** `contracts/evidence/<series>.fork.json` is written by
   `npm run test:fork` in `contracts/` and committed; the site reads it at
   request time and shows it dated. No file, no finding shown.
@@ -273,6 +282,19 @@ its own RPC override.
   `/api/wallets/<address>/claims`, `/api/status`. Every amount is a string of
   integer base units. A preview sends nothing and estimates nothing; a value
   it does not have is `NOT_AVAILABLE` with a reason, never zero.
+- **Sign it yourself.** Once a deployment is configured, the previews also
+  return `signItYourself`: the two ERC-20 approvals and the series call
+  (`mint`, or `allocateExit` and the two `claimComponent` calls) as `to` and
+  `data` bytes, with selectors derived from the contract's signatures. They
+  are for the holder's own wallet or script. The site holds no key, signs
+  nothing and sends nothing; a mint prepared this way expires fifteen
+  minutes after it was prepared.
+- **Rehearsal on a local chain.** The whole path — deployment record, index,
+  ledger replay, reconciliation, wallet endpoints, prepared bytes — can be
+  run against a Hardhat node on this machine, with the worked example sent as
+  real transactions. `contracts/README.md` gives the three commands. It
+  proves the plumbing, not a public deployment: chain id 31337 is refused by
+  every profile but `hardhat-local`, which no production setting names.
 
 ## What is not covered here
 

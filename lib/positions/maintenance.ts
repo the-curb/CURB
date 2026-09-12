@@ -84,7 +84,7 @@ export async function positionsMaintenance(store: Store, now: Date): Promise<Pos
     }
     const { index, report } = await syncIndex(store, spec.id, deployment, opts, now);
     const { ledger, disagreements } = reduceLedger(index, deployment.q, deployment.capLots);
-    const { reconciliation } = await reconcileSeries(store, spec.id, deployment, ledger, disagreements, report.head, opts, now);
+    const { reconciliation } = await reconcileSeries(store, spec.id, deployment, ledger, disagreements, index.cursor, opts, now);
     series.push({
       seriesId: spec.id,
       deployment: 'CONFIGURED',

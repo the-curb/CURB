@@ -45,14 +45,44 @@ A public node serves recent state only, so the block is not pinned; an
 archive endpoint in `ETH_RPC_URL` pins one. Component B is a mock here:
 Ondo's record is behind an API key this desk does not hold.
 
+## Rehearsal on a local node
+
+The site's index, ledger replay, reconciliation and wallet endpoints can be
+run against this contract on a Hardhat node on this machine, with the
+blueprint's worked example sent as real transactions — Alice mints 25,
+others 75, Alice allocates 25 for exit, the issuer halts A, her A claim
+reverts and her B claim pays, A resumes, Bob mints 10.
+
+```bash
+npx hardhat node                 # one terminal: chain id 31337, unlocked accounts
+node scripts/rehearsal.ts        # another: deploys mocks + the series, runs the example, prints one JSON line
+```
+
+Copy the printed line into the site's test run from the repository root:
+
+```bash
+CURB_REHEARSAL_DEPLOYMENTS='<that line>' npm test
+```
+
+`tests/positions-rehearsal.test.ts` then reads the five events back in the
+order the chain emitted them, replays them through the ledger (85 lots,
+250 A reserved), syncs a second time without applying anything twice,
+reconciles A and B against `balanceOf` (both `MATCHED`), and has the node
+simulate the bytes the previews prepare for a wallet from the holders' own
+addresses — accepted where the contract should accept them, reverted where
+it should not. Without the variable the test skips; nothing here touches a
+public chain or holds a key.
+
 ## What the tests cover, in the blueprint's numbering
 
 T01–T12, T17, T19, T20, T22–T25, the operator's limits, the preview
 deadline, the worked example row by row, and the fuzz. On the fork: the
 real wrapper's identity, transfer, series round trip and unwrap (T21:
-it unwraps), and the raw token's transfer and derived balance. Not covered:
-T13 (prices — the contract has none), T14 (a corporate action across a
-recorded block), T16 and T18 (a running index and a backend).
+it unwraps), and the raw token's transfer and derived balance. On the local
+node: T16 and T18 in the part a local chain can show — a running index and
+reconciliation against real events. Not covered: T13 (prices — the contract
+has none), T14 (a corporate action across a recorded block), and anything
+on a public chain.
 
 The events the contract emits are the ones `lib/positions/events.ts`
 decodes; `tests/contract-events.test.ts` in the repository root checks the

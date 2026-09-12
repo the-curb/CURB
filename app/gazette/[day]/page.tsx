@@ -4,6 +4,14 @@ import { getStoreAsync } from '@/lib/store';
 import { editionHash } from '@/lib/gazette/narrate';
 import { BRAND } from '@/lib/brand';
 import { ABSENT_GLYPH } from '@/lib/doctrine/reading';
+import { positionsJournal, type JournalEntry } from '@/lib/positions/journal';
+import { seriesById } from '@/lib/positions/series';
+
+const JOURNAL_LABEL: Record<JournalEntry['kind'], string> = {
+  EVIDENCE_ARCHIVED: 'archived',
+  EVIDENCE_CHANGED: 'changed',
+  DRIFT: 'moved on chain',
+};
 
 /** Composed on every request. Today's edition grows until midnight UTC. */
 export const dynamic = 'force-dynamic';
@@ -96,6 +104,9 @@ export default async function EditionPage(props: { params: Params }) {
   const edition = composeEdition(record.value, now);
   const isFuture = day > utcDay(now);
   const districts = [...new Set(edition.sections.map((s) => s.district))];
+  // The position product's verified changes that day: issuer bodies archived
+  // or changed, candidate addresses that moved between verification runs.
+  const journal = isFuture ? null : await positionsJournal(store, day);
 
   // The narrated lede, if one was attempted for this exact composition. A
   // narration pinned to an older hash is stale prose about a different edition
@@ -272,6 +283,52 @@ export default async function EditionPage(props: { params: Params }) {
             </p>
           </section>
         </>
+      )}
+
+      {journal === null ? null : (
+        <section className="mb-12">
+          <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
+            Positions · verified changes
+          </h2>
+          <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
+            {journal.storeFault !== null ? (
+              <p className="text-sm" style={{ color: 'var(--color-state-stale)' }}>
+                The position product&apos;s archive could not be read ({journal.storeFault}). Nothing is shown, and an unreadable archive is not a day without change.
+              </p>
+            ) : journal.entries.length === 0 ? (
+              <p className="text-sm text-(--color-paper-faint)">
+                No issuer record or document was archived or changed, and no candidate address moved between verification runs, on {day}. Printed so its absence would be noticed.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {journal.entries.map((e) => (
+                  <li key={`${e.at}-${e.seriesId}-${e.component}-${e.subject}-${e.mark}`} className="text-sm">
+                    <span className="tabular text-[10px] text-(--color-paper-faint)">{e.at.slice(11, 16)} UTC</span>
+                    <span className="ml-3 text-(--color-accent)">{e.component}</span>
+                    <span className="ml-2 text-(--color-paper)">
+                      {e.url ? (
+                        <a href={e.url} className="underline decoration-(--color-rule-2) underline-offset-4 hover:text-(--color-paper)" rel="noopener noreferrer" target="_blank">
+                          {e.subject}
+                        </a>
+                      ) : (
+                        <span className="tabular">{e.subject}</span>
+                      )}
+                    </span>
+                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em]" style={{ color: e.kind === 'DRIFT' ? 'var(--color-state-dark)' : e.kind === 'EVIDENCE_CHANGED' ? 'var(--color-state-degraded)' : 'var(--color-paper-faint)' }}>
+                      {JOURNAL_LABEL[e.kind]} · {e.mark}
+                    </span>
+                    <p className="mt-1 text-xs leading-relaxed text-(--color-paper-faint)">
+                      {seriesById(e.seriesId)?.name ?? e.seriesId} — {e.detail}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
+            Derived from the archive&apos;s version rows and the verification&apos;s drift rows, by the day they were observed; composed again tomorrow from the same rows, the day reads the same. A change is a fact about the source, not a finding about the instrument.
+          </p>
+        </section>
       )}
 
       <footer className="border-t border-(--color-rule) pt-6 text-[11px] leading-relaxed text-(--color-paper-faint)">

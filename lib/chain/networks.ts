@@ -13,7 +13,7 @@
  */
 
 export interface NetworkProfile {
-  readonly id: 'robinhood-mainnet' | 'robinhood-testnet' | 'ethereum-mainnet' | 'ethereum-sepolia';
+  readonly id: 'robinhood-mainnet' | 'robinhood-testnet' | 'ethereum-mainnet' | 'ethereum-sepolia' | 'hardhat-local';
   readonly label: string;
   readonly chainId: number;
   readonly chainIdHex: string;
@@ -50,6 +50,16 @@ export const NETWORKS: Readonly<Record<NetworkProfile['id'], NetworkProfile>> = 
     defaultRpcUrl: 'https://ethereum-rpc.publicnode.com',
     rpcEnv: 'CURB_RPC_URL_ETHEREUM',
     explorerUrl: 'https://etherscan.io',
+  },
+  /** A Hardhat node on this machine, for rehearsing the position product's index and reconciliation end to end. */
+  'hardhat-local': {
+    id: 'hardhat-local',
+    label: 'Hardhat (local)',
+    chainId: 31337,
+    chainIdHex: '0x7a69',
+    defaultRpcUrl: 'http://127.0.0.1:8545',
+    rpcEnv: 'CURB_RPC_URL_LOCAL',
+    explorerUrl: null,
   },
   'ethereum-sepolia': {
     id: 'ethereum-sepolia',

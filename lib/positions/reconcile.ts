@@ -8,11 +8,9 @@
  * report says so in its own text so nobody has to remember.
  */
 
-import { SELECTORS } from '../chain/abi.ts';
-import { readMany } from '../chain/multicall.ts';
-import { decodeUint } from '../chain/abi.ts';
+import { decodeUint, SELECTORS } from '../chain/abi.ts';
 import { positionsNetwork } from '../chain/networks.ts';
-import type { RpcOptions } from '../chain/rpc.ts';
+import { rpcCall, type RpcOptions } from '../chain/rpc.ts';
 import { isRead } from '../doctrine/reading.ts';
 import type { Store } from '../store/types.ts';
 import type { SeriesDeployment } from './deployments.ts';
@@ -60,19 +58,32 @@ export function reconcileComponent(ledger: LedgerState, i: ComponentId, token: s
   return { component: i, token, finding, owed: owed.toString(), held: held.toString(), difference: (held - owed).toString(), reason: null };
 }
 
-export async function readComponentBalances(deployment: SeriesDeployment, opts: RpcOptions): Promise<Record<ComponentId, { value: bigint | null; reason: string | null }>> {
-  const calls = COMPONENTS.map((i) => ({ target: deployment.components[i], data: balanceOfCalldata(deployment.address) }));
-  const answers = await readMany(calls, opts);
+/**
+ * Two direct calls, one per component — not a Multicall3 batch, so the
+ * reconciliation works on any chain the series could live on, including a
+ * local one with no Multicall3 deployed. Each answer is its own reading.
+ *
+ * Both are read at `atBlock` — the block the ledger was replayed to — so
+ * what is owed and what is held are measured at the same height. A node
+ * that no longer serves that block's state answers UNKNOWN, with the
+ * reason; that is truer than a live balance set against a stale ledger.
+ */
+export async function readComponentBalances(deployment: SeriesDeployment, opts: RpcOptions, atBlock: number | null = null): Promise<Record<ComponentId, { value: bigint | null; reason: string | null }>> {
   const out = {} as Record<ComponentId, { value: bigint | null; reason: string | null }>;
-  COMPONENTS.forEach((i, idx) => {
-    const a = answers[idx];
-    if (!a || !isRead(a)) {
-      out[i] = { value: null, reason: a ? `${a.reason}${a.detail ? ` — ${a.detail}` : ''}` : 'no answer' };
-      return;
+  const tag = atBlock === null ? 'latest' : `0x${atBlock.toString(16)}`;
+  for (const i of COMPONENTS) {
+    const a = await rpcCall<string>('eth_call', [{ to: deployment.components[i], data: balanceOfCalldata(deployment.address) }, tag], opts);
+    if (!isRead(a)) {
+      out[i] = { value: null, reason: `${a.reason}${a.detail ? ` — ${a.detail}` : ''}` };
+      continue;
+    }
+    if (a.value === '0x' || a.value === '') {
+      out[i] = { value: null, reason: 'balanceOf returned no data — the token reverted or is not a token' };
+      continue;
     }
     const v = decodeUint(a.value);
     out[i] = v === null ? { value: null, reason: 'balanceOf undecodable' } : { value: v, reason: null };
-  });
+  }
   return out;
 }
 
@@ -88,7 +99,7 @@ export async function reconcileSeries(
   opts: RpcOptions,
   now: Date,
 ): Promise<{ reconciliation: Reconciliation; recorded: boolean }> {
-  const balances = await readComponentBalances(deployment, opts);
+  const balances = await readComponentBalances(deployment, opts, asOfBlock);
   const reconciliation: Reconciliation = {
     seriesId,
     chainId: (opts.profile ?? positionsNetwork()).chainId,
