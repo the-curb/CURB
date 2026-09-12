@@ -3,7 +3,7 @@ import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
 import { latestRate } from '@/lib/credits/maintenance';
 import { receipts } from '@/lib/credits/receipts';
-import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, centsText } from '@/lib/credits/prices';
+import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, TERMS_DECISION, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { getStoreAsync } from '@/lib/store';
 import { CreditDesk } from '../components/credit-desk';
@@ -30,7 +30,7 @@ export default async function ServicesPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-8">
         <div className="kicker">
-          <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · the minimum and the prices {PRICES_STATUS} · the terms proposed
+          <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · decided by {TERMS_DECISION.by}, {TERMS_DECISION.on}
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
@@ -66,7 +66,7 @@ export default async function ServicesPage() {
             </tbody>
           </table>
           <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
-            Everything the site shows today stays free: the series pages, the latest evidence, the instrument file, the previews, the wallet lookups, the status endpoint and the Gazette. The paid endpoints are the history and the fan-out. A call is charged before it is answered; a call that is refused is not charged. Credits do not expire while the service they buy is offered; a service closes with {NOTICE_DAYS} days&rsquo; notice here and in the journal; nothing is refunded in dollars or in CURB, because the contract has no refund path and the desk offers none.
+            Everything the site shows today stays free: the series pages, the latest evidence, the instrument file, the previews, the wallet lookups, the status endpoint and the Gazette. The paid endpoints are the history and the fan-out. A call is charged only when it is answered; a call that is refused is not charged. The terms, decided with the prices: credits do not expire while the service they buy is offered; a service closes with {NOTICE_DAYS} days&rsquo; notice here and in the journal; nothing is refunded in dollars or in CURB, because the contract has no refund path and the desk offers none.
           </p>
         </div>
 

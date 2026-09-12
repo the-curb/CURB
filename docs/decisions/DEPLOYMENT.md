@@ -25,7 +25,7 @@ A deployment record is one JSON file, reviewed by name and date, kept beside the
 
 ## The credit desk, the same way
 
-If [the token record](TOKEN.md) is decided, the credit desk is deployed by the same discipline, after the token exists:
+[The token record](TOKEN.md) is decided; the credit desk is deployed by the same discipline, after the token exists:
 
 1. **The record.** `contracts/records/credit-desk.example.json` shows the shape: network, chain id, RPC endpoint, the token and its decimals, the treasury (the operator multisig), the price source (a pool, or `null` until one exists), `reviewedBy`, `reviewedAt`. The token and the treasury are read from the chain, never typed from a launchpad's page.
 2. **Dry run.** `node scripts/deploy-credit-desk.ts <record> --dry-run`: the node answers the record's chain id; the token has code and answers `symbol()`, `decimals()` and `totalSupply()` with the decimals the record expects; the treasury has code (a multisig) on any public chain; the pool, if named, has code. Nothing is sent.

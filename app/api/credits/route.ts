@@ -2,7 +2,7 @@ import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
 import { latestRate, latestRun } from '@/lib/credits/maintenance';
 import { receipts } from '@/lib/credits/receipts';
-import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, centsText } from '@/lib/credits/prices';
+import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, TERMS_DECISION, TERMS_STATUS, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { getStoreAsync } from '@/lib/store';
 
@@ -49,11 +49,12 @@ export async function GET(request: Request): Promise<Response> {
       receipts: paid,
       minimumOpenCents: MINIMUM_OPEN_CENTS,
       minimumOpen: centsText(MINIMUM_OPEN_CENTS),
-      /** Who decided the opening minimum and the per-unit prices, and when. The record's terms are still proposed. */
+      /** Who decided the opening minimum, the per-unit prices and the record's terms, and when. */
       minimumDecided: MINIMUM_DECISION,
       pricesDecided: PRICES_DECISION,
       pricesStatus: PRICES_STATUS,
-      termsStatus: 'proposed',
+      termsDecided: TERMS_DECISION,
+      termsStatus: TERMS_STATUS,
       noticeDays: NOTICE_DAYS,
       services: SERVICES.map((s) => ({ id: s.id, title: s.title, what: s.what, cents: s.cents, price: `${centsText(s.cents)} per ${s.unit}`, path: s.path, status: PRICES_STATUS })),
       rate:

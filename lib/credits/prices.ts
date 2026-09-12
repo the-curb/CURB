@@ -52,15 +52,17 @@ export const SERVICES: readonly Service[] = [
 /**
  * What a key must have been credited, cumulatively, before it can be used.
  * Decided: the product owner set the opening minimum at US$20.00 on
- * 12 September 2026, and the same day confirmed the per-unit prices above.
- * Every figure in this file is therefore decided; the record's terms —
- * validity, cancellation, the proceeds split, the order of work — are not,
- * and the token record says so.
+ * 12 September 2026, and the same day confirmed the per-unit prices above
+ * and the record's terms. Every figure in this file is decided; a change
+ * from here on is a change of a decided price and gets the notice below.
  */
 export const MINIMUM_OPEN_CENTS = 2_000;
 export const MINIMUM_DECISION = { by: 'the product owner', on: '2026-09-12' } as const;
 export const PRICES_DECISION = { by: 'the product owner', on: '2026-09-12' } as const;
 export const PRICES_STATUS = 'decided' as const;
+/** The record's terms — validity, cancellation, governance, the proceeds split, the order of work — decided the same day. */
+export const TERMS_DECISION = { by: 'the product owner', on: '2026-09-12' } as const;
+export const TERMS_STATUS = 'decided' as const;
 
 /** How many days' notice a price change or a service closure gets, per the record. */
 export const NOTICE_DAYS = 30;

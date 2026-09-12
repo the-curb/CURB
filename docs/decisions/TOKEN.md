@@ -1,6 +1,6 @@
 # The CURB token — one function, priced in dollars, paid in CURB
 
-**Status:** Proposed, 12 September 2026, with the prices decided: **the opening minimum of US$20.00 and the per-unit prices below were decided by the product owner on 12 September 2026.** The validity and cancellation terms, the governance line, the proceeds split and the order of work remain proposed and await the product owner. The mechanism's §16 says the only sensible function to test for CURB is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. This record proposes each of those, and the order in which they happen: the services and the gate first, the token after.
+**Status:** **Decided by the product owner, 12 September 2026** — the function, the prices (the US$20.00 opening minimum, the per-unit prices below), the validity and cancellation terms, the governance line, the proceeds split and the order of work. What the record leaves open is listed at the end: the chain the token launches on, and a reviewer's view on credit expiry. Written the same day as a proposal; the mechanism's §16 says the only sensible function to test for CURB is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. This record proposes each of those, and the order in which they happen: the services and the gate first, the token after.
 
 ## Why the token comes up now
 
@@ -77,9 +77,11 @@ Shares are of net proceeds after the launchpad's own take, which is not known he
 
 `contracts/src/CreditDesk.sol` and its fifteen tests, its build recorded for the site to verify against (`contracts/evidence/CreditDesk.build.json`), and the deployment tool with its example record (refused by design); `lib/credits/` — the price list, the rate reader, the key store, the top-up indexer, the paid-endpoint gate (admitted first, charged only when there is an answer), the webhook subscriptions (posted only to public addresses, checked when posting), the code verification and the receipts; `/services` and `/api/credits`, where the receipts — what the desk has taken in, as credited, by count and by amount — are derived from the keys' rows on every request; the desk's conditions on `/api/state` (no rate: STALE; top-ups waiting for a rate: NOTE; code or treasury not the record's: DARK); the rehearsal on a local chain, including the deployment tool. No token exists; no pool exists; nothing is configured in production; every figure on the services page that depends on a rate says so.
 
-## Open, for the person who decides
+## Decided, and what stays open
 
-- ~~The prices above, and the US$20 minimum.~~ Decided — the product owner, 12 September 2026: the figures in `lib/credits/prices.ts` and on the services page. A change from here on is a change of a decided price and gets the thirty days' notice.
-- Whether credits should expire, and after how long, if the reviewers say open-ended credits are a liability the desk should not carry.
-- The proceeds split, and whether the review comes first even if that delays everything else — this record says it does.
-- Which chain the token launches on. The desk's chain profiles are locked in code; a chain not in `lib/chain/networks.ts` is a reviewed code change before anything is read from it.
+Decided by the product owner on 12 September 2026, in this order: the US$20.00 opening minimum; the per-unit prices (US$0.05 a call for evidence versions and the journal, US$0.10 an alert delivery); then the rest of the record as written — the validity and cancellation terms, the governance line, the proceeds split with the review first, and the order of work. The figures are the ones in `lib/credits/prices.ts` and on the services page. A change from here on is a change of a decided term and gets the thirty days' notice.
+
+Still open:
+
+- **Which chain the token launches on.** The desk's chain profiles are locked in code; a chain not in `lib/chain/networks.ts` is a reviewed code change before anything is read from it. Decided when the launch is.
+- **A reviewer's view on credit expiry.** If the independent review says open-ended credits are a liability the desk should not carry, an expiry is a change of a decided term: thirty days' notice, and credits already held keep their dollar value until it.

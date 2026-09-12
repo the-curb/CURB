@@ -21,7 +21,7 @@
 
 ## The treasury of the credit desk
 
-If [the token record](TOKEN.md) is decided, the credit desk's treasury — the address every top-up goes to, an immutable of the desk that the site verifies against the record on every tick — is **the same multisig**, and its spending is under this policy:
+[The token record](TOKEN.md) is decided; the credit desk's treasury — the address every top-up goes to, an immutable of the desk that the site verifies against the record on every tick — is **the same multisig**, and its spending is under this policy:
 
 | Action | When | Who decides | Record |
 | --- | --- | --- | --- |
