@@ -21,6 +21,7 @@
 | The backend is down | Nothing changes: permits are on chain; claims pay | Restores the tick; the index catches up from its cursor | "The site is behind; your claims can be made from any wallet against the contract; the address is on the series page." |
 | The RPC fails | Nothing on chain changes | Reads report `HEAD_UNREAD` / `UNKNOWN`; the cursor is kept; nothing is rolled back; the operator switches the endpoint | "Figures are not being read; nothing shown is guessed." |
 | A source is lost | Nothing on chain changes | The archive keeps the last record; a STALE condition names the source; the operator reads the issuer's page | "The issuer's record could not be fetched since *t*; the last archived version is shown as such." |
+| A stop is needed and the operator is a quorum | Nothing until the quorum executes; minting continues meanwhile | One signer proposes at once; a second confirms; the policy's one-signer stop applies to a multisig that lets one signer execute a stop, which the mock does not — a pilot's multisig should | "Minting stopped at *t* by the operator, reason *r*; resumed only after a second review." |
 
 ## Lost access and lost keys
 

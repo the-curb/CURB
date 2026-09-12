@@ -72,7 +72,7 @@ describe('the operational drill, on a local chain', () => {
     assert.equal(synced.report.state, 'SYNCED', synced.report.detail ?? '');
     const { ledger, disagreements } = reduceLedger(synced.index, deployment.q, deployment.capLots);
     assert.deepEqual(disagreements, []);
-    assert.equal(ledger.n, 50n, '40 + 30 minted, 10 + 10 allocated for exit');
+    assert.equal(ledger.n, 52n, '40 + 30 minted, 10 + 10 allocated for exit, then 1 + 1 by carol around the quorum stop');
     const bob = record.holders.bob.toLowerCase();
     assert.equal(claimsOf(ledger, bob).A, 100n * 10n ** 18n, "bob's A is still owed: he could not be paid while the series was short");
     assert.equal(claimsOf(ledger, bob).B, 0n, 'bob was paid his B with no backend involved');
@@ -88,8 +88,8 @@ describe('the operational drill, on a local chain', () => {
     const a = reconciliation.components.find((c) => c.component === 'A')!;
     const b = reconciliation.components.find((c) => c.component === 'B')!;
     assert.equal(a.finding, 'SHORTFALL');
-    assert.equal(a.owed, (600n * 10n ** 18n).toString());
-    assert.equal(a.held, (550n * 10n ** 18n).toString());
+    assert.equal(a.owed, (620n * 10n ** 18n).toString());
+    assert.equal(a.held, (570n * 10n ** 18n).toString());
     assert.equal(a.difference, (-50n * 10n ** 18n).toString());
     assert.equal(b.finding, 'MATCHED');
     const reconcileSnap = await store.snapshots('positions:reconcile:apple-s1');
@@ -106,6 +106,17 @@ describe('the operational drill, on a local chain', () => {
       finding: 'the reconciliation found A SHORTFALL by exactly what was seized and B MATCHED; the condition is DARK on A alone; on chain, claims of A halt and claims of B pay',
       evidence: { owedA: a.owed, heldA: a.held, differenceA: a.difference, findingB: b.finding, asOfBlock: reconciliation.asOfBlock, condition: conditions[0]!.text },
     });
+    const quorum = record.steps.filter((s) => s.scenario.startsWith('6 '));
+    assert.equal(quorum.length, 10, 'the quorum scenario ran all its steps');
+    assert.ok(quorum.every((s) => s.outcome === 'AS_EXPECTED'));
+    const stopped = synced.index.events.filter((e) => e.event.name === 'MintStatusChanged');
+    assert.deepEqual(stopped.map((e) => (e.event.name === 'MintStatusChanged' ? [e.event.paused, e.event.reason] : null)), [[true, 'drill: quorum stop'], [false, 'drill: quorum resume after review']], 'the index carries the stop and the resume with the reasons the multisig sent');
+    findings.push({
+      scenario: '6 operator quorum',
+      finding: 'the operator role was handed to a 2-of-3 multisig; the former single key could no longer stop minting; one signer’s proposal did not stop it and a second confirmation did; the resume needed two again; the index recorded both with their reasons',
+      evidence: { multisig: (record as unknown as { operatorMultisig?: unknown }).operatorMultisig ?? null, steps: Object.fromEntries(quorum.map((s) => [`${s.who}: ${s.did}`, s.tx ?? `reverted ${s.revert}`])) },
+    });
+
     const frozen = record.steps.filter((s) => s.scenario.startsWith('1 '));
     findings.push({
       scenario: '1 issuer freezes A',

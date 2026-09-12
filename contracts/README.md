@@ -116,9 +116,12 @@ public chain or holds a key.
 `scripts/drill.ts` stages the incidents the blueprint names, on a fresh
 series on the same Hardhat node: the issuer freezes A (claims of A revert,
 claims of B pay, minting is refused, then A resumes and the A claim pays);
-the issuer seizes part of the A the series holds (A's whole-liability check
-halts A payments, B still pays, minting is refused); a holder claims with
-no backend involved. Every transaction hash and every revert name is kept.
+the operator role is handed to a 2-of-3 multisig (`src/mocks/MockMultisig.sol`,
+a stand-in for a Safe) and a stop and a resume each need two signatures,
+with the former single key refused; the issuer seizes part of the A the
+series holds (A's whole-liability check halts A payments, B still pays,
+minting is refused); a holder claims with no backend involved. Every
+transaction hash and every revert name is kept.
 
 ```bash
 node scripts/drill.ts > drill.json      # the chain half; one JSON line on stdout

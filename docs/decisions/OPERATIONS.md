@@ -39,4 +39,4 @@ Every operator transaction has a reason string on chain and an entry in the inci
 
 ## What exists today
 
-The functions and events named above, in `contracts/src/CompanySeries.sol`, with tests for the operator's limits; the conditions the desk raises (`/api/state` → `conditions`); the drill on the series page. No signers, no multisig, no logs — because there is nothing to operate yet.
+The functions and events named above, in `contracts/src/CompanySeries.sol`, with tests for the operator's limits; the conditions the desk raises (`/api/state` → `conditions`); the drill on the series page, whose sixth scenario hands the operator role to a 2-of-3 multisig (a mock, for the rehearsal) and shows that one signer's proposal does not stop minting, a second confirmation does, the former single key can no longer act, and the resume needs two again — the index carrying both with their reasons. No signers, no real multisig, no logs — because there is nothing to operate yet.

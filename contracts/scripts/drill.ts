@@ -11,6 +11,11 @@
  *                                       check halts A payments, B still pays
  *   3. the backend is down            — a holder claims with no site involved:
  *                                       the permit is on chain
+ *   6. the operator is a quorum       — the series' operator becomes a 2-of-3
+ *                                       multisig (a mock, for the rehearsal);
+ *                                       one signer proposes a stop, it waits;
+ *                                       a second confirms, minting stops; the
+ *                                       resume needs two again
  *
  * "The source is lost" and "the RPC fails" are the site's incidents, not the
  * chain's; tests/positions-drill.test.ts runs them against this deployment.
@@ -22,7 +27,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, toFunctionSelector, type Address, type Hex } from 'viem';
 
 const RPC = process.env.REHEARSAL_RPC_URL ?? 'http://127.0.0.1:8545';
 const QA = 10n * 10n ** 18n;
@@ -30,7 +35,7 @@ const QB = 20n * 10n ** 18n;
 const CAP = 1_000n;
 
 function artifact(name: string): { abi: unknown[]; bytecode: Hex } {
-  const path = name === 'MockToken' ? 'artifacts/src/mocks/MockToken.sol/MockToken.json' : 'artifacts/src/CompanySeries.sol/CompanySeries.json';
+  const path = name === 'MockToken' ? 'artifacts/src/mocks/MockToken.sol/MockToken.json' : name === 'MockMultisig' ? 'artifacts/src/mocks/MockMultisig.sol/MockMultisig.json' : 'artifacts/src/CompanySeries.sol/CompanySeries.json';
   return JSON.parse(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex };
 }
 
@@ -56,8 +61,13 @@ async function main() {
   const mock = artifact('MockToken');
   const series = artifact('CompanySeries');
   const erc20 = parseAbi(['function mint(address,uint256)', 'function approve(address,uint256) returns (bool)', 'function setHalted(bool)', 'function seize(address,uint256)', 'function balanceOf(address) view returns (uint256)']);
-  // The artifact's ABI, so a revert decodes to its name rather than a selector.
+  // The artifact's ABI, so a revert decodes to its name rather than a selector — and the selectors of its
+  // custom errors, for the node answers viem does not decode ("unrecognized custom error (return data: 0x…)").
   const seriesAbi = series.abi;
+  const errorNames = new Map<string, string>();
+  for (const item of series.abi as { type: string; name?: string; inputs?: { type: string }[] }[]) {
+    if (item.type === 'error' && item.name) errorNames.set(toFunctionSelector(`${item.name}(${(item.inputs ?? []).map((i) => i.type).join(',')})`), item.name);
+  }
 
   const deploy = async (abi: unknown[], bytecode: Hex, args: unknown[]) => {
     const hash = await wallet(operator).deployContract({ abi: abi as never, bytecode, args: args as never });
@@ -86,7 +96,8 @@ async function main() {
       const line = message.split('\n').find((l) => /^Error: [A-Z][A-Za-z]+\(/.test(l.trim()));
       const name = line ? /([A-Z][A-Za-z]+)\(/.exec(line.trim())?.[1] : null;
       const args = line ? /^\s*\(([^)]*)\)\s*$/m.exec(message.slice(message.indexOf(line) + line.length))?.[1] : null;
-      const reason = name ? `${name}(${args ?? ''})` : message.slice(0, 160);
+      const selector = /return data: (0x[0-9a-fA-F]{8})/.exec(message)?.[1]?.toLowerCase() ?? null;
+      const reason = name ? `${name}(${args ?? ''})` : selector && errorNames.has(selector) ? `${errorNames.get(selector)}()` : message.split(String.fromCharCode(10))[0]!.slice(0, 160);
       steps.push({ scenario, who, did, expected: expected === 'SUCCEEDS' ? 'the transaction succeeds' : 'the transaction reverts', outcome: expected === 'REVERTS' ? 'AS_EXPECTED' : 'NOT_AS_EXPECTED', tx: null, revert: reason });
     }
   };
@@ -119,6 +130,30 @@ async function main() {
   // No site is involved in any of these transactions; the permit is on chain.
   await attempt('3 backend down', 'bob', bob, 'claims his B with no backend involved', 'SUCCEEDS', s.address, seriesAbi, 'claimComponent', [1]);
 
+  // ── 6. the operator is a quorum ───────────────────────────────────────
+  // The series' operator becomes a 2-of-3 multisig of the node's next three
+  // accounts; the operator's bytes are the ones scripts/operator-calldata.mjs
+  // prints (encoded here the same way, from the artifact's ABI).
+  const [s1, s2, s3] = [accounts[4], accounts[5], accounts[6]];
+  if (!s1 || !s2 || !s3) throw new Error('the node exposes fewer than seven unlocked accounts');
+  const multisigArtifact = artifact('MockMultisig');
+  const msig = await deploy(multisigArtifact.abi, multisigArtifact.bytecode, [[s1, s2, s3], 2n]);
+  const msigAbi = parseAbi(['function propose(address,bytes) returns (uint256)', 'function confirm(uint256)', 'function proposalCount() view returns (uint256)']);
+  await attempt('6 operator quorum', 'the operator (single key)', operator, 'hands the operator role to a 2-of-3 multisig', 'SUCCEEDS', s.address, seriesAbi, 'transferOperator', [msig.address]);
+  await attempt('6 operator quorum', 'the former operator', operator, 'tries to stop minting alone after the handover', 'REVERTS', s.address, seriesAbi, 'setMintPaused', [true, 'no longer the operator']);
+  const stopData = encodeFunctionData({ abi: seriesAbi as never, functionName: 'setMintPaused' as never, args: [true, 'drill: quorum stop'] as never });
+  await attempt('6 operator quorum', 'signer 1', s1, 'proposes a stop of minting (1 of 2 confirmations)', 'SUCCEEDS', msig.address, msigAbi, 'propose', [s.address, stopData]);
+  await attempt('6 operator quorum', 'carol', carol, 'mints 1 lot while the stop is still one signature short', 'SUCCEEDS', s.address, seriesAbi, 'mint', [1n, deadline]);
+  const stopId = (await pub.readContract({ address: msig.address, abi: msigAbi, functionName: 'proposalCount' })) - 1n;
+  await attempt('6 operator quorum', 'signer 2', s2, 'confirms the stop (2 of 2): the multisig executes it', 'SUCCEEDS', msig.address, msigAbi, 'confirm', [stopId]);
+  await attempt('6 operator quorum', 'carol', carol, 'tries to mint 1 lot while minting is stopped', 'REVERTS', s.address, seriesAbi, 'mint', [1n, deadline]);
+  const resumeData = encodeFunctionData({ abi: seriesAbi as never, functionName: 'setMintPaused' as never, args: [false, 'drill: quorum resume after review'] as never });
+  await attempt('6 operator quorum', 'signer 3', s3, 'proposes the resume (1 of 2)', 'SUCCEEDS', msig.address, msigAbi, 'propose', [s.address, resumeData]);
+  await attempt('6 operator quorum', 'carol', carol, 'tries to mint 1 lot while the resume is one signature short', 'REVERTS', s.address, seriesAbi, 'mint', [1n, deadline]);
+  const resumeId = (await pub.readContract({ address: msig.address, abi: msigAbi, functionName: 'proposalCount' })) - 1n;
+  await attempt('6 operator quorum', 'signer 1', s1, 'confirms the resume (2 of 2)', 'SUCCEEDS', msig.address, msigAbi, 'confirm', [resumeId]);
+  await attempt('6 operator quorum', 'carol', carol, 'mints 1 lot after the resume', 'SUCCEEDS', s.address, seriesAbi, 'mint', [1n, deadline]);
+
   // ── 2. the series is short of A ───────────────────────────────────────
   const liabilityBefore = await read('liabilityA');
   const seized = 5n * QA;
@@ -142,6 +177,7 @@ async function main() {
       'apple-s1': { chainId: 31337, address: s.address, components: { A: a.address, B: b.address }, fromBlock: a.block, q: { A: QA.toString(), B: QB.toString() }, capLots: CAP.toString() },
     },
     holders: { alice, bob, carol },
+    operatorMultisig: { address: msig.address, signers: [s1, s2, s3], threshold: 2 },
     state: { lotsOutstanding: n.toString(), heldA: heldA.toString(), liabilityA: liabilityAfter.toString(), shortfallA: (liabilityAfter - heldA).toString(), bobClaimA: bobClaimA.toString(), bobClaimB: bobClaimB.toString() },
     steps,
   };
