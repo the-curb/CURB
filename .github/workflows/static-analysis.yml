@@ -40,18 +40,19 @@ jobs:
           slither src/CreditDesk.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --print human-summary 2>&1 | grep -E "Number of|analyzed"
           slither src/CompanySeries.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --print human-summary 2>&1 | grep -E "Number of|analyzed"
           exit 0
-      - name: Summary — findings by severity
+      - name: Summary — findings by severity (a compile failure is a red run, not a clean one)
         run: |
           node -e '
             for (const f of ["slither-credit-desk.json", "slither-company-series.json"]) {
               try {
                 const r = JSON.parse(require("fs").readFileSync(f, "utf8"));
+                if (r.success === false || r.error) { console.log(f, "ANALYSIS FAILED:", r.error || "success=false"); process.exitCode = 1; continue; }
                 const ds = (r.results && r.results.detectors) || [];
                 const by = {};
                 for (const d of ds) by[d.impact] = (by[d.impact] || 0) + 1;
                 console.log(f, "detectors:", ds.length, JSON.stringify(by));
                 for (const d of ds.filter((x) => x.impact === "High" || x.impact === "Medium")) console.log("  ", d.impact, d.check, "—", (d.description || "").split("\n")[0].slice(0, 160));
-              } catch (e) { console.log(f, "no report:", e.message); }
+              } catch (e) { console.log(f, "no report:", e.message); process.exitCode = 1; }
             }
           '
       - uses: actions/upload-artifact@v4

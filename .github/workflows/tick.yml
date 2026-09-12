@@ -66,14 +66,16 @@ jobs:
             if (t.alerts) console.log("alerts:", t.alerts.delivery.state, "raised", t.alerts.raised.length, "cleared", t.alerts.cleared.length, "active", t.alerts.active.length);
             if (t.alerts && t.alerts.delivery.state === "FAILED") red("alert delivery FAILED: " + (t.alerts.delivery.reason ?? ""));
             if (t.retention) console.log("retention:", t.retention.state, t.retention.removed ?? "");
-            if (t.retention && t.retention.state === "UNCONFIRMED") red("retention UNCONFIRMED: " + (t.retention.detail ?? ""));
+            if (t.retention && (t.retention.state === "UNCONFIRMED" || t.retention.state === "STATE_UNREADABLE")) red("retention " + t.retention.state + ": " + (t.retention.reason ?? ""));
+            for (const r of t.ran || []) if (r.persisted && r.storage && r.storage.state === "FAILED") red("agent " + r.agentId + " ran but its record was not written: " + (r.storage.reason ?? ""));
             if (t.maintenance) console.log("maintenance:", t.maintenance.state, t.maintenance.detail ?? "");
             if (t.maintenance && t.maintenance.state === "SKIPPED") red("maintenance SKIPPED: " + (t.maintenance.detail ?? ""));
             if (t.credits) console.log("credits:", t.credits.state, "rate", t.credits.rate?.state, "code", t.credits.code?.state, "index", t.credits.index?.state, t.credits.index?.detail ?? "");
             if (t.credits && t.credits.state === "CONFIGURED" && t.credits.index && ["HELD", "STORE_UNREADABLE", "HEAD_UNREAD"].includes(t.credits.index.state)) red("credits index " + t.credits.index.state + ": " + (t.credits.index.detail ?? ""));
             if (t.credits && t.credits.state === "FAILED") red("credits run FAILED: " + (t.credits.detail ?? ""));
             if (t.positions) console.log("positions:", JSON.stringify(t.positions).slice(0, 300));
-            if (t.positions && (t.positions.state === "FAILED" || t.positions.daily?.state === "FAILED")) red("positions run FAILED");
+            if (t.positions && t.positions.daily && t.positions.daily.state === "STATE_UNREADABLE") red("positions daily run: the store did not answer (" + (t.positions.daily.detail ?? "") + ")");
+            for (const s of (t.positions && t.positions.series) || []) if (s.sync && (s.sync.state === "STORE_UNREADABLE" || s.sync.state === "HEAD_UNREAD")) red("positions series " + s.seriesId + " sync " + s.sync.state + ": " + (s.sync.detail ?? ""));
             if (t.narration && t.narration.state === "ATTEMPTED") console.log("narration:", t.narration.record.outcome, t.narration.record.detail ?? "");
             if (t.storeSchema) console.log("schema:", t.storeSchema.state, t.storeSchema.detail ?? "");
             if (t.storeSchema && t.storeSchema.state !== "CURRENT") red("store schema " + t.storeSchema.state + ": " + (t.storeSchema.detail ?? ""));

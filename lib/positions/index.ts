@@ -37,10 +37,12 @@ export interface IndexState {
   /** Logs that could not be decoded, kept with their reason rather than dropped. */
   readonly faults: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly detail: string }[];
   readonly updatedAt: string | null;
+  /** The shape this index was built with (INDEX_VERSION); absent on one a previous build wrote. */
+  readonly version?: number;
 }
 
 export function emptyIndex(deployment: SeriesDeployment): IndexState {
-  return { chainId: deployment.chainId, series: deployment.address, cursor: deployment.fromBlock - 1, blocks: [], events: [], faults: [], updatedAt: null };
+  return { chainId: deployment.chainId, series: deployment.address, cursor: deployment.fromBlock - 1, blocks: [], events: [], faults: [], updatedAt: null, version: INDEX_VERSION };
 }
 
 const eventKey = (e: { transactionHash: string; logIndex: number }) => `${e.transactionHash.toLowerCase()}:${e.logIndex}`;
@@ -146,8 +148,8 @@ export interface OperatorLog {
   /** The operator as the chain last said (the latest OperatorChanged), or null when no change was seen. */
   readonly operator: string | null;
   readonly changes: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly previous: string; readonly next: string }[];
-  /** Mint permits by holder, as last set: the unix time they run until; 0 means revoked. */
-  readonly mintPermits: readonly { readonly holder: string; readonly until: string; readonly blockNumber: number; readonly transactionHash: string }[];
+  /** Mint permits by holder, as last set: the unix time they run until (0 means revoked), and whether that is still ahead of now. */
+  readonly mintPermits: readonly { readonly holder: string; readonly until: string; readonly live: boolean; readonly blockNumber: number; readonly transactionHash: string }[];
   readonly claimPermits: readonly { readonly holder: string; readonly permitted: boolean; readonly blockNumber: number; readonly transactionHash: string }[];
   /** Every pause and resume, with the reason given on chain. */
   readonly stops: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly what: string; readonly paused: boolean; readonly reason: string }[];
@@ -159,7 +161,7 @@ export interface OperatorLog {
  * changing hands. The policy asks for every operator transaction logged;
  * this is that log, derived from the events rather than kept by hand.
  */
-export function operatorLog(state: IndexState): OperatorLog {
+export function operatorLog(state: IndexState, now: Date = new Date()): OperatorLog {
   const changes: OperatorLog['changes'][number][] = [];
   const mint = new Map<string, OperatorLog['mintPermits'][number]>();
   const claim = new Map<string, OperatorLog['claimPermits'][number]>();
@@ -171,7 +173,7 @@ export function operatorLog(state: IndexState): OperatorLog {
         changes.push({ ...at, previous: e.event.previous, next: e.event.next });
         break;
       case 'MintPermitSet':
-        mint.set(e.event.holder, { ...at, holder: e.event.holder, until: e.event.until.toString() });
+        mint.set(e.event.holder, { ...at, holder: e.event.holder, until: e.event.until.toString(), live: e.event.until > BigInt(Math.floor(now.getTime() / 1000)) });
         break;
       case 'ClaimPermitSet':
         claim.set(e.event.holder, { ...at, holder: e.event.holder, permitted: e.event.permitted });
@@ -195,7 +197,16 @@ function serialise(state: IndexState): Record<string, unknown> {
   return JSON.parse(JSON.stringify(state, (_k, v) => (typeof v === 'bigint' ? `${v.toString()}n` : v))) as Record<string, unknown>;
 }
 
-const BIGINT_FIELDS = new Set(['lots', 'unitsA', 'unitsB', 'units']);
+const BIGINT_FIELDS = new Set(['lots', 'unitsA', 'unitsB', 'units', 'until']);
+
+/**
+ * The shape of the index this build writes. An index a previous build wrote
+ * (no version, or an older one) was built without the events this build
+ * reads — the operator's permits — and its cursor has passed the blocks
+ * they are in, so it is not carried forward: it is read again from the
+ * deployment's first block, which costs one sync and loses nothing.
+ */
+export const INDEX_VERSION = 2;
 
 function revive(payload: Record<string, unknown>): IndexState {
   // Only the fields that are amounts are revived; a reason string that happens to look like one stays a string.
@@ -210,6 +221,8 @@ export async function loadIndex(store: Store, seriesId: string, deployment: Seri
   const state = revive(snap.payload as Record<string, unknown>);
   // A deployment that moved chain or address is a different series; its old index is not reused.
   if (state.chainId !== deployment.chainId || state.series !== deployment.address) return { state: emptyIndex(deployment), storeFault: null };
+  // An index a previous build wrote was read without the events this build reads: it is read again from the start.
+  if ((state.version ?? 1) < INDEX_VERSION) return { state: emptyIndex(deployment), storeFault: null };
   return { state, storeFault: null };
 }
 

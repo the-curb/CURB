@@ -73,7 +73,8 @@ export async function POST(request: Request): Promise<Response> {
         await store.releaseRunLock(holder);
       }
     } else {
-      maintenance = { state: 'SKIPPED', detail: result.lock?.state !== 'ACQUIRED' ? `the run lock was ${result.lock?.state ?? 'not taken'}; another tick is running` : `the maintenance lock was ${held?.state ?? 'not taken'}` };
+      const lockWord = (state: string | undefined) => (state === 'HELD_ELSEWHERE' ? `${state}; another tick is running` : state === 'UNDETERMINED' ? `${state}; the store did not say — nothing is run on a lock that may be held` : (state ?? 'not taken'));
+      maintenance = { state: 'SKIPPED', detail: result.lock?.state !== 'ACQUIRED' ? `the run lock was ${lockWord(result.lock?.state)}` : `the maintenance lock was ${lockWord(held?.state)}` };
     }
   }
 

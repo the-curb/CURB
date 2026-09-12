@@ -20,7 +20,15 @@
 export {};
 
 const url = process.argv[2] ?? process.env.CURB_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com';
-console.log('endpoint host:', new URL(url).host, process.argv[2] ? '(argument)' : process.env.CURB_RPC_URL ? '(CURB_RPC_URL)' : '(the public node)');
+let host: string;
+try {
+  host = new URL(url).host;
+} catch {
+  // Node's own error would quote the value; a keyed URL is never printed, valid or not.
+  console.error('the endpoint is not a valid URL (its value is not printed); check the argument or CURB_RPC_URL');
+  process.exit(1);
+}
+console.log('endpoint host:', host, process.argv[2] ? '(argument)' : process.env.CURB_RPC_URL ? '(CURB_RPC_URL)' : '(the public node)');
 
 const USDG = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
 const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';

@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { forgetChainConfirmations, readBlockNumber } from '../lib/chain/rpc.ts';
+import { forgetChainConfirmations, readBlockNumber, rpcCall } from '../lib/chain/rpc.ts';
 import { NETWORKS } from '../lib/chain/networks.ts';
 
 /**
@@ -117,6 +117,38 @@ describe('the chain guard', () => {
     assert.equal(quota.state, 'VERIFIED');
     assert.equal(calls[0], 'node.test.invalid eth_chainId');
     assert.equal(calls.at(-1), 'rpc.mainnet.chain.robinhood.com eth_blockNumber');
+    // A timed-out eth_getLogs page is the reader's signal to halve, not a dead endpoint: no fallback, no demotion.
+    forgetChainConfirmations();
+    primary = 'up';
+    await readBlockNumber(opts);
+    calls.length = 0;
+    const realFetchHere = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const { method } = JSON.parse(String(init?.body)) as { method: string };
+      if (new URL(String(url)).host === 'node.test.invalid' && method === 'eth_getLogs') {
+        // Answers late; honours the abort the transport sends at its timeout, as a real fetch does.
+        return new Promise<Response>((resolve, reject) => {
+          const t = setTimeout(() => resolve(new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: [] }), { status: 200 })), 500);
+          init?.signal?.addEventListener('abort', () => {
+            clearTimeout(t);
+            const e = new Error('aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        });
+      }
+      return realFetchHere(url, init);
+    }) as unknown as typeof globalThis.fetch;
+    const logs = await rpcCall('eth_getLogs', [{ fromBlock: '0x1', toBlock: '0x2' }], { ...opts, timeoutMs: 50 });
+    assert.equal(logs.state, 'UNREAD');
+    assert.equal(logs.reason, 'SOURCE_TIMEOUT');
+    assert.ok(!calls.some((c) => c.startsWith('rpc.mainnet')), 'not tried on the public node');
+    calls.length = 0;
+    const stillPrimary = await readBlockNumber(opts);
+    assert.equal(stillPrimary.state, 'VERIFIED');
+    assert.deepEqual(calls, ['node.test.invalid eth_blockNumber'], 'the primary was not demoted');
+    globalThis.fetch = realFetchHere;
+
     // An answer — a revert — is the reading; nothing is asked elsewhere.
     forgetChainConfirmations();
     primary = 'up';

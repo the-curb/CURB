@@ -65,6 +65,7 @@ export function parseDeployments(raw: string | undefined): { ok: true; deploymen
     if (!components || !isAddress(components.A) || !isAddress(components.B)) return { ok: false, detail: `${seriesId}: components.A and components.B must be addresses` };
     if (components.A.toLowerCase() === components.B.toLowerCase()) return { ok: false, detail: `${seriesId}: the two components share an address — refused (T19)` };
     if (!Number.isInteger(e.fromBlock) || (e.fromBlock as number) < 0) return { ok: false, detail: `${seriesId}: fromBlock must be a non-negative integer` };
+    if (e.operator !== undefined && !(typeof e.operator === 'string' && /^0x[0-9a-fA-F]{40}$/.test(e.operator))) return { ok: false, detail: `${seriesId}: operator, when given, must be a 20-byte hex address` };
     const qA = q ? units(q.A) : null;
     const qB = q ? units(q.B) : null;
     const capLots = units(e.capLots);
@@ -76,7 +77,7 @@ export function parseDeployments(raw: string | undefined): { ok: true; deploymen
       address: e.address.toLowerCase(),
       components: { A: components.A.toLowerCase(), B: components.B.toLowerCase() },
       fromBlock: e.fromBlock as number,
-      ...(typeof e.operator === 'string' && /^0x[0-9a-fA-F]{40}$/.test(e.operator) ? { operator: e.operator.toLowerCase() } : {}),
+      ...(typeof e.operator === 'string' ? { operator: e.operator.toLowerCase() } : {}),
       q: { A: qA, B: qB },
       capLots,
     };

@@ -335,11 +335,11 @@ export function describePriceAge(
   const ageSeconds = Math.max(0, Math.round((now.getTime() - priceRetrievedAt.getTime()) / 1000));
 
   if (session.phase === 'REGULAR') return { kind: 'IN_SESSION', ageSeconds };
-  if (session.phase === 'PRE' || session.phase === 'POST') {
+  // A price older than the last regular close predates it whatever the hour: in the pre-market it has not seen today's open, in the post-market it has not seen the session that just closed.
+  const closedFor = session.secondsSinceRegularClose;
+  if ((session.phase === 'PRE' || session.phase === 'POST') && !(closedFor !== null && ageSeconds > closedFor)) {
     return { kind: 'EXTENDED_HOURS', ageSeconds };
   }
-
-  const closedFor = session.secondsSinceRegularClose;
   if (closedFor !== null && ageSeconds > closedFor) {
     return {
       kind: 'PREDATES_LAST_CLOSE',

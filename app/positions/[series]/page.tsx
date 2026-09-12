@@ -347,9 +347,15 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                 <dd className="text-(--color-paper-dim)">{ledger.ledger === null ? 'none — nothing is read from a chain for a series that is not deployed' : `${ledger.events} events to block ${ledger.cursor}; ${ledger.ledger.n.toString()} lots outstanding`}</dd>
                 <dt className="text-(--color-paper-faint)">The operator</dt>
                 <dd className="text-(--color-paper-dim)">
-                  {ledger.operator === null
-                    ? 'nobody — no series is deployed and no operator is named (the register’s A4)'
-                    : `${ledger.operator.operator ?? 'as deployed'} · ${ledger.operator.mintPermits.filter((x) => x.until !== '0').length} mint permit${ledger.operator.mintPermits.filter((x) => x.until !== '0').length === 1 ? '' : 's'} live, ${ledger.operator.claimPermits.filter((x) => x.permitted).length} claim permit${ledger.operator.claimPermits.filter((x) => x.permitted).length === 1 ? '' : 's'} · ${ledger.operator.stops.length} stop${ledger.operator.stops.length === 1 ? '' : 's'} or resume${ledger.operator.stops.length === 1 ? '' : 's'} on chain${ledger.operator.changes.length > 0 ? ` · operator changed ${ledger.operator.changes.length} time${ledger.operator.changes.length === 1 ? '' : 's'}` : ''} — every one an event the chain recorded, the log the policy asks for`}
+                  {ledger.storeFault !== null
+                    ? `not readable — ${ledger.storeFault}`
+                    : ledger.deployment === null
+                      ? deployment.state === 'CONFIG_INVALID'
+                        ? `the deployment record is invalid: ${deployment.detail ?? ''}`
+                        : 'nobody — no series is deployed and no operator is named (the register’s A4)'
+                      : ledger.operator === null
+                        ? 'not readable'
+                        : `${ledger.operator.operator ?? 'as deployed'} · ${ledger.operator.mintPermits.filter((x) => x.live).length} mint permit${ledger.operator.mintPermits.filter((x) => x.live).length === 1 ? '' : 's'} live, ${ledger.operator.claimPermits.filter((x) => x.permitted).length} claim permit${ledger.operator.claimPermits.filter((x) => x.permitted).length === 1 ? '' : 's'} · ${ledger.operator.stops.length} stop${ledger.operator.stops.length === 1 ? '' : 's'} or resume${ledger.operator.stops.length === 1 ? '' : 's'} on chain${ledger.operator.changes.length > 0 ? ` · operator changed ${ledger.operator.changes.length} time${ledger.operator.changes.length === 1 ? '' : 's'}` : ''} — every one an event the chain recorded, the log the policy asks for`}
                 </dd>
                 <dt className="text-(--color-paper-faint)">Reconciliation</dt>
                 <dd className="text-(--color-paper-dim)">

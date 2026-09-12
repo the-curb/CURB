@@ -136,6 +136,19 @@ describe('price age against the session', () => {
     assert.equal(verdict.kind, 'PREDATES_LAST_CLOSE');
   });
 
+  it('calls a price from before the last close what it is in the pre-market and the post-market too', () => {
+    // Read Thursday at noon; asked in Friday's pre-market and again in Friday's post-market, after the Friday session it never saw.
+    const preMarket = at('2026-01-16T13:00:00Z'); // 08:00 ET, a trading day
+    const pre = describePriceAge(at('2026-01-15T17:00:00Z'), readSession(preMarket), preMarket);
+    assert.equal(pre.kind, 'PREDATES_LAST_CLOSE');
+    const postMarket = at('2026-01-16T22:00:00Z'); // 17:00 ET
+    const post = describePriceAge(at('2026-01-15T17:00:00Z'), readSession(postMarket), postMarket);
+    assert.equal(post.kind, 'PREDATES_LAST_CLOSE');
+    // A price read during Friday's session, asked in Friday's post-market: extended hours, and fresh enough to be called so.
+    const fresh = describePriceAge(at('2026-01-16T21:30:00Z'), readSession(postMarket), postMarket); // read after the close, in the post-market itself
+    assert.equal(fresh.kind, 'EXTENDED_HOURS');
+  });
+
   it('reports an unread price as absent rather than old', () => {
     assert.equal(describePriceAge(null).kind, 'NO_PRICE_READ');
   });

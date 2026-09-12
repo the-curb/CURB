@@ -108,9 +108,11 @@ followed by the fix or a revert at once.
    A keyed URL is a secret: it lives on Vercel and in the operator's
    `.env.local`, nowhere else, and is rotated at the provider when anyone who
    saw it leaves. `CURB_TICK_SECRET` is rotated by setting the new value on
-   Vercel and in the repository's secrets in the same minute — the tick runs
-   every five, so one may fail — and every secret's owner is the operator the
-   policy names (register A4). Without `CURB_TICK_SECRET` the tick and the
+   Vercel, redeploying (`vercel deploy --prod --yes` — an environment change
+   is not live until a deployment carries it), then setting the same value in
+   the repository's secrets; the ticks between the redeploy and the second
+   step fail with 401 and say so, and every secret's owner is the operator
+   the policy names (register A4). Without `CURB_TICK_SECRET` the tick and the
    desk endpoint refuse in production (503) rather than run open.
 
    Do **not** set `CURB_DNS_OVER_HTTPS` on Vercel. It exists for a local network

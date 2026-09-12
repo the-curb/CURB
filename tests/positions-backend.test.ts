@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { parseDeployments } from '../lib/positions/deployments.ts';
 import { decodeSeriesEvent, encodeSeriesEvent, EVENT_TOPICS } from '../lib/positions/events.ts';
-import { applyLogs, emptyIndex, operatorLog, reduceLedger, rollbackFrom } from '../lib/positions/index.ts';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { INDEX_VERSION, applyLogs, emptyIndex, loadIndex, operatorLog, reduceLedger, rollbackFrom } from '../lib/positions/index.ts';
+import { FileSystemStore } from '../lib/store/fs.ts';
 import { parseOndoAddresses, parseXstocksAsset } from '../lib/positions/issuers.ts';
 import { candidatesFrom } from '../lib/positions/verify.ts';
 import { balanceOfCalldata, reconcileComponent } from '../lib/positions/reconcile.ts';
@@ -197,6 +201,32 @@ describe('the chain index', () => {
     const { ledger } = reduceLedger(state, deployment.q, deployment.capLots);
     assert.equal(ledger.n, 0n);
     assert.equal(ledger.mintPaused, false);
+    // A permit is live by the clock, not by being non-zero: one that ran out is not counted.
+    const clock = new Date(1_800_000_000 * 1000);
+    const stillLive = operatorLog(applyLogs(emptyIndex(deployment), [log(100, 0, { name: 'MintPermitSet', holder: HOLDER, until: 1_800_000_001n })], NOW), clock);
+    const ranOut = operatorLog(applyLogs(emptyIndex(deployment), [log(100, 0, { name: 'MintPermitSet', holder: HOLDER, until: 1_799_999_999n })], NOW), clock);
+    assert.equal(stillLive.mintPermits[0]!.live, true);
+    assert.equal(ranOut.mintPermits[0]!.live, false);
+  });
+
+  it('keeps a permit’s until as a number through the store, and reads an index a previous build wrote from the start', async () => {
+    const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-index-')));
+    // The index as this build writes it: a permit's until survives the store as a bigint, so a revoked permit reads as revoked.
+    const state = applyLogs(emptyIndex(deployment), [log(100, 0, { name: 'MintPermitSet', holder: HOLDER, until: 0n })], NOW);
+    const payload = JSON.parse(JSON.stringify(state, (_k, v) => (typeof v === 'bigint' ? `${v.toString()}n` : v))) as Record<string, unknown>;
+    await store.writeSnapshots([{ key: 'positions:index:apple-s1', observedAt: NOW.toISOString(), payload }]);
+    const loaded = await loadIndex(store, 'apple-s1', deployment);
+    assert.equal(loaded.storeFault, null);
+    const ev = loaded.state.events[0]!.event;
+    assert.equal(ev.name, 'MintPermitSet');
+    if (ev.name === 'MintPermitSet') assert.equal(typeof ev.until, 'bigint');
+    assert.deepEqual(operatorLog(loaded.state, NOW).mintPermits.map((p) => [p.until, p.live]), [['0', false]]);
+    assert.equal(loaded.state.version, INDEX_VERSION);
+    // An index without a version — a previous build's, read without the permit events — is not carried forward.
+    await store.writeSnapshots([{ key: 'positions:index:apple-s1', observedAt: NOW.toISOString(), payload: { ...payload, version: undefined, cursor: 500 } }]);
+    const old = await loadIndex(store, 'apple-s1', deployment);
+    assert.equal(old.state.cursor, deployment.fromBlock - 1, 'read again from the deployment’s first block');
+    assert.equal(old.state.events.length, 0);
   });
 });
 
@@ -226,6 +256,16 @@ describe('reconciliation', () => {
 });
 
 describe('deployment configuration', () => {
+  it('refuses an operator that is not an address, and keeps one that is', () => {
+    const base = { chainId: 1, address: deployment.address, components: deployment.components, fromBlock: 100, q: { A: '10', B: '20' }, capLots: '1000' };
+    const bad = parseDeployments(JSON.stringify({ 'apple-s1': { ...base, operator: 'nobody' } }));
+    assert.equal(bad.ok, false);
+    if (!bad.ok) assert.match(bad.detail, /operator, when given, must be a 20-byte hex address/);
+    const good = parseDeployments(JSON.stringify({ 'apple-s1': { ...base, operator: '0x00000000000000000000000000000000000000CC' } }));
+    assert.equal(good.ok, true);
+    if (good.ok) assert.equal(good.deployments['apple-s1']?.operator, '0x00000000000000000000000000000000000000cc');
+  });
+
   it('is empty when unset, refuses a shared component address, and requires integer strings', () => {
     assert.deepEqual(parseDeployments(undefined), { ok: true, deployments: {} });
     const shared = parseDeployments(JSON.stringify({ 'apple-s1': { chainId: 1, address: deployment.address, components: { A: deployment.components.A, B: deployment.components.A }, fromBlock: 1, q: { A: '10', B: '20' }, capLots: '1000' } }));

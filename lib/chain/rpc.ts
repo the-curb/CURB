@@ -44,13 +44,21 @@ const confirmations = new Map<string, { until: number; fault: Reading<never> | n
 export const DEMOTION_SECONDS = 60;
 const demotions = new Map<string, number>();
 
-/** A provider's own refusal that is about the account, not the query: the next endpoint is asked. */
-const QUOTA = /rate limit|too many requests|quota|exceeded .*(?:limit|plan|credits)|compute units|429/i;
+/** A provider's own refusal that is about the account, not the query: the next endpoint is asked. Anchored, so a hash or a code that happens to contain the digits is not one. */
+const QUOTA = /\bHTTP 429\b|rate.?limit|too many requests|\bquota\b|exceeded .*(?:limit|plan|credits)|compute units/i;
 
-/** Whether a reading is the endpoint failing to answer at all — to be tried elsewhere — as opposed to an answer, right or wrong. */
-export function isTransportFailure(r: Reading<unknown>): boolean {
+/**
+ * Whether a reading is the endpoint failing to answer at all — to be tried
+ * elsewhere — as opposed to an answer, right or wrong. A timed-out
+ * eth_getLogs is neither: on a node with no cap on results it is how "too
+ * much for one page" shows, the reader's signal to halve, and it says
+ * nothing about the endpoint; it is returned as it is, and the endpoint
+ * keeps its place.
+ */
+export function isTransportFailure(r: Reading<unknown>, method?: string): boolean {
   if (r.state !== 'UNREAD') return false;
-  if (r.reason === 'SOURCE_UNREACHABLE' || r.reason === 'SOURCE_TIMEOUT') return true;
+  if (r.reason === 'SOURCE_TIMEOUT') return method !== 'eth_getLogs';
+  if (r.reason === 'SOURCE_UNREACHABLE') return true;
   return r.reason === 'SOURCE_MALFORMED' && QUOTA.test(r.detail ?? '') && !/chain \d+; the .* profile expects/.test(r.detail ?? '');
 }
 
@@ -121,7 +129,7 @@ export async function rpcCall<T>(
     } else {
       r = await rpcCallAt<T>(url, method, params, opts);
     }
-    if (!isTransportFailure(r)) return r;
+    if (!isTransportFailure(r, method)) return r;
     if (order.length > 1) demotions.set(url, Date.now() + DEMOTION_SECONDS * 1000);
     if (first === null) first = r;
     else others.push(`${new URL(url).host}: ${r.state === 'UNREAD' ? (r.detail ?? r.reason) : ''}`);
