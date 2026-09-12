@@ -77,7 +77,7 @@ export const APPLE_S1: SeriesSpec = {
       ],
       unknown: [
         'Which wrapper address and version would be the component, checked against chain, asset(), code and the issuer’s stated version — not the first API field that looks right.',
-        'Whether the wrapper’s unit balance is provably static under a corporate action, on a fork test at a recorded block.',
+        'Whether the wrapper’s unit balance stays static under every corporate action: shown on a fork across the dividend activation of 8 August 2026; a split is not on the record.',
         'Holder eligibility for a Curb series contract and for receipt holders.',
       ],
       statuses: { transferable: 'NOT_DETERMINED', unwrappable: 'NOT_DETERMINED', marketOffer: 'NOT_DETERMINED', issuerRedemption: 'NOT_DETERMINED' },

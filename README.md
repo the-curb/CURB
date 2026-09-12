@@ -20,7 +20,8 @@ of it at `/positions/apple-s1` — illustrative units, no prices, no chain —
 the product's backend (an evidence archive of the issuers' records, daily
 on-chain verification of every address they name, an event index and a
 reconciliation for a series once one is deployed, a product API), a contract
-prototype with fork evidence against the real component on Ethereum, a
+prototype with fork evidence against both real components on Ethereum
+(including a corporate action across a recorded block), a
 rehearsal and an operational drill on a local chain, and the decision records
 the blueprint asks for (`docs/decisions/`, rendered at `/mechanism/decisions`)
 — all proposed, none decided.
