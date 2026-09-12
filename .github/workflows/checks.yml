@@ -1,0 +1,48 @@
+# The checks: the site's types, tests and build; the contract's compile and
+# unit tests. Every push and pull request, so a change that breaks either is
+# named before it is deployed — Vercel builds the site on push regardless,
+# and a failed check here is the earlier, louder warning.
+#
+# The fork tests are not here: they read Ethereum and are run by hand
+# (`npm run test:fork` in contracts/), with their findings committed.
+
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  site:
+    name: site · tsc, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit -p .
+      - run: npm test
+      - run: npx next build
+        env:
+          CURB_NETWORK: robinhood-mainnet
+
+  contracts:
+    name: contracts · compile, unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
