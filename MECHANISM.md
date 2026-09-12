@@ -385,7 +385,7 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | User interviews (R04), the cost model and comprehension tests (B01, B02), the gate decision (G01) | Not started — people, not code | — |
 | Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
 
-The Ondo source records `ACCESS_DENIED`: its documented endpoint requires an API key this desk does not hold. That is archived as the finding; the example address in Ondo's specification is not used.
+The Ondo API source records `ACCESS_DENIED`: its documented endpoint requires an API key this desk does not hold, and that stays archived as the finding. Component B's candidate address is taken from the issuer's own product page for the asset, which publishes the deployment per network and is archived and verified on chain daily; the example address in Ondo's API specification is never used as a source, whatever it happens to equal.
 
 ## 18. Questions people ask
 
