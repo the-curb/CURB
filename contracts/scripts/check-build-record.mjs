@@ -36,6 +36,11 @@ for (const c of CONTRACTS) {
     console.error(`${artifact.contractName}: the committed record (commit ${String(record.commit).slice(0, 10)}) is this source's bytecode`);
   } else {
     failed = true;
+    const now = artifact.deployedBytecode.toLowerCase();
+    const then = String(record.deployedBytecode).toLowerCase();
+    let at = 0;
+    while (at < Math.min(now.length, then.length) && now[at] === then[at]) at += 1;
+    console.error(`  lengths ${(now.length - 2) / 2} vs ${(then.length - 2) / 2} bytes; first difference at byte ${Math.floor((at - 2) / 2)}; tails ${now.slice(-100)} vs ${then.slice(-100)}`);
     console.error(`${artifact.contractName}: the committed record (commit ${String(record.commit).slice(0, 10)}) is NOT this source's bytecode${sameCode ? '' : ' (code differs)'}${slotsNow === slotsRecorded ? '' : ' (immutable slots differ)'}; run npm run record:build and commit the record`);
   }
 }
