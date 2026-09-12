@@ -3,8 +3,10 @@
 # named before it is deployed — Vercel builds the site on push regardless,
 # and a failed check here is the earlier, louder warning.
 #
-# The fork tests are not here: they read Ethereum and are run by hand
-# (`npm run test:fork` in contracts/), with their findings committed.
+# The fork tests are not here: they read Ethereum and run in the weekly
+# fork-evidence workflow, with their findings committed. The local-chain
+# rehearsal and drill are: a Hardhat node is started, the worked example and
+# the incidents are sent as transactions, and the site reads them back.
 
 name: checks
 
@@ -47,3 +49,36 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  rehearsal:
+    name: local chain · rehearsal, drill, index, reconciliation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm ci
+        working-directory: contracts
+      - run: npm run build
+        working-directory: contracts
+      - name: Start a Hardhat node
+        working-directory: contracts
+        run: |
+          (npx hardhat node > node.log 2>&1 &)
+          for i in $(seq 1 30); do
+            if curl -s -X POST -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:8545 | grep -q 0x7a69; then exit 0; fi
+            sleep 1
+          done
+          echo "the node did not answer"; tail -20 node.log; exit 1
+      - name: Deploy the series and run the worked example and the drill as transactions
+        working-directory: contracts
+        run: |
+          node scripts/rehearsal.ts > rehearsal.json
+          node scripts/drill.ts > drill.json
+      - name: Read them back through the site's index, reconciliation, conditions and prepared calldata
+        run: |
+          CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts
+      - name: The drill's record, as the test wrote it (not committed from here)
+        run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'
