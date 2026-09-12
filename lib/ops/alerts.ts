@@ -208,6 +208,7 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
       if (p.index === 'PARTIAL') out.push({ id: 'credits:index:PARTIAL', severity: 'STALE', text: `the credit desk's index could not read every block range on its last run (${str(p.indexDetail) ?? 'a range was refused'}); the cursor waits there and reads again` });
       if (p.index === 'HELD') out.push({ id: 'credits:index:HELD', severity: 'STALE', text: `the credit desk's top-ups are not being credited: ${str(p.indexDetail) ?? 'the desk is not trusted'}` });
       if (typeof p.fanOutFailed === 'number' && p.fanOutFailed > 0) out.push({ id: 'credits:fanout:FAILED', severity: 'NOTE', text: `${p.fanOutFailed} subscriber webhook${p.fanOutFailed === 1 ? '' : 's'} did not accept the last alert; not charged, tried again next change` });
+      if (p.poolCheck === 'PARTIAL' || p.poolCheck === 'UNREAD') out.push({ id: 'credits:pool:UNCHECKED', severity: 'NOTE', text: `the record's fromBlock is not yet checked against the pool's logs (${typeof p.poolCheckDetail === 'string' ? p.poolCheckDetail : 'read in parts, run by run'})` });
       if (typeof p.fanOutUncharged === 'number' && p.fanOutUncharged > 0) out.push({ id: 'credits:fanout:UNCHARGED', severity: 'NOTE', text: `${p.fanOutUncharged} alert deliver${p.fanOutUncharged === 1 ? 'y' : 'ies'} went out without the charge landing (a key short at that moment, or the store); the desk’s loss, not repeated` });
     }
     if (snap.key === 'credits:code') {

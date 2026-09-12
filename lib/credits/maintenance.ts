@@ -18,10 +18,47 @@ import type { SnapshotRecord, Store } from '../store/types.ts';
 import { deskCodeSnapshot, verifyDeskCode, type DeskCodeVerification } from './code.ts';
 import { creditsStatus, type CreditsConfig, type CreditsStatus } from './config.ts';
 import { CREDITS_INTERVAL_SECONDS, loadCreditsIndex, syncTopUps, type CreditsSyncReport } from './indexer.ts';
-import { readRate, type Rate } from './rate.ts';
+import { checkPoolCreation, readRate, type Rate } from './rate.ts';
 import { fanOut, type FanOutReport } from './subscriptions.ts';
 
 export const RATE_KEY = 'credits:rate';
+/** The pool-creation check's result, kept per pool and fromBlock so it is made once. */
+export const POOL_KEY = 'credits:pool';
+
+export interface PoolCheck {
+  readonly pair: string;
+  readonly fromBlock: number | null;
+  /** A log of the pool before fromBlock, when one was found. */
+  readonly logBefore: number | null;
+  /** How far below fromBlock the check read; 0 is the whole span. */
+  readonly coveredFrom: number;
+  /** True: covered, no log before. False: a log before. Null: still reading, resumed next run from coveredFrom. */
+  readonly ok: boolean | null;
+  readonly pageWidth?: number;
+  readonly checkedAt: string;
+}
+
+/**
+ * The record's fromBlock against the pool's first log — once per pool and
+ * fromBlock, the result kept. Null when the node could not finish the
+ * check this run (it is tried again next run); a kept result is returned
+ * as it was.
+ */
+async function poolCheck(store: Store, config: CreditsConfig, opts: RpcOptions, now: Date): Promise<{ check: PoolCheck | null; detail: string | null }> {
+  const source = config.priceSource;
+  if (source === null) return { check: null, detail: null };
+  const kept = await store.snapshots(POOL_KEY);
+  const row = kept.state === 'UNREAD' ? undefined : kept.value.find((s) => s.key === POOL_KEY);
+  const before = row?.payload as unknown as PoolCheck | undefined;
+  const same = before !== undefined && before.pair === source.pair && before.fromBlock === source.fromBlock;
+  if (same && before.ok !== null) return { check: before, detail: null };
+  // A check in progress for this pool resumes below where it stopped.
+  const read = await checkPoolCreation(config, opts, { resumeBelow: same ? before.coveredFrom : null, pageWidth: same ? (before.pageWidth ?? null) : null });
+  if (!isRead(read)) return { check: same ? before : null, detail: `the pool's logs before fromBlock could not be read this run (${read.reason}${read.detail ? ` — ${read.detail}` : ''}); tried again next run` };
+  const check: PoolCheck = { pair: source.pair, fromBlock: source.fromBlock, logBefore: read.value.logBefore, coveredFrom: read.value.coveredFrom, ok: read.value.ok, checkedAt: now.toISOString(), ...(read.value.pageWidth === undefined ? {} : { pageWidth: read.value.pageWidth }) };
+  await store.writeSnapshots([{ key: POOL_KEY, observedAt: now.toISOString(), payload: { ...check } }]);
+  return { check, detail: check.ok === null ? `the pool's logs before fromBlock are read down to block ${check.coveredFrom} so far; the rest next run` : null };
+}
 export const RUN_KEY = 'credits:run';
 
 export type RateSnapshot =
@@ -50,6 +87,9 @@ export interface RunSummary {
   readonly fanOutFailed: number;
   /** Deliveries the row says were told but the charge did not land: the desk's loss, not the subscriber's. */
   readonly fanOutUncharged: number;
+  /** The record's fromBlock against the pool's logs: OK, WRONG, PARTIAL (still reading), NONE (no pool or no fromBlock), or UNREAD this run. */
+  readonly poolCheck?: 'OK' | 'WRONG' | 'PARTIAL' | 'NONE' | 'UNREAD';
+  readonly poolCheckDetail?: string | null;
   /** How far the index is behind the head, in blocks; a backlog is caught up MAX_BLOCKS_PER_SYNC a tick. */
   readonly behindBlocks: number | null;
   /** False when the row was written by a run that found nothing configured — such a row raises no condition. */
@@ -87,12 +127,22 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       ]);
     }
 
+    // The record's fromBlock is checked against the pool's first log once
+    // per pool: a fromBlock later than the pool's first log would price
+    // every top-up between the two at the head instead of its own block, so
+    // such a configuration credits nothing until it is corrected.
+    const pool = isRead(head) ? await poolCheck(store, config, opts, now) : { check: null, detail: null };
+    const poolWrong = pool.check !== null && pool.check.ok === false;
     // Nothing is credited from a desk that is not the contract the record
     // describes, or whose code could not be read at all: its events are not
     // trusted until a person says why they should be.
     let report: CreditsSyncReport;
     let waiting: number;
-    if (code.state === 'MATCHES') {
+    if (poolWrong) {
+      const loaded = await loadCreditsIndex(store, config);
+      waiting = loaded.state.unpriced.length;
+      report = { state: 'HELD', fromBlock: null, toBlock: null, head: isRead(head) ? head.value.number : null, rolledBackFrom: null, newTopUps: 0, credited: [], unpriced: waiting, unreadRanges: [], recorded: false, detail: `priceSource.fromBlock ${pool.check!.fromBlock} is later than a log the pool emitted in block ${pool.check!.logBefore}; the configuration is wrong and nothing is credited until it is corrected (the deployment tool's dry run reads the creation block)` };
+    } else if (code.state === 'MATCHES') {
       // The pricing gets what is left of the run's time, less what the fan-out needs.
       const synced = await syncTopUps(store, config, opts, now, undefined, Math.min(deadline - 12_000, Date.now() + 25_000));
       report = synced.report;
@@ -103,7 +153,9 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       const why = code.state === 'MISMATCH' ? `the desk's code is not the record's (${code.detail ?? 'mismatch'})` : `the desk's code could not be verified (${code.detail ?? code.state})`;
       report = { state: 'HELD', fromBlock: null, toBlock: null, head: isRead(head) ? head.value.number : null, rolledBackFrom: null, newTopUps: 0, credited: [], unpriced: waiting, unreadRanges: [], recorded: false, detail: `${why}; nothing is credited from it` };
     }
-    const fan = await fanOut(store, now, conditions, undefined, undefined, Math.min(deadline, Date.now() + 20_000));
+    // The fan-out's own bookkeeping (credits:fanout:*) reaches the operator's webhook and /api/state, not the subscribers: a note about the desk's own loss is not a change they pay to hear of, and it would toggle.
+    const forSubscribers = conditions === null ? null : conditions.filter((c) => !c.id.startsWith('credits:fanout:'));
+    const fan = await fanOut(store, now, forSubscribers, undefined, undefined, Math.min(deadline, Date.now() + 20_000));
 
     const summary: RunSummary = {
       at: now.toISOString(),
@@ -116,6 +168,8 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       waitingForRate: waiting,
       fanOutFailed: fan.failed.length,
       fanOutUncharged: fan.uncharged.length,
+      poolCheck: config.priceSource === null || config.priceSource.fromBlock === null ? 'NONE' : pool.check === null ? 'UNREAD' : pool.check.ok === null ? 'PARTIAL' : pool.check.ok ? 'OK' : 'WRONG',
+      poolCheckDetail: pool.detail,
       behindBlocks: report.head === null || report.toBlock === null ? null : Math.max(0, report.head - report.toBlock),
       configured: true,
     };

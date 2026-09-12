@@ -55,7 +55,7 @@ const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name:
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
 const erc20 = parseAbi(['function name() view returns (string)', 'function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function totalSupply() view returns (uint256)', 'function owner() view returns (address)', 'function paused() view returns (bool)']);
 
-const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${network!.rpc} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`));
+const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(network!.rpc).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`));
 if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; the ${networkName} profile expects ${network!.chainId}`);
 const block = await pub.getBlock();
 const at = { block: Number(block.number), timestamp: new Date(Number(block.timestamp) * 1000).toISOString() };

@@ -46,8 +46,8 @@
 
 import { decodeAddressWord, decodeInt, decodeUint, formatUnits, words } from '../chain/abi.ts';
 import { keccak256Hex, selector } from '../chain/keccak.ts';
-import { isTooManyLogs, MIN_PAGE_BLOCKS } from '../chain/logs.ts';
-import { readLogs, rpcCall, type LogEntry, type RpcOptions } from '../chain/rpc.ts';
+import { halveable, isTooManyLogs, MIN_PAGE_BLOCKS } from '../chain/logs.ts';
+import { readBlockNumber, readLogs, rpcCall, type LogEntry, type RpcOptions } from '../chain/rpc.ts';
 import { isRead, unread, type Reading } from '../doctrine/reading.ts';
 import type { CreditsConfig, PriceSource } from './config.ts';
 
@@ -77,6 +77,8 @@ export const TOPICS = {
   initialize: keccak256Hex('Initialize(uint160,int24)'),
   /** Uniswap v3: liquidity added; a pool with a price and no Mint yet has a price nobody can trade at. */
   mint: keccak256Hex('Mint(address,address,int24,int24,uint128,uint256,uint256)'),
+  /** Uniswap v3: liquidity removed. */
+  burn: keccak256Hex('Burn(address,int24,int24,uint128,uint256,uint256)'),
   /** Chainlink aggregators: every answer, with the answer indexed. */
   answerUpdated: keccak256Hex('AnswerUpdated(int256,uint256,uint256)'),
 } as const;
@@ -207,7 +209,7 @@ async function foldEventsInRange(address: string, topic: string, from: number, t
     return { ...read, value: null };
   }
   const width = to - from + 1;
-  if (!isTooManyLogs(read.detail) || width <= MIN_PAGE_BLOCKS) return read;
+  if (!halveable(read) || width <= MIN_PAGE_BLOCKS) return read;
   const mid = from + Math.floor(width / 2);
   const earlier = await foldEventsInRange(address, topic, from, mid - 1, opts, fold, budget);
   if (!isRead(earlier)) return earlier;
@@ -222,7 +224,7 @@ async function lastInRange(address: string, topic: string, from: number, to: num
     return { ...read, value: last ?? null };
   }
   const width = to - from + 1;
-  if (!isTooManyLogs(read.detail) || width <= MIN_PAGE_BLOCKS) return read;
+  if (!halveable(read) || width <= MIN_PAGE_BLOCKS) return read;
   const mid = from + Math.floor(width / 2);
   const later = await lastInRange(address, topic, mid, to, opts);
   if (!isRead(later) || later.value !== null) return later;
@@ -328,16 +330,37 @@ function decodePoolEvent(source: PriceSource, s: Sides, log: LogEntry): PoolPric
  * Mint at or before the block). Null, VERIFIED, means the pool had no price
  * at that block: a definite fact, since the span reaches the creation block.
  */
-async function lastPriceEventBefore(source: PriceSource, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
+/**
+ * ...with what the pool's Mint and Burn events say about liquidity after
+ * the last price event: a Swap that left liquidity at zero followed by a
+ * Mint is a price with liquidity again; an Initialize followed by a Mint
+ * and then a Burn is a pool whose liquidity by events cannot be told — a
+ * reading that is UNCERTAIN, so the indexer waits for the node's state
+ * rather than calling it a definite no-price.
+ */
+async function lastPriceEventBefore(source: PriceSource, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null> & { readonly liquidityAfter?: 'PRESENT' | 'UNCERTAIN' }> {
   const floor = source.fromBlock ?? 0;
   if (source.kind === 'uniswap-v2-pair') return lastEventBefore(source.pair, TOPICS.sync, block, opts, floor);
   const swap = await lastEventBefore(source.pair, TOPICS.swap, block, opts, floor);
-  if (!isRead(swap) || swap.value !== null) return swap;
+  if (!isRead(swap)) return swap;
+  if (swap.value !== null) {
+    const w = words(swap.value.data);
+    const liquidity = w[3] === undefined ? null : decodeUint(w[3]);
+    if (liquidity !== 0n) return swap;
+    // The swap left no liquidity: a Mint after it, at or before the block, means there is liquidity again at that price.
+    const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, floor);
+    if (!isRead(mint)) return mint;
+    return mint.value !== null && byPosition(mint.value, swap.value) > 0 ? { ...swap, liquidityAfter: 'PRESENT' } : swap;
+  }
   const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts, floor);
   if (!isRead(init) || init.value === null) return init;
-  const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, floor);
+  const [mint, burn] = await Promise.all([lastEventBefore(source.pair, TOPICS.mint, block, opts, floor), lastEventBefore(source.pair, TOPICS.burn, block, opts, floor)]);
   if (!isRead(mint)) return mint;
-  return mint.value === null ? { ...init, value: null } : init;
+  if (!isRead(burn)) return burn;
+  if (mint.value === null) return { ...init, value: null };
+  // Liquidity was added and then some removed, with no swap to say what is left: not a definite reading.
+  if (burn.value !== null && byPosition(burn.value, mint.value) > 0) return { ...init, liquidityAfter: 'UNCERTAIN' };
+  return init;
 }
 
 async function poolPriceByState(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
@@ -365,9 +388,22 @@ async function poolPriceByEvents(source: PriceSource, s: Sides, block: number, o
   if (last.value === null) {
     return unread('FIELD_ABSENT', { source: last.source, detail: `${NO_PRICE_AT_BLOCK} ${block}: no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool, nor an Initialize with liquidity,'} at or before it, back to block ${source.fromBlock ?? 0}` });
   }
+  if (last.liquidityAfter === 'UNCERTAIN') return unread('FIELD_ABSENT', { source: last.source, detail: `the pool's liquidity at block ${block} cannot be told from its events (liquidity was added and then removed with no swap since); by state only` });
   const price = decodePoolEvent(source, s, last.value);
   if (price === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'the pool event is undecodable' });
-  return { ...last, value: price };
+  if ((last.value.topics[0] ?? '').toLowerCase() === TOPICS.initialize) {
+    // Priced from the Initialize: the pool has not swapped under the Swap topic the reader knows. If its price by state at the head has moved from that, it swapped under another — a pool of another kind, never priced from its first price.
+    const head = await readBlockNumber(opts);
+    if (!isRead(head)) return head;
+    const [slot0, sawSwap] = await Promise.all([callAt(source.pair, SEL.slot0, 'latest', 'slot0()', opts), lastEventBefore(source.pair, TOPICS.swap, head.value, opts, source.fromBlock ?? 0)]);
+    if (!isRead(slot0)) return slot0;
+    if (!isRead(sawSwap)) return sawSwap;
+    const headSqrt = words(slot0.value)[0] === undefined ? null : decodeUint(words(slot0.value)[0]!);
+    if (sawSwap.value === null && headSqrt !== null && price.kind === 'uniswap-v3-pool' && headSqrt !== price.sqrtPriceX96) {
+      return unread('SOURCE_MALFORMED', { source: slot0.source, detail: `the pool's price moved from its Initialize without a Swap the reader recognises; the recorded kind is not this pool's interface` });
+    }
+  }
+  return { ...last, value: price.kind === 'uniswap-v3-pool' && last.liquidityAfter === 'PRESENT' ? { ...price, liquidity: 1n } : price };
 }
 
 type FeedAnswer = { readonly answer: bigint; readonly updatedAt: bigint; readonly decimals: number; readonly eventBlock?: number };
@@ -499,7 +535,17 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   };
   const opening = windowStart > 0 ? await lastPriceEventBefore(source, windowStart - 1, opts) : null;
   if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
-  if (opening !== null && opening.value !== null) weigh(opening.value);
+  if (opening !== null && opening.value !== null && opening.liquidityAfter !== 'UNCERTAIN') weigh(opening.value);
+  if (source.kind === 'uniswap-v3-pool') {
+    // The pool's first price counts too when it was set inside the window and liquidity followed by the block.
+    const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts, source.fromBlock ?? 0);
+    if (!isRead(init)) return unread(init.reason, { source: init.source, detail: `the pool's Initialize could not be looked for (${init.detail ?? init.reason}); a rate without its guard is not stated` });
+    if (init.value !== null && blockOf(init.value) >= windowStart) {
+      const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, source.fromBlock ?? 0);
+      if (!isRead(mint)) return unread(mint.reason, { source: mint.source, detail: `the pool's Mint could not be looked for (${mint.detail ?? mint.reason}); a rate without its guard is not stated` });
+      if (mint.value !== null) weigh(init.value);
+    }
+  }
   const window = await foldEventsInRange(source.pair, topic, windowStart, block, opts, weigh, { pages: GUARD_MAX_PAGES });
   if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
   const guard: Rate['guard'] = { windowBlocks, samples, lowestAtBlock, atBlockUsdPerCurb18: atBlock.toString(), applied: lowest < atBlock };
@@ -540,6 +586,74 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
 }
 
 /** The pool's price and the token's supply at one block, by state, guarded, reduced to a price and a market capitalisation. */
+/**
+ * Is the record's `priceSource.fromBlock` at or before the pool's first log?
+ * A fromBlock later than that would send every top-up between the two to
+ * the head's rate instead of its own block's, so it is not taken on the
+ * configuration's word. What is asked is whether the pool emitted anything
+ * before fromBlock: one query over [0, fromBlock − 1] on a node that serves
+ * any width (a refusal for matching too much is itself the answer: logs
+ * exist there); on a node that caps the width of a query, pages of the
+ * width it serves, walked down from fromBlock, at most POOL_CHECK_MAX_READS
+ * of them — the check then covers that span and says so. A check the node
+ * could not make is UNREAD, not a refusal; the result is kept per pool and
+ * fromBlock so it is made once.
+ */
+export const POOL_CHECK_MAX_READS = 64;
+export const POOL_CHECK_BUDGET_MS = 20_000;
+export interface PoolCreationCheck {
+  /** True once the span is covered with no log; false when a log was found before fromBlock; null while the span is still being read (resumed next run). */
+  readonly ok: boolean | null;
+  /** A log of the pool before fromBlock, when one was found: the block. */
+  readonly logBefore: number | null;
+  /** The lowest block the check read down to; 0 when the whole span was covered. */
+  readonly coveredFrom: number;
+  /** The page width the node was last serving, kept so a resumed check does not halve its way down again. */
+  readonly pageWidth?: number;
+}
+export async function checkPoolCreation(config: CreditsConfig, opts: RpcOptions, progress: { readonly resumeBelow?: number | null; readonly pageWidth?: number | null; readonly deadline?: number } = {}): Promise<Reading<PoolCreationCheck>> {
+  const source = config.priceSource;
+  const now = new Date().toISOString();
+  const deadline = progress.deadline ?? Date.now() + POOL_CHECK_BUDGET_MS;
+  if (source === null || source.fromBlock === null || source.fromBlock === 0) return { state: 'VERIFIED', value: { ok: true, logBefore: null, coveredFrom: 0 }, ageSeconds: 0, source: 'the record', retrievedAt: now };
+  const top = progress.resumeBelow !== undefined && progress.resumeBelow !== null ? progress.resumeBelow - 1 : source.fromBlock - 1;
+  if (top < 0) return { state: 'VERIFIED', value: { ok: true, logBefore: null, coveredFrom: 0 }, ageSeconds: 0, source: 'the record', retrievedAt: now };
+  // Pages narrower than this are given up on: a pool with more logs than the node can answer for in a day of blocks is not one whose creation this reads.
+  const timedOpts: RpcOptions = { ...opts, timeoutMs: Math.min(opts.timeoutMs ?? 15_000, 8_000) };
+  let width = top + 1;
+  let source_ = 'the node';
+  if (progress.pageWidth === undefined || progress.pageWidth === null) {
+    const whole = await readLogs(source.pair, [], 0, top, timedOpts);
+    if (isRead(whole)) {
+      const first = whole.value.length === 0 ? null : whole.value.map(blockOf).reduce((a, b) => Math.min(a, b));
+      return { ...whole, value: { ok: first === null, logBefore: first, coveredFrom: 0 } };
+    }
+    if (!halveable(whole)) return whole;
+    // Refused for matching too much: that is logs before fromBlock, unless the refusal was for the query's width or its time.
+    const widthCapped = whole.reason === 'SOURCE_TIMEOUT' || /block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(whole.detail ?? '');
+    if (!widthCapped) return { ...whole, state: 'VERIFIED', value: { ok: false, logBefore: top, coveredFrom: 0 }, ageSeconds: 0, retrievedAt: now } as Reading<PoolCreationCheck>;
+    source_ = whole.source ?? source_;
+  } else {
+    width = progress.pageWidth;
+  }
+  // Width-capped: find the width served, then page down from fromBlock, within the run's time; what is not reached is read next run, at the width last served.
+  let hi = top;
+  for (let i = 0; i < POOL_CHECK_MAX_READS && Date.now() < deadline; i += 1) {
+    const lo = Math.max(0, hi - width + 1);
+    const page = await readLogs(source.pair, [], lo, hi, timedOpts);
+    if (!isRead(page)) {
+      if (!halveable(page) || width <= MIN_PAGE_BLOCKS) return page;
+      width = Math.floor(width / 2);
+      continue;
+    }
+    source_ = page.source;
+    if (page.value.length > 0) return { ...page, value: { ok: false, logBefore: page.value.map(blockOf).reduce((a, b) => Math.min(a, b)), coveredFrom: lo, pageWidth: width } };
+    if (lo === 0) return { ...page, value: { ok: true, logBefore: null, coveredFrom: 0, pageWidth: width } };
+    hi = lo - 1;
+  }
+  return { state: 'VERIFIED', value: { ok: null, logBefore: null, coveredFrom: hi + 1, pageWidth: width }, ageSeconds: 0, source: source_, retrievedAt: now };
+}
+
 export async function readRate(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date(), ctx: RateContext = {}): Promise<Reading<Rate>> {
   return assemble(config, block, 'STATE', opts, now, ctx);
 }

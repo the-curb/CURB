@@ -106,14 +106,27 @@ export async function rpcCall<T>(
       controller.signal,
     );
 
+    // A provider may carry a JSON-RPC error on a non-2xx status (dRPC answers a
+    // refused eth_getLogs with HTTP 500 and the error in the body, measured 13
+    // September 2026): the error's own words are the answer, and they are what
+    // a reader halves on. A non-2xx with no such body is the transport.
+    let body: RpcSuccess | RpcFailure | null = null;
     if (!response.ok) {
-      return unread('SOURCE_UNREACHABLE', {
-        source,
-        detail: `HTTP ${response.status}`,
-      });
+      try {
+        const parsed = JSON.parse(response.text) as RpcSuccess | RpcFailure;
+        if (parsed && typeof parsed === 'object' && 'error' in parsed && parsed.error && typeof parsed.error.message === 'string') body = parsed;
+      } catch {
+        // not JSON: the transport's answer, below
+      }
+      if (body === null) {
+        return unread('SOURCE_UNREACHABLE', {
+          source,
+          detail: `HTTP ${response.status}`,
+        });
+      }
     }
 
-    const body = JSON.parse(response.text) as RpcSuccess | RpcFailure;
+    body ??= JSON.parse(response.text) as RpcSuccess | RpcFailure;
     if ('error' in body) {
       // A revert is not malformed data. The node answered correctly; the
       // contract declined to. Calling a function a contract does not implement

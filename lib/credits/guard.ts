@@ -17,7 +17,7 @@
 import type { Store } from '../store/types.ts';
 import { creditsStatus } from './config.ts';
 import { charge, isKey, keyAccount, keyHashOf, type KeyAccount } from './keys.ts';
-import { deskVerified } from './code.ts';
+import { latestDeskCode } from './code.ts';
 import { serviceById, type ServiceId } from './prices.ts';
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
@@ -34,13 +34,22 @@ export function presentedKey(request: Request): string | null {
   return null;
 }
 
-async function cannotPay(store: Store, status: string, detail: string, account: KeyAccount, serviceId: ServiceId, cents: number): Promise<Response> {
+async function cannotPay(store: Store, status: string, detail: string, account: KeyAccount, serviceId: ServiceId, cents: number, charged: false | 'UNKNOWN' = false): Promise<Response> {
   const cfg = creditsStatus();
-  // The way to pay is named only for a desk whose code the last tick verified: a top-up to an unverified desk is not credited, and is not invited.
-  const verified = cfg.state === 'CONFIGURED' ? await deskVerified(store, cfg.config) : false;
+  // The way to pay is named only for a desk whose code the last tick verified: a top-up to an unverified desk is not credited, and is not invited. A verification the store could not read is said so, not read as a failed one.
+  const code = cfg.state === 'CONFIGURED' ? await latestDeskCode(store, cfg.config) : null;
+  const verified = code !== null && code.storeFault === null && code.code !== null && code.code.state === 'MATCHES';
+  const held =
+    cfg.state !== 'CONFIGURED' || verified
+      ? null
+      : code !== null && code.storeFault !== null
+        ? `the desk’s verification could not be read from the store (${code.storeFault}); ask /api/credits before sending a top-up`
+        : `the desk’s code is not verified as the build by the last tick (${code?.code?.state ?? 'not yet read'}); top-ups are not credited from it — do not send one`;
   const body = {
     error: status,
     detail,
+    /** false: nothing was charged for this call. 'UNKNOWN': the store could not say whether the charge landed — read the balance before calling again. */
+    charged,
     service: serviceId,
     priceCents: cents,
     keyHash: account.hash,
@@ -49,7 +58,7 @@ async function cannotPay(store: Store, status: string, detail: string, account: 
     balanceCents: account.balanceCents,
     toOpenCents: account.toOpenCents,
     topUp: cfg.state === 'CONFIGURED' && verified ? { desk: cfg.config.desk, network: cfg.config.network.id, call: 'topUp(bytes32 keyHash, uint256 amount)', quote: '/api/credits?usd=20' } : null,
-    topUpHeld: cfg.state === 'CONFIGURED' && !verified ? 'the desk’s code is not verified as the build by the last tick; top-ups are not credited from it — do not send one' : null,
+    topUpHeld: held,
   };
   const httpStatus = status === 'STORE_UNREADABLE' || status === 'NOT_RECORDED' ? 503 : 402;
   return Response.json(body, { status: httpStatus, headers: NO_STORE });
@@ -92,7 +101,7 @@ export async function settle(store: Store, hash: string, serviceId: ServiceId, r
   const service = serviceById(serviceId)!;
   const outcome = await charge(store, hash, service.id, service.cents, ref, now);
   if (outcome.ok) return { ok: true, account: outcome.account };
-  return { ok: false, response: await cannotPay(store, outcome.status, outcome.detail, outcome.account, service.id, service.cents) };
+  return { ok: false, response: await cannotPay(store, outcome.status, outcome.detail, outcome.account, service.id, service.cents, outcome.charged ?? false) };
 }
 
 /** Admit and settle in one step, for a call whose answer needs nothing from the store. */

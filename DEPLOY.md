@@ -430,7 +430,18 @@ and is reported under `credits`. No token exists; in production it is
   liquidity or an empty side — and never above the lowest price the pool
   showed in the window before it (the guard, about an hour, read from
   events page by page, the price standing at the window's opening
-  included; more than sixty-four pages is a rate not stated). Two queues:
+  included; more than sixty-four pages is a rate not stated; a v3 pool's
+  `Initialize` counts inside the window too; a page the node does not
+  answer in time is halved like one it refuses). The record's
+  `priceSource.fromBlock` is checked against the pool's logs once per pool:
+  on a node that serves any width, one query over the span before it; on
+  one that caps a query's width, pages walked down from it, run by run,
+  with a NOTE (`credits:pool:UNCHECKED`) until the span is covered — a log
+  before `fromBlock` holds the index (nothing is credited) until the
+  configuration is corrected. Before a pool is recorded nothing is tried
+  and nothing counts as tried: every top-up waits in the first queue for
+  the day the pool is, and is then priced fifty a run in chain order. Two
+  queues:
   at most fifty never-tried top-ups per run — fresh ones and ones deferred
   for count or time — oldest first, so a burst drains at fifty a run; then
   at most ten tried-and-waiting ones, least-tried first, so a few that
@@ -450,9 +461,21 @@ and is reported under `credits`. No token exists; in production it is
   landing meanwhile is never overwritten, and two charges on one key at
   once cannot lose each other. A delivery whose charge did not land is the
   desk's loss, counted in the run row and raised as a NOTE
-  (`credits:fanout:UNCHARGED`). The `snapshots` table gained a `version`
-  column for this on 13 September 2026: `npm run db:migrate` before
-  deploying a build that has it.
+  (`credits:fanout:UNCHARGED`) — to the operator's webhook and `/api/state`,
+  never to the subscribers: the fan-out's own bookkeeping
+  (`credits:fanout:*`) is not a change they pay to hear of. A subscription
+  that cannot finish (lookup, post and store round trips) before the
+  fan-out's deadline is not started; it is next in line. The caps (five
+  live, twenty in all, one per URL) are enforced on a per-key ledger row by
+  the same conditional write, so requests at once cannot pass them
+  together. On the Postgres store a conditional write carries a token, so a
+  statement resent after a dropped socket — or one that timed out after it
+  committed — is found on the row by its token and reported written, never
+  as a conflict that would charge twice for one answer; when even that read
+  fails, the 503 says `charged: "UNKNOWN"` and the caller reads the balance
+  before calling again. The `snapshots` table gained `version` and
+  `write_token` columns for this on 13 September 2026: `npm run db:migrate`
+  before deploying a build that has them.
 - **Keys.** A key is thirty-two random bytes the caller makes (`/services`
   makes one in the browser; `POST /api/keys` makes one and stores nothing);
   its SHA-256 is what the chain credits and what the desk keeps rows by. The

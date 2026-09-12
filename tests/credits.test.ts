@@ -89,7 +89,7 @@ interface NodeState {
   /** The pair's Sync events, as the chain has them (reserves in token0/token1 order = CURB/quote). */
   syncs: { block: number; curb: bigint; quote: bigint; logIndex?: number }[];
   /** A v3 pool: CURB's side, its current square-root price, its swaps and its initialisation. */
-  v3: { curbIs0: boolean; sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint }[]; initialize?: { block: number; sqrt: bigint }; mints?: number[] } | null;
+  v3: { curbIs0: boolean; sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint }[]; initialize?: { block: number; sqrt: bigint }; mints?: number[]; burns?: number[] } | null;
   /** The node's cap on logs matched by one query; more than this is refused the way Robinhood Chain's node refuses. */
   logLimit: number | null;
   /** The feed's AnswerUpdated events on its aggregator. */
@@ -112,6 +112,9 @@ function fakeNode(state: NodeState) {
     switch (method) {
       case 'eth_chainId':
         result = '0x7a69';
+        break;
+      case 'eth_blockNumber':
+        result = `0x${state.head.toString(16)}`;
         break;
       case 'eth_getCode':
         result = (params[0] as string).toLowerCase() === DESK ? (state.deskCode ?? '0x') : '0x6001';
@@ -138,6 +141,11 @@ function fakeNode(state: NodeState) {
           }
           return logs;
         };
+        if (address === PAIR && topic === '') {
+          // No topic: every log of the pair — its Syncs, for the first-log search.
+          result = capped(state.syncs.filter((e) => within(e.block)).map((e) => logOf(PAIR, e.block, [TOPICS.sync], `0x${word(e.curb)}${word(e.quote)}`, e.logIndex ?? 0)));
+          break;
+        }
         if (address === PAIR && topic === TOPICS.sync) {
           result = capped(state.syncs.filter((e) => within(e.block)).map((e) => logOf(PAIR, e.block, [TOPICS.sync], `0x${word(e.curb)}${word(e.quote)}`, e.logIndex ?? 0)));
           break;
@@ -145,6 +153,10 @@ function fakeNode(state: NodeState) {
         if (address === POOL3 && state.v3 !== null && topic === TOPICS.initialize) {
           const init = state.v3.initialize;
           result = capped(init !== undefined && within(init.block) ? [logOf(POOL3, init.block, [TOPICS.initialize], `0x${word(init.sqrt)}${word(0n)}`)] : []);
+          break;
+        }
+        if (address === POOL3 && state.v3 !== null && topic === TOPICS.burn) {
+          result = capped((state.v3.burns ?? []).filter((b) => within(b)).map((b) => logOf(POOL3, b, [TOPICS.burn, hexWord(0n), hexWord(0n), hexWord(0n)], `0x${word(1n)}${word(1n)}${word(1n)}`)));
           break;
         }
         if (address === POOL3 && state.v3 !== null && topic === TOPICS.mint) {
@@ -507,6 +519,43 @@ describe('the credit desk, site side', () => {
     const unseeded = await readRateFromEvents(config, 22, opts);
     assert.equal(unseeded.state, 'UNREAD');
     assert.equal(poolHadNoPriceAt(unseeded), true, 'initialised, no liquidity yet: no price at that block');
+    // The pool's first hour: Initialize at 70 inside the window before block 90, a pump swap at 80 — the Initialize price is in the guard, by state and by events.
+    state.v3.initialize = { block: 70, sqrt: forCurbIs0 };
+    state.v3.mints = [72];
+    const pump = sqrtPriceX96For(50n * 10n ** 6n, 10n ** 3n * 10n ** 18n);
+    state.v3.swaps = [{ block: 80, sqrt: pump }];
+    state.v3.sqrt = pump;
+    const firstHour = await readRate(config, 90, opts);
+    if (firstHour.state === 'UNREAD') assert.fail(JSON.stringify(firstHour));
+    near(firstHour.value.guard.atBlockUsdPerCurb18, 5n * 10n ** 16n, 'pumped to US$0.05 at the block');
+    near(firstHour.value.usdPerCurb18, 5n * 10n ** 15n, 'the Initialize price inside the window is the guard’s low');
+    assert.equal(firstHour.value.guard.applied, true);
+    const firstHourByEvents = await readRateFromEvents(config, 90, opts);
+    if (firstHourByEvents.state === 'UNREAD') assert.fail(JSON.stringify(firstHourByEvents));
+    near(firstHourByEvents.value.usdPerCurb18, 5n * 10n ** 15n, 'the same by events');
+    // A pool of another kind: its price by state has moved from the Initialize, yet no Swap the reader knows was ever emitted — never priced from its first price.
+    state.v3.swaps = [];
+    const foreign = await readRateFromEvents(config, 90, opts);
+    assert.equal(foreign.state, 'UNREAD');
+    assert.match(foreign.state === 'UNREAD' ? (foreign.detail ?? '') : '', /without a Swap the reader recognises/);
+    // A swap that drained the pool, then a Mint: liquidity is back at that price by events, not a definite no-price.
+    state.v3.sqrt = forCurbIs0;
+    state.v3.swaps = [{ block: 75, sqrt: forCurbIs0, liquidity: 0n }];
+    state.v3.mints = [72, 78];
+    const refilled = await readRateFromEvents(config, 85, opts);
+    if (refilled.state === 'UNREAD') assert.fail(JSON.stringify(refilled));
+    near(refilled.value.usdPerCurb18, 5n * 10n ** 15n, 'priced from the drained swap once a Mint followed');
+    const drained = await readRateFromEvents(config, 76, opts);
+    assert.equal(poolHadNoPriceAt(drained), true, 'before the Mint: no liquidity, definitely');
+    // Initialize, Mint, then a Burn and no swap: liquidity by events cannot be told — waited for, not called definite.
+    state.v3.swaps = [];
+    state.v3.mints = [72];
+    state.v3.burns = [74];
+    const uncertain = await readRateFromEvents(config, 76, opts);
+    assert.equal(uncertain.state, 'UNREAD');
+    assert.equal(poolHadNoPriceAt(uncertain), false);
+    assert.match(uncertain.state === 'UNREAD' ? (uncertain.detail ?? '') : '', /cannot be told from its events/);
+    delete state.v3.burns;
     delete state.v3.initialize;
     delete state.v3.mints;
     state.v3.swaps.push({ block: 30, sqrt: forCurbIs0 });
@@ -993,6 +1042,64 @@ describe('the credit desk, site side', () => {
     assert.match(starved.uncharged[0]!.reason, /balance is 5 cents/);
     const rows = [{ key: 'credits:run', observedAt: new Date().toISOString(), payload: { at: new Date().toISOString(), rate: 'READ', rateDetail: null, code: 'MATCHES', codeDetail: null, index: 'SYNCED', indexDetail: null, waitingForRate: 0, fanOutFailed: 0, fanOutUncharged: starved.uncharged.length, behindBlocks: 0, configured: true } }];
     assert.deepEqual(positionConditions(rows, new Date()).map((c) => [c.id, c.severity]), [['credits:fanout:UNCHARGED', 'NOTE']]);
+  });
+
+  it('holds the index when the record’s fromBlock is later than a log the pool emitted, found through the node’s own refusals', async () => {
+    const state = freshState();
+    state.deskCode = await deskCodeFor(CURB, TREASURY);
+    state.logLimit = 3;
+    // Syncs from block 20 on; the record claims the pool was created in block 50.
+    state.syncs = Array.from({ length: 7 }, (_, i) => ({ block: 20 + i * 12, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n, logIndex: i }));
+    state.logs.push({ block: 42, keyHash: keyHashOf(newKey()), payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '2'.repeat(64), logIndex: 0 });
+    globalThis.fetch = fakeNode(state);
+    const store = tmpStore();
+    process.env[CREDITS_ENV] = JSON.stringify({ ...JSON.parse(CONFIG_JSON), priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, fromBlock: 50, quote: { kind: 'usd-stable' } } });
+    const wrong = await runCredits(store, new Date(), []);
+    assert.equal(wrong.code?.state, 'MATCHES');
+    assert.equal(wrong.index?.state, 'HELD');
+    assert.match(wrong.index?.detail ?? '', /fromBlock 50 is later than a log the pool emitted in block 20/);
+    assert.equal(wrong.index?.credited.length, 0, 'nothing is credited on a wrong configuration');
+    const kept = await store.snapshots('credits:pool');
+    assert.deepEqual(kept.state === 'UNREAD' ? null : [kept.value[0]?.payload.logBefore, kept.value[0]?.payload.ok], [20, false]);
+    // Corrected: the check is made again for the new fromBlock and the top-up is credited.
+    process.env[CREDITS_ENV] = JSON.stringify({ ...JSON.parse(CONFIG_JSON), priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, fromBlock: 20, quote: { kind: 'usd-stable' } } });
+    const right = await runCredits(store, new Date(), []);
+    assert.equal(right.index?.state, 'SYNCED');
+    assert.equal(right.index?.credited.length, 1);
+  });
+
+  it('holds the subscription caps and the same-URL rule under concurrent requests', async () => {
+    process.env[CREDITS_ENV] = CONFIG_JSON;
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2000', topUps: [] } }]);
+    const same = await Promise.all(Array.from({ length: 20 }, () => createSubscription(store, hash, 'https://hooks.example.com/same', new Date())));
+    assert.equal(same.filter((o) => o.ok).length, 1, 'one URL, one subscription, however many requests at once');
+    assert.ok(same.filter((o) => !o.ok).every((o) => !o.ok && (o.error === 'ALREADY_SUBSCRIBED' || o.error === 'NOT_RECORDED')));
+    const distinct = await Promise.all(Array.from({ length: 12 }, (_, i) => createSubscription(store, hash, `https://hooks.example.com/d${i}`, new Date())));
+    assert.equal(distinct.filter((o) => o.ok).length, 4, 'five live at most, one taken already');
+    assert.ok(distinct.filter((o) => !o.ok).every((o) => !o.ok && (o.error === 'TOO_MANY' || o.error === 'NOT_RECORDED')));
+    const mine = await subscriptionsOf(store, hash);
+    assert.equal(mine.subscriptions.filter((x) => x.cancelledAt === null).length, 5);
+    // A cancellation frees the slot and the URL.
+    const first = same.find((o) => o.ok);
+    assert.ok(first && first.ok);
+    assert.equal((await cancelSubscription(store, hash, first.subscription.id, new Date())).ok, true);
+    const again = await createSubscription(store, hash, 'https://hooks.example.com/same', new Date());
+    assert.equal(again.ok, true, 'the URL can be subscribed again after its cancellation');
+  });
+
+  it('does not tell subscribers of the fan-out’s own bookkeeping', async () => {
+    const state = freshState();
+    state.deskCode = await deskCodeFor(CURB, TREASURY);
+    globalThis.fetch = fakeNode(state);
+    process.env[CREDITS_ENV] = CONFIG_JSON;
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2000', topUps: [] } }]);
+    assert.ok((await createSubscription(store, hash, 'https://hooks.example.com/z', new Date())).ok);
+    const run = await runCredits(store, new Date(), [{ id: 'credits:fanout:UNCHARGED', severity: 'NOTE', text: 'the desk lost ten cents' }, { id: 'credits:fanout:FAILED', severity: 'NOTE', text: 'a webhook failed' }]);
+    assert.equal(run.fanOut?.considered, 0, 'nothing a subscriber pays to hear');
   });
 
   it('does not quote from a rate row an earlier build wrote', async () => {

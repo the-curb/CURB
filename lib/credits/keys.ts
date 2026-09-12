@@ -176,7 +176,14 @@ export async function keyAccount(store: Store, hash: string, opts: { readonly pe
 
 export type ChargeOutcome =
   | { readonly ok: true; readonly account: KeyAccount; readonly charged: Charge }
-  | { readonly ok: false; readonly status: KeyStatus | 'INSUFFICIENT' | 'STORE_UNREADABLE' | 'NOT_RECORDED'; readonly account: KeyAccount; readonly detail: string };
+  | {
+      readonly ok: false;
+      readonly status: KeyStatus | 'INSUFFICIENT' | 'STORE_UNREADABLE' | 'NOT_RECORDED';
+      readonly account: KeyAccount;
+      readonly detail: string;
+      /** Whether the charge is known not to have landed. 'UNKNOWN' when the store could neither confirm nor deny the write: the caller must not retry blind. */
+      readonly charged?: false | 'UNKNOWN';
+    };
 
 /**
  * Charge one unit of a service to a key. Refused, with the reason, when the
@@ -204,8 +211,8 @@ export async function charge(store: Store, hash: string, service: ServiceId, cen
     const spent = (BigInt(account.spentCents) + BigInt(cents)).toString();
     const written = await store.writeSnapshotIf({ key: spendRow(hash), observedAt: now.toISOString(), payload: { hash, spentCents: spent, count: account.chargeCount + 1, charges } }, account.spendVersion);
     if (written.state === 'WRITTEN') return { ok: true, account: { ...account, spentCents: spent, balanceCents: (BigInt(account.balanceCents) - BigInt(cents)).toString(), charges, chargeCount: account.chargeCount + 1 }, charged };
-    if (written.state === 'FAILED') return { ok: false, status: 'NOT_RECORDED', account, detail: written.reason };
-    last = { ok: false, status: 'NOT_RECORDED', account, detail: `the key was charged by another call at the same time (${written.reason}); tried ${attempt + 1} times` };
+    if (written.state === 'FAILED') return { ok: false, status: 'NOT_RECORDED', account, detail: written.reason, charged: /could not be read either/.test(written.reason) ? 'UNKNOWN' : false };
+    last = { ok: false, status: 'NOT_RECORDED', account, detail: `the key was charged by another call at the same time (${written.reason}); tried ${attempt + 1} times`, charged: false };
     await new Promise((resolve) => setTimeout(resolve, 2 + Math.random() * 15 * (attempt + 1)));
   }
   return last!;

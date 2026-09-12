@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import type {
   BlockRecord,
@@ -916,6 +917,12 @@ export class PostgresStore implements Store {
 
   /** One statement either way: an insert that yields to an existing row, or an update that matches only the version read. Zero rows back is the conflict. */
   async writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome> {
+    // One token per call, outside the guarded closure: guard() resends the
+    // closure once after a dropped socket, and the resend carries the same
+    // token — so a write that landed before the reply was lost is found by
+    // its token at the next version and reported WRITTEN, never as a
+    // conflict that would make a charge twice for one answer.
+    const token = randomUUID();
     try {
       return await this.guard('writeSnapshotIf', async () => {
         // The driver's json() helper, as everywhere else here: a stringified value cast to jsonb is stored double-encoded (see the note at the top).
@@ -923,22 +930,44 @@ export class PostgresStore implements Store {
         const rows =
           expectedVersion === null
             ? await this.sql<{ version: string }[]>`
-                insert into snapshots (key, observed_at, payload, version)
-                values (${record.key}, ${record.observedAt}, ${payload}, 0)
+                insert into snapshots (key, observed_at, payload, version, write_token)
+                values (${record.key}, ${record.observedAt}, ${payload}, 0, ${token})
                 on conflict (key) do nothing
                 returning version
               `
             : await this.sql<{ version: string }[]>`
                 update snapshots
-                set observed_at = ${record.observedAt}, payload = ${payload}, version = version + 1
+                set observed_at = ${record.observedAt}, payload = ${payload}, version = version + 1, write_token = ${token}
                 where key = ${record.key} and version = ${expectedVersion}
                 returning version
               `;
-        if (rows.length === 0) return { state: 'CONFLICT', reason: expectedVersion === null ? `a row already exists at ${record.key}` : `the row at ${record.key} is no longer at version ${expectedVersion}` };
+        if (rows.length === 0) {
+          // Zero rows is a conflict — unless the row carries this call's token: then the first send landed and only its reply was lost.
+          const [current] = await this.sql<{ write_token: string | null }[]>`
+            select write_token from snapshots where key = ${record.key}
+          `;
+          if (current?.write_token === token) return { state: 'WRITTEN' };
+          return { state: 'CONFLICT', reason: expectedVersion === null ? `a row already exists at ${record.key}` : `the row at ${record.key} is no longer at version ${expectedVersion}` };
+        }
         return { state: 'WRITTEN' };
       });
     } catch (cause) {
-      return { state: 'FAILED', reason: failureReason(cause) };
+      // A timeout or a second fault: the statement may have landed all the
+      // same. One read on a fresh client settles it — the row carries this
+      // call's token, or it does not. Only when that read fails too is the
+      // outcome unknown, and it is reported as such, not as "not written".
+      try {
+        const landed = await this.guard('writeSnapshotIf · settle', async () => {
+          const [current] = await this.sql<{ write_token: string | null }[]>`
+            select write_token from snapshots where key = ${record.key}
+          `;
+          return current?.write_token === token;
+        });
+        if (landed) return { state: 'WRITTEN' };
+        return { state: 'FAILED', reason: `${failureReason(cause)} (the row does not carry this write)` };
+      } catch (again) {
+        return { state: 'FAILED', reason: `${failureReason(cause)}; whether the write landed could not be read either (${failureReason(again)})` };
+      }
     }
   }
 

@@ -22,11 +22,28 @@ import { serviceById } from './prices.ts';
 
 export const SUB_PREFIX = 'credits:sub:';
 export const subRow = (id: string) => `${SUB_PREFIX}${id}`;
+/** One row per key holding its counts and live URLs, written conditionally, so the caps hold under concurrent requests — the rows themselves stay the record. */
+export const SUBKEY_PREFIX = 'credits:subkey:';
+export const subKeyRow = (keyHash: string) => `${SUBKEY_PREFIX}${keyHash}`;
+
+interface SubLedger {
+  readonly live: number;
+  readonly total: number;
+  readonly urls: readonly string[];
+}
+
+const ledgerOf = (payload: Readonly<Record<string, unknown>> | undefined): SubLedger => ({
+  live: typeof payload?.live === 'number' ? payload.live : 0,
+  total: typeof payload?.total === 'number' ? payload.total : 0,
+  urls: Array.isArray(payload?.urls) ? (payload.urls as unknown[]).filter((u): u is string => typeof u === 'string') : [],
+});
 /** The most live subscriptions one key may hold at once, and the most rows — live and cancelled — it may ever make, since a row is never deleted. */
 export const MAX_PER_KEY = 5;
 export const MAX_ROWS_PER_KEY = 20;
 /** How long one fan-out may take in all, and one webhook at most, inside a tick that has sixty seconds for everything. */
 export const FAN_OUT_BUDGET_MS = 20_000;
+/** What one subscription's store round trips are allowed to take, over the lookup and the post, before the deadline. */
+export const STORE_ALLOWANCE_MS = 1_500;
 export const WEBHOOK_TIMEOUT_MS = 5_000;
 
 export interface Subscription {
@@ -149,17 +166,41 @@ export async function createSubscription(store: Store, keyHash: string, url: str
   if (account.storeFault !== null) return { ok: false, error: 'STORE_UNREADABLE', detail: account.storeFault, status: 503 };
   if (account.status === 'UNFUNDED') return { ok: false, error: 'UNFUNDED', detail: 'the chain has credited nothing to this key hash', status: 402 };
   if (account.status === 'BELOW_MINIMUM') return { ok: false, error: 'BELOW_MINIMUM', detail: `the key opens once ${account.minimumOpenCents} cents have been credited; ${account.creditedCents} have`, status: 402 };
-  const mine = await subscriptionsOf(store, keyHash);
-  if (mine.storeFault !== null) return { ok: false, error: 'STORE_UNREADABLE', detail: mine.storeFault, status: 503 };
-  const active = mine.subscriptions.filter((s) => s.cancelledAt === null);
-  if (active.some((s) => s.url === url)) return { ok: false, error: 'ALREADY_SUBSCRIBED', detail: 'this key already posts to that URL', status: 409 };
-  if (active.length >= MAX_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key holds at most ${MAX_PER_KEY} subscriptions`, status: 409 };
-  if (mine.subscriptions.length >= MAX_ROWS_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key makes at most ${MAX_ROWS_PER_KEY} subscriptions in all, cancelled ones counted: a cancelled row is kept as the record that it existed`, status: 409 };
-  const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0, version: 0 };
-  const { version: _v, ...row } = subscription;
-  const written = await store.writeSnapshotIf({ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...row } }, null);
-  if (written.state !== 'WRITTEN') return { ok: false, error: 'NOT_RECORDED', detail: written.reason, status: 503 };
-  return { ok: true, subscription };
+  // The caps and the same-URL rule are enforced on the key's ledger row by a
+  // conditional write, so two requests at once cannot both pass them; the
+  // subscription row is written after the ledger took this one.
+  for (let attempt = 0; attempt < WRITE_RETRIES; attempt += 1) {
+    const read = await store.snapshots(subKeyRow(keyHash));
+    if (read.state === 'UNREAD') return { ok: false, error: 'STORE_UNREADABLE', detail: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}`, status: 503 };
+    const row = read.value.find((r) => r.key === subKeyRow(keyHash));
+    const ledger = ledgerOf(row?.payload);
+    if (ledger.urls.includes(url)) return { ok: false, error: 'ALREADY_SUBSCRIBED', detail: 'this key already posts to that URL', status: 409 };
+    if (ledger.live >= MAX_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key holds at most ${MAX_PER_KEY} subscriptions`, status: 409 };
+    if (ledger.total >= MAX_ROWS_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key makes at most ${MAX_ROWS_PER_KEY} subscriptions in all, cancelled ones counted: a cancelled row is kept as the record that it existed`, status: 409 };
+    const taken = await store.writeSnapshotIf({ key: subKeyRow(keyHash), observedAt: now.toISOString(), payload: { live: ledger.live + 1, total: ledger.total + 1, urls: [...ledger.urls, url] } }, row === undefined ? null : (row.version ?? 0));
+    if (taken.state === 'CONFLICT') continue;
+    if (taken.state === 'FAILED') return { ok: false, error: 'NOT_RECORDED', detail: taken.reason, status: 503 };
+    const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0, version: 0 };
+    const { version: _v, ...subRowPayload } = subscription;
+    const written = await store.writeSnapshotIf({ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...subRowPayload } }, null);
+    // A row the store did not take leaves the ledger one ahead — a stricter cap, never a looser one; said so.
+    if (written.state !== 'WRITTEN') return { ok: false, error: 'NOT_RECORDED', detail: `${written.reason}; the key's count was taken and is released by a cancellation of nothing — one fewer subscription is allowed until then`, status: 503 };
+    return { ok: true, subscription };
+  }
+  return { ok: false, error: 'NOT_RECORDED', detail: 'the key’s subscription ledger kept moving; try again', status: 503 };
+}
+
+/** Release a live slot and a URL on the key's ledger after a cancellation; a ledger that keeps moving is left one ahead — stricter, never looser. */
+async function releaseOnLedger(store: Store, keyHash: string, url: string, now: Date): Promise<void> {
+  for (let attempt = 0; attempt < WRITE_RETRIES; attempt += 1) {
+    const read = await store.snapshots(subKeyRow(keyHash));
+    if (read.state === 'UNREAD') return;
+    const row = read.value.find((r) => r.key === subKeyRow(keyHash));
+    if (row === undefined) return;
+    const ledger = ledgerOf(row.payload);
+    const w = await store.writeSnapshotIf({ key: subKeyRow(keyHash), observedAt: now.toISOString(), payload: { live: Math.max(0, ledger.live - 1), total: ledger.total, urls: ledger.urls.filter((u) => u !== url) } }, row.version ?? 0);
+    if (w.state !== 'CONFLICT') return;
+  }
 }
 
 /** A row with its version stripped, as it is written; the version is the store's. */
@@ -181,7 +222,11 @@ export async function cancelSubscription(store: Store, keyHash: string, id: stri
     if (!sub) return { ok: false, status: 404, detail: 'no such subscription under this key' };
     if (sub.cancelledAt !== null) return { ok: true, status: 200, detail: `already cancelled at ${sub.cancelledAt}` };
     const written = await store.writeSnapshotIf({ key: subRow(id), observedAt: now.toISOString(), payload: { ...rowOf(sub), cancelledAt: now.toISOString() } }, sub.version);
-    if (written.state === 'WRITTEN') return { ok: true, status: 200, detail: 'cancelled; no further delivery, no further charge' };
+    if (written.state === 'WRITTEN') {
+      await releaseOnLedger(store, keyHash, sub.url, now);
+      const charging = sub.lastDelivery?.state === 'SENT' && sub.lastDelivery.detail === 'delivered; the charge follows';
+      return { ok: true, status: 200, detail: charging ? 'cancelled; no further delivery — a delivery already made may still be charged' : 'cancelled; no further delivery, no further charge' };
+    }
     if (written.state === 'FAILED') return { ok: false, status: 503, detail: written.reason };
   }
   return { ok: false, status: 503, detail: 'the subscription row kept moving under the cancellation; try again' };
@@ -229,7 +274,7 @@ export async function fanOut(
     .filter((s) => s.cancelledAt === null)
     .map((s) => ({ sub: s, t: transition(s.lastActive, conditions) }))
     .filter(({ t }) => t.raised.length > 0 || t.cleared.length > 0)
-    .sort((a, b) => (a.sub.lastDelivery?.at ?? '').localeCompare(b.sub.lastDelivery?.at ?? '') || a.sub.createdAt.localeCompare(b.sub.createdAt));
+    .sort((a, b) => (a.sub.lastDelivery?.at ?? a.sub.createdAt).localeCompare(b.sub.lastDelivery?.at ?? b.sub.createdAt) || a.sub.createdAt.localeCompare(b.sub.createdAt));
   const skipped: { id: string; reason: string }[] = [];
   const failed: { id: string; reason: string }[] = [];
   const uncharged: { id: string; reason: string }[] = [];
@@ -257,9 +302,22 @@ export async function fanOut(
     }
     return false;
   };
+  // The same, onto the row whether live or cancelled: for a fact about a delivery that already happened.
+  const writeAny = async (id: string, patch: Partial<Subscription>): Promise<boolean> => {
+    for (let attempt = 0; attempt < WRITE_RETRIES; attempt += 1) {
+      const fresh = await subscriptionsOf(store, null);
+      const current = fresh.storeFault === null ? fresh.subscriptions.find((s) => s.id === id) : undefined;
+      if (current === undefined) return false;
+      const written = await store.writeSnapshotIf({ key: subRow(id), observedAt: now.toISOString(), payload: { ...rowOf(current), ...patch } }, current.version);
+      if (written.state === 'WRITTEN') return true;
+      if (written.state === 'FAILED') return false;
+    }
+    return false;
+  };
   for (const { sub, t } of live) {
     const message = composeMessage(t, now);
-    if (Date.now() > deadline) {
+    // An iteration costs up to a lookup, a post and a few store round trips; one that cannot finish before the deadline is not started.
+    if (Date.now() + LOOKUP_TIMEOUT_MS + WEBHOOK_TIMEOUT_MS + STORE_ALLOWANCE_MS > deadline) {
       deferred += 1;
       continue;
     }
@@ -306,7 +364,7 @@ export async function fanOut(
     const paid = await charge(store, sub.keyHash, service.id, service.cents, `alert delivery · ${t.raised.length} raised, ${t.cleared.length} cleared`, now);
     if (paid.ok) charged += 1;
     else uncharged.push({ id: sub.id, reason: paid.detail });
-    await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'SENT', detail: paid.ok ? null : `delivered but not charged: ${paid.detail}`, charged: paid.ok } });
+    await writeAny(sub.id, { lastDelivery: { at: now.toISOString(), state: 'SENT', detail: paid.ok ? null : `delivered but not charged: ${paid.detail}`, charged: paid.ok } });
   }
   return { considered: live.length, delivered, charged, skipped, failed, uncharged, untold, deferred };
 }

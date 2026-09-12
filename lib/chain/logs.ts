@@ -49,6 +49,11 @@ export function isTooManyLogs(detail: string | undefined): boolean {
   return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(detail);
 }
 
+/** A page to halve: refused for matching too much or too wide, or not answered in time — a node with no cap on results (dRPC) says "too much" only by taking too long. */
+export function halveable(reading: { readonly reason: string; readonly detail?: string }): boolean {
+  return reading.reason === 'SOURCE_TIMEOUT' || isTooManyLogs(reading.detail);
+}
+
 export async function readLogWindow(
   addresses: string | readonly string[],
   topics: readonly (string | null)[],
@@ -72,7 +77,7 @@ export async function readLogWindow(
     const result = await fetch(addresses, topics, page.from, page.to, opts);
 
     if (result.state === 'UNREAD') {
-      if (isTooManyLogs(result.detail) && width > MIN_PAGE_BLOCKS) {
+      if (halveable(result) && width > MIN_PAGE_BLOCKS) {
         // Too many for one answer: halve, and push the later half first so
         // the earlier one is read next.
         const middle = page.from + Math.floor(width / 2);

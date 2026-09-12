@@ -277,9 +277,15 @@ export async function syncTopUps(
   const untried = [...fresh, ...index.unpriced.filter((u) => (u.attempts ?? 0) === 0)].sort(order);
   const tried = index.unpriced.filter((u) => (u.attempts ?? 0) > 0).sort(leastTried);
   const queue: (TopUpLog & { reason?: string; attempts?: number })[] = [...untried, ...tried];
+  // No pool recorded: nothing can be tried, so nothing counts as tried — every top-up keeps its place in the first queue for the day the pool is recorded, and is then priced fifty a run in chain order.
+  if (config.priceSource === null) {
+    for (const t of queue) unpriced.push({ ...t, reason: 'waits for a pool to be recorded; priced then', attempts: 0 });
+  }
+  // The untried get most of the time, never all of it: what is left is for the tried, so a run full of fresh top-ups still retries a few waiting ones.
+  const untriedDeadline = Date.now() + Math.floor((deadline - Date.now()) * 0.8);
   let priced = 0;
   let retried = 0;
-  for (const t of queue) {
+  for (const t of config.priceSource === null ? [] : queue) {
     const waiting = (t.attempts ?? 0) > 0;
     const attempts = (t.attempts ?? 0) + 1;
     if (!waiting && priced >= MAX_TOPUPS_PER_SYNC) {
@@ -290,7 +296,7 @@ export async function syncTopUps(
       unpriced.push({ ...t, reason: t.reason ?? 'waits', attempts: t.attempts ?? 0 });
       continue;
     }
-    if (Date.now() > deadline) {
+    if (Date.now() > (waiting ? deadline : untriedDeadline)) {
       unpriced.push({ ...t, reason: waiting ? (t.reason ?? 'waits') : 'deferred: the run\'s time for pricing was used; this one is next', attempts: t.attempts ?? 0 });
       continue;
     }

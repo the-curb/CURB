@@ -56,29 +56,50 @@ const fail = (why: string): never => {
 };
 
 /**
- * The block of the earliest log an address ever emitted, or null if it has
- * none: the whole span is asked and, where the node refuses a range for
- * matching too much, the lower half is asked again until it answers — the
- * earliest log is in the lowest range that holds any.
+ * Did the pool emit anything before `top`? One query over [0, top] on a node
+ * that serves any width — a refusal for matching too much is itself the
+ * answer: logs exist there. On a node that caps a query's width, pages of
+ * the width it serves, walked down from `top`, at most 64 of them; the
+ * answer then says how far down it looked.
  */
-async function earliestLogBlock(address: Address, head: number): Promise<number | null> {
-  let lo = 0;
-  let hi = head;
-  for (let i = 0; i < 64 && lo <= hi; i += 1) {
+const WIDTH_CAP = /block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i;
+const CONTENT_CAP = /exceeds limit|too many|query returned more than|response size/i;
+async function logBefore(address: Address, top: number): Promise<{ block: number | null; coveredFrom: number }> {
+  const message = (cause: unknown) => (cause instanceof Error ? cause.message.split('\n')[0]! : 'unknown');
+  const earliest = (logs: { blockNumber: bigint | null }[]) => logs.map((l) => Number(l.blockNumber)).reduce((a, b) => Math.min(a, b));
+  try {
+    const logs = await pub.getLogs({ address, fromBlock: 0n, toBlock: BigInt(top) });
+    return { block: logs.length === 0 ? null : earliest(logs), coveredFrom: 0 };
+  } catch (cause) {
+    const m = message(cause);
+    if (CONTENT_CAP.test(m) && !WIDTH_CAP.test(m)) return { block: top, coveredFrom: 0 };
+    if (!WIDTH_CAP.test(m)) fail(`the node at ${new URL(rpcUrl).host} would not serve the pool's logs for blocks 0–${top}: ${m}`);
+  }
+  let width = top + 1;
+  let hi = top;
+  for (let i = 0; i < 64; i += 1) {
+    const lo = Math.max(0, hi - width + 1);
     try {
       const logs = await pub.getLogs({ address, fromBlock: BigInt(lo), toBlock: BigInt(hi) });
-      if (logs.length > 0) return logs.map((l) => Number(l.blockNumber)).reduce((a, b) => Math.min(a, b));
-      if (hi === head) return null;
-      // Nothing in [lo, hi]: the earliest is above hi.
-      lo = hi + 1;
-      hi = head;
+      if (logs.length > 0) return { block: earliest(logs), coveredFrom: lo };
+      if (lo === 0) return { block: null, coveredFrom: 0 };
+      hi = lo - 1;
     } catch (cause) {
-      // Too many for one answer: look at the lower half first.
-      if (hi - lo < 2) fail(`the node would not serve the pool's logs for blocks ${lo}–${hi}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`);
-      hi = lo + Math.floor((hi - lo) / 2);
+      const m = message(cause);
+      if (width <= 25) fail(`the node at ${new URL(rpcUrl).host} would not serve the pool's logs for blocks ${lo}–${hi}: ${m}`);
+      width = Math.floor(width / 2);
     }
   }
-  return fail('the pool’s first log could not be found in 64 queries');
+  return { block: null, coveredFrom: hi + 1 };
+}
+
+/** A node call that failed is a refusal naming the host, never a stack trace carrying the keyed URL. */
+async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (cause) {
+    return fail(`the node at ${new URL(rpcUrl).host} did not answer ${what}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`);
+  }
 }
 // Strict: a misspelt --dry-run is a refusal, never a real deployment.
 const { positionals, flags } = parseArgs(process.argv.slice(2), [], fail, ['dry-run', 'reviewed']);
@@ -131,7 +152,7 @@ const erc20 = parseAbi(['function symbol() view returns (string)', 'function dec
 // ── the chain ─────────────────────────────────────────────────────────────
 const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(rpcUrl).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`));
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
-const tokenCode = await pub.getCode({ address: record.token });
+const tokenCode = await ask('getCode(token)', () => pub.getCode({ address: record.token }));
 if (!tokenCode || tokenCode === '0x') fail(`the token at ${record.token} has no code on chain ${chainId}`);
 const [symbol, decimals, supply] = await Promise.all([
   pub.readContract({ address: record.token, abi: erc20, functionName: 'symbol' }).catch(() => null),
@@ -141,11 +162,11 @@ const [symbol, decimals, supply] = await Promise.all([
 if (symbol === null || decimals === null || supply === null) fail(`the token at ${record.token} does not answer symbol(), decimals() and totalSupply()`);
 if (Number(decimals) !== record.decimals) fail(`the token answers ${decimals} decimals; the record expects ${record.decimals}`);
 console.error(`token: ${record.token} · ${symbol} · ${decimals} decimals · supply ${supply} · code present`);
-const treasuryCode = await pub.getCode({ address: record.treasury });
+const treasuryCode = await ask('getCode(treasury)', () => pub.getCode({ address: record.treasury }));
 if ((!treasuryCode || treasuryCode === '0x') && record.chainId !== 31337) fail(`the treasury at ${record.treasury} has no code: the treasury is the operator multisig, not a key`);
 console.error(`treasury: ${record.treasury} · ${treasuryCode && treasuryCode !== '0x' ? 'a contract' : 'an unlocked local account (rehearsal only)'}`);
 if (record.priceSource !== null) {
-  const pairCode = await pub.getCode({ address: record.priceSource.pair });
+  const pairCode = await ask('getCode(pool)', () => pub.getCode({ address: record.priceSource!.pair }));
   if (!pairCode || pairCode === '0x') fail(`the pool at ${record.priceSource.pair} has no code on chain ${chainId}`);
   // The pool must hold the token on one side, and a feed-priced quote must answer as a feed.
   const poolAbi = parseAbi(['function token0() view returns (address)', 'function token1() view returns (address)']);
@@ -166,11 +187,11 @@ if (record.priceSource !== null) {
   }
   // fromBlock — the block the pool was created in — decides which top-ups are priced at the head instead of at their own block, so it is not taken on anyone's word: the pool's first log is found, and fromBlock may not be later than it.
   if (typeof record.priceSource.fromBlock === 'number') {
-    const head = Number(await pub.getBlockNumber());
+    const head = Number(await ask('eth_blockNumber', () => pub.getBlockNumber()));
     if (record.priceSource.fromBlock > head) fail(`priceSource.fromBlock ${record.priceSource.fromBlock} is past the head (${head})`);
-    const first = await earliestLogBlock(record.priceSource.pair, head);
-    if (first !== null && record.priceSource.fromBlock > first) fail(`priceSource.fromBlock ${record.priceSource.fromBlock} is later than the pool's first log, in block ${first}; the pool existed before that block, and a top-up between the two would be priced at the head instead of at its own block`);
-    console.error(first === null ? `pool: no log at all up to block ${head}; fromBlock ${record.priceSource.fromBlock} cannot be checked against one and is taken as written` : `pool: first log in block ${first}; fromBlock ${record.priceSource.fromBlock} is at or before it`);
+    const before = record.priceSource.fromBlock === 0 ? { block: null, coveredFrom: 0 } : await logBefore(record.priceSource.pair, record.priceSource.fromBlock - 1);
+    if (before.block !== null) fail(`priceSource.fromBlock ${record.priceSource.fromBlock} is later than a log the pool emitted in block ${before.block}; the pool existed before that block, and a top-up between the two would be priced at the head instead of at its own block`);
+    console.error(before.coveredFrom === 0 ? `pool: no log before block ${record.priceSource.fromBlock}; fromBlock is at or before the pool's first` : `pool: no log in blocks ${before.coveredFrom}–${record.priceSource.fromBlock - 1} (this endpoint caps a query's width; the span below was not read — the public node reads it whole)`);
   } else {
     console.error('note: priceSource.fromBlock is absent — a top-up the pool has no price event for waits instead of going to the head; read the creation block from the chain and add it');
   }
@@ -216,16 +237,16 @@ if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) fail('DEPLOYER_PRIVATE_KEY is not 
 const account = privateKeyToAccount(key as Hex);
 const wallet = createWalletClient({ chain, transport: http(rpcUrl), account });
 // An unfunded deployer is a refusal here, not a transport error from inside the send.
-const balance = await pub.getBalance({ address: account.address });
+const balance = await ask('getBalance(deployer)', () => pub.getBalance({ address: account.address }));
 if (balance === 0n) fail(`the deployer ${account.address} holds no ETH on chain ${chainId}; nothing was sent`);
 console.error(`deployer ${account.address} · ${balance} wei`);
 
-const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never });
+const hash = await ask('the deployment', () => wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never }));
 console.error(`sent ${hash}; waiting for the receipt`);
 // The hash is written down before the receipt is waited for, so a cut-off here leaves a note, not a second deployment on the next run.
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
 writeFileSync(out, `${JSON.stringify({ record, pending: { transactionHash: hash, deployer: account.address, sentAt: new Date().toISOString(), note: 'sent; the receipt was not yet read when this was written' } }, null, 2)}\n`);
-const receipt = await pub.waitForTransactionReceipt({ hash });
+const receipt = await ask(`the receipt of ${hash}`, () => pub.waitForTransactionReceipt({ hash }));
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
 const address = receipt.contractAddress!;
 const block = Number(receipt.blockNumber);

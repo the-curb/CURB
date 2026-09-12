@@ -109,7 +109,10 @@ create table if not exists snapshots (
   key         text        primary key,
   observed_at timestamptz not null,
   payload     jsonb       not null,
-  version     bigint      not null default 0
+  version     bigint      not null default 0,
+  write_token text
 );
 -- Added 13 September 2026 for the conditional write; a store created before then gains it here.
 alter table snapshots add column if not exists version bigint not null default 0;
+-- The token of the conditional write that last replaced the row: a statement resent after a dropped socket finds its own token and knows it landed.
+alter table snapshots add column if not exists write_token text;
