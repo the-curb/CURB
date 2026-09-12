@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DECISIONS, decisionBySlug, readDecision } from '@/lib/docs/decisions';
+import { DECISIONS, decisionBySlug, readDecision, statusOf } from '@/lib/docs/decisions';
 import { parseMarkdown } from '@/lib/docs/markdown';
 import { BlockView } from '../../../components/markdown-view';
 
@@ -35,7 +35,7 @@ export default async function DecisionPage({ params }: { params: Promise<{ slug:
       <header className="mb-6">
         <div className="kicker">
           <b>The position</b> · <Link href="/mechanism" className="hover:text-(--color-paper)">Mechanism</Link> ·{' '}
-          <Link href="/mechanism/decisions" className="hover:text-(--color-paper)">decision records</Link> · {record.backlog} · proposed, not decided
+          <Link href="/mechanism/decisions" className="hover:text-(--color-paper)">decision records</Link> · {record.backlog} · {statusOf(record) === 'proposed' ? 'proposed, not decided' : statusOf(record)}
         </div>
       </header>
       {blocks === null ? (

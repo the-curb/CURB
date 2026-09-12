@@ -9,12 +9,16 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+export type DecisionStatus = 'proposed' | 'partly decided' | 'decided';
+
 export interface DecisionRecord {
   readonly slug: string;
   readonly file: string;
   readonly title: string;
   readonly asks: string;
   readonly backlog: string;
+  /** Proposed unless a named person decided it; the record's own status line says who and when. */
+  readonly status?: DecisionStatus;
 }
 
 export const DECISIONS: readonly DecisionRecord[] = [
@@ -31,8 +35,19 @@ export const DECISIONS: readonly DecisionRecord[] = [
   { slug: 'assumptions', file: 'ASSUMPTIONS.md', title: 'The assumption register', asks: 'every question that needs a person, what is assumed meanwhile and why it is the conservative assumption, and what the site says while it holds', backlog: '§19' },
   { slug: 'review', file: 'REVIEW.md', title: 'A self-review, not a review', asks: 'the checklist a reviewer would walk, walked by the author; one open finding; what it did not do', backlog: 'C09' },
   { slug: 'interviews', file: 'INTERVIEWS.md', title: 'The interview guide', asks: 'who to talk to, the conversation, the scoring, the comprehension test — ready to run, not run', backlog: 'R04, B02' },
-  { slug: 'token', file: 'TOKEN.md', title: 'The CURB token: one function', asks: 'prepaid credit for services that exist, priced in dollars and paid in CURB at a rate read from the chain; validity, cancellation, what the token does not do, the proceeds budget, and the order: services first, launch after', backlog: '§16' },
+  {
+    slug: 'token',
+    file: 'TOKEN.md',
+    title: 'The CURB token: one function',
+    asks: 'prepaid credit for services that exist, priced in dollars and paid in CURB at a rate read from the chain; validity, cancellation, what the token does not do, the proceeds budget, and the order: services first, launch after — the US$20 opening minimum decided, the rest proposed',
+    backlog: '§16',
+    status: 'partly decided',
+  },
 ];
+
+export function statusOf(record: DecisionRecord): DecisionStatus {
+  return record.status ?? 'proposed';
+}
 
 export function decisionBySlug(slug: string): DecisionRecord | null {
   return DECISIONS.find((d) => d.slug === slug) ?? null;
