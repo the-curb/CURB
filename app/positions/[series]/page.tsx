@@ -7,6 +7,7 @@ import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
 import { PositionSimulator } from '../../components/position-simulator';
+import { WalletLookup } from '../../components/wallet-lookup';
 
 export const dynamic = 'force-dynamic';
 
@@ -371,6 +372,19 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
           capLots={spec.capLotsIllustrative.toString()}
           labels={{ A: a.instrument.split(',')[0] ?? 'A', B: b.instrument.split(',')[0] ?? 'B' }}
         />
+      </section>
+
+      {/* ── my position, read only ──────────────────────────────────────── */}
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+          <span className="kicker">
+            <b>My position</b> · what the index holds for an address
+          </span>
+          <Link href="/mechanism#6-flows-and-screens" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+            §6 of the mechanism
+          </Link>
+        </div>
+        <WalletLookup seriesId={spec.id} labels={{ A: a.instrument.split(',')[0] ?? 'A', B: b.instrument.split(',')[0] ?? 'B' }} />
       </section>
 
       {/* ── rules, promises, gates ──────────────────────────────────────── */}
