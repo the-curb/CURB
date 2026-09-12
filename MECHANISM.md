@@ -411,7 +411,7 @@ The Ondo API source records `ACCESS_DENIED`: its documented endpoint requires an
 
 **Why not hold the two tokens myself?** That is a valid alternative. The Curb has to prove that lot formation, bookkeeping or integration is worth the added cost and contract risk.
 
-**Do I have to buy CURB?** Not for the proposed MVP. The position receipt and the CURB token have separate functions.
+**Do I have to buy CURB?** Not for the proposed MVP. The position receipt and the CURB token have separate functions: the only function proposed for CURB is paying for the desk's data services — the archive's history and the alert fan-out — at prices in dollars ([/services](/services)); forming, holding and claiming a position never need it.
 
 ## 19. Assumptions and open decisions
 
