@@ -34,8 +34,11 @@ jobs:
         working-directory: contracts
         run: |
           set +e
-          slither src/CreditDesk.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-credit-desk.json --print human-summary 2>&1 | tail -60
-          slither src/CompanySeries.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-company-series.json --print human-summary 2>&1 | tail -60
+          # The detectors (the JSON report), then the human summary: a printer run executes no detectors, so the two are separate runs.
+          slither src/CreditDesk.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-credit-desk.json 2>&1 | tail -80
+          slither src/CompanySeries.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-company-series.json 2>&1 | tail -80
+          slither src/CreditDesk.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --print human-summary 2>&1 | grep -E "Number of|analyzed"
+          slither src/CompanySeries.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --print human-summary 2>&1 | grep -E "Number of|analyzed"
           exit 0
       - name: Summary — findings by severity
         run: |
