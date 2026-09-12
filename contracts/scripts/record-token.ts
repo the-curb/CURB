@@ -19,12 +19,15 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { createPublicClient, http, keccak256, parseAbi, type Address, type Hex } from 'viem';
+import path from 'node:path';
+import { BaseError, ContractFunctionRevertedError, ContractFunctionZeroDataError, createPublicClient, http, keccak256, parseAbi, type Address, type Hex } from 'viem';
+import { address as checkedAddress, parseArgs } from './lib/args.ts';
 
-const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string | null }> = {
-  'robinhood-mainnet': { chainId: 4663, rpc: process.env.CURB_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' },
-  'ethereum-mainnet': { chainId: 1, rpc: process.env.CURB_RPC_URL_ETHEREUM ?? 'https://ethereum-rpc.publicnode.com', explorer: 'https://etherscan.io' },
-  'hardhat-local': { chainId: 31337, rpc: process.env.CURB_RPC_URL_LOCAL ?? 'http://127.0.0.1:8545', explorer: null },
+/** The public endpoint is what the record names; an operator's own endpoint (which may carry a key) is read through the environment and never written down. */
+const NETWORKS: Record<string, { chainId: number; rpc: string; publicRpc: string; explorer: string | null }> = {
+  'robinhood-mainnet': { chainId: 4663, rpc: process.env.CURB_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com', publicRpc: 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' },
+  'ethereum-mainnet': { chainId: 1, rpc: process.env.CURB_RPC_URL_ETHEREUM ?? 'https://ethereum-rpc.publicnode.com', publicRpc: 'https://ethereum-rpc.publicnode.com', explorer: 'https://etherscan.io' },
+  'hardhat-local': { chainId: 31337, rpc: process.env.CURB_RPC_URL_LOCAL ?? 'http://127.0.0.1:8545', publicRpc: 'http://127.0.0.1:8545', explorer: null },
 };
 
 /** EIP-1967: keccak256(label) − 1, per the standard; the same constants the site reads. */
@@ -34,24 +37,18 @@ const SLOTS = {
   beacon: '0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50',
 } as const;
 
-const args = process.argv.slice(2);
-const flag = (name: string): string | null => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 && args[i + 1] !== undefined ? args[i + 1]! : null;
-};
-const token = args.find((a, i) => !a.startsWith('--') && (i === 0 || !args[i - 1]!.startsWith('--'))) as Address | undefined;
-const networkName = flag('network') ?? 'robinhood-mainnet';
-const treasury = flag('treasury');
 const fail = (why: string): never => {
   console.error(`refused: ${why}`);
   process.exit(1);
 };
-const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
-if (!isAddress(token)) fail('give the token address as the first argument');
-if (treasury !== null && !isAddress(treasury)) fail('--treasury must be a 20-byte hex address');
+const { positionals, flags } = parseArgs(process.argv.slice(2), ['network', 'treasury', 'out'], fail);
+if (positionals.length !== 1) fail('give exactly one token address as the argument');
+const token: Address = checkedAddress(positionals[0]!, 'the token', fail);
+const networkName = flags.network ?? 'robinhood-mainnet';
+const treasury = flags.treasury === undefined ? null : checkedAddress(flags.treasury, '--treasury', fail);
 const network = NETWORKS[networkName];
 if (!network) fail(`unknown network ${networkName}; one of ${Object.keys(NETWORKS).join(', ')}`);
-const out = flag('out') ?? `records/credit-desk.${network!.chainId}.json`;
+const out = flags.out ?? `records/credit-desk.${network!.chainId}.json`;
 
 const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [network!.rpc] } } } as const;
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
@@ -62,20 +59,23 @@ if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; th
 const block = await pub.getBlock();
 const at = { block: Number(block.number), timestamp: new Date(Number(block.timestamp) * 1000).toISOString() };
 
-const code = await pub.getCode({ address: token!, blockNumber: block.number });
+const code = await pub.getCode({ address: token, blockNumber: block.number });
 if (!code || code === '0x') fail(`the token at ${token} has no code on chain ${chainId}`);
+// A function the contract does not answer is written down as null; a node that did not answer is a refusal, never a fact about the token.
 const read = async <T,>(fn: 'name' | 'symbol' | 'decimals' | 'totalSupply' | 'owner' | 'paused'): Promise<T | null> => {
   try {
-    return (await pub.readContract({ address: token!, abi: erc20, functionName: fn, blockNumber: block.number })) as T;
-  } catch {
-    return null;
+    return (await pub.readContract({ address: token, abi: erc20, functionName: fn, blockNumber: block.number })) as T;
+  } catch (cause) {
+    const reverted = cause instanceof BaseError && (cause.walk((e) => e instanceof ContractFunctionRevertedError || e instanceof ContractFunctionZeroDataError) !== null || /reverted|returned no data|0x/.test(cause.shortMessage));
+    if (reverted) return null;
+    return fail(`the node did not answer ${fn}() for ${token}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing is written down`);
   }
 };
 const [name, symbol, decimals, supply, owner, paused] = await Promise.all([read<string>('name'), read<string>('symbol'), read<number>('decimals'), read<bigint>('totalSupply'), read<Address>('owner'), read<boolean>('paused')]);
 if (symbol === null || decimals === null || supply === null) fail(`the token at ${token} does not answer symbol(), decimals() and totalSupply()`);
 
 const slot = async (position: Hex): Promise<Address | null> => {
-  const word = await pub.getStorageAt({ address: token!, slot: position, blockNumber: block.number });
+  const word = await pub.getStorageAt({ address: token, slot: position, blockNumber: block.number });
   if (!word || /^0x0*$/.test(word)) return null;
   return `0x${word.slice(-40)}` as Address;
 };
@@ -85,7 +85,7 @@ const behindProxy = proxy.implementation !== null || proxy.beacon !== null;
 const facts = {
   network: networkName,
   chainId,
-  address: token!.toLowerCase(),
+  address: token.toLowerCase(),
   readAt: at,
   name,
   symbol,
@@ -108,8 +108,8 @@ const record = {
   _: `Written by scripts/record-token.ts from chain ${chainId} at block ${at.block}, ${at.timestamp}. The token's facts are in tokenAsRead. Fill treasury (the operator multisig), priceSource when the pool exists, and reviewedBy / reviewedAt by name; the deployment tool refuses the record until then.`,
   network: networkName,
   chainId,
-  rpcUrl: network!.rpc,
-  token: token!,
+  rpcUrl: network!.publicRpc,
+  token,
   decimals: Number(decimals),
   treasury: treasury ?? '0x0000000000000000000000000000000000000000',
   priceSource: null,
@@ -118,8 +118,8 @@ const record = {
   tokenAsRead: facts,
 };
 mkdirSync(new URL('../records/', import.meta.url), { recursive: true });
-const outUrl = new URL(`../${out}`, import.meta.url);
-writeFileSync(outUrl, `${JSON.stringify(record, null, 2)}\n`);
-console.error(`written ${outUrl.pathname}`);
+const outPath = path.isAbsolute(out) ? out : path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', out);
+writeFileSync(outPath, `${JSON.stringify(record, null, 2)}\n`);
+console.error(`written ${outPath}`);
 // The only line on stdout: the facts, for the record.
 console.log(JSON.stringify(facts));

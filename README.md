@@ -83,7 +83,7 @@ not covered.
 ## The contract prototype
 
 `contracts/` is a separate workspace: the series contract the mechanism
-proposes (`src/CompanySeries.sol`), the credit desk the token record proposes
+proposes (`src/CompanySeries.sol`), the credit desk the token record decides on
 (`src/CreditDesk.sol`: a top-up to a published treasury and an event, nothing
 held, no admin), the mocks that misbehave on demand, and the blueprint's test
 cases as Solidity tests with fuzz and invariant runs. Unaudited, unreviewed,

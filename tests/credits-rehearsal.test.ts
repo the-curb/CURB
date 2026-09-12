@@ -52,10 +52,13 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.equal(run.state, 'CONFIGURED', run.detail ?? '');
       assert.equal(run.rate?.state, 'READ', JSON.stringify(run.rate));
       if (run.rate?.state !== 'READ') return;
-      // After the second top-up the pool is 4,000,000 CURB against 40,000 dollars: US$0.01 a CURB; 1e9 supply is US$10,000,000.
-      assert.equal(run.rate.rate.usdPerCurb18, (10n ** 16n).toString());
+      // After the second top-up the pool is 4,000,000 CURB against 40,000 dollars: US$0.01 a CURB at the block; 1e9 supply is US$10,000,000.
+      // The guard's window on the local chain (40 blocks) still holds the pool's first price, US$0.005, so that is the rate a top-up is credited at.
+      assert.equal(run.rate.rate.guard.atBlockUsdPerCurb18, (10n ** 16n).toString());
+      assert.equal(run.rate.rate.usdPerCurb18, (5n * 10n ** 15n).toString());
+      assert.equal(run.rate.rate.guard.applied, true);
       assert.equal(run.rate.rate.marketCapUsd18, (10_000_000n * 10n ** 18n).toString());
-      assert.equal(curbForCents(run.rate.rate, 2000n), 2_000n * 10n ** 18n, 'US$20 is 2,000 CURB at the head');
+      assert.equal(curbForCents(run.rate.rate, 2000n), 4_000n * 10n ** 18n, 'US$20 is 4,000 CURB at the guarded rate');
 
       // The desk's code is the committed build, and its immutables are the record's token and treasury.
       assert.equal(run.code?.state, 'MATCHES', run.code?.detail ?? '');
@@ -66,7 +69,7 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.deepEqual(
         run.index?.credited.map((c) => [c.keyHash, c.cents, c.basis]),
         record.topUps.map((u) => [record.keyHash, u.expectCents, 'TOP_UP_BLOCK']),
-        'each top-up priced at its own block: 4,000 CURB at US$0.005, then 1,000 at US$0.01',
+        'each top-up priced at its own block: 4,000 CURB at US$0.005, then 1,000 at US$0.01 guarded down to US$0.005',
       );
 
       // The same two prices from the pair's own Sync events at the top-up blocks — the path a node with a short state window takes.
@@ -79,25 +82,26 @@ describe('the credit desk, rehearsed on a local chain', () => {
         if (first.state === 'UNREAD') assert.fail(JSON.stringify(first));
         if (second.state === 'UNREAD') assert.fail(JSON.stringify(second));
         assert.equal(first.value.basis, 'EVENTS');
-        assert.equal(first.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'US/usr/bin/bash.005 from the Sync before the first top-up');
-        assert.equal(second.value.usdPerCurb18, (10n ** 16n).toString(), 'US/usr/bin/bash.01 from the Sync before the second');
+        assert.equal(first.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'US$0.005 from the Sync before the first top-up');
+        assert.equal(second.value.guard.atBlockUsdPerCurb18, (10n ** 16n).toString(), 'US$0.01 from the Sync before the second');
+        assert.equal(second.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'guarded by the first price, still in the window');
         assert.ok(first.value.pool.eventBlock! < record.topUps[0]!.block);
       }
 
       const account = await keyAccount(store, record.keyHash);
       assert.equal(account.status, 'OPEN');
-      assert.equal(account.creditedCents, '3000');
+      assert.equal(account.creditedCents, '2500');
       assert.deepEqual(account.topUps.map((u) => [u.blockNumber, u.amount, u.cents]), record.topUps.map((u) => [u.block, u.amount, u.expectCents]));
 
       // The same tick again credits nothing twice.
       const again = await runCredits(store, new Date(), null);
       assert.equal(again.index?.newTopUps, 0);
-      assert.equal((await keyAccount(store, record.keyHash)).creditedCents, '3000');
+      assert.equal((await keyAccount(store, record.keyHash)).creditedCents, '2500');
 
       // A paid call with the key: charged, answered, the balance moved by the listed price.
       const paid = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': record.key } }), store, 'evidence-versions', 'apple-s1 · rehearsal');
       assert.equal(paid.ok, true);
-      if (paid.ok) assert.equal(paid.account.balanceCents, '2995');
+      if (paid.ok) assert.equal(paid.account.balanceCents, '2495');
     } finally {
       if (before === undefined) delete process.env[CREDITS_ENV];
       else process.env[CREDITS_ENV] = before;

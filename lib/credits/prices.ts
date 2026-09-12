@@ -1,5 +1,5 @@
 /**
- * The price list, in US cents, as the token record proposes it
+ * The price list, in US cents, as the token record decides it
  * (docs/decisions/TOKEN.md). One table: the services page renders it, the
  * guard charges from it, the API publishes it. A price that is not here is
  * not a price the desk charges, and nothing is charged that is not on the

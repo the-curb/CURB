@@ -25,8 +25,24 @@ import { centsForCurb, readRate, readRateFromEvents, type Rate } from './rate.ts
 
 export const TOPUP_TOPIC = keccak256Hex('TopUp(bytes32,address,uint256)');
 export const INDEX_KEY = 'credits:index';
+/** How many block hashes are kept for the reorg check: every block that carried a top-up and every sync's last block, newest first. */
 export const REORG_DEPTH = 64;
-export const MAX_BLOCKS_PER_SYNC = 20_000;
+/** The node answers a 100,000-block log query with an address filter in under a second (measured on Robinhood Chain); about three hours of that chain per tick. */
+export const MAX_BLOCKS_PER_SYNC = 100_000;
+/**
+ * How many blocks behind the head the index stops, by chain, so a block the
+ * sequencer could still re-sequence is not read as final: about a minute on
+ * Robinhood Chain, two epochs' worth on Ethereum, none on a local chain.
+ */
+export const CONFIRMATIONS_BY_CHAIN: Readonly<Record<number, number>> = { 4663: 600, 1: 12, 11155111: 12, 31337: 0 };
+export const confirmationsFor = (chainId: number): number => CONFIRMATIONS_BY_CHAIN[chainId] ?? 12;
+/** How long one sync may spend pricing before the rest are deferred, inside a tick that has sixty seconds for everything. */
+export const SYNC_TIME_BUDGET_MS = 25_000;
+/** How many top-ups one run prices at most; the rest wait for the next, so a burst cannot outrun the tick's time. */
+export const MAX_TOPUPS_PER_SYNC = 50;
+/** How many applied references are kept for idempotency; older ones are beyond any reorg, and the keys' rows refuse a duplicate anyway. */
+export const APPLIED_KEPT = 5_000;
+/** The reads are aged against the tick's cadence: scheduled every five minutes, in practice ten to twenty. */
 export const CREDITS_INTERVAL_SECONDS = 15 * 60;
 
 export interface TopUpLog {
@@ -83,7 +99,7 @@ export async function loadCreditsIndex(store: Store, config: CreditsConfig): Pro
 }
 
 export interface CreditsSyncReport {
-  readonly state: 'SYNCED' | 'PARTIAL' | 'HEAD_UNREAD' | 'STORE_UNREADABLE';
+  readonly state: 'SYNCED' | 'PARTIAL' | 'HEAD_UNREAD' | 'STORE_UNREADABLE' | 'HELD';
   readonly fromBlock: number | null;
   readonly toBlock: number | null;
   readonly head: number | null;
@@ -116,17 +132,21 @@ async function creditKey(store: Store, credit: TopUpCredit, keyHash: string, now
   return written.state === 'WRITTEN';
 }
 
-/** Remove every credit at or after a height from a key's row. */
-async function uncreditFrom(store: Store, keyHash: string, height: number, now: Date): Promise<void> {
+/** Remove every credit at or after a height from a key's row. False when the store would not let it be done, so the rollback is not recorded as done. */
+async function uncreditFrom(store: Store, keyHash: string, height: number, now: Date): Promise<boolean> {
   const read = await store.snapshots(topUpsRow(keyHash));
-  if (read.state === 'UNREAD') return;
+  if (read.state === 'UNREAD') return false;
   const row = read.value.find((r) => r.key === topUpsRow(keyHash));
   const existing = Array.isArray(row?.payload.topUps) ? (row.payload.topUps as TopUpCredit[]) : [];
   const topUps = existing.filter((t) => t.blockNumber < height);
-  if (topUps.length === existing.length) return;
+  if (topUps.length === existing.length) return true;
   const creditedCents = topUps.reduce((sum, t) => sum + BigInt(t.cents), 0n).toString();
-  await store.writeSnapshots([{ key: topUpsRow(keyHash), observedAt: now.toISOString(), payload: { hash: keyHash, creditedCents, topUps } }]);
+  const written = await store.writeSnapshots([{ key: topUpsRow(keyHash), observedAt: now.toISOString(), payload: { hash: keyHash, creditedCents, topUps } }]);
+  return written.state === 'WRITTEN';
 }
+
+/** A pool that had no event before the block did not exist then; only that sends a top-up to the head's rate. Anything else — a node that did not answer, a window that could not be read — is waited out. */
+const poolAbsentAtBlock = (r: Reading<Rate>): boolean => r.state === 'UNREAD' && r.reason === 'FIELD_ABSENT' && /^no (Sync|Swap)/.test(r.detail ?? '');
 
 export async function syncTopUps(
   store: Store,
@@ -146,28 +166,38 @@ export async function syncTopUps(
   const head = await readHead(opts);
   if (!isRead(head)) return none('HEAD_UNREAD', `${head.reason}${head.detail ? ` — ${head.detail}` : ''}`);
 
-  // Reorg check: the oldest kept block whose hash moved, and everything after it, is forgotten and uncredited.
+  // Reorg check, newest kept block first: a kept block whose hash still
+  // stands has every older kept block standing beneath it, so the usual
+  // tick makes one read. The oldest moved block, and everything after it,
+  // is forgotten and uncredited; if the store would not take a rollback,
+  // nothing is forgotten and the check runs again next tick.
   let rolledBackFrom: number | null = null;
-  for (const block of [...index.blocks].sort((a, b) => a.number - b.number)) {
+  const kept = [...index.blocks].sort((a, b) => b.number - a.number);
+  let oldestMoved: number | null = null;
+  for (const block of kept) {
     const onChain = await readBlockHash(block.number, opts);
     if (!isRead(onChain)) break;
-    if (onChain.value.toLowerCase() !== block.hash) {
-      rolledBackFrom = block.number;
-      const touched = new Set(index.applied.filter((a) => a.blockNumber >= block.number).map((a) => a.keyHash));
-      for (const keyHash of touched) await uncreditFrom(store, keyHash, block.number, now);
-      index = {
-        ...index,
-        cursor: Math.min(index.cursor, block.number - 1),
-        blocks: index.blocks.filter((b) => b.number < block.number),
-        applied: index.applied.filter((a) => a.blockNumber < block.number),
-        unpriced: index.unpriced.filter((u) => u.blockNumber < block.number),
-      };
-      break;
-    }
+    if (onChain.value.toLowerCase() === block.hash) break;
+    oldestMoved = block.number;
+  }
+  if (oldestMoved !== null) {
+    const touched = new Set(index.applied.filter((a) => a.blockNumber >= oldestMoved).map((a) => a.keyHash));
+    let undone = true;
+    for (const keyHash of touched) undone = (await uncreditFrom(store, keyHash, oldestMoved, now)) && undone;
+    if (!undone) return none('STORE_UNREADABLE', `block ${oldestMoved} was reorganised but the store would not take the rollback; nothing is forgotten until it does`);
+    rolledBackFrom = oldestMoved;
+    index = {
+      ...index,
+      cursor: Math.min(index.cursor, oldestMoved - 1),
+      blocks: index.blocks.filter((b) => b.number < oldestMoved),
+      applied: index.applied.filter((a) => a.blockNumber < oldestMoved),
+      unpriced: index.unpriced.filter((u) => u.blockNumber < oldestMoved),
+    };
   }
 
   const fromBlock = index.cursor + 1;
-  const toBlock = Math.min(head.value.number, fromBlock + MAX_BLOCKS_PER_SYNC - 1);
+  const confirmedHead = head.value.number - confirmationsFor(config.network.chainId);
+  const toBlock = Math.min(confirmedHead, fromBlock + MAX_BLOCKS_PER_SYNC - 1);
   const blocks = new Map(index.blocks.map((b) => [b.number, b.hash]));
   const faults = [...index.faults];
   const fresh: TopUpLog[] = [];
@@ -193,9 +223,19 @@ export async function syncTopUps(
     }
   }
 
+  // The last block of this sync is kept too, so a reorganisation that
+  // touched no top-up block is still seen and read again from there.
+  if (fromBlock <= toBlock && complete) {
+    const tip = await readBlockHash(toBlock, opts);
+    if (isRead(tip)) blocks.set(toBlock, tip.value.toLowerCase());
+  }
+
   // Price and credit: the fresh top-ups and the ones still waiting — at their
-  // own block by state, else at their own block by the pool's events, else at
-  // the head. Each read is made once per block per run.
+  // own block by state, else at their own block by the pool's events; at the
+  // head only when the pool had no event before the block, which is a pool
+  // that did not exist then. A node that did not answer is waited out, not
+  // priced around. Each read is made once per block per run, and at most
+  // MAX_TOPUPS_PER_SYNC top-ups are priced per run.
   const byState = new Map<number, Reading<Rate>>();
   const byEvents = new Map<number, Reading<Rate>>();
   const rateAt = async (block: number, how: 'STATE' | 'EVENTS') => {
@@ -209,7 +249,19 @@ export async function syncTopUps(
   const credited: { keyHash: string; cents: string; basis: TopUpCredit['basis'] }[] = [];
   const applied = [...index.applied];
   const unpriced: (TopUpLog & { reason: string })[] = [];
-  for (const t of [...index.unpriced, ...fresh].sort((a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex)) {
+  const queue = [...index.unpriced, ...fresh].sort((a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex);
+  let priced = 0;
+  const startedAt = Date.now();
+  for (const t of queue) {
+    if (priced >= MAX_TOPUPS_PER_SYNC) {
+      unpriced.push({ ...t, reason: `deferred: ${MAX_TOPUPS_PER_SYNC} top-ups were priced this run; this one is next` });
+      continue;
+    }
+    if (Date.now() - startedAt > SYNC_TIME_BUDGET_MS) {
+      unpriced.push({ ...t, reason: 'deferred: the run\'s time for pricing was used; this one is next' });
+      continue;
+    }
+    priced += 1;
     let rate = await rateAt(t.blockNumber, 'STATE');
     let basis: TopUpCredit['basis'] = 'TOP_UP_BLOCK';
     const reasons: string[] = [];
@@ -218,14 +270,14 @@ export async function syncTopUps(
       rate = await rateAt(t.blockNumber, 'EVENTS');
       basis = 'TOP_UP_BLOCK_EVENTS';
     }
-    if (!isRead(rate)) {
-      reasons.push(`by events: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
+    if (!isRead(rate) && poolAbsentAtBlock(rate)) {
+      reasons.push(`by events: ${rate.detail}`);
       rate = await rateAt(head.value.number, 'STATE');
       basis = 'HEAD_AT_INDEXING';
     }
     if (!isRead(rate)) {
-      reasons.push(`at the head: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
-      unpriced.push({ ...t, reason: reasons.join('; ') });
+      reasons.push(`${basis === 'HEAD_AT_INDEXING' ? 'at the head' : 'by events'}: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
+      unpriced.push({ ...t, reason: `waits: ${reasons.join('; ')}` });
       continue;
     }
     const cents = centsForCurb(rate.value, BigInt(t.amount)).toString();
@@ -252,11 +304,11 @@ export async function syncTopUps(
   }
 
   const readUpTo = fromBlock > toBlock ? index.cursor : complete ? toBlock : Math.min(...unreadRanges.map((u) => u.fromBlock)) - 1;
-  const kept = [...blocks.entries()]
+  const keptBlocks = [...blocks.entries()]
     .sort((a, b) => a[0] - b[0])
     .slice(-REORG_DEPTH)
     .map(([number, hash]) => ({ number, hash }));
-  index = { ...index, cursor: Math.max(index.cursor, readUpTo), blocks: kept, applied, unpriced, faults, updatedAt: now.toISOString() };
+  index = { ...index, cursor: Math.max(index.cursor, readUpTo), blocks: keptBlocks, applied: applied.slice(-APPLIED_KEPT), unpriced, faults, updatedAt: now.toISOString() };
   const written = await store.writeSnapshots([{ key: INDEX_KEY, observedAt: now.toISOString(), payload: JSON.parse(JSON.stringify(index)) as Record<string, unknown> }]);
 
   return {

@@ -198,10 +198,15 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
     // The credit desk: its last run, and its code against the build. A rate
     // that could not be read is stale, not zero; a desk whose code or
     // treasury is not the record's is dark.
+    if (snap.key === 'credits:run' && p.configured === false) continue;
+    if (snap.key === 'credits:code' && snapshots.some((s) => s.key === 'credits:run' && s.payload.configured === false)) continue;
     if (snap.key === 'credits:run') {
+      if (typeof p.behindBlocks === 'number' && p.behindBlocks > 100_000) out.push({ id: 'credits:index:BEHIND', severity: 'NOTE', text: `the credit desk's index is ${p.behindBlocks.toLocaleString('en-US')} blocks behind the head and catches up 100,000 a tick; top-ups in the gap are credited when it gets there` });
       if (p.rate === 'UNREAD') out.push({ id: 'credits:rate:UNREAD', severity: 'STALE', text: `the credit desk could not read a rate on its last run (${str(p.rateDetail) ?? 'no reason recorded'}); nothing is quoted and top-ups wait` });
       if (p.index === 'HEAD_UNREAD' || p.index === 'STORE_UNREADABLE') out.push({ id: `credits:index:${String(p.index)}`, severity: 'STALE', text: `the credit desk's top-ups were not indexed on its last run (${str(p.indexDetail) ?? String(p.index)})` });
-      if (typeof p.waitingForRate === 'number' && p.waitingForRate > 0) out.push({ id: 'credits:topups:WAITING', severity: 'NOTE', text: `${p.waitingForRate} top-up${p.waitingForRate === 1 ? '' : 's'} wait${p.waitingForRate === 1 ? 's' : ''} for a rate the node could give; nothing is credited at a guess` });
+      if (typeof p.waitingForRate === 'number' && p.waitingForRate > 0) out.push({ id: 'credits:topups:WAITING', severity: 'NOTE', text: `${p.waitingForRate} top-up${p.waitingForRate === 1 ? '' : 's'} wait${p.waitingForRate === 1 ? 's' : ''} to be credited — a rate the node could give, or a store that takes the credit; nothing is credited at a guess` });
+      if (p.index === 'PARTIAL') out.push({ id: 'credits:index:PARTIAL', severity: 'STALE', text: `the credit desk's index could not read every block range on its last run (${str(p.indexDetail) ?? 'a range was refused'}); the cursor waits there and reads again` });
+      if (p.index === 'HELD') out.push({ id: 'credits:index:HELD', severity: 'STALE', text: `the credit desk's top-ups are not being credited: ${str(p.indexDetail) ?? 'the desk is not trusted'}` });
       if (typeof p.fanOutFailed === 'number' && p.fanOutFailed > 0) out.push({ id: 'credits:fanout:FAILED', severity: 'NOTE', text: `${p.fanOutFailed} subscriber webhook${p.fanOutFailed === 1 ? '' : 's'} did not accept the last alert; not charged, tried again next change` });
     }
     if (snap.key === 'credits:code') {
@@ -266,17 +271,23 @@ export type Delivery =
   | { readonly state: 'NOT_CONFIGURED' }
   | { readonly state: 'NOTHING_TO_SEND' };
 
-/** Discord reads `content`; Slack reads `text`; each ignores the other. */
-export async function deliver(message: string, webhook: string | undefined = process.env.CURB_ALERT_WEBHOOK): Promise<Delivery> {
+/**
+ * Discord reads `content`; Slack reads `text`; each ignores the other. A
+ * redirect is not followed: the address that was registered is the only
+ * one posted to. `pinTo` dials the addresses a check resolved and judged
+ * public, so a name cannot point elsewhere between the check and the post.
+ */
+export async function deliver(message: string, webhook: string | undefined = process.env.CURB_ALERT_WEBHOOK, timeoutMs = 10_000, pinTo?: readonly string[]): Promise<Delivery> {
   if (!webhook) return { state: 'NOT_CONFIGURED' };
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await request(
       webhook,
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: message, text: message }) },
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: message, text: message }), redirect: 'manual', ...(pinTo === undefined ? {} : { pinTo }) },
       controller.signal,
     );
+    if (response.status >= 300 && response.status < 400) return { state: 'FAILED', reason: `HTTP ${response.status}: a redirect, which is not followed` };
     return response.ok ? { state: 'SENT', status: response.status } : { state: 'FAILED', reason: `HTTP ${response.status}` };
   } catch (cause) {
     return { state: 'FAILED', reason: cause instanceof Error ? cause.message : 'unknown transport failure' };
@@ -295,8 +306,10 @@ export interface AlertRun {
   readonly stateStored: boolean;
   /** The message composed for this transition, for the subscribers' fan-out; null when there was nothing to send. */
   readonly message: string | null;
-  /** Identifies the transition by its content, so the same one is fanned out once even when it recurs. */
+  /** Identifies the transition by its content. */
   readonly transitionId: string | null;
+  /** The conditions active now, in full — what the credit desk's subscribers are told the changes of. */
+  readonly conditions: readonly Condition[];
 }
 
 /** The transition's identity: what was raised, what cleared, what stays — the same sets give the same id. */
@@ -309,7 +322,9 @@ export function transitionId(t: Transition): string {
  * Derive, compare, deliver, record. The recorded set is written only after a
  * successful delivery (or when there was nothing to deliver), so a webhook
  * that failed is tried again on the next tick with the same transition rather
- * than being marked as sent.
+ * than being marked as sent. The current set of conditions is returned with
+ * the run, so the credit desk's subscribers can each be told their own
+ * changes since their own last delivery, independent of the operator's.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
   const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode] = await Promise.all([
@@ -358,11 +373,12 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
   // The recorded set means "what has been delivered". Unconfigured is not
   // delivered: the first tick after a webhook appears raises everything that
   // is active then, instead of treating it as old news nobody was told.
+  const id = message === null ? null : transitionId(t);
   let stateStored = false;
   if (delivery.state === 'SENT' || delivery.state === 'NOTHING_TO_SEND') {
     const written = await store.writeSnapshots([{ key: ALERT_STATE_KEY, observedAt: now.toISOString(), payload: { active: current.map((c) => c.id) } }]);
     stateStored = written.state === 'WRITTEN';
   }
 
-  return { active: current.map((c) => c.id), raised: t.raised.map((c) => c.id), cleared: t.cleared, delivery, stateStored, message, transitionId: message === null ? null : transitionId(t) };
+  return { active: current.map((c) => c.id), raised: t.raised.map((c) => c.id), cleared: t.cleared, delivery, stateStored, message, transitionId: id, conditions: current };
 }

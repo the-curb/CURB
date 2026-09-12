@@ -20,14 +20,9 @@
  * people are.
  */
 
-import { createPublicClient, encodeFunctionData, getContractAddress, http, keccak256, parseAbi, concatHex, encodeAbiParameters, type Address, type Hex } from 'viem';
-
-/** Safe 1.4.1, canonical addresses (deterministic deployment). Checked for code before use, never assumed. */
-const SAFE_1_4_1 = {
-  proxyFactory: '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67',
-  singletonL2: '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762',
-  fallbackHandler: '0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99',
-} as const;
+import { createPublicClient, http, keccak256, type Address, type Hex } from 'viem';
+import { address, parseArgs, unsigned } from './lib/args.ts';
+import { SAFE_1_4_1, factoryAbi, planCreation } from './lib/safe.ts';
 
 const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string | null }> = {
   'robinhood-mainnet': { chainId: 4663, rpc: process.env.CURB_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' },
@@ -35,23 +30,17 @@ const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string 
   'hardhat-local': { chainId: 31337, rpc: process.env.CURB_RPC_URL_LOCAL ?? 'http://127.0.0.1:8545', explorer: null },
 };
 
-const args = process.argv.slice(2);
-const flag = (name: string): string | null => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 && args[i + 1] !== undefined ? args[i + 1]! : null;
-};
-const owners = args.filter((a, i) => !a.startsWith('--') && (i === 0 || !args[i - 1]!.startsWith('--'))) as Address[];
-const threshold = BigInt(flag('threshold') ?? '2');
-const networkName = flag('network') ?? 'robinhood-mainnet';
-const saltNonce = BigInt(flag('nonce') ?? String(Math.floor(Date.now() / 1000)));
 const fail = (why: string): never => {
   console.error(`refused: ${why}`);
   process.exit(1);
 };
+const { positionals, flags } = parseArgs(process.argv.slice(2), ['threshold', 'network', 'nonce'], fail);
+const owners = positionals.map((o, i) => address(o, `owner ${i + 1}`, fail));
+const threshold = unsigned(flags.threshold ?? '2', '--threshold', fail);
+const networkName = flags.network ?? 'robinhood-mainnet';
+const saltNonce = unsigned(flags.nonce ?? String(Math.floor(Date.now() / 1000)), '--nonce', fail);
 
-const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
 if (owners.length < 3) fail('an operator multisig has at least three owners (the operator policy); give three or more addresses');
-if (!owners.every(isAddress)) fail('every owner is a 20-byte hex address');
 if (new Set(owners.map((o) => o.toLowerCase())).size !== owners.length) fail('an owner is listed twice');
 if (threshold < 2n || threshold > BigInt(owners.length)) fail(`the threshold must be at least 2 and at most the number of owners (${owners.length})`);
 const network = NETWORKS[networkName];
@@ -69,19 +58,11 @@ for (const [name, address] of Object.entries(SAFE_1_4_1)) {
   console.error(`${name}: ${address} · code present (${(code.length - 2) / 2} bytes, keccak ${keccak256(code).slice(0, 18)}…)`);
 }
 
-// ── the transaction ───────────────────────────────────────────────────────
-const safeAbi = parseAbi(['function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver)']);
-const factoryAbi = parseAbi(['function createProxyWithNonce(address _singleton, bytes initializer, uint256 saltNonce) returns (address proxy)', 'function proxyCreationCode() pure returns (bytes)']);
-const ZERO = '0x0000000000000000000000000000000000000000' as const;
-const initializer = encodeFunctionData({ abi: safeAbi, functionName: 'setup', args: [owners, threshold, ZERO, '0x', SAFE_1_4_1.fallbackHandler, ZERO, 0n, ZERO] });
-const data = encodeFunctionData({ abi: factoryAbi, functionName: 'createProxyWithNonce', args: [SAFE_1_4_1.singletonL2, initializer, saltNonce] });
-
-// ── the address the factory will give it ──────────────────────────────────
-// SafeProxyFactory: salt = keccak256(keccak256(initializer) ++ saltNonce); deployment code = proxyCreationCode ++ abi.encode(singleton).
+// ── the transaction, and the address the factory will give it ────────────
 const creationCode = (await pub.readContract({ address: SAFE_1_4_1.proxyFactory, abi: factoryAbi, functionName: 'proxyCreationCode' })) as Hex;
-const salt = keccak256(concatHex([keccak256(initializer), encodeAbiParameters([{ type: 'uint256' }], [saltNonce])]));
-const deploymentCode = concatHex([creationCode, encodeAbiParameters([{ type: 'address' }], [SAFE_1_4_1.singletonL2])]);
-const predicted = getContractAddress({ opcode: 'CREATE2', from: SAFE_1_4_1.proxyFactory, salt, bytecodeHash: keccak256(deploymentCode) });
+const { initializer, data, predicted } = planCreation(owners, threshold, saltNonce, creationCode);
+const existing = await pub.getCode({ address: predicted });
+if (existing && existing !== '0x') fail(`a contract already sits at ${predicted} — this --nonce (${saltNonce}) was used with these owners before; choose another`);
 
 // ── the node's own simulation of the call, sent by nobody ─────────────────
 let simulated: Address | null = null;
@@ -92,8 +73,6 @@ try {
   fail(`the node refused to simulate the creation: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`);
 }
 if (simulated!.toLowerCase() !== predicted.toLowerCase()) fail(`the simulation gave ${simulated}, the prediction ${predicted}; the factory is not the one this tool knows`);
-const existing = await pub.getCode({ address: predicted });
-if (existing && existing !== '0x') fail(`a contract already sits at ${predicted}; choose another --nonce`);
 
 console.error(`a ${threshold}-of-${owners.length} Safe (1.4.1, L2 singleton) will be created at ${predicted} by the transaction below; nothing has been sent`);
 if (network!.explorer) console.error(`after it is mined: ${network!.explorer}/address/${predicted}`);

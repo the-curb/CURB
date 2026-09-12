@@ -34,7 +34,10 @@ export default async function ServicesPage() {
   const status = creditsStatus();
   const store = await getStoreAsync();
   const configured = status.state === 'CONFIGURED';
-  const [rate, code, paid, history] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 96) : null]);
+  // The tick is scheduled every five minutes; 400 readings cover a day with room for a faster schedule, and the day's filter does the rest.
+  const [rateRead, code, paid, history] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 400) : null]);
+  const rate = rateRead?.rate ?? null;
+  const rateFault = rateRead?.storeFault ?? null;
   // The desk's own reads of the rate over the last day: how many, and the range — a reader can see the figure above is one of a series, not a single sample.
   const dayAgo = Date.now() - 24 * 3600 * 1000;
   const recent = history !== null && history.state !== 'UNREAD' ? history.value.filter((o) => typeof o.raw === 'string' && new Date(o.observedAt).getTime() >= dayAgo).map((o) => BigInt(o.raw as string)) : [];
@@ -98,6 +101,10 @@ export default async function ServicesPage() {
                 The price list stays in dollars and no CURB amount is quoted until the token trades in a pool the desk&rsquo;s chain profile can read. The desk will not type a price in by hand: a rate that was not read from the chain is not a rate the desk states.
               </p>
             </>
+          ) : rateFault !== null ? (
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
+              The last rate could not be read from the store ({rateFault}). Nothing is stated in its place; a store that does not answer is not a tick that never ran.
+            </p>
           ) : rate === null ? (
             <p className="mt-3 text-sm leading-relaxed text-(--color-paper)">The desk is configured on {status.config.network.label}; no tick has read the pool yet.</p>
           ) : rate.state === 'UNREAD' ? (
@@ -111,8 +118,18 @@ export default async function ServicesPage() {
           ) : (
             <dl className="mt-4 space-y-3 text-[13px]">
               <div>
-                <dt className="kicker">One CURB</dt>
-                <dd className="tabular mt-1 text-(--color-paper)">{usd18Text(rate.rate.usdPerCurb18, 8)}</dd>
+                <dt className="kicker">One CURB · the rate a top-up now is credited at</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">
+                  {usd18Text(rate.rate.usdPerCurb18, 8)}
+                  {rate.rate.guard.applied ? (
+                    <span className="text-(--color-paper-faint)">
+                      {' '}
+                      · at the block {usd18Text(rate.rate.guard.atBlockUsdPerCurb18, 8)}; the lowest of {rate.rate.guard.samples} in the {rate.rate.guard.windowBlocks.toLocaleString('en-US')} blocks before is credited
+                    </span>
+                  ) : (
+                    <span className="text-(--color-paper-faint)"> · at the block, and the lowest of {rate.rate.guard.samples} in the {rate.rate.guard.windowBlocks.toLocaleString('en-US')} blocks before</span>
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="kicker">Market capitalisation · price × supply</dt>
@@ -140,7 +157,7 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">The rule</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if neither can be had is the head when indexed used — and the credit says which.
+                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no event before that block — it did not exist yet — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing.
                 </dd>
               </div>
             </dl>
@@ -199,7 +216,7 @@ export default async function ServicesPage() {
               The receipts could not be read: {paid.storeFault}.
             </p>
           ) : paid.topUps === 0 ? (
-            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No top-up has been credited. {configured ? 'The indexer reads the desk every fifteen minutes.' : 'There is no desk to pay.'}</p>
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No top-up has been credited. {configured ? 'The indexer reads the desk on every tick — scheduled every five minutes, in practice every ten to twenty.' : 'There is no desk to pay.'}</p>
           ) : (
             <dl className="mt-4 space-y-3 text-[12px]">
               <div>
@@ -302,7 +319,12 @@ export default async function ServicesPage() {
             <li>If a launch raises anything, the budget is published first: the independent review, the legal read, infrastructure, a logged reserve. The split is in <Link href="/mechanism/decisions/token" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">the record</Link>.</li>
           </ol>
           <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
-            No token exists. No pool exists. Nothing is configured. A launchpad&rsquo;s terms are not assumed here. The <Link href="/mechanism/decisions/assumptions" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">assumption register</Link> says what is assumed meanwhile, and none of it is stated as fact on this page.
+            {status.state !== 'CONFIGURED'
+              ? 'No token exists. No pool exists. Nothing is configured. '
+              : status.config.priceSource === null
+                ? `A desk is configured on ${status.config.network.label} and no pool is recorded yet: top-ups are indexed and wait, unpriced, for one. `
+                : `A desk and a pool are configured on ${status.config.network.label}; what the sections above show is what was read from them. `}
+            A launchpad&rsquo;s terms are not assumed here. The <Link href="/mechanism/decisions/assumptions" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">assumption register</Link> says what is assumed meanwhile, and none of it is stated as fact on this page.
           </p>
         </div>
       </section>

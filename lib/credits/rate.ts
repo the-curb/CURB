@@ -6,27 +6,39 @@
  * product pair, the square-root price for a concentrated-liquidity pool —
  * the market capitalisation is that price times `totalSupply()`, and the
  * desk states neither unless it read both. A pool with an empty side has
- * no price; a feed that answers zero or less has no price; a node that
- * cannot serve the block has no price by state. Every one of those is
- * UNREAD with its reason, never a stale figure carried forward and never a
- * number typed in.
+ * no price; a v3 pool with no liquidity or no swap yet has no price; a feed
+ * that answers zero or less, or answered too long before the block, has no
+ * price; a node that cannot serve the block has no price by state. Every
+ * one of those is UNREAD with its reason, never a stale figure carried
+ * forward and never a number typed in.
  *
  * Two ways to the price at a block, tried in this order by the indexer:
  *
  *   by state   — `eth_call` at the block. Exact, and the simplest to check;
  *                but a public node keeps state for a short window only
  *                (Robinhood Chain's serves about 6,200 blocks, ten minutes,
- *                measured 12 September 2026), and a tick every quarter of
- *                an hour reaches most top-ups after that window has passed.
+ *                measured 12 September 2026), and a tick — scheduled every
+ *                five minutes, in practice every ten to twenty — reaches
+ *                most top-ups after that window has passed.
  *   by events  — the pool's own log at or before the block: a pair emits
  *                `Sync(reserve0, reserve1)` on every change of reserves, a
- *                v3 pool emits `Swap(…, sqrtPriceX96, …)` on every change of
- *                price (and `Initialize` once). The last such event at or
- *                before the block is the pool's state at the block, and
- *                logs are served far deeper than state (100,000 blocks and
- *                more on the same node). Decimals never change and are
- *                read at the head; the supply for the capitalisation is
- *                read at the head too, and the record says so.
+ *                v3 pool emits `Swap(…, sqrtPriceX96, liquidity, …)` on every
+ *                change of price. The last such event at or before the
+ *                block is the pool's state at the block, and logs are served
+ *                far deeper than state (the whole chain on the same node, as
+ *                long as few match). Decimals never change and are read at
+ *                the head; the supply for the capitalisation is read at the
+ *                head too, and the record says so.
+ *
+ * The guard. A pool's price at one block can be set by whoever trades in
+ * it just before, and a top-up credited at a pumped price would buy more
+ * service than the CURB was worth. So the price a top-up is credited at is
+ * the price at its block **or the lowest price the pool showed in the
+ * window before it, whichever is lower** — every Sync or Swap in the last
+ * hour or so (by chain, in blocks). A dump before a top-up costs the payer;
+ * a pump before it buys nothing. The guard is read from events, which the
+ * node serves for any block; a window that cannot be read is a rate that
+ * cannot be stated.
  *
  * Arithmetic is in base units and scaled integers. Dollars are carried
  * scaled by 1e18 and rounded once, to cents, at the edge.
@@ -34,6 +46,7 @@
 
 import { decodeAddressWord, decodeInt, decodeUint, formatUnits, words } from '../chain/abi.ts';
 import { keccak256Hex, selector } from '../chain/keccak.ts';
+import { isTooManyLogs, MIN_PAGE_BLOCKS } from '../chain/logs.ts';
 import { readLogs, rpcCall, type LogEntry, type RpcOptions } from '../chain/rpc.ts';
 import { isRead, unread, type Reading } from '../doctrine/reading.ts';
 import type { CreditsConfig, PriceSource } from './config.ts';
@@ -43,6 +56,7 @@ const SEL = {
   token1: selector('token1()'),
   getReserves: selector('getReserves()'),
   slot0: selector('slot0()'),
+  liquidity: selector('liquidity()'),
   decimals: selector('decimals()'),
   totalSupply: selector('totalSupply()'),
   latestRoundData: selector('latestRoundData()'),
@@ -52,16 +66,25 @@ const SEL = {
 export const TOPICS = {
   /** Uniswap v2: emitted on every change of reserves. */
   sync: keccak256Hex('Sync(uint112,uint112)'),
-  /** Uniswap v3: emitted on every swap, carrying the price after it. */
+  /** Uniswap v3: emitted on every swap, carrying the price and the liquidity after it. */
   swap: keccak256Hex('Swap(address,address,int256,int256,uint160,uint128,int24)'),
-  /** Uniswap v3: the price the pool was created at. */
-  initialize: keccak256Hex('Initialize(uint160,int24)'),
   /** Chainlink aggregators: every answer, with the answer indexed. */
   answerUpdated: keccak256Hex('AnswerUpdated(int256,uint256,uint256)'),
 } as const;
 
 /** How far back the pool's last event is looked for, in widening windows, before giving up. */
 export const EVENT_WINDOWS = [20_000, 200_000, 2_000_000, 20_000_000] as const;
+
+/** The guard's window before a block, in blocks, by chain — about an hour on each; the local chain's is short so a rehearsal can move the price. */
+export const GUARD_WINDOW_BLOCKS: Readonly<Record<number, number>> = { 4663: 35_000, 1: 300, 11155111: 300, 31337: 40 };
+export const DEFAULT_GUARD_WINDOW_BLOCKS = 300;
+export const guardWindowFor = (chainId: number): number => GUARD_WINDOW_BLOCKS[chainId] ?? DEFAULT_GUARD_WINDOW_BLOCKS;
+
+/** A feed answer older than this at the priced block is not a price for that block (the desk's feeds publish at least daily). */
+export const FEED_MAX_AGE_SECONDS = 26 * 3600;
+
+/** How many events the guard will weigh at most before it refuses to state a rate — a pool that busy is read another way. */
+export const GUARD_MAX_EVENTS = 20_000;
 
 export interface Rate {
   readonly block: number;
@@ -73,19 +96,26 @@ export interface Rate {
     readonly address: string;
     readonly quoteAddress: string;
     readonly quoteDecimals: number;
-    /** For a pair: the reserves. For a v3 pool: the square-root price, Q64.96. */
+    /** For a pair: the reserves. For a v3 pool: the square-root price, Q64.96, and the liquidity. */
     readonly reserveCurb?: string;
     readonly reserveQuote?: string;
     readonly sqrtPriceX96?: string;
+    readonly liquidity?: string;
     /** By events: the block of the event the price came from. */
     readonly eventBlock?: number;
   };
   readonly quote:
     | { readonly kind: 'usd-stable' }
     | { readonly kind: 'chainlink-feed'; readonly feed: string; readonly answer: string; readonly decimals: number; readonly updatedAt: string; readonly eventBlock?: number };
-  /** US dollars per CURB, scaled by 1e18. */
+  /**
+   * The guard: the lowest price the pool showed in the window before the
+   * block, from its events. `applied` is true when that was lower than the
+   * price at the block and is what `usdPerCurb18` carries.
+   */
+  readonly guard: { readonly windowBlocks: number; readonly samples: number; readonly lowestAtBlock: number | null; readonly atBlockUsdPerCurb18: string; readonly applied: boolean };
+  /** US dollars per CURB, scaled by 1e18 — after the guard. */
   readonly usdPerCurb18: string;
-  /** Market capitalisation in US dollars, scaled by 1e18: price × supply. */
+  /** Market capitalisation in US dollars, scaled by 1e18: the price at the block × supply. */
   readonly marketCapUsd18: string;
   readonly source: string;
   readonly readAt: string;
@@ -93,6 +123,8 @@ export interface Rate {
 
 const hexBlock = (n: number) => `0x${n.toString(16)}`;
 const Q192 = 1n << 192n;
+const byPosition = (a: LogEntry, b: LogEntry) => Number.parseInt(a.blockNumber, 16) - Number.parseInt(b.blockNumber, 16) || Number.parseInt(a.logIndex ?? '0', 16) - Number.parseInt(b.logIndex ?? '0', 16);
+const blockOf = (l: LogEntry) => Number.parseInt(l.blockNumber, 16);
 
 async function callAt(to: string, data: string, block: number | 'latest', label: string, opts: RpcOptions): Promise<Reading<string>> {
   const raw = await rpcCall<string>('eth_call', [{ to, data }, block === 'latest' ? 'latest' : hexBlock(block)], opts);
@@ -117,28 +149,77 @@ async function addressAt(to: string, data: string, block: number | 'latest', lab
   return v === null ? unread('SOURCE_MALFORMED', { source: raw.source, detail: `${label} undecodable` }) : { ...raw, value: v.toLowerCase() };
 }
 
-/** The last log of one topic from one address at or before `block`, looked for in widening windows. */
+/** The timestamp of a block, for judging a feed's age at it. */
+async function timestampOf(block: number, opts: RpcOptions): Promise<Reading<number>> {
+  const raw = await rpcCall<{ timestamp?: string } | null>('eth_getBlockByNumber', [hexBlock(block), false], opts);
+  if (!isRead(raw)) return raw;
+  const ts = raw.value?.timestamp === undefined ? NaN : Number(raw.value.timestamp);
+  return Number.isFinite(ts) && ts > 0 ? { ...raw, value: ts } : unread('SOURCE_MALFORMED', { source: raw.source, detail: `no header for block ${block}` });
+}
+
+/**
+ * Every log of one topic from one address in a range, in block order. A
+ * range the node refuses for matching too much is halved until it answers
+ * or is narrower than the smallest page, which is then a fault.
+ */
+async function eventsInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions, cap = GUARD_MAX_EVENTS): Promise<Reading<LogEntry[]>> {
+  const read = await readLogs(address, [topic], from, to, opts);
+  if (isRead(read)) return { ...read, value: [...read.value].sort(byPosition) };
+  const width = to - from + 1;
+  if (!isTooManyLogs(read.detail) || width <= MIN_PAGE_BLOCKS) return read;
+  const mid = from + Math.floor(width / 2);
+  const earlier = await eventsInRange(address, topic, from, mid - 1, opts, cap);
+  if (!isRead(earlier)) return earlier;
+  if (earlier.value.length > cap) return unread('SOURCE_MALFORMED', { source: earlier.source, detail: `more than ${cap} events in ${width} blocks; the pool is too busy to weigh this way` });
+  const later = await eventsInRange(address, topic, mid, to, opts, cap);
+  if (!isRead(later)) return later;
+  const all = [...earlier.value, ...later.value];
+  if (all.length > cap) return unread('SOURCE_MALFORMED', { source: later.source, detail: `more than ${cap} events in ${width} blocks; the pool is too busy to weigh this way` });
+  return { ...later, value: all };
+}
+
+/** The last log of one topic from one address in a range; a refused range is halved, later half first, since the last event is wanted. */
+async function lastInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
+  const read = await readLogs(address, [topic], from, to, opts);
+  if (isRead(read)) {
+    const last = [...read.value].sort(byPosition).at(-1);
+    return { ...read, value: last ?? null };
+  }
+  const width = to - from + 1;
+  if (!isTooManyLogs(read.detail) || width <= MIN_PAGE_BLOCKS) return read;
+  const mid = from + Math.floor(width / 2);
+  const later = await lastInRange(address, topic, mid, to, opts);
+  if (!isRead(later) || later.value !== null) return later;
+  return lastInRange(address, topic, from, mid - 1, opts);
+}
+
+/** The last log of one topic from one address at or before `block`, looked for in widening windows. Null, VERIFIED, when there is none in the widest. */
 async function lastEventBefore(address: string, topic: string, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
   let to = block;
   let source = '';
   for (const width of EVENT_WINDOWS) {
     const from = Math.max(0, block - width);
     if (from > to) break;
-    const read = await readLogs(address, [topic], from, to, opts);
+    const read = await lastInRange(address, topic, from, to, opts);
     if (!isRead(read)) return read;
     source = read.source;
-    const logs = read.value.filter((l) => Number.parseInt(l.blockNumber, 16) <= block).sort((a, b) => Number.parseInt(a.blockNumber, 16) - Number.parseInt(b.blockNumber, 16) || Number.parseInt(a.logIndex ?? '0', 16) - Number.parseInt(b.logIndex ?? '0', 16));
-    const last = logs.at(-1);
-    if (last !== undefined) return { ...read, value: last };
+    if (read.value !== null) return read;
     if (from === 0) break;
     to = from - 1;
   }
   return { state: 'VERIFIED', value: null, ageSeconds: 0, source, retrievedAt: new Date().toISOString() };
 }
 
+interface Sides {
+  readonly curbIs0: boolean;
+  readonly quoteAddress: string;
+  readonly curbDecimals: number;
+  readonly quoteDecimals: number;
+}
+
 /** Which side of the pool is CURB, and what the other side is. Constants of the pool; read at the head. */
-async function sides(config: CreditsConfig, opts: RpcOptions): Promise<Reading<{ curbIs0: boolean; quoteAddress: string; curbDecimals: number; quoteDecimals: number }>> {
-  const pool = config.priceSource.pair;
+async function sides(config: CreditsConfig, source: PriceSource, opts: RpcOptions): Promise<Reading<Sides>> {
+  const pool = source.pair;
   const [token0, token1, decimals] = await Promise.all([addressAt(pool, SEL.token0, 'latest', 'token0()', opts), addressAt(pool, SEL.token1, 'latest', 'token1()', opts), uintAt(config.token, SEL.decimals, 'latest', 'decimals()', opts)]);
   if (!isRead(token0)) return token0;
   if (!isRead(token1)) return token1;
@@ -157,21 +238,35 @@ async function sides(config: CreditsConfig, opts: RpcOptions): Promise<Reading<{
 
 type PoolPrice =
   | { readonly kind: 'uniswap-v2-pair'; readonly reserveCurb: bigint; readonly reserveQuote: bigint; readonly eventBlock?: number }
-  | { readonly kind: 'uniswap-v3-pool'; readonly sqrtPriceX96: bigint; readonly eventBlock?: number };
+  | { readonly kind: 'uniswap-v3-pool'; readonly sqrtPriceX96: bigint; readonly liquidity: bigint; readonly eventBlock?: number };
 
 /** Quote units per CURB, scaled by 1e18 and by the decimals gap, from the pool's own figures. Zero means no price. */
-function quotePerCurb18(p: PoolPrice, curbIs0: boolean, dCurb: number, dQuote: number): bigint {
+function quotePerCurb18(p: PoolPrice, s: Sides): bigint {
   if (p.kind === 'uniswap-v2-pair') {
     if (p.reserveCurb === 0n || p.reserveQuote === 0n) return 0n;
-    return (p.reserveQuote * 10n ** 18n * 10n ** BigInt(dCurb)) / (p.reserveCurb * 10n ** BigInt(dQuote));
+    return (p.reserveQuote * 10n ** 18n * 10n ** BigInt(s.curbDecimals)) / (p.reserveCurb * 10n ** BigInt(s.quoteDecimals));
   }
-  if (p.sqrtPriceX96 === 0n) return 0n;
+  if (p.sqrtPriceX96 === 0n || p.liquidity === 0n) return 0n;
   const sq = p.sqrtPriceX96 * p.sqrtPriceX96;
   // token1 per token0 = sqrtP² / 2¹⁹²; CURB per quote is the inverse when CURB is token1.
-  return curbIs0 ? (sq * 10n ** 18n * 10n ** BigInt(dCurb)) / (Q192 * 10n ** BigInt(dQuote)) : (Q192 * 10n ** 18n * 10n ** BigInt(dCurb)) / (sq * 10n ** BigInt(dQuote));
+  return s.curbIs0 ? (sq * 10n ** 18n * 10n ** BigInt(s.curbDecimals)) / (Q192 * 10n ** BigInt(s.quoteDecimals)) : (Q192 * 10n ** 18n * 10n ** BigInt(s.curbDecimals)) / (sq * 10n ** BigInt(s.quoteDecimals));
 }
 
-async function poolPriceByState(source: PriceSource, curbIs0: boolean, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
+function decodePoolEvent(source: PriceSource, s: Sides, log: LogEntry): PoolPrice | null {
+  const w = words(log.data);
+  if (source.kind === 'uniswap-v2-pair') {
+    const r0 = w[0] === undefined ? null : decodeUint(w[0]);
+    const r1 = w[1] === undefined ? null : decodeUint(w[1]);
+    if (r0 === null || r1 === null) return null;
+    return { kind: 'uniswap-v2-pair', reserveCurb: s.curbIs0 ? r0 : r1, reserveQuote: s.curbIs0 ? r1 : r0, eventBlock: blockOf(log) };
+  }
+  const sqrt = w[2] === undefined ? null : decodeUint(w[2]);
+  const liquidity = w[3] === undefined ? null : decodeUint(w[3]);
+  if (sqrt === null || liquidity === null) return null;
+  return { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt, liquidity, eventBlock: blockOf(log) };
+}
+
+async function poolPriceByState(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
   if (source.kind === 'uniswap-v2-pair') {
     const raw = await callAt(source.pair, SEL.getReserves, block, 'getReserves()', opts);
     if (!isRead(raw)) return raw;
@@ -179,46 +274,27 @@ async function poolPriceByState(source: PriceSource, curbIs0: boolean, block: nu
     const r0 = w[0] === undefined ? null : decodeUint(w[0]);
     const r1 = w[1] === undefined ? null : decodeUint(w[1]);
     if (r0 === null || r1 === null) return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'getReserves() undecodable' });
-    return { ...raw, value: { kind: 'uniswap-v2-pair', reserveCurb: curbIs0 ? r0 : r1, reserveQuote: curbIs0 ? r1 : r0 } };
+    return { ...raw, value: { kind: 'uniswap-v2-pair', reserveCurb: s.curbIs0 ? r0 : r1, reserveQuote: s.curbIs0 ? r1 : r0 } };
   }
-  const raw = await callAt(source.pair, SEL.slot0, block, 'slot0()', opts);
+  const [raw, liquidity] = await Promise.all([callAt(source.pair, SEL.slot0, block, 'slot0()', opts), uintAt(source.pair, SEL.liquidity, block, 'liquidity()', opts)]);
   if (!isRead(raw)) return raw;
+  if (!isRead(liquidity)) return liquidity;
   const w = words(raw.value);
   const sqrt = w[0] === undefined ? null : decodeUint(w[0]);
   if (sqrt === null) return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'slot0() undecodable' });
-  return { ...raw, value: { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt } };
+  return { ...raw, value: { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt, liquidity: liquidity.value } };
 }
 
-async function poolPriceByEvents(source: PriceSource, curbIs0: boolean, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
-  if (source.kind === 'uniswap-v2-pair') {
-    const last = await lastEventBefore(source.pair, TOPICS.sync, block, opts);
-    if (!isRead(last)) return last;
-    if (last.value === null) return unread('FIELD_ABSENT', { source: last.source, detail: `no Sync from the pair in the ${EVENT_WINDOWS.at(-1)!.toLocaleString('en-US')} blocks before block ${block}` });
-    const w = words(last.value.data);
-    const r0 = w[0] === undefined ? null : decodeUint(w[0]);
-    const r1 = w[1] === undefined ? null : decodeUint(w[1]);
-    if (r0 === null || r1 === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'Sync undecodable' });
-    return { ...last, value: { kind: 'uniswap-v2-pair', reserveCurb: curbIs0 ? r0 : r1, reserveQuote: curbIs0 ? r1 : r0, eventBlock: Number.parseInt(last.value.blockNumber, 16) } };
+async function poolPriceByEvents(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
+  const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
+  const last = await lastEventBefore(source.pair, topic, block, opts);
+  if (!isRead(last)) return last;
+  if (last.value === null) {
+    return unread('FIELD_ABSENT', { source: last.source, detail: `no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool'} in the ${EVENT_WINDOWS.at(-1)!.toLocaleString('en-US')} blocks before block ${block}` });
   }
-  // The last swap sets the price; before any swap, the price the pool was initialised at.
-  const swap = await lastEventBefore(source.pair, TOPICS.swap, block, opts);
-  if (!isRead(swap)) return swap;
-  let sqrt: bigint | null = null;
-  let eventBlock: number | null = null;
-  let src = swap.source;
-  if (swap.value !== null) {
-    sqrt = words(swap.value.data)[2] === undefined ? null : decodeUint(words(swap.value.data)[2]!);
-    eventBlock = Number.parseInt(swap.value.blockNumber, 16);
-  } else {
-    const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts);
-    if (!isRead(init)) return init;
-    src = init.source;
-    if (init.value === null) return unread('FIELD_ABSENT', { source: init.source, detail: `no Swap and no Initialize from the pool in the ${EVENT_WINDOWS.at(-1)!.toLocaleString('en-US')} blocks before block ${block}` });
-    sqrt = words(init.value.data)[0] === undefined ? null : decodeUint(words(init.value.data)[0]!);
-    eventBlock = Number.parseInt(init.value.blockNumber, 16);
-  }
-  if (sqrt === null || eventBlock === null) return unread('SOURCE_MALFORMED', { source: src, detail: 'the pool event is undecodable' });
-  return { state: 'VERIFIED', value: { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt, eventBlock }, ageSeconds: 0, source: src, retrievedAt: new Date().toISOString() };
+  const price = decodePoolEvent(source, s, last.value);
+  if (price === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'the pool event is undecodable' });
+  return { ...last, value: price };
 }
 
 type FeedAnswer = { readonly answer: bigint; readonly updatedAt: bigint; readonly decimals: number; readonly eventBlock?: number };
@@ -245,47 +321,86 @@ async function feedByEvents(feed: string, block: number, opts: RpcOptions): Prom
   const answer = last.value.topics[1] === undefined ? null : decodeInt(last.value.topics[1]);
   const updatedAt = words(last.value.data)[0] === undefined ? null : decodeUint(words(last.value.data)[0]!);
   if (answer === null || updatedAt === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'AnswerUpdated undecodable' });
-  return { ...last, value: { answer, updatedAt, decimals: Number(decimals.value), eventBlock: Number.parseInt(last.value.blockNumber, 16) } };
+  return { ...last, value: { answer, updatedAt, decimals: Number(decimals.value), eventBlock: blockOf(last.value) } };
+}
+
+/** The feed's answer for a block, checked for sign, decimals and age against the block's own time. */
+async function feedFor(feed: string, block: number, basis: Rate['basis'], opts: RpcOptions): Promise<Reading<FeedAnswer>> {
+  const f = basis === 'STATE' ? await feedByState(feed, block, opts) : await feedByEvents(feed, block, opts);
+  if (!isRead(f)) return f;
+  if (f.value.answer <= 0n) return unread('FIELD_ABSENT', { source: f.source, detail: `the feed answered ${f.value.answer} at block ${block}; a price that is not positive is not a price` });
+  if (f.value.decimals > 36) return unread('SOURCE_MALFORMED', { source: f.source, detail: `the feed reports ${f.value.decimals} decimals; beyond 36 is not handled` });
+  if (f.value.updatedAt > 10n ** 12n) return unread('SOURCE_MALFORMED', { source: f.source, detail: 'the feed reports an updatedAt that is not a time' });
+  const at = await timestampOf(block, opts);
+  if (!isRead(at)) return at;
+  const age = at.value - Number(f.value.updatedAt);
+  if (age > FEED_MAX_AGE_SECONDS) return unread('SOURCE_TIMEOUT', { source: f.source, detail: `the feed's answer at block ${block} was ${Math.round(age / 3600)} hours old; older than ${FEED_MAX_AGE_SECONDS / 3600} hours is not a price for that block` });
+  return f;
+}
+
+function noPrice(source: PriceSource, p: PoolPrice, block: number): string {
+  if (p.kind === 'uniswap-v2-pair') return `the pool has an empty side at block ${block} (CURB ${p.reserveCurb}, quote ${p.reserveQuote}); there is no price`;
+  return p.liquidity === 0n ? `the pool has no liquidity at block ${block}; a price nobody can trade at is not a price` : `the pool's price is zero at block ${block}`;
 }
 
 async function assemble(config: CreditsConfig, block: number, basis: Rate['basis'], opts: RpcOptions, now: Date): Promise<Reading<Rate>> {
-  const s = await sides(config, opts);
+  const source = config.priceSource;
+  if (source === null) return unread('FIELD_ABSENT', { source: null, detail: 'no pool is recorded for the token; nothing is quoted until one is' });
+  const s = await sides(config, source, opts);
   if (!isRead(s)) return s;
-  const { curbIs0, quoteAddress, curbDecimals, quoteDecimals } = s.value;
-  const pool = basis === 'STATE' ? await poolPriceByState(config.priceSource, curbIs0, block, opts) : await poolPriceByEvents(config.priceSource, curbIs0, block, opts);
+  const pool = basis === 'STATE' ? await poolPriceByState(source, s.value, block, opts) : await poolPriceByEvents(source, s.value, block, opts);
   if (!isRead(pool)) return pool;
-  const perCurb = quotePerCurb18(pool.value, curbIs0, curbDecimals, quoteDecimals);
-  if (perCurb === 0n) {
-    const why = pool.value.kind === 'uniswap-v2-pair' ? `the pool has an empty side at block ${block} (CURB ${pool.value.reserveCurb}, quote ${pool.value.reserveQuote})` : `the pool's price is zero at block ${block}`;
-    return unread('FIELD_ABSENT', { source: pool.source, detail: `${why}; there is no price` });
-  }
+  const perCurbAtBlock = quotePerCurb18(pool.value, s.value);
+  if (perCurbAtBlock === 0n) return unread('FIELD_ABSENT', { source: pool.source, detail: noPrice(source, pool.value, block) });
 
-  let quote: Rate['quote'];
-  let usdPerCurb18 = perCurb;
-  if (config.priceSource.quote.kind === 'chainlink-feed') {
-    const feed = config.priceSource.quote.feed;
-    const f = basis === 'STATE' ? await feedByState(feed, block, opts) : await feedByEvents(feed, block, opts);
+  // The feed, if the quote is priced by one: the same answer for the block applies to every sample the guard weighs.
+  let quote: Rate['quote'] = { kind: 'usd-stable' };
+  let feedFactor: { answer: bigint; decimals: number } | null = null;
+  if (source.quote.kind === 'chainlink-feed') {
+    const f = await feedFor(source.quote.feed, block, basis, opts);
     if (!isRead(f)) return f;
-    if (f.value.answer <= 0n) return unread('FIELD_ABSENT', { source: f.source, detail: `the feed answered ${f.value.answer} at block ${block}; a price that is not positive is not a price` });
-    usdPerCurb18 = (perCurb * f.value.answer) / 10n ** BigInt(f.value.decimals);
-    quote = { kind: 'chainlink-feed', feed, answer: f.value.answer.toString(), decimals: f.value.decimals, updatedAt: new Date(Number(f.value.updatedAt) * 1000).toISOString(), ...(f.value.eventBlock === undefined ? {} : { eventBlock: f.value.eventBlock }) };
-  } else {
-    quote = { kind: 'usd-stable' };
+    feedFactor = { answer: f.value.answer, decimals: f.value.decimals };
+    quote = { kind: 'chainlink-feed', feed: source.quote.feed, answer: f.value.answer.toString(), decimals: f.value.decimals, updatedAt: new Date(Number(f.value.updatedAt) * 1000).toISOString(), ...(f.value.eventBlock === undefined ? {} : { eventBlock: f.value.eventBlock }) };
   }
-  if (usdPerCurb18 === 0n) return unread('FIELD_ABSENT', { source: pool.source, detail: `the price rounds to zero at 18 places at block ${block}` });
+  const toUsd = (perCurb: bigint) => (feedFactor === null ? perCurb : (perCurb * feedFactor.answer) / 10n ** BigInt(feedFactor.decimals));
+  const atBlock = toUsd(perCurbAtBlock);
+  if (atBlock === 0n) return unread('FIELD_ABSENT', { source: pool.source, detail: `the price rounds to zero at 18 places at block ${block}` });
+
+  // The guard: the lowest price the pool showed in the window before the block, from its events.
+  const windowBlocks = guardWindowFor(config.network.chainId);
+  const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
+  const window = await eventsInRange(source.pair, topic, Math.max(0, block - windowBlocks), block, opts);
+  if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
+  let lowest = atBlock;
+  let lowestAtBlock: number | null = null;
+  let samples = 0;
+  for (const log of window.value) {
+    const p = decodePoolEvent(source, s.value, log);
+    if (p === null) continue;
+    const per = quotePerCurb18(p, s.value);
+    if (per === 0n) continue;
+    samples += 1;
+    const usd = toUsd(per);
+    if (usd < lowest) {
+      lowest = usd;
+      lowestAtBlock = blockOf(log);
+    }
+  }
+  const guard: Rate['guard'] = { windowBlocks, samples, lowestAtBlock, atBlockUsdPerCurb18: atBlock.toString(), applied: lowest < atBlock };
 
   // The supply at the block by state; at the head by events, and said so.
   const supply = await uintAt(config.token, SEL.totalSupply, basis === 'STATE' ? block : 'latest', 'totalSupply()', opts);
   if (!isRead(supply)) return supply;
-  const marketCapUsd18 = (supply.value * usdPerCurb18) / 10n ** BigInt(curbDecimals);
+  const marketCapUsd18 = (supply.value * atBlock) / 10n ** BigInt(s.value.curbDecimals);
 
+  const p = pool.value;
   const poolOut: Rate['pool'] = {
-    kind: config.priceSource.kind,
-    address: config.priceSource.pair,
-    quoteAddress,
-    quoteDecimals,
-    ...(pool.value.kind === 'uniswap-v2-pair' ? { reserveCurb: pool.value.reserveCurb.toString(), reserveQuote: pool.value.reserveQuote.toString() } : { sqrtPriceX96: pool.value.sqrtPriceX96.toString() }),
-    ...(pool.value.eventBlock === undefined ? {} : { eventBlock: pool.value.eventBlock }),
+    kind: source.kind,
+    address: source.pair,
+    quoteAddress: s.value.quoteAddress,
+    quoteDecimals: s.value.quoteDecimals,
+    ...(p.kind === 'uniswap-v2-pair' ? { reserveCurb: p.reserveCurb.toString(), reserveQuote: p.reserveQuote.toString() } : { sqrtPriceX96: p.sqrtPriceX96.toString(), liquidity: p.liquidity.toString() }),
+    ...(p.eventBlock === undefined ? {} : { eventBlock: p.eventBlock }),
   };
   return {
     state: pool.state,
@@ -296,10 +411,11 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
     value: {
       block,
       basis,
-      token: { address: config.token, decimals: curbDecimals, supply: supply.value.toString(), supplyAt: basis === 'STATE' ? 'BLOCK' : 'HEAD' },
+      token: { address: config.token, decimals: s.value.curbDecimals, supply: supply.value.toString(), supplyAt: basis === 'STATE' ? 'BLOCK' : 'HEAD' },
       pool: poolOut,
       quote,
-      usdPerCurb18: usdPerCurb18.toString(),
+      guard,
+      usdPerCurb18: lowest.toString(),
       marketCapUsd18: marketCapUsd18.toString(),
       source: pool.source,
       readAt: now.toISOString(),
@@ -307,7 +423,7 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   } as Reading<Rate>;
 }
 
-/** The pool's price and the token's supply at one block, by state, reduced to a price and a market capitalisation. */
+/** The pool's price and the token's supply at one block, by state, guarded, reduced to a price and a market capitalisation. */
 export async function readRate(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date()): Promise<Reading<Rate>> {
   return assemble(config, block, 'STATE', opts, now);
 }

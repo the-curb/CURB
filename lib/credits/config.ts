@@ -13,7 +13,7 @@
  *     "desk": "0x…",                       the CreditDesk contract
  *     "treasury": "0x…",                   the operator multisig the desk pays to — the desk's own immutable, verified each tick
  *     "fromBlock": 21000000,               the block the desk was created in
- *     "priceSource": {
+ *     "priceSource": {                     or null until a pool exists: the desk is verified and top-ups are indexed, but nothing is priced
  *       "kind": "uniswap-v2-pair",         or "uniswap-v3-pool" for a concentrated-liquidity pool (slot0 / Swap)
  *       "pair": "0x…",                     a pool holding CURB and the quote asset
  *       "quote": { "kind": "usd-stable" }  or { "kind": "chainlink-feed", "feed": "0x…" } for a quote priced in USD by a feed
@@ -43,7 +43,8 @@ export interface CreditsConfig {
   /** Where every top-up goes: the published treasury, the desk's immutable, checked against the code each tick. */
   readonly treasury: string;
   readonly fromBlock: number;
-  readonly priceSource: PriceSource;
+  /** Null before a pool exists: the desk runs, top-ups wait unpriced, and the page says no pool is recorded. */
+  readonly priceSource: PriceSource | null;
 }
 
 export type CreditsStatus =
@@ -74,8 +75,11 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
   if (!isAddress(treasury)) return { state: 'CONFIG_INVALID', detail: 'treasury is not a 20-byte hex address' };
   if ([e.token, e.desk].some((a) => a.toLowerCase() === treasury.toLowerCase())) return { state: 'CONFIG_INVALID', detail: 'the treasury cannot be the token or the desk' };
   if (!Number.isInteger(e.fromBlock) || (e.fromBlock as number) < 0) return { state: 'CONFIG_INVALID', detail: 'fromBlock must be a non-negative integer' };
-  const ps = e.priceSource as Record<string, unknown> | undefined;
-  if (!ps || typeof ps !== 'object') return { state: 'CONFIG_INVALID', detail: 'priceSource is missing' };
+  const ps = e.priceSource as Record<string, unknown> | null | undefined;
+  if (ps === null || ps === undefined) {
+    return { state: 'CONFIGURED', config: { network, token: e.token.toLowerCase(), desk: e.desk.toLowerCase(), treasury: treasury.toLowerCase(), fromBlock: e.fromBlock as number, priceSource: null } };
+  }
+  if (typeof ps !== 'object') return { state: 'CONFIG_INVALID', detail: 'priceSource must be an object or null' };
   if (ps.kind !== 'uniswap-v2-pair' && ps.kind !== 'uniswap-v3-pool') return { state: 'CONFIG_INVALID', detail: `priceSource.kind ${JSON.stringify(ps.kind)} is not supported; the reader knows uniswap-v2-pair and uniswap-v3-pool` };
   if (!isAddress(ps.pair)) return { state: 'CONFIG_INVALID', detail: 'priceSource.pair is not a 20-byte hex address' };
   const q = ps.quote as Record<string, unknown> | undefined;

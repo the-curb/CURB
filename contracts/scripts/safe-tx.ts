@@ -20,6 +20,7 @@
  */
 
 import { createPublicClient, http, type Address, type Hex } from 'viem';
+import { address, parseArgs, unsigned } from './lib/args.ts';
 import { approveHashData, execTransactionData, plainSafeTx, safeAbi, safeTxHash } from './lib/safe.ts';
 
 const NETWORKS: Record<string, { chainId: number; rpc: string }> = {
@@ -28,27 +29,22 @@ const NETWORKS: Record<string, { chainId: number; rpc: string }> = {
   'hardhat-local': { chainId: 31337, rpc: process.env.CURB_RPC_URL_LOCAL ?? 'http://127.0.0.1:8545' },
 };
 
-const args = process.argv.slice(2);
-const flag = (name: string): string | null => {
-  const i = args.indexOf(`--${name}`);
-  return i >= 0 && args[i + 1] !== undefined ? args[i + 1]! : null;
-};
 const fail = (why: string): never => {
   console.error(`refused: ${why}`);
   process.exit(1);
 };
-const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
-
-const safe = flag('safe');
-const to = flag('to');
-const data = (flag('data') ?? '0x') as Hex;
-const value = BigInt(flag('value') ?? '0');
-const networkName = flag('network') ?? 'robinhood-mainnet';
-const approvedBy = (flag('approved-by') ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '') as Address[];
-if (!isAddress(safe)) fail('--safe must be the Safe’s address');
-if (!isAddress(to)) fail('--to must be the address the Safe calls');
+const { positionals, flags } = parseArgs(process.argv.slice(2), ['safe', 'to', 'data', 'value', 'nonce', 'network', 'approved-by'], fail);
+if (positionals.length > 0) fail(`unexpected argument ${positionals[0]}; every setting is a --flag`);
+if (flags.safe === undefined) fail('--safe <address> is required');
+if (flags.to === undefined) fail('--to <address> is required');
+const safe = address(flags.safe, '--safe', fail);
+const to = address(flags.to, '--to', fail);
+const data = (flags.data ?? '0x') as Hex;
+const value = unsigned(flags.value ?? '0', '--value', fail);
+const networkName = flags.network ?? 'robinhood-mainnet';
+const approvedBy = (flags['approved-by'] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '').map((s, i) => address(s, `--approved-by entry ${i + 1}`, fail));
 if (!/^0x([0-9a-fA-F]{2})*$/.test(data)) fail('--data must be hex bytes (0x for none)');
-if (!approvedBy.every(isAddress)) fail('--approved-by is a comma-separated list of owner addresses');
+if (new Set(approvedBy.map((a) => a.toLowerCase())).size !== approvedBy.length) fail('an approver is listed twice');
 const network = NETWORKS[networkName];
 if (!network) fail(`unknown network ${networkName}; one of ${Object.keys(NETWORKS).join(', ')}`);
 
@@ -56,22 +52,22 @@ const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name:
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
 const chainId = await pub.getChainId();
 if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; the ${networkName} profile expects ${network!.chainId}`);
-const code = await pub.getCode({ address: safe! });
+const code = await pub.getCode({ address: safe });
 if (!code || code === '0x') fail(`no code at ${safe} on chain ${chainId}`);
 
 const [owners, threshold, currentNonce] = await Promise.all([
-  pub.readContract({ address: safe!, abi: safeAbi, functionName: 'getOwners' }) as Promise<Address[]>,
-  pub.readContract({ address: safe!, abi: safeAbi, functionName: 'getThreshold' }) as Promise<bigint>,
-  pub.readContract({ address: safe!, abi: safeAbi, functionName: 'nonce' }) as Promise<bigint>,
+  pub.readContract({ address: safe, abi: safeAbi, functionName: 'getOwners' }) as Promise<Address[]>,
+  pub.readContract({ address: safe, abi: safeAbi, functionName: 'getThreshold' }) as Promise<bigint>,
+  pub.readContract({ address: safe, abi: safeAbi, functionName: 'nonce' }) as Promise<bigint>,
 ]);
-const nonce = flag('nonce') === null ? currentNonce : BigInt(flag('nonce')!);
+const nonce = flags.nonce === undefined ? currentNonce : unsigned(flags.nonce, '--nonce', fail);
 if (nonce < currentNonce) fail(`nonce ${nonce} is already used; the Safe is at ${currentNonce}`);
 console.error(`Safe ${safe} on chain ${chainId}: ${owners.length} owners, threshold ${threshold}, nonce ${currentNonce}${nonce !== currentNonce ? ` (this transaction at ${nonce})` : ''}`);
 
-const tx = plainSafeTx(to!, data, nonce, value);
-const local = safeTxHash(chainId, safe!, tx);
+const tx = plainSafeTx(to, data, nonce, value);
+const local = safeTxHash(chainId, safe, tx);
 const theirs = (await pub.readContract({
-  address: safe!,
+  address: safe,
   abi: safeAbi,
   functionName: 'getTransactionHash',
   args: [tx.to, tx.value, tx.data, tx.operation, tx.safeTxGas, tx.baseGas, tx.gasPrice, tx.gasToken, tx.refundReceiver, tx.nonce],
@@ -79,7 +75,7 @@ const theirs = (await pub.readContract({
 if (local.toLowerCase() !== theirs.toLowerCase()) fail(`the hash computed here (${local}) is not the Safe's (${theirs}); nothing is printed`);
 
 const lower = owners.map((o) => o.toLowerCase());
-const approvals = await Promise.all(owners.map(async (owner) => ({ owner, approved: ((await pub.readContract({ address: safe!, abi: safeAbi, functionName: 'approvedHashes', args: [owner, local] })) as bigint) === 1n })));
+const approvals = await Promise.all(owners.map(async (owner) => ({ owner, approved: ((await pub.readContract({ address: safe, abi: safeAbi, functionName: 'approvedHashes', args: [owner, local] })) as bigint) === 1n })));
 const approvedSoFar = approvals.filter((a) => a.approved).map((a) => a.owner);
 console.error(`approved so far: ${approvedSoFar.length === 0 ? 'nobody' : approvedSoFar.join(', ')} (${approvedSoFar.length} of ${threshold} needed)`);
 
@@ -90,7 +86,7 @@ if (approvedBy.length > 0) {
     if (!approvedSoFar.map((o) => o.toLowerCase()).includes(a.toLowerCase())) fail(`${a} has not approved ${local} on chain yet`);
   }
   if (BigInt(approvedBy.length) < threshold) fail(`${approvedBy.length} approver(s) named; the threshold is ${threshold}`);
-  execution = { to: safe!, data: execTransactionData(tx, approvedBy) };
+  execution = { to: safe, data: execTransactionData(tx, approvedBy) };
 }
 
 // The only line on stdout.

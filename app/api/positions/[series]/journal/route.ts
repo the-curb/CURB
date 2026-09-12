@@ -11,7 +11,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ seri
   const spec = seriesById(series);
   if (spec === null) return Response.json({ error: 'SERIES_UNKNOWN', detail: `no series is described as ${series}` }, { status: 404 });
   const day = new URL(request.url).searchParams.get('day') ?? '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) {
+  // A real calendar day: the parse must give the same day back, so 2026-02-31 is refused rather than charged for.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`)) || new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) !== day) {
     return Response.json({ error: 'DAY_MALFORMED', detail: 'pass ?day=YYYY-MM-DD (UTC)' }, { status: 400 });
   }
   const store = await getStoreAsync();

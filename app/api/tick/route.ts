@@ -45,18 +45,39 @@ export async function POST(request: Request): Promise<Response> {
   const narration = dryRun ? null : await narrateClosedDay(store, yesterdayOf(new Date()));
 
   // Operations ride on the same tick: what changed that a person should know,
-  // and the once-a-day prune. Neither runs on a rehearsal, because both write.
+  // the once-a-day prune, the position product's backend and the credit desk.
+  // None runs on a rehearsal, because all of them write — and none runs
+  // unless this tick held the run lock and can hold it again for this part:
+  // two ticks that overlap must not both deliver an alert, charge a
+  // subscriber, or index the same top-ups. The agents' lock is released when
+  // tick() returns, so the maintenance takes its own, under the same holder.
   const now = new Date();
-  const alerts = dryRun ? null : await runAlerts(store, now);
-  const retention = dryRun ? null : await maintainRetention(store, now);
-  // The position product's backend rides on the same tick: issuer evidence and
-  // on-chain verification once a day, the series index and reconciliation every
-  // run — or NOT_DEPLOYED, said plainly, while no reviewed deployment exists.
-  const positions = dryRun ? null : await positionsMaintenance(store, now, { forceDaily });
-  // The credit desk rides on the same tick: the rate at the head, the top-ups
-  // since the cursor, and the alert transition fanned out to paying
-  // subscribers — or NOT_CONFIGURED, said plainly, while no token exists.
-  const credits = dryRun ? null : await runCredits(store, now, alerts);
+  let alerts: Awaited<ReturnType<typeof runAlerts>> | null = null;
+  let retention: Awaited<ReturnType<typeof maintainRetention>> | null = null;
+  let positions: Awaited<ReturnType<typeof positionsMaintenance>> | null = null;
+  let credits: Awaited<ReturnType<typeof runCredits>> | null = null;
+  let maintenance: { state: 'RAN' | 'SKIPPED' | 'NOT_ON_A_REHEARSAL'; detail: string | null } = { state: 'NOT_ON_A_REHEARSAL', detail: null };
+  if (!dryRun) {
+    const holder = `${result.lock?.state === 'ACQUIRED' ? result.lock.holder : 'tick'}:maintenance`;
+    const held = result.lock?.state === 'ACQUIRED' ? await store.acquireRunLock(holder, 120) : null;
+    if (held?.state === 'ACQUIRED') {
+      try {
+        alerts = await runAlerts(store, now);
+        // The desk's subscribers are each told their own changes since their own last delivery.
+        credits = await runCredits(store, now, alerts.conditions);
+        retention = await maintainRetention(store, now);
+        // The position product's backend: issuer evidence and on-chain verification
+        // once a day, the series index and reconciliation every run — or
+        // NOT_DEPLOYED, said plainly, while no reviewed deployment exists.
+        positions = await positionsMaintenance(store, now, { forceDaily });
+        maintenance = { state: 'RAN', detail: null };
+      } finally {
+        await store.releaseRunLock(holder);
+      }
+    } else {
+      maintenance = { state: 'SKIPPED', detail: result.lock?.state !== 'ACQUIRED' ? `the run lock was ${result.lock?.state ?? 'not taken'}; another tick is running` : `the maintenance lock was ${held?.state ?? 'not taken'}` };
+    }
+  }
 
   return Response.json(
     {
@@ -107,6 +128,8 @@ export async function POST(request: Request): Promise<Response> {
       positions,
       /** The credit desk: the rate, the top-ups credited, the subscribers told. */
       credits,
+      /** Whether the maintenance above ran at all: skipped when another tick held the lock. */
+      maintenance,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

@@ -51,6 +51,8 @@ jobs:
           cache-dependency-path: contracts/package-lock.json
       - run: npm ci
       - run: npm run build
+      - name: The committed build records are this source's bytecode
+        run: node scripts/check-build-record.mjs
       - run: npm test
 
   rehearsal:

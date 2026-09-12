@@ -13,12 +13,36 @@
  */
 
 import https from 'node:https';
+import type { LookupFunction } from 'node:net';
 import { dohEnabled, dohLookup } from './doh.ts';
 
 export interface TransportRequest {
   readonly method: 'GET' | 'POST';
   readonly headers?: Readonly<Record<string, string>>;
   readonly body?: string;
+  /** 'manual' returns a redirect as the response it is (3xx) instead of following it; the https path never follows one. */
+  readonly redirect?: 'follow' | 'manual';
+  /**
+   * Dial exactly these addresses for the URL's hostname — the ones a check
+   * resolved and judged public — instead of resolving again at dial time,
+   * so what was checked is what is reached. Forces the https path; the
+   * certificate is still checked against the hostname.
+   */
+  readonly pinTo?: readonly string[];
+}
+
+/** A lookup that answers with the pinned addresses and nothing else. */
+function pinnedLookup(addresses: readonly string[]): LookupFunction {
+  const family = (a: string): 4 | 6 => (a.includes(':') ? 6 : 4);
+  return (_hostname, options, callback) => {
+    const first = addresses[0];
+    if (first === undefined) {
+      callback(new Error('no pinned address'), '', 4);
+      return;
+    }
+    if (options.all) callback(null, addresses.map((address) => ({ address, family: family(address) })));
+    else callback(null, first, family(first));
+  };
 }
 
 export interface TransportResponse {
@@ -33,13 +57,14 @@ export async function request(
   init: TransportRequest,
   signal: AbortSignal,
 ): Promise<TransportResponse> {
-  if (!dohEnabled()) {
+  if (!dohEnabled() && init.pinTo === undefined) {
     const response = await fetch(url, {
       method: init.method,
       headers: init.headers,
       body: init.body,
       signal,
       cache: 'no-store',
+      redirect: init.redirect ?? 'follow',
     });
     const headers: Record<string, string> = {};
     response.headers.forEach((value, key) => {
@@ -62,9 +87,11 @@ export async function request(
           ...(init.body === undefined ? {} : { 'content-length': Buffer.byteLength(body) }),
         },
         // The only line that differs from the default path: where the address
-        // comes from. `servername` stays the hostname, so the certificate is
-        // still checked against what we asked for, not what we were given.
-        lookup: dohLookup,
+        // comes from — the pinned addresses when given, the DNS-over-HTTPS
+        // resolver otherwise. `servername` stays the hostname, so the
+        // certificate is still checked against what we asked for, not what we
+        // were given.
+        lookup: init.pinTo === undefined ? dohLookup : pinnedLookup(init.pinTo),
         signal,
       },
       (response) => {

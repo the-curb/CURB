@@ -17,6 +17,9 @@ interface Quote {
   readonly usd?: string;
   readonly curb?: string | null;
   readonly curbText?: string;
+  readonly curbWithMargin?: string;
+  readonly curbWithMarginText?: string;
+  readonly marginPct?: number;
   readonly atBlock?: number;
   readonly readAt?: string;
   readonly detail?: string;
@@ -31,7 +34,9 @@ interface Account {
   readonly balanceCents: string;
   readonly toOpenCents: string;
   readonly topUps: readonly { readonly transactionHash: string; readonly blockNumber: number; readonly amount: string; readonly cents: string; readonly basis: string; readonly ratedAtBlock: number }[];
-  readonly charges: readonly { readonly at: string; readonly service: string; readonly cents: number; readonly ref: string }[];
+  readonly pending: readonly { readonly transactionHash: string; readonly blockNumber: number; readonly amount: string; readonly reason: string }[];
+  /** Shown to the key's holder only; null for anyone else. */
+  readonly charges: readonly { readonly at: string; readonly service: string; readonly cents: number; readonly ref: string }[] | null;
   readonly chargeCount: number;
   readonly storeFault: string | null;
   readonly error?: string;
@@ -113,7 +118,7 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
     setBusy('lookup');
     setFault(null);
     try {
-      const r = await fetch(`/api/keys/${h}`, { cache: 'no-store' });
+      const r = await fetch(`/api/keys/${h}`, { cache: 'no-store', headers: key && (await sha256Hex(key)) === h ? { 'x-curb-key': key } : {} });
       setAccount((await r.json()) as Account);
     } catch (cause) {
       setFault(cause instanceof Error ? cause.message : 'the API could not be reached');
@@ -122,7 +127,8 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
     }
   };
 
-  const amount = quote?.curb ? BigInt(quote.curb) : null;
+  // The bytes below carry the figure with the margin: the price moves between the quote and the block, and a top-up meant to open a key should not land a few cents short.
+  const amount = quote?.curbWithMargin && BigInt(quote.curbWithMargin) > 0n ? BigInt(quote.curbWithMargin) : null;
 
   return (
     <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -170,7 +176,7 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
         {quote ? (
           quote.state === 'QUOTED' && amount !== null ? (
             <p className="tabular mt-3 text-[12px] text-(--color-paper-dim)">
-              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined, not at this one.
+              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined, not at this one, so the bytes below carry {quote.marginPct}% more — <span className="text-(--color-paper)">{quote.curbWithMarginText} CURB</span>; what lands over {quote.usd} stays on the key.
             </p>
           ) : (
             <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
@@ -230,13 +236,16 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
             <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
               {account.error}: {account.detail}
             </p>
+          ) : account.storeFault ? (
+            <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
+              The desk&rsquo;s rows could not be read ({account.storeFault}). Nothing is stated in their place: a store that does not answer is not a hash with nothing on it.
+            </p>
           ) : (
             <div className="mt-4 text-[12px]">
               <p className="tabular text-(--color-paper)">
                 {account.status.replace('_', ' ').toLowerCase()} · credited {cents(account.creditedCents)} · spent {cents(account.spentCents)} · balance {cents(account.balanceCents)}
                 {account.status !== 'OPEN' ? ` · ${cents(account.toOpenCents)} more to open` : ''}
               </p>
-              {account.storeFault ? <p className="mt-2" style={{ color: 'var(--color-state-stale)' }}>{account.storeFault}</p> : null}
               {account.topUps.length > 0 ? (
                 <ul className="mt-3 space-y-1 text-(--color-paper-dim)">
                   {account.topUps.map((t) => (
@@ -245,13 +254,24 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
                     </li>
                   ))}
                 </ul>
-              ) : (
+              ) : account.pending.length === 0 ? (
                 <p className="mt-2 text-(--color-paper-faint)">The chain has credited nothing to this hash.</p>
-              )}
-              {account.charges.length > 0 ? (
+              ) : null}
+              {account.pending.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-(--color-paper-dim)">
+                  {account.pending.map((t) => (
+                    <li key={`pending:${t.transactionHash}`} className="tabular break-all">
+                      block {t.blockNumber} · {t.amount} base units · <span className="text-(--color-paper)">read, not yet credited</span> — {t.reason} · {t.transactionHash}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {account.charges !== null && account.charges.length > 0 ? (
                 <p className="mt-3 text-(--color-paper-faint)">
                   {account.chargeCount} charge{account.chargeCount === 1 ? '' : 's'}; the last: {account.charges[account.charges.length - 1]!.service} · {account.charges[account.charges.length - 1]!.ref} · {account.charges[account.charges.length - 1]!.at}
                 </p>
+              ) : account.chargeCount > 0 ? (
+                <p className="mt-3 text-(--color-paper-faint)">{account.chargeCount} charge{account.chargeCount === 1 ? '' : 's'}; what they bought is shown to the key&rsquo;s holder only.</p>
               ) : null}
             </div>
           )

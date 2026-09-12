@@ -16,17 +16,21 @@
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Everything is resolved from this file, the git checks included: the record must not depend on where the script was run from.
+const here = fileURLToPath(new URL('.', import.meta.url));
 
 const config = readFileSync(new URL('../hardhat.config.ts', import.meta.url), 'utf8');
 const solc = /version:\s*"([0-9.]+)"/.exec(config)?.[1] ?? null;
-const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
-const dirty = execSync('git status --porcelain -- src hardhat.config.ts', { encoding: 'utf8' }).trim().length > 0;
+const commit = execSync('git rev-parse HEAD', { encoding: 'utf8', cwd: here }).trim();
+const dirty = execSync('git status --porcelain -- ../src ../hardhat.config.ts', { encoding: 'utf8', cwd: here }).trim().length > 0;
 
 // Immutables in declaration order: AST ids rise with source position, and
 // each contract declares exactly these, in this order.
 const CONTRACTS = [
-  { artifact: '../artifacts/src/CompanySeries.sol/CompanySeries.json', names: ['componentA', 'componentB', 'qA', 'qB', 'capLots'], out: '../evidence/CompanySeries.build.json' },
-  { artifact: '../artifacts/src/CreditDesk.sol/CreditDesk.json', names: ['curb', 'treasury'], out: '../evidence/CreditDesk.build.json' },
+  { artifact: '../artifacts/src/CompanySeries.sol/CompanySeries.json', source: '../src/CompanySeries.sol', names: ['componentA', 'componentB', 'qA', 'qB', 'capLots'], out: '../evidence/CompanySeries.build.json' },
+  { artifact: '../artifacts/src/CreditDesk.sol/CreditDesk.json', source: '../src/CreditDesk.sol', names: ['curb', 'treasury'], out: '../evidence/CreditDesk.build.json' },
 ];
 
 for (const c of CONTRACTS) {
@@ -34,11 +38,14 @@ for (const c of CONTRACTS) {
   const refs = Object.entries(artifact.immutableReferences).sort(([a], [b]) => Number(a) - Number(b));
   if (refs.length !== c.names.length) throw new Error(`${artifact.contractName}: expected ${c.names.length} immutables, the artifact has ${refs.length}`);
   const immutables = refs.map(([id, slots], i) => ({ name: c.names[i], astId: Number(id), slots: slots.map((s) => ({ start: s.start, length: s.length })) }));
+  // The commit that last changed the source (and the compiler setting) is what a deployment is "the build at": it does not move when the record is merely re-run.
+  const sourceCommit = execSync(`git log -1 --format=%H -- ${c.source} ../hardhat.config.ts`, { encoding: 'utf8', cwd: here }).trim();
   const record = {
     contract: artifact.contractName,
     source: artifact.sourceName,
     solc,
     commit,
+    sourceCommit,
     workingTreeClean: !dirty,
     recordedAt: new Date().toISOString(),
     deployedBytecode: artifact.deployedBytecode,

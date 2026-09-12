@@ -29,7 +29,7 @@
  *   DEPLOYER_PRIVATE_KEY=… node scripts/deploy-credit-desk.ts records/credit-desk.json [--reviewed]
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
@@ -40,7 +40,7 @@ interface DeskRecord {
   readonly token: Address;
   readonly decimals: number;
   readonly treasury: Address;
-  readonly priceSource: { readonly kind: 'uniswap-v2-pair'; readonly pair: Address; readonly quote: { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: Address } } | null;
+  readonly priceSource: { readonly kind: 'uniswap-v2-pair' | 'uniswap-v3-pool'; readonly pair: Address; readonly quote: { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: Address } } | null;
   /** Who reviewed this record and when; empty means it was not reviewed and it will not be sent. */
   readonly reviewedBy: string;
   readonly reviewedAt: string;
@@ -64,14 +64,18 @@ const fail = (why: string): never => {
 
 // ── the record itself ─────────────────────────────────────────────────────
 if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
+/** The site's profiles and their chain ids (lib/chain/networks.ts); a record naming any other pair prints a line the site would refuse. */
+const PROFILES: Record<string, number> = { 'robinhood-mainnet': 4663, 'robinhood-testnet': 46630, 'ethereum-mainnet': 1, 'ethereum-sepolia': 11155111, 'hardhat-local': 31337 };
 if (!record.network || !Number.isInteger(record.chainId) || !record.rpcUrl) fail('the record needs network, chainId and rpcUrl');
+if (PROFILES[record.network] === undefined) fail(`network ${record.network} is not a profile the site knows (${Object.keys(PROFILES).join(', ')})`);
+if (PROFILES[record.network] !== record.chainId) fail(`network ${record.network} is chain ${PROFILES[record.network]} on the site; the record says ${record.chainId}`);
 if (!isAddress(record.token)) fail('the record needs the token address');
 if (!isAddress(record.treasury)) fail('the record needs the treasury address (the operator multisig)');
 if (record.token.toLowerCase() === record.treasury.toLowerCase()) fail('the treasury cannot be the token');
 if (!Number.isInteger(record.decimals) || record.decimals < 0 || record.decimals > 36) fail('decimals must be an integer between 0 and 36');
 if (record.priceSource !== null) {
   const ps = record.priceSource;
-  if (ps.kind !== 'uniswap-v2-pair' || !isAddress(ps.pair)) fail('priceSource must be a uniswap-v2-pair with a pair address, or null until the pool exists');
+  if ((ps.kind !== 'uniswap-v2-pair' && ps.kind !== 'uniswap-v3-pool') || !isAddress(ps.pair)) fail('priceSource must be a uniswap-v2-pair or a uniswap-v3-pool with the pool address, or null until the pool exists');
   if (ps.quote.kind !== 'usd-stable' && !(ps.quote.kind === 'chainlink-feed' && isAddress(ps.quote.feed))) fail('priceSource.quote must be usd-stable or a chainlink-feed with a feed address');
 }
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
@@ -105,7 +109,18 @@ if (record.priceSource !== null) {
   console.error('pool: none in the record; the CURB_CREDITS line will need priceSource filled when the pool exists');
 }
 
-const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CreditDesk.sol/CreditDesk.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex };
+const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CreditDesk.sol/CreditDesk.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex; deployedBytecode: Hex };
+// What is sent must be what the site verifies against: the committed build record. A stale artifact or a stale record is refused here, not found by a DARK condition later.
+let build: { deployedBytecode: string; commit: string } | null = null;
+try {
+  build = JSON.parse(readFileSync(new URL('../evidence/CreditDesk.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; commit: string };
+} catch {
+  fail('evidence/CreditDesk.build.json is missing; run npm run record:build and commit it before deploying');
+}
+if (build!.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase()) fail(`the compiled CreditDesk is not the committed build record (commit ${build!.commit.slice(0, 10)}); rebuild and re-record, or check out the recorded commit, before deploying`);
+console.error(`the artifact is the committed build at ${build!.commit.slice(0, 10)}`);
+const out = new URL(`../evidence/deployments/credit-desk.${record.chainId}.json`, import.meta.url);
+if (existsSync(out) && !dryRun) fail(`${out.pathname} already exists: a desk was deployed from this record before. Read it; if a second desk is really wanted, move that file aside first`);
 const ctor = [record.token, record.treasury] as const;
 console.error('constructor arguments:', JSON.stringify(ctor));
 
@@ -123,6 +138,9 @@ console.error(`deployer ${account.address}`);
 
 const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never });
 console.error(`sent ${hash}; waiting for the receipt`);
+// The hash is written down before the receipt is waited for, so a cut-off here leaves a note, not a second deployment on the next run.
+mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
+writeFileSync(out, `${JSON.stringify({ record, pending: { transactionHash: hash, deployer: account.address, sentAt: new Date().toISOString(), note: 'sent; the receipt was not yet read when this was written' } }, null, 2)}\n`);
 const receipt = await pub.waitForTransactionReceipt({ hash });
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
 const address = receipt.contractAddress!;
@@ -131,7 +149,6 @@ console.error(`deployed the credit desk at ${address} in block ${block}`);
 
 const env = { network: record.network, token: record.token, desk: address, treasury: record.treasury, fromBlock: block, priceSource: record.priceSource };
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
-const out = new URL(`../evidence/deployments/credit-desk.${record.chainId}.json`, import.meta.url);
 writeFileSync(out, `${JSON.stringify({ record, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor, env }, null, 2)}\n`);
 console.error(`written ${out.pathname}`);
 // The only line on stdout: the env the site needs (priceSource null until the pool exists).

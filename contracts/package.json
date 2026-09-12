@@ -9,7 +9,8 @@
     "test": "hardhat test solidity --grep-exclude Fork",
     "test:fork": "hardhat test solidity --grep Fork",
     "record:tests": "node scripts/record-tests.mjs",
-    "record:build": "node scripts/record-build.mjs"
+    "record:build": "node scripts/record-build.mjs",
+    "check:build": "node scripts/check-build-record.mjs"
   },
   "devDependencies": {
     "forge-std": "github:foundry-rs/forge-std#v1.16.2",

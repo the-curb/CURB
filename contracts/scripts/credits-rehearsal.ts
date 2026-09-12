@@ -6,7 +6,10 @@
  * node's second account as treasury. Sets the pool to 4,000,000 CURB
  * against 20,000 dollars — US$0.005 a CURB — mints CURB to a payer, and
  * has the payer top up a key hash with 4,000 CURB (US$20.00, the opening
- * minimum) and then 1,000 more after the pool has doubled (US$10.00).
+ * minimum) and then 1,000 more after the pool has doubled — worth US$10.00
+ * at that block, credited US$5.00: the guard takes the lowest price the
+ * pool showed in the window before the top-up, and the first price is in
+ * it on a local chain's short window.
  * Prints the CURB_CREDITS record the site needs, with the key, so the site
  * can be shown reading the rate, crediting the hash and charging a call.
  *
@@ -90,7 +93,7 @@ async function main() {
     payer,
     topUps: [
       { block: Number(first.blockNumber), amount: (4_000n * E18).toString(), expectCents: '2000' },
-      { block: Number(second.blockNumber), amount: (1_000n * E18).toString(), expectCents: '1000' },
+      { block: Number(second.blockNumber), amount: (1_000n * E18).toString(), expectCents: '500', note: 'US$10.00 at the block; credited at the lowest price in the guard window, US$0.005' },
     ],
   };
   // The only line on stdout: what the site's rehearsal test reads.

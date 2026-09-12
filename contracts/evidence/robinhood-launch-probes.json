@@ -1,0 +1,51 @@
+{
+  "note": "Read-only probes of Robinhood Chain (chain id 4663) on 12 September 2026, through the public node rpc.mainnet.chain.robinhood.com, for the token record's launch section and the operator's tools. Every figure was read; nothing was sent. A reviewer repeats them with .scratch-style scripts against the same node.",
+  "chainId": 4663,
+  "blockTime": { "blocks": 10000, "seconds": 1028, "secondsPerBlock": 0.103, "readAt": { "head": 61211769, "headTimestamp": 1789226906 } },
+  "stateWindow": {
+    "method": "eth_call totalSupply() on USDG at head minus N, binary search between served and refused",
+    "servedBlocksBehindHead": { "low": 6202, "high": 6237 },
+    "minutes": 10.6,
+    "refusal": "rpc error -32000: metadata is not found, <block+3>"
+  },
+  "logRanges": {
+    "method": "eth_getLogs with one address and one topic",
+    "acceptedBlockWidthsWithFewMatches": [1000, 10000, 20000, 50000, 100000, 200000, 2000000, 20000000, 61000000],
+    "millisecondsTypical": 300,
+    "refusalByResultCount": "rpc error -32000: logs matched by query exceeds limit of 10000",
+    "refusalSeenFor": "USDG Transfer over 10,000 and 200,000 blocks"
+  },
+  "safe": {
+    "version": "1.4.1 canonical addresses",
+    "readAt": { "block": 61245138 },
+    "codePresent": {
+      "proxyFactory": { "address": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67", "bytes": 3054, "codeHash": "0x50c3cdc4074750a7" },
+      "singletonL2": { "address": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762", "bytes": 24421, "codeHash": "0xb1f926978a0f44a2" },
+      "fallbackHandler": { "address": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99", "bytes": 5637, "codeHash": "0x7c6007a5d711cea8" },
+      "safeSingleton": { "address": "0x41675C099F32341bf84BFc5382aF534df5C7461a", "bytes": 23579, "codeHash": "0x1fe2df852ba3299d" },
+      "proxyFactory130": { "address": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2", "bytes": 3774, "codeHash": "0x337d7f54be11b6ed" },
+      "gnosisSafeL2130": { "address": "0x3E5c63644E683549055b9Be8653de26E0B4CD36E", "bytes": 23800, "codeHash": "0x21842597390c4c6e" }
+    },
+    "codeAbsent": { "multiSend141": "0x38869bf66a61cF6918b2F1A7bC1DBC9b02B4f5c0" },
+    "codeHashesNote": "the first eight bytes of keccak256 of the runtime code; the full code of the three the tools use is in safe-1.4.1.robinhood.json; not verified against Safe's release",
+    "safesSeenCreated": [
+      { "block": 61173956, "proxy": "0x820e3b2d672c0cb264ea8183c080341a475a3215" },
+      { "block": 61236115, "proxy": "0x60f7ee860dac747455c87a24dcfbff744043313b" },
+      { "block": 61238785, "proxy": "0xb03d094c8b74d04ea826a8aed46e7ddd4d3eda19" }
+    ],
+    "hashCrossCheck": { "safe": "0xb03d094c8b74d04ea826a8aed46e7ddd4d3eda19", "owners": 2, "threshold": 2, "nonce": 0, "result": "safe-tx.ts's EIP-712 SafeTx hash equalled the Safe's own getTransactionHash for a plain call; nothing was sent" },
+    "creationSimulation": { "tool": "plan-safe.ts", "owners": "three placeholder addresses (Hardhat's well-known test accounts), never real signers", "threshold": 2, "saltNonce": 1, "predicted": "0xF71902B32C9854DB8d6f70Afa6Dcf685F7df8d79", "result": "the node's simulation of createProxyWithNonce returned the predicted address; nothing was sent" }
+  },
+  "usdg": {
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "readAt": { "block": 61236951, "timestamp": "2026-09-12T16:11:19.000Z" },
+    "name": "Global Dollar",
+    "symbol": "USDG",
+    "decimals": 6,
+    "totalSupply": "713740751366375",
+    "proxy": { "implementation": "0x68184c449e1a8f34fa18d289737129fd27b66f8f", "admin": null, "beacon": null, "pattern": "UUPS, as lib/chain/tokens.ts recorded on 2026-09-08" },
+    "owner": "0xcFA0388f5ddf905FdC08c45c716C15Dc10A14C6F",
+    "paused": false,
+    "tool": "record-token.ts, read-only"
+  }
+}

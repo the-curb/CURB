@@ -114,6 +114,13 @@ Done once.
    own time. `curl -sI https://<deployment>/api/state | grep x-vercel-id` shows
    the region that served the request as the second segment.
 
+**The tick holds a lock for its maintenance.** Alerts, retention, the
+position product's backend and the credit desk run only when the tick held
+the agents' run lock and can take a second one for this part; a tick that
+overlaps another skips them and says so (`maintenance.state` in the
+response), so no alert is delivered twice, no subscriber charged twice and
+no top-up indexed by two runs at once.
+
 ## 3. Scheduler — GitHub Actions
 
 `.github/workflows/tick.yml` calls `POST /api/tick` every five minutes.
@@ -361,7 +368,7 @@ its own RPC override.
 
 ## The credit desk
 
-The token's one proposed function (`docs/decisions/TOKEN.md`, on the site at
+The token's one function, decided (`docs/decisions/TOKEN.md`, on the site at
 `/mechanism/decisions/token`): a CURB paid to the credit desk is a prepaid
 unit of a service that exists, priced in dollars. It rides on the same tick
 and is reported under `credits`. No token exists; in production it is
@@ -396,9 +403,11 @@ and is reported under `credits`. No token exists; in production it is
   mismatch — other code, or a desk paying somewhere else — is a DARK
   condition (`credits:code:MISMATCH`) and the services page says so.
 - **Conditions.** The desk's last run is one row (`credits:run`) the
-  conditions read: no rate on the last run is STALE, top-ups waiting for a
-  rate are a NOTE, an index that could not read the head is STALE, a
-  subscriber webhook that failed is a NOTE. They appear on `/api/state` and
+  conditions read: no rate on the last run is STALE, top-ups waiting to be
+  credited are a NOTE, an index that could not read the head or a block
+  range is STALE, an index held because the desk's code is not the record's
+  is STALE (beside the DARK on the code), a subscriber webhook that failed
+  is a NOTE. They appear on `/api/state` and
   Chambers with the desk's other conditions and go to the webhook.
 - **Receipts.** `/api/credits` and `/services` carry the receipts — every
   top-up credited, summed: count, keys, CURB received, dollars credited,
@@ -408,13 +417,23 @@ and is reported under `credits`. No token exists; in production it is
 - **Top-ups, every tick.** `TopUp(bytes32 keyHash, address payer, uint256
   amount)` events from the desk since `fromBlock` (idempotent on transaction
   hash and log index; block hashes kept for reorg rollback, which also
-  removes the credits of a rolled-back block). Each is priced at the rate at
-  its own block — by state while the node serves it (`TOP_UP_BLOCK`), else
-  from the pool's last `Sync` or `Swap` at or before it and, for a feed-priced
-  quote, the aggregator's last `AnswerUpdated` (`TOP_UP_BLOCK_EVENTS`); only
-  if neither can be had, at the head when indexed (`HEAD_AT_INDEXING`) — and
-  credited in cents to `credits:topups:<keyHash>` with the basis on the
-  credit. One that cannot be priced waits, listed, for a tick that can.
+  removes the credits of a rolled-back block; the last block of every sync
+  is kept too, checked newest first). Each is priced at the rate at its own
+  block — by state while the node serves it (`TOP_UP_BLOCK`), else from the
+  pool's last `Sync` or `Swap` at or before it and, for a feed-priced quote,
+  the aggregator's last `AnswerUpdated` (`TOP_UP_BLOCK_EVENTS`); at the head
+  when indexed (`HEAD_AT_INDEXING`) only for a pool that had no event before
+  that block — and never above the lowest price the pool showed in the
+  window before it (the guard, about an hour, read from events). At most
+  fifty are priced per run; the rest are next in line. One that cannot be
+  priced waits, listed, for a tick that can; a node that did not answer is
+  waited out, never priced around. Nothing is credited while the desk's
+  code is not the record's.
+- **Subscribers' messages.** Each subscription keeps the set of conditions it
+  was last told of and is told exactly its own changes since — in the
+  operator's form: raised, cleared, still active — so a subscriber's
+  deliveries do not depend on the operator's webhook being reachable, and a
+  change is charged once per subscription.
 - **Keys.** A key is thirty-two random bytes the caller makes (`/services`
   makes one in the browser; `POST /api/keys` makes one and stores nothing);
   its SHA-256 is what the chain credits and what the desk keeps rows by. The
@@ -427,7 +446,9 @@ and is reported under `credits`. No token exists; in production it is
   (`/api/subscriptions`, charged per delivery of the same message the
   operator's webhook gets, once per transition, only when delivered, and
   only to a hostname that resolves to a public address when the post is
-  made). The prices are in `lib/credits/prices.ts` and on `/services` and
+  made, within a twenty-second budget per tick and five seconds per
+  webhook; the rest are next in line; a redirect is not followed). The
+  prices are in `lib/credits/prices.ts` and on `/services` and
   `/api/credits`, nowhere else. A call is admitted first (configured, keyed,
   able to pay), answered, and charged only when there is an answer: a store
   that cannot answer costs nothing. 503 while unconfigured; 401 without a

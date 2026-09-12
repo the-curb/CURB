@@ -10,7 +10,8 @@
  * top-up and a request charging a call never overwrite each other:
  *
  *   credits:topups:<hash>  what the chain credited — written by the indexer only
- *   credits:spend:<hash>   what calls consumed — written by the guard only
+ *   credits:spend:<hash>   what calls consumed — written by charge() only: the gate on a
+ *                          paid call, and the fan-out charging a delivery; never the indexer
  *
  * The balance is credited minus spent, computed at read time. A key opens
  * when its cumulative credit reaches the minimum (TOKEN.md); below that it
@@ -82,6 +83,14 @@ export interface Charge {
 /** UNFUNDED: the chain has credited nothing to this hash. BELOW_MINIMUM: something, less than the minimum. OPEN: usable. */
 export type KeyStatus = 'UNFUNDED' | 'BELOW_MINIMUM' | 'OPEN';
 
+/** A top-up the indexer has read but not yet credited, with why — waiting for a rate, or next in line. */
+export interface PendingTopUp {
+  readonly transactionHash: string;
+  readonly blockNumber: number;
+  readonly amount: string;
+  readonly reason: string;
+}
+
 export interface KeyAccount {
   readonly hash: string;
   readonly status: KeyStatus;
@@ -92,6 +101,8 @@ export interface KeyAccount {
   readonly toOpenCents: string;
   readonly minimumOpenCents: number;
   readonly topUps: readonly TopUpCredit[];
+  /** Read from the chain, not yet credited: visible so a payer can see their top-up landed and what it waits for. */
+  readonly pending: readonly PendingTopUp[];
   readonly charges: readonly Charge[];
   readonly chargeCount: number;
   readonly storeFault: string | null;
@@ -116,17 +127,22 @@ export async function keyAccount(store: Store, hash: string): Promise<KeyAccount
     toOpenCents: String(MINIMUM_OPEN_CENTS),
     minimumOpenCents: MINIMUM_OPEN_CENTS,
     topUps: [],
+    pending: [],
     charges: [],
     chargeCount: 0,
     storeFault: null,
   };
-  const [topUps, spend] = await Promise.all([store.snapshots(topUpsRow(hash)), store.snapshots(spendRow(hash))]);
+  const [topUps, spend, index] = await Promise.all([store.snapshots(topUpsRow(hash)), store.snapshots(spendRow(hash)), store.snapshots('credits:index')]);
   if (topUps.state === 'UNREAD') return { ...empty, storeFault: `${topUps.reason}${topUps.detail ? ` — ${topUps.detail}` : ''}` };
   if (spend.state === 'UNREAD') return { ...empty, storeFault: `${spend.reason}${spend.detail ? ` — ${spend.detail}` : ''}` };
+  const waiting = index.state === 'UNREAD' ? [] : ((index.value.find((r) => r.key === 'credits:index')?.payload.unpriced as PendingTopUp[] & { keyHash?: string }[] | undefined) ?? []);
+  const pending: PendingTopUp[] = waiting
+    .filter((u) => (u as { keyHash?: string }).keyHash === hash)
+    .map((u) => ({ transactionHash: u.transactionHash, blockNumber: u.blockNumber, amount: u.amount, reason: u.reason }));
 
   const t = rowOf(topUps.value, topUpsRow(hash));
   const s = rowOf(spend.value, spendRow(hash));
-  if (t === null) return empty;
+  if (t === null) return { ...empty, pending };
   const credited = big(t.payload.creditedCents);
   const spent = big(s?.payload.spentCents);
   const toOpen = credited >= BigInt(MINIMUM_OPEN_CENTS) ? 0n : BigInt(MINIMUM_OPEN_CENTS) - credited;
@@ -139,6 +155,7 @@ export async function keyAccount(store: Store, hash: string): Promise<KeyAccount
     toOpenCents: toOpen.toString(),
     minimumOpenCents: MINIMUM_OPEN_CENTS,
     topUps: Array.isArray(t.payload.topUps) ? (t.payload.topUps as TopUpCredit[]) : [],
+    pending,
     charges: Array.isArray(s?.payload.charges) ? (s.payload.charges as Charge[]) : [],
     chargeCount: typeof s?.payload.count === 'number' ? s.payload.count : 0,
     storeFault: null,
