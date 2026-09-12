@@ -542,7 +542,8 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     <dl className="tabular mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[11px]">
                       {(
                         [
-                          ['a plain transfer of the wrapper (holding it directly)', evidence.fork.gas.wrapperTransfer],
+                          ['a plain transfer of the wrapper (holding A directly)', evidence.fork.gas.wrapperTransfer],
+                          ...(evidence.fork.gas.aaplonTransfer === null ? [] : ([['a plain transfer of AAPLon (holding B directly)', evidence.fork.gas.aaplonTransfer]] as const)),
                           ['mint 3 lots (both deposits, the receipt)', evidence.fork.gas.mint3Lots],
                           ['allocate 3 lots for exit (no token moves)', evidence.fork.gas.allocateExit3Lots],
                           ['claim A (the real wrapper moves out)', evidence.fork.gas.claimA],

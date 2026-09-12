@@ -102,20 +102,23 @@ contract AppleComponentsForkTest is Test {
     /// wrapper moving out) and a claim of B (real AAPLon moving out). Add the
     /// 21,000 base and the calldata for a transaction; these are inputs to a
     /// cost comparison, not a price.
-    function _gasRoundTrip() internal returns (uint256 transferGas, uint256 mintGas, uint256 exitGas, uint256 claimAGas, uint256 claimBGas) {
+    function _gasRoundTrip() internal returns (uint256 transferGas, uint256 transferBGas, uint256 mintGas, uint256 exitGas, uint256 claimAGas, uint256 claimBGas) {
         CompanySeries series = new CompanySeries(WRAPPER_V2, AAPLON, 10e18, 20e18, 1_000, operator, "Apple Position - Series 1 (fork)", "cAAPL-S1");
         vm.startPrank(operator);
         series.setMintPermit(alice, type(uint64).max);
         series.setClaimPermit(alice, true);
         vm.stopPrank();
         deal(WRAPPER_V2, alice, 40e18);
-        deal(AAPLON, alice, 60e18);
+        deal(AAPLON, alice, 70e18);
         vm.startPrank(alice);
         IERC20Like(WRAPPER_V2).approve(address(series), type(uint256).max);
         IERC20Like(AAPLON).approve(address(series), type(uint256).max);
         uint256 g = gasleft();
         IERC20Like(WRAPPER_V2).transfer(bob, 10e18);
         transferGas = g - gasleft();
+        g = gasleft();
+        IERC20Like(AAPLON).transfer(bob, 10e18);
+        transferBGas = g - gasleft();
         g = gasleft();
         series.mint(3, block.timestamp + 1 hours);
         mintGas = g - gasleft();
@@ -384,7 +387,7 @@ contract AppleComponentsForkTest is Test {
             '    "rawBalanceSettableByStorage": ', rawStored ? "true" : "false", "\n",
             "  },\n"
         );
-        (uint256 gTransfer, uint256 gMint, uint256 gExit, uint256 gClaimA, uint256 gClaimB) = _gasRoundTrip();
+        (uint256 gTransfer, uint256 gTransferB, uint256 gMint, uint256 gExit, uint256 gClaimA, uint256 gClaimB) = _gasRoundTrip();
         (bool bStaged, bool bMoved) = _bTransfers();
         (, bool bothReal) = _bothRealRoundTrip();
         json = string.concat(
@@ -405,6 +408,7 @@ contract AppleComponentsForkTest is Test {
             '  "gas": {\n',
             '    "note": "execution gas by gasleft() deltas inside one call, with the real wrapper as A and real AAPLon as B: storage already touched is warm, so a real transaction pays cold access, the 21,000 base and its calldata on top; an input to a cost comparison, not a price",\n',
             '    "wrapperTransfer": ', vm.toString(gTransfer), ",\n",
+            '    "aaplonTransfer": ', vm.toString(gTransferB), ",\n",
             '    "mint3Lots": ', vm.toString(gMint), ",\n",
             '    "allocateExit3Lots": ', vm.toString(gExit), ",\n",
             '    "claimA": ', vm.toString(gClaimA), ",\n",

@@ -48,6 +48,8 @@ export interface ForkComponentB {
 export interface ForkGas {
   readonly note: string;
   readonly wrapperTransfer: number;
+  /** Absent on files written before component B was real. */
+  readonly aaplonTransfer: number | null;
   readonly mint3Lots: number;
   readonly allocateExit3Lots: number;
   readonly claimA: number;
@@ -125,7 +127,7 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
     const g = j.gas as Record<string, unknown> | undefined;
     const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
     const gas: ForkGas | null =
-      g && typeof g === 'object' ? { note: isStr(g.note) ? g.note : '', wrapperTransfer: num(g.wrapperTransfer), mint3Lots: num(g.mint3Lots), allocateExit3Lots: num(g.allocateExit3Lots), claimA: num(g.claimA), claimB: num(g.claimB) } : null;
+      g && typeof g === 'object' ? { note: isStr(g.note) ? g.note : '', wrapperTransfer: num(g.wrapperTransfer), aaplonTransfer: typeof g.aaplonTransfer === 'number' ? num(g.aaplonTransfer) : null, mint3Lots: num(g.mint3Lots), allocateExit3Lots: num(g.allocateExit3Lots), claimA: num(g.claimA), claimB: num(g.claimB) } : null;
     const au = j.authority as Record<string, unknown> | undefined;
     const authority = au && typeof au === 'object' ? { raw: authorityOf(au.raw), wrapperV2: authorityOf(au.wrapperV2), wrapperV1: authorityOf(au.wrapperV1) } : null;
     return {

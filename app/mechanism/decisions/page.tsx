@@ -19,7 +19,7 @@ export default function DecisionsIndex() {
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">What has to be decided, written down before anyone decides it.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
-          Eight records, all <span className="text-(--color-paper)">proposed</span> and none decided: the design choices the blueprint asks for (R03, R05, R06), the operator policy (O01) and the runbook (O03). Each says what the prototype already does and what stays open. They are files in the repository, read at request time.
+          Nine records, all <span className="text-(--color-paper)">proposed</span> and none decided: the design choices the blueprint asks for (R03, R05, R06), the operator policy (O01), the runbook (O03) and the cost comparison with its measured inputs (B01). Each says what the prototype already does and what stays open. They are files in the repository, read at request time.
         </p>
       </header>
       <ol className="cells grid-cols-1 md:grid-cols-2">

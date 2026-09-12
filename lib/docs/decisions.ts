@@ -26,6 +26,7 @@ export const DECISIONS: readonly DecisionRecord[] = [
   { slug: 'adr-006-lots-and-cap', file: 'ADR-006-lots-and-cap.md', title: 'Units per lot, decimals, lot size and the cap', asks: 'the method for choosing q, a receipt of 0 decimals, a cap that counts reserved liability', backlog: 'R05' },
   { slug: 'operations', file: 'OPERATIONS.md', title: 'Operator policy', asks: 'signers and quorum, what each action needs, rotation, logging, limits on pausing', backlog: 'O01' },
   { slug: 'runbook', file: 'RUNBOOK.md', title: 'Runbook', asks: 'the incident order, the rehearsed incidents, lost access and keys, what is never said', backlog: 'O03' },
+  { slug: 'costs', file: 'COSTS.md', title: 'Cost against the baseline', asks: 'the measured gas of a round trip with both real components, the method with its variables left as variables, and what the comparison cannot say', backlog: 'B01' },
 ];
 
 export function decisionBySlug(slug: string): DecisionRecord | null {
