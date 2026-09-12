@@ -434,9 +434,17 @@ and is reported under `credits`. No token exists; in production it is
   key; 402 with the figures and the top-up call when the key cannot pay.
   Every public endpoint stays free.
 - **The multisig and the token's facts.** `contracts/scripts/plan-safe.ts` plans the
-  operator's Safe on Robinhood Chain, unsigned and simulated; `contracts/scripts/record-token.ts`
-  reads the token from the chain and writes the desk's record with the
-  facts beside it (refused until reviewed). Neither holds a key.
+  operator's Safe on Robinhood Chain, unsigned and simulated; `contracts/scripts/safe-tx.ts`
+  prints a Safe transaction's hash, approval and execution bytes so the
+  quorum acts with ordinary transactions and no hosted interface;
+  `contracts/scripts/record-token.ts` reads the token from the chain and writes the
+  desk's record with the facts beside it (refused until reviewed). None
+  holds a key. The checks workflow rehearses the Safe (with its code as
+  Robinhood Chain has it) and the whole tool path on a local chain.
+- **A plain token, or nothing.** The desk refuses a top-up that pays the
+  treasury less than the amount (`DeltaWrong`); a fee-on-transfer token would
+  make every top-up revert. The deployment plan has the operator make a
+  small first top-up before the desk is announced.
 - **Receipts by day.** The Gazette prints the day's credits under *Services ·
   receipts* — count, keys, dollars, CURB, and how each was priced — once a
   desk exists or a credit was ever made.

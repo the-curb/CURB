@@ -6,4 +6,7 @@ evidence/deployments/*.31337.json
 rehearsal.json
 drill.json
 credits-rehearsal.json
+safe-rehearsal.json
+desk-env.json
+records/*.31337.json
 node.log

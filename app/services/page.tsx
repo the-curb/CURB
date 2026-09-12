@@ -34,7 +34,11 @@ export default async function ServicesPage() {
   const status = creditsStatus();
   const store = await getStoreAsync();
   const configured = status.state === 'CONFIGURED';
-  const [rate, code, paid] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store)]);
+  const [rate, code, paid, history] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 96) : null]);
+  // The desk's own reads of the rate over the last day: how many, and the range — a reader can see the figure above is one of a series, not a single sample.
+  const dayAgo = Date.now() - 24 * 3600 * 1000;
+  const recent = history !== null && history.state !== 'UNREAD' ? history.value.filter((o) => typeof o.raw === 'string' && new Date(o.observedAt).getTime() >= dayAgo).map((o) => BigInt(o.raw as string)) : [];
+  const range = recent.length === 0 ? null : { count: recent.length, low: recent.reduce((a, b) => (b < a ? b : a)), high: recent.reduce((a, b) => (b > a ? b : a)) };
   const minimumCurb = rate?.state === 'READ' ? curbForCents(rate.rate, BigInt(MINIMUM_OPEN_CENTS)) : null;
   const decimals = rate?.state === 'READ' ? rate.rate.token.decimals : null;
   const link = (address: string) => (status.state === 'CONFIGURED' ? explorerAddress(status.config.network, address) : null);
@@ -114,6 +118,12 @@ export default async function ServicesPage() {
                 <dt className="kicker">Market capitalisation · price × supply</dt>
                 <dd className="tabular mt-1 text-(--color-paper)">
                   {usd18Text(rate.rate.marketCapUsd18, 2)} <span className="text-(--color-paper-faint)">· supply {curbText(BigInt(rate.rate.token.supply), rate.rate.token.decimals, 0)} CURB</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">Readings in the last 24 hours</dt>
+                <dd className="tabular mt-1 text-[12px] text-(--color-paper-dim)">
+                  {range === null ? 'this one only' : `${range.count} · lowest ${usd18Text(range.low, 8)} · highest ${usd18Text(range.high, 8)}`}
                 </dd>
               </div>
               <div>

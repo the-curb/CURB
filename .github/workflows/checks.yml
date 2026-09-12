@@ -6,8 +6,10 @@
 # The fork tests are not here: they read Ethereum and run in the weekly
 # fork-evidence workflow, with their findings committed. The local-chain
 # rehearsal and drill are: a Hardhat node is started, the worked example, the
-# incidents and two top-ups of the credit desk are sent as transactions, and
-# the site reads them back.
+# incidents, two top-ups of the credit desk, a 2-of-3 Safe (with Safe's code as
+# Robinhood Chain has it) paying from the treasury, and the token read into a
+# record and the desk deployed through the operator's tools are sent as
+# transactions, and the site reads them back.
 
 name: checks
 
@@ -82,8 +84,23 @@ jobs:
           node scripts/rehearsal.ts > rehearsal.json
           node scripts/drill.ts > drill.json
           node scripts/credits-rehearsal.ts > credits-rehearsal.json
+      - name: The operator's multisig, with Safe's code from Robinhood Chain, and the token read into a record and the desk deployed through the tools
+        working-directory: contracts
+        env:
+          # Hardhat's well-known local test key; chain 31337 only, never a key that matters.
+          DEPLOYER_PRIVATE_KEY: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+        run: |
+          node scripts/safe-rehearsal.ts > safe-rehearsal.json
+          TOKEN=$(node -e "console.log(require('./credits-rehearsal.json').credits.token)")
+          TREAS=$(node -e "console.log(require('./credits-rehearsal.json').treasury)")
+          PAIR=$(node -e "console.log(require('./credits-rehearsal.json').credits.priceSource.pair)")
+          node scripts/record-token.ts "$TOKEN" --network hardhat-local --treasury "$TREAS" --out records/credit-desk.31337.json > /dev/null
+          node -e "const fs=require('fs');const p='records/credit-desk.31337.json';const r=JSON.parse(fs.readFileSync(p,'utf8'));r.priceSource={kind:'uniswap-v2-pair',pair:process.argv[1],quote:{kind:'usd-stable'}};r.reviewedBy='rehearsal stand-in (local chain 31337, mock token) - not a review';r.reviewedAt=new Date().toISOString();fs.writeFileSync(p,JSON.stringify(r,null,2)+'\n');" "$PAIR"
+          node scripts/deploy-credit-desk.ts records/credit-desk.31337.json --dry-run > /dev/null
+          node scripts/deploy-credit-desk.ts records/credit-desk.31337.json > desk-env.json
+          node -e "const s=require('./safe-rehearsal.json');console.log('Safe', s.safe, 'payment executed in block', s.executedInBlock, 'refusals', JSON.stringify(s.refused))"
       - name: Read them back through the site's index, reconciliation, conditions, prepared calldata and the credit desk
         run: |
-          CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts
+          CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" CURB_REHEARSAL_DESK_ENV="$(cat contracts/desk-env.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts tests/credits-tool-rehearsal.test.ts
       - name: The drill's record, as the test wrote it (not committed from here)
         run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'

@@ -46,6 +46,22 @@ CREATE2, has the node simulate the call and refuses if the two differ, and
 prints `to`, `data` and the address for any funded wallet to send. It holds
 no key and decides nothing about who the owners are.
 
+`node scripts/safe-tx.ts --safe <safe> --to <address> --data <hex> [--value <wei>] [--nonce <n>] [--approved-by <owner>,<owner>]`
+prints one Safe transaction, unsigned, for a quorum that acts without a
+hosted interface: the SafeTx hash (refused unless the Safe's own
+`getTransactionHash` agrees), the `approveHash` bytes each owner sends from
+their wallet, who has approved so far, and — with `--approved-by` — the
+`execTransaction` bytes anyone sends once the quorum has approved (refused
+for a non-owner or an owner who has not approved on chain).
+
+`node scripts/safe-rehearsal.ts` rehearses all of it on the local node with
+Safe's runtime code as Robinhood Chain has it (`evidence/safe-1.4.1.robinhood.json`,
+written by `scripts/cache-safe-codes.ts`, set at the canonical addresses):
+a 2-of-3 Safe created where the plan predicted, made the treasury of a
+mock CURB, a payment of 100 CURB approved by two owners on chain and
+executed by anyone — one approval refused (GS020), a non-owner, an
+unapproving owner and a replay refused (GS025).
+
 ## The token, as read (§16)
 
 `node scripts/record-token.ts <token> [--network robinhood-mainnet] [--treasury 0x…] [--out records/credit-desk.4663.json]`
