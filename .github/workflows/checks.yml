@@ -5,8 +5,9 @@
 #
 # The fork tests are not here: they read Ethereum and run in the weekly
 # fork-evidence workflow, with their findings committed. The local-chain
-# rehearsal and drill are: a Hardhat node is started, the worked example and
-# the incidents are sent as transactions, and the site reads them back.
+# rehearsal and drill are: a Hardhat node is started, the worked example, the
+# incidents and two top-ups of the credit desk are sent as transactions, and
+# the site reads them back.
 
 name: checks
 
@@ -80,8 +81,9 @@ jobs:
         run: |
           node scripts/rehearsal.ts > rehearsal.json
           node scripts/drill.ts > drill.json
-      - name: Read them back through the site's index, reconciliation, conditions and prepared calldata
+          node scripts/credits-rehearsal.ts > credits-rehearsal.json
+      - name: Read them back through the site's index, reconciliation, conditions, prepared calldata and the credit desk
         run: |
-          CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts
+          CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts
       - name: The drill's record, as the test wrote it (not committed from here)
         run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'

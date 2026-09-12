@@ -10,6 +10,7 @@ const LINKS: ReadonlyArray<readonly [string, string]> = [
   ['The Vault', '/vault'],
   ['Chambers', '/chambers'],
   ['The Curb Gazette', '/gazette'],
+  ['Services', '/services'],
   ['Doctrine', '/doctrine'],
   ['The agents', '/agents'],
   ['State, as data', '/api/state'],

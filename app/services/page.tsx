@@ -1,0 +1,167 @@
+import Link from 'next/link';
+import { creditsStatus } from '@/lib/credits/config';
+import { latestRate } from '@/lib/credits/maintenance';
+import { MINIMUM_OPEN_CENTS, NOTICE_DAYS, SERVICES, centsText } from '@/lib/credits/prices';
+import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
+import { getStoreAsync } from '@/lib/store';
+import { CreditDesk } from '../components/credit-desk';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Services and the credit desk' };
+
+/**
+ * The services page: the price list in dollars, the rate a dollar is in
+ * CURB as last read — with its block, or the reason there is none — the
+ * key and the top-up, and what the token does not do. Every figure that
+ * depends on a rate says where the rate came from. Nothing here is a
+ * condition of the position product.
+ */
+export default async function ServicesPage() {
+  const status = creditsStatus();
+  const store = await getStoreAsync();
+  const rate = status.state === 'CONFIGURED' ? await latestRate(store) : null;
+  const minimumCurb = rate?.state === 'READ' ? curbForCents(rate.rate, BigInt(MINIMUM_OPEN_CENTS)) : null;
+
+  return (
+    <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
+      <header className="mb-8">
+        <div className="kicker">
+          <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · proposed, not decided
+        </div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined.</h1>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
+          A CURB paid to the credit desk is a prepaid unit of a service that exists today, and nothing else. The desk reads the token&rsquo;s price from a pool at a block, states the market capitalisation that price implies, and credits a key in dollars at the rate at the block its top-up was mined. Nothing here is a condition of forming, holding or claiming a position.
+        </p>
+      </header>
+
+      <section className="cells grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>The price list</b> · US dollars · {NOTICE_DAYS} days&rsquo; notice of any change
+          </div>
+          <table className="mt-4 w-full text-[13px]">
+            <tbody>
+              <tr className="border-t border-(--color-rule) align-top">
+                <td className="py-3 pr-4 text-(--color-paper)">Opening a key</td>
+                <td className="py-3 pr-4 text-(--color-paper-dim)">The minimum credited, cumulatively across top-ups, before a key can be used</td>
+                <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">{centsText(MINIMUM_OPEN_CENTS)}</td>
+              </tr>
+              {SERVICES.map((s) => (
+                <tr key={s.id} className="border-t border-(--color-rule) align-top">
+                  <td className="py-3 pr-4 text-(--color-paper)">{s.title}</td>
+                  <td className="py-3 pr-4 text-(--color-paper-dim)">
+                    {s.what}. <span className="tabular text-(--color-paper-faint)">{s.path}</span>
+                  </td>
+                  <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">
+                    {centsText(s.cents)} <span className="text-(--color-paper-faint)">/ {s.unit}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
+            Everything the site shows today stays free: the series pages, the latest evidence, the instrument file, the previews, the wallet lookups, the status endpoint and the Gazette. The paid endpoints are the history and the fan-out. A call is charged before it is answered; a call that is refused is not charged. Credits do not expire while the service they buy is offered; a service closes with {NOTICE_DAYS} days&rsquo; notice here and in the journal; nothing is refunded in dollars or in CURB, because the contract has no refund path and the desk offers none.
+          </p>
+        </div>
+
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>The rate</b> · read from the chain · never typed in
+          </div>
+          {status.state !== 'CONFIGURED' ? (
+            <>
+              <p className="mt-3 text-sm leading-relaxed text-(--color-paper)">No rate. {status.state === 'CONFIG_INVALID' ? `The record is invalid: ${status.detail}` : 'No token exists, no desk is deployed and no pool is read.'}</p>
+              <p className="mt-3 text-[12px] leading-relaxed text-(--color-paper-faint)">
+                The price list stays in dollars and no CURB amount is quoted until the token trades in a pool the desk&rsquo;s chain profile can read. The desk will not type a price in by hand: a rate that was not read from the chain is not a rate the desk states.
+              </p>
+            </>
+          ) : rate === null ? (
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper)">The desk is configured on {status.config.network.label}; no tick has read the pool yet.</p>
+          ) : rate.state === 'UNREAD' ? (
+            <>
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
+                No rate at {rate.at}{rate.block !== null ? ` (block ${rate.block})` : ''}: {rate.reason}
+                {rate.detail ? ` — ${rate.detail}` : ''}.
+              </p>
+              <p className="mt-3 text-[12px] leading-relaxed text-(--color-paper-faint)">Nothing is quoted from an earlier read. The next tick reads again.</p>
+            </>
+          ) : (
+            <dl className="mt-4 space-y-3 text-[13px]">
+              <div>
+                <dt className="kicker">One CURB</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">{usd18Text(rate.rate.usdPerCurb18, 8)}</dd>
+              </div>
+              <div>
+                <dt className="kicker">Market capitalisation · price × supply</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">
+                  {usd18Text(rate.rate.marketCapUsd18, 2)} <span className="text-(--color-paper-faint)">· supply {curbText(BigInt(rate.rate.token.supply), rate.rate.token.decimals, 0)} CURB</span>
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">{centsText(MINIMUM_OPEN_CENTS)} · the opening minimum</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">{minimumCurb === null ? '—' : `${curbText(minimumCurb, rate.rate.token.decimals)} CURB`}</dd>
+              </div>
+              <div>
+                <dt className="kicker">Read</dt>
+                <dd className="tabular mt-1 text-[12px] text-(--color-paper-dim)">
+                  block {rate.rate.block} · {rate.at} · pool {rate.rate.pair.address} on {status.config.network.label} · quote {rate.rate.quote.kind === 'usd-stable' ? `${rate.rate.pair.quoteAddress} taken as US dollars` : `${rate.rate.pair.quoteAddress} priced by feed ${rate.rate.quote.feed}`}
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">The rule</dt>
+                <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
+                  The price is the ratio of the pool&rsquo;s reserves at the block; the capitalisation is that price times <span className="tabular">totalSupply()</span> at the same block, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined, or, where the node no longer serves that block, at the head when it was indexed — and the record says which.
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="display text-2xl text-(--color-paper) sm:text-3xl">A key, a quote, a top-up, a balance.</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
+          The key is made in this browser and never sent to make it; the desk learns of its hash when the chain credits it. The top-up is one call, <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>, signed in a wallet of the payer&rsquo;s own; the site holds no key and sends nothing. The balance is public by hash.
+        </p>
+        <div className="mt-6">
+          <CreditDesk
+            configured={status.state === 'CONFIGURED'}
+            desk={status.state === 'CONFIGURED' ? status.config.desk : null}
+            network={status.state === 'CONFIGURED' ? status.config.network.label : null}
+            decimals={rate?.state === 'READ' ? rate.rate.token.decimals : null}
+          />
+        </div>
+      </section>
+
+      <section className="mt-10 cells grid-cols-1 md:grid-cols-2">
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>What the token does not do</b>
+          </div>
+          <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-(--color-paper-dim)">
+            <li>It is not a condition of forming, holding or claiming a position. Positions never depend on a CURB price or a bridge.</li>
+            <li>It is not a claim on the components any series holds, on the treasury, on fees or on revenue. No fee sharing, no buyback and no burn is proposed.</li>
+            <li>It is not a loss guarantor for any series, holder or issuer failure.</li>
+            <li>Its price is not a fact about the position product; the site never adds the two.</li>
+            <li>It is not capital protected, cannot-be-frozen, the same as holding anything, automatically safer, always sellable at a reference value, higher-earning, a sign of independent issuers, or first of its kind — the eight claims the desk refuses for the position, refused for the token.</li>
+            <li>It gives the desk no admin key over anything: the credit desk contract has no owner, no pause, no upgrade and holds no balance.</li>
+          </ul>
+        </div>
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>The order of work, and what exists</b>
+          </div>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-[13px] leading-relaxed text-(--color-paper-dim)">
+            <li>The services, the key store, the top-up indexer and the price reader exist first — this page, <span className="tabular">/api/credits</span>, the paid endpoints, <span className="tabular">contracts/src/CreditDesk.sol</span> with its tests — rehearsed on a local chain with a mock token and a mock pool.</li>
+            <li>The credit desk contract is reviewed with the series contract.</li>
+            <li>The token launches; its address, decimals and supply are read from the chain; the desk is deployed pointing at the token and the operator multisig; the pool is recorded when it exists. Until then this page says NOT CONFIGURED.</li>
+            <li>If a launch raises anything, the budget is published first: the independent review, the legal read, infrastructure, a logged reserve. The split is in <Link href="/mechanism/decisions/token" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">the record</Link>.</li>
+          </ol>
+          <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
+            No token exists. No pool exists. Nothing is configured. A launchpad&rsquo;s terms are not assumed here. The <Link href="/mechanism/decisions/assumptions" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">assumption register</Link> says what is assumed meanwhile, and none of it is stated as fact on this page.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
+}

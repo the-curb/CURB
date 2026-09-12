@@ -141,9 +141,36 @@ The same node serves the series page's wallet flow: with
 at `http://127.0.0.1:8545` (chain id 31337), a permitted account mints and
 claims from the page, and the next maintenance run indexes it.
 
-Both the rehearsal and the drill also run on every push, in the `rehearsal`
-job of `.github/workflows/checks.yml`: a Hardhat node is started there, the
-transactions are sent, and the site's tests read them back.
+## The credit desk on a local node (§16)
+
+`src/CreditDesk.sol` is the token record's one function
+(`docs/decisions/TOKEN.md`): `topUp(bytes32 keyHash, uint256 amount)` moves
+CURB from the payer to the published treasury and emits the hash and the
+amount, and it can do nothing else — no admin, no pause, no upgrade, no
+balance. Fifteen tests in `test/CreditDesk.t.sol` hold that against a
+token that halts, returns false, charges a fee, or was never approved.
+
+`scripts/credits-rehearsal.ts` deploys a mock CURB, a mock dollar, a mock
+pool (`src/mocks/MockPair.sol`, reserves set by hand) and the desk on the
+same Hardhat node, tops a key hash up with 4,000 CURB at US$0.005 and, after
+the pool has doubled, 1,000 more at US$0.01, and prints the record the site
+reads:
+
+```bash
+node scripts/credits-rehearsal.ts > credits-rehearsal.json
+CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" npm test     # from the repository root
+```
+
+`tests/credits-rehearsal.test.ts` then reads the rate at the head (US$0.01,
+a market capitalisation of US$10,000,000 on the mock's supply), credits the
+two top-ups at their own blocks (US$20.00 and US$10.00), finds the key open,
+syncs again without crediting anything twice, and charges one paid call.
+No CURB exists; the mock is a mock.
+
+The rehearsal, the drill and the credit desk's rehearsal also run on every
+push, in the `rehearsal` job of `.github/workflows/checks.yml`: a Hardhat
+node is started there, the transactions are sent, and the site's tests read
+them back.
 
 It found A `SHORTFALL` by exactly what was seized and B `MATCHED`, a DARK
 condition on A alone, `HEAD_UNREAD` and `UNKNOWN` (not a shortfall) while

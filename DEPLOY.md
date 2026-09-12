@@ -355,6 +355,59 @@ its own RPC override.
   checks workflow runs the rehearsal and the drill on every push, on a node
   it starts itself.
 
+## The credit desk
+
+The token's one proposed function (`docs/decisions/TOKEN.md`, on the site at
+`/mechanism/decisions/token`): a CURB paid to the credit desk is a prepaid
+unit of a service that exists, priced in dollars. It rides on the same tick
+and is reported under `credits`. No token exists; in production it is
+`NOT_CONFIGURED` and `/services` says so.
+
+- **Configuration.** `CURB_CREDITS` is one JSON record — the network profile,
+  the token, the desk contract (`contracts/src/CreditDesk.sol`), the block
+  it was created in, and the price source: a constant-product pool holding
+  CURB and a quote asset, the quote taken as dollars (`usd-stable`) or
+  priced by a Chainlink feed (`chainlink-feed`). Filled only from what was
+  read from the chain after a launch; see `.env.local.example`. A record
+  that does not parse is `CONFIG_INVALID` with its reason. A chain not in
+  `lib/chain/networks.ts` is a reviewed code change first.
+- **The rate, every tick.** The pool's `token0()`, `token1()` and
+  `getReserves()` and the token's `decimals()` and `totalSupply()` are read
+  at the head block; the price is the ratio of the reserves, the market
+  capitalisation is price × supply, both at that block. Recorded under
+  `credits:rate` with the block, or as UNREAD with the reason (an empty pool
+  side, a feed that answers nothing positive, a node that cannot serve the
+  block). Nothing is quoted from an earlier read and nothing is typed in.
+- **Top-ups, every tick.** `TopUp(bytes32 keyHash, address payer, uint256
+  amount)` events from the desk since `fromBlock` (idempotent on transaction
+  hash and log index; block hashes kept for reorg rollback, which also
+  removes the credits of a rolled-back block). Each is priced at the rate at
+  its own block — or, if the node no longer serves it, at the head when
+  indexed, and the credit says which — and credited in cents to
+  `credits:topups:<keyHash>`. One that cannot be priced waits, listed, for a
+  tick that can.
+- **Keys.** A key is thirty-two random bytes the caller makes (`/services`
+  makes one in the browser; `POST /api/keys` makes one and stores nothing);
+  its SHA-256 is what the chain credits and what the desk keeps rows by. The
+  desk sees the key only in an `x-curb-key` header. Charges go to
+  `credits:spend:<keyHash>`, a separate row with a separate writer, so the
+  indexer and a request never overwrite each other. A key opens at US$20.00
+  credited, cumulatively. `GET /api/keys/<keyHash>` is the public balance.
+- **Paid endpoints.** `/api/positions/<series>/evidence/versions?source=`,
+  `/api/positions/<series>/journal?day=`, and webhook subscriptions
+  (`/api/subscriptions`, charged per delivery of the same message the
+  operator's webhook gets, once per transition, only when delivered). The
+  prices are in `lib/credits/prices.ts` and on `/services` and
+  `/api/credits`, nowhere else. 503 while unconfigured; 401 without a key;
+  402 with the figures and the top-up call when the key cannot pay. Every
+  public endpoint stays free.
+- **Rehearsal on a local chain.** `contracts/scripts/credits-rehearsal.ts`
+  deploys a mock CURB, a mock dollar, a mock pool and the desk on a Hardhat
+  node, tops a key hash up twice at two prices, and prints the record;
+  `tests/credits-rehearsal.test.ts` reads it back through the tick, finds
+  each top-up priced at its own block, the key open, and a call charged. The
+  checks workflow runs it on every push.
+
 ## What is not covered here
 
 - **The sequencer uptime feed.** The vendor directory lists none for this

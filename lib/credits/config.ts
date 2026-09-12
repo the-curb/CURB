@@ -1,0 +1,91 @@
+/**
+ * Where the credit desk lives — when it lives anywhere.
+ *
+ * No token exists and nothing is deployed. The desk is configured, never
+ * assumed: `CURB_CREDITS` is one JSON record, filled only from what was
+ * read from the chain after a launch (docs/decisions/TOKEN.md, "the order
+ * of work"). Absent, every credit function reports NOT_CONFIGURED; a record
+ * that does not parse is a fault with its reason, not a silent skip.
+ *
+ *   {
+ *     "network": "ethereum-mainnet",
+ *     "token": "0x…",                      the CURB token
+ *     "desk": "0x…",                       the CreditDesk contract
+ *     "fromBlock": 21000000,               the block the desk was created in
+ *     "priceSource": {
+ *       "kind": "uniswap-v2-pair",
+ *       "pair": "0x…",                     a pool holding CURB and the quote asset
+ *       "quote": { "kind": "usd-stable" }  or { "kind": "chainlink-feed", "feed": "0x…" } for a quote priced in USD by a feed
+ *     }
+ *   }
+ */
+
+import { NETWORKS, type NetworkProfile } from '../chain/networks.ts';
+
+export const CREDITS_ENV = 'CURB_CREDITS';
+
+export type QuoteSource = { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: string };
+
+export interface PriceSource {
+  readonly kind: 'uniswap-v2-pair';
+  readonly pair: string;
+  readonly quote: QuoteSource;
+}
+
+export interface CreditsConfig {
+  readonly network: NetworkProfile;
+  readonly token: string;
+  readonly desk: string;
+  readonly fromBlock: number;
+  readonly priceSource: PriceSource;
+}
+
+export type CreditsStatus =
+  | { readonly state: 'NOT_CONFIGURED'; readonly detail: string }
+  | { readonly state: 'CONFIG_INVALID'; readonly detail: string }
+  | { readonly state: 'CONFIGURED'; readonly config: CreditsConfig };
+
+const isAddress = (v: unknown): v is string => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
+
+export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
+  if (raw === undefined || raw.trim() === '') {
+    return { state: 'NOT_CONFIGURED', detail: `${CREDITS_ENV} is not set: no token, no desk and no pool are configured, so nothing is read and no rate is quoted` };
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return { state: 'CONFIG_INVALID', detail: `${CREDITS_ENV} is not JSON` };
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return { state: 'CONFIG_INVALID', detail: `${CREDITS_ENV} must be an object` };
+  const e = body as Record<string, unknown>;
+  const network = NETWORKS[e.network as NetworkProfile['id']];
+  if (!network) return { state: 'CONFIG_INVALID', detail: `network must be one of ${Object.keys(NETWORKS).join(', ')}` };
+  if (!isAddress(e.token)) return { state: 'CONFIG_INVALID', detail: 'token is not a 20-byte hex address' };
+  if (!isAddress(e.desk)) return { state: 'CONFIG_INVALID', detail: 'desk is not a 20-byte hex address' };
+  if (e.token.toLowerCase() === e.desk.toLowerCase()) return { state: 'CONFIG_INVALID', detail: 'token and desk share an address' };
+  if (!Number.isInteger(e.fromBlock) || (e.fromBlock as number) < 0) return { state: 'CONFIG_INVALID', detail: 'fromBlock must be a non-negative integer' };
+  const ps = e.priceSource as Record<string, unknown> | undefined;
+  if (!ps || typeof ps !== 'object') return { state: 'CONFIG_INVALID', detail: 'priceSource is missing' };
+  if (ps.kind !== 'uniswap-v2-pair') return { state: 'CONFIG_INVALID', detail: `priceSource.kind ${JSON.stringify(ps.kind)} is not supported; the reader knows uniswap-v2-pair` };
+  if (!isAddress(ps.pair)) return { state: 'CONFIG_INVALID', detail: 'priceSource.pair is not a 20-byte hex address' };
+  const q = ps.quote as Record<string, unknown> | undefined;
+  let quote: QuoteSource;
+  if (q && q.kind === 'usd-stable') quote = { kind: 'usd-stable' };
+  else if (q && q.kind === 'chainlink-feed' && isAddress(q.feed)) quote = { kind: 'chainlink-feed', feed: q.feed.toLowerCase() };
+  else return { state: 'CONFIG_INVALID', detail: 'priceSource.quote must be { kind: "usd-stable" } or { kind: "chainlink-feed", feed: "0x…" }' };
+  return {
+    state: 'CONFIGURED',
+    config: {
+      network,
+      token: e.token.toLowerCase(),
+      desk: e.desk.toLowerCase(),
+      fromBlock: e.fromBlock as number,
+      priceSource: { kind: 'uniswap-v2-pair', pair: ps.pair.toLowerCase(), quote },
+    },
+  };
+}
+
+export function creditsStatus(raw: string | undefined = process.env[CREDITS_ENV]): CreditsStatus {
+  return parseCreditsConfig(raw);
+}

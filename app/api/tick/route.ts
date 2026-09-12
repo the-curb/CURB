@@ -5,6 +5,7 @@ import { narrateClosedDay, yesterdayOf } from '@/lib/gazette/narrate';
 import { runAlerts } from '@/lib/ops/alerts';
 import { maintainRetention } from '@/lib/ops/maintenance';
 import { positionsMaintenance } from '@/lib/positions/maintenance';
+import { runCredits } from '@/lib/credits/maintenance';
 
 /**
  * A tick with the Tally, the Archivist and a narration due together runs thirty to forty seconds; the platform default of ten would kill it mid-run with the lock held and half the records written. The run lock TTL is 120 s, so a run that does overrun this limit is released within two minutes rather than never.
@@ -52,6 +53,10 @@ export async function POST(request: Request): Promise<Response> {
   // on-chain verification once a day, the series index and reconciliation every
   // run — or NOT_DEPLOYED, said plainly, while no reviewed deployment exists.
   const positions = dryRun ? null : await positionsMaintenance(store, now, { forceDaily });
+  // The credit desk rides on the same tick: the rate at the head, the top-ups
+  // since the cursor, and the alert transition fanned out to paying
+  // subscribers — or NOT_CONFIGURED, said plainly, while no token exists.
+  const credits = dryRun ? null : await runCredits(store, now, alerts);
 
   return Response.json(
     {
@@ -100,6 +105,8 @@ export async function POST(request: Request): Promise<Response> {
       retention,
       /** The position product's backend: evidence, verification, index, reconciliation. */
       positions,
+      /** The credit desk: the rate, the top-ups credited, the subscribers told. */
+      credits,
     },
     { headers: { 'cache-control': 'no-store' } },
   );

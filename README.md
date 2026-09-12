@@ -80,10 +80,12 @@ not covered.
 ## The contract prototype
 
 `contracts/` is a separate workspace: the series contract the mechanism
-proposes (`src/CompanySeries.sol`), the mocks that misbehave on demand, and
-the blueprint's test cases as Solidity tests with a fuzz run. Unaudited,
-unreviewed, undeployed — the site reports NOT_DEPLOYED until a reviewed
-deployment record is configured.
+proposes (`src/CompanySeries.sol`), the credit desk the token record proposes
+(`src/CreditDesk.sol`: a top-up to a published treasury and an event, nothing
+held, no admin), the mocks that misbehave on demand, and the blueprint's test
+cases as Solidity tests with fuzz and invariant runs. Unaudited, unreviewed,
+undeployed — the site reports NOT_DEPLOYED until a reviewed deployment record
+is configured, and NOT_CONFIGURED for the credit desk while no token exists.
 
 ```bash
 cd contracts && npm install && npm run build && npm test

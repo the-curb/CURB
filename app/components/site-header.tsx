@@ -6,7 +6,7 @@ import { ThemeToggle } from './theme-toggle';
 /**
  * The masthead. A folio strip — where the desk sits, and the ink switch —
  * over the title row: the mark in the second ink, the name in the serif,
- * and the positions, the mechanism, the desk, the paper and the rules as a ruled run of small capitals. Under it the paper's
+ * and the positions, the mechanism, the desk, the paper, the services and the rules as a ruled run of small capitals. Under it the paper's
  * rule, a hairline over a heavy line. It stays at the top; the sheet scrolls
  * beneath it. On a narrow screen the sections become a third row that
  * scrolls sideways rather than a menu that hides them.
@@ -16,6 +16,7 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ['Mechanism', '/mechanism'],
   ['The Desk', '/floor'],
   ['Gazette', '/gazette'],
+  ['Services', '/services'],
   ['Doctrine', '/doctrine'],
 ];
 

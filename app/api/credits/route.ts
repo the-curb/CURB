@@ -1,0 +1,71 @@
+import { creditsStatus } from '@/lib/credits/config';
+import { latestRate } from '@/lib/credits/maintenance';
+import { MINIMUM_OPEN_CENTS, NOTICE_DAYS, SERVICES, centsText } from '@/lib/credits/prices';
+import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
+import { getStoreAsync } from '@/lib/store';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * The credit desk as the API states it: whether it exists, the price list in
+ * dollars, the last rate read with its block, and — for `?usd=` — how much
+ * CURB that many dollars is at that rate. No rate is quoted from anything
+ * but a read; NOT_CONFIGURED and UNREAD are answers here, not blanks.
+ */
+export async function GET(request: Request): Promise<Response> {
+  const status = creditsStatus();
+  const store = await getStoreAsync();
+  const rate = status.state === 'CONFIGURED' ? await latestRate(store) : null;
+  const usdParam = new URL(request.url).searchParams.get('usd');
+
+  let quote: Record<string, unknown> | null = null;
+  if (usdParam !== null) {
+    const m = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(usdParam.trim());
+    if (m === null) quote = { error: 'USD_MALFORMED', detail: 'usd is a dollar figure with at most two decimals, e.g. 20 or 20.50' };
+    else {
+      const cents = BigInt(m[1]!) * 100n + BigInt((m[2] ?? '').padEnd(2, '0'));
+      if (rate === null || rate.state !== 'READ') {
+        quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: rate === null ? 'NO_RATE' : 'UNREAD', detail: rate === null ? 'no rate has been read; nothing is quoted' : `${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}` };
+      } else {
+        const amount = curbForCents(rate.rate, cents);
+        quote = { usdCents: cents.toString(), usd: centsText(cents), curb: amount.toString(), curbText: curbText(amount, rate.rate.token.decimals), atBlock: rate.rate.block, readAt: rate.at, state: 'QUOTED', note: 'read at that block; the credit is at the rate at the block the top-up is mined' };
+      }
+    }
+  }
+
+  return Response.json(
+    {
+      observedAt: new Date().toISOString(),
+      state: status.state,
+      detail: status.state === 'CONFIGURED' ? null : status.detail,
+      desk: status.state === 'CONFIGURED' ? { network: status.config.network.id, chainId: status.config.network.chainId, desk: status.config.desk, token: status.config.token, priceSource: status.config.priceSource } : null,
+      minimumOpenCents: MINIMUM_OPEN_CENTS,
+      minimumOpen: centsText(MINIMUM_OPEN_CENTS),
+      noticeDays: NOTICE_DAYS,
+      services: SERVICES.map((s) => ({ id: s.id, title: s.title, what: s.what, cents: s.cents, price: `${centsText(s.cents)} per ${s.unit}`, path: s.path })),
+      rate:
+        rate === null
+          ? null
+          : rate.state === 'READ'
+            ? {
+                state: 'READ',
+                at: rate.at,
+                block: rate.rate.block,
+                usdPerCurb18: rate.rate.usdPerCurb18,
+                usdPerCurb: usd18Text(rate.rate.usdPerCurb18, 8),
+                marketCapUsd18: rate.rate.marketCapUsd18,
+                marketCap: usd18Text(rate.rate.marketCapUsd18, 2),
+                supply: rate.rate.token.supply,
+                decimals: rate.rate.token.decimals,
+                pair: rate.rate.pair,
+                quote: rate.rate.quote,
+                source: rate.rate.source,
+              }
+            : { state: 'UNREAD', at: rate.at, block: rate.block, reason: rate.reason, detail: rate.detail },
+      quote,
+      keyHash: 'SHA-256 of the key; topUp(bytes32 keyHash, uint256 amount) on the desk credits it',
+      record: '/mechanism/decisions/token',
+    },
+    { headers: { 'cache-control': 'no-store' } },
+  );
+}

@@ -23,6 +23,7 @@ import type { HeartbeatRecord, PublicationRecord, SnapshotRecord, Store } from '
 import { composeBoard } from '../floor/board.ts';
 import { BRAND } from '../brand.ts';
 import { request } from '../chain/transport.ts';
+import { createHash } from 'node:crypto';
 
 export interface Condition {
   /** Stable across ticks while the condition holds. */
@@ -278,6 +279,16 @@ export interface AlertRun {
   readonly cleared: readonly string[];
   readonly delivery: Delivery;
   readonly stateStored: boolean;
+  /** The message composed for this transition, for the subscribers' fan-out; null when there was nothing to send. */
+  readonly message: string | null;
+  /** Identifies the transition by its content, so the same one is fanned out once even when it recurs. */
+  readonly transitionId: string | null;
+}
+
+/** The transition's identity: what was raised, what cleared, what stays — the same sets give the same id. */
+export function transitionId(t: Transition): string {
+  const body = JSON.stringify({ raised: t.raised.map((c) => c.id), cleared: [...t.cleared], active: t.active.map((c) => c.id) });
+  return `0x${createHash('sha256').update(body).digest('hex')}`;
 }
 
 /**
@@ -314,8 +325,10 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
   const t = transition(previousIds, current);
 
   let delivery: Delivery = { state: 'NOTHING_TO_SEND' };
+  let message: string | null = null;
   if (t.raised.length > 0 || t.cleared.length > 0) {
-    delivery = await deliver(composeMessage(t, now), webhook);
+    message = composeMessage(t, now);
+    delivery = await deliver(message, webhook);
   }
 
   // The recorded set means "what has been delivered". Unconfigured is not
@@ -327,5 +340,5 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     stateStored = written.state === 'WRITTEN';
   }
 
-  return { active: current.map((c) => c.id), raised: t.raised.map((c) => c.id), cleared: t.cleared, delivery, stateStored };
+  return { active: current.map((c) => c.id), raised: t.raised.map((c) => c.id), cleared: t.cleared, delivery, stateStored, message, transitionId: message === null ? null : transitionId(t) };
 }
