@@ -88,6 +88,16 @@ export async function readComponentBalances(deployment: SeriesDeployment, opts: 
 }
 
 const RECONCILE_KEY = (seriesId: string) => `positions:reconcile:${seriesId}`;
+export const FINDING_PREFIX = 'positions:finding:';
+export const findingKey = (seriesId: string, at: string) => `${FINDING_PREFIX}${seriesId}:${at}`;
+
+export interface FindingRecord {
+  readonly seriesId: string;
+  readonly chainId: number;
+  readonly at: string;
+  readonly asOfBlock: number | null;
+  readonly moved: readonly { readonly component: ComponentId; readonly from: Finding; readonly to: Finding }[];
+}
 
 export async function reconcileSeries(
   store: Store,
@@ -109,7 +119,22 @@ export async function reconcileSeries(
     disagreements,
     limit: RECONCILIATION_LIMIT,
   };
-  const written = await store.writeSnapshots([{ key: RECONCILE_KEY(seriesId), observedAt: now.toISOString(), payload: reconciliation as unknown as Record<string, unknown> }]);
+  // A finding that moved since the last run is journalled under its own key,
+  // so the day it moved keeps it after the latest run has moved on (§9: the
+  // Gazette publishes verified changes).
+  const previous = await latestReconciliation(store, seriesId);
+  const moved = reconciliation.components
+    .map((c) => ({ component: c.component, from: previous.reconciliation?.components.find((p) => p.component === c.component)?.finding ?? null, to: c.finding }))
+    .filter((m) => m.from !== null && m.from !== m.to);
+  const records = [{ key: RECONCILE_KEY(seriesId), observedAt: now.toISOString(), payload: reconciliation as unknown as Record<string, unknown> }];
+  if (moved.length > 0) {
+    records.push({
+      key: findingKey(seriesId, now.toISOString()),
+      observedAt: now.toISOString(),
+      payload: { seriesId, chainId: reconciliation.chainId, at: now.toISOString(), asOfBlock, moved } as unknown as Record<string, unknown>,
+    });
+  }
+  const written = await store.writeSnapshots(records);
   return { reconciliation, recorded: written.state === 'WRITTEN' };
 }
 

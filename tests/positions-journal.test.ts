@@ -71,3 +71,26 @@ describe('the position product’s journal', () => {
     await store.close();
   });
 });
+
+describe('a reconciliation finding that moved', () => {
+  it('is journalled once, on the day it moved, and printed as such', async () => {
+    const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-journal-')));
+    const { findingKey } = await import('../lib/positions/reconcile.ts');
+    await store.writeSnapshots([
+      {
+        key: findingKey('apple-s1', '2026-09-12T04:00:00.000Z'),
+        observedAt: '2026-09-12T04:00:00.000Z',
+        payload: { seriesId: 'apple-s1', chainId: 31337, at: '2026-09-12T04:00:00.000Z', asOfBlock: 93, moved: [{ component: 'A', from: 'MATCHED', to: 'SHORTFALL' }] },
+      },
+    ]);
+    const day = await positionsJournal(store, '2026-09-12');
+    assert.deepEqual(
+      day.entries.map((e) => [e.kind, e.component, e.mark, e.subject]),
+      [['FINDING', 'A', 'SHORTFALL', 'reconciliation of A']],
+    );
+    assert.match(day.entries[0]!.detail, /from MATCHED to SHORTFALL as of block 93/);
+    assert.match(day.entries[0]!.detail, /not an audit/);
+    assert.deepEqual((await positionsJournal(store, '2026-09-13')).entries, []);
+    await store.close();
+  });
+});

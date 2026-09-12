@@ -11,6 +11,7 @@ const JOURNAL_LABEL: Record<JournalEntry['kind'], string> = {
   EVIDENCE_ARCHIVED: 'archived',
   EVIDENCE_CHANGED: 'changed',
   DRIFT: 'moved on chain',
+  FINDING: 'reconciliation moved',
 };
 
 /** Composed on every request. Today's edition grows until midnight UTC. */
@@ -104,8 +105,9 @@ export default async function EditionPage(props: { params: Params }) {
   const edition = composeEdition(record.value, now);
   const isFuture = day > utcDay(now);
   const districts = [...new Set(edition.sections.map((s) => s.district))];
-  // The position product's verified changes that day: issuer bodies archived
-  // or changed, candidate addresses that moved between verification runs.
+  // The position product's verified changes that day: issuer records archived
+  // or changed, candidate addresses that moved between verification runs, and
+  // reconciliation findings that moved.
   const journal = isFuture ? null : await positionsJournal(store, day);
 
   // The narrated lede, if one was attempted for this exact composition. A
@@ -297,7 +299,7 @@ export default async function EditionPage(props: { params: Params }) {
               </p>
             ) : journal.entries.length === 0 ? (
               <p className="text-sm text-(--color-paper-faint)">
-                No issuer record or document was archived or changed, and no candidate address moved between verification runs, on {day}. Printed so its absence would be noticed.
+                No issuer record or document was archived or changed, no candidate address moved between verification runs, and no reconciliation finding moved, on {day}. Printed so its absence would be noticed.
               </p>
             ) : (
               <ul className="space-y-3">
@@ -314,7 +316,7 @@ export default async function EditionPage(props: { params: Params }) {
                         <span className="tabular">{e.subject}</span>
                       )}
                     </span>
-                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em]" style={{ color: e.kind === 'DRIFT' ? 'var(--color-state-dark)' : e.kind === 'EVIDENCE_CHANGED' ? 'var(--color-state-degraded)' : 'var(--color-paper-faint)' }}>
+                    <span className="ml-3 text-[10px] uppercase tracking-[0.14em]" style={{ color: e.kind === 'DRIFT' || (e.kind === 'FINDING' && e.mark === 'SHORTFALL') ? 'var(--color-state-dark)' : e.kind === 'EVIDENCE_CHANGED' || e.kind === 'FINDING' ? 'var(--color-state-degraded)' : 'var(--color-paper-faint)' }}>
                       {JOURNAL_LABEL[e.kind]} · {e.mark}
                     </span>
                     <p className="mt-1 text-xs leading-relaxed text-(--color-paper-faint)">

@@ -272,7 +272,8 @@ its own RPC override.
   product's verified changes: a body first archived or changed (by the
   archive's version rows, dated when first seen) and an address that moved
   between verification runs (by the drift rows the verification writes under
-  `positions:drift:<series>:<time>`). It is derived from those rows on every
+  `positions:drift:<series>:<time>`), and a reconciliation finding that moved
+  (by the rows the reconciliation writes under `positions:finding:<series>:<time>`). It is derived from those rows on every
   request and adds nothing to them; an empty day is printed as empty.
 - **Fork evidence.** `contracts/evidence/<series>.fork.json` is written by
   `npm run test:fork` in `contracts/` and committed; the site reads it at

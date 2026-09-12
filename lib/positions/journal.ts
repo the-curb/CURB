@@ -11,6 +11,7 @@
 
 import type { SnapshotRecord, Store } from '../store/types.ts';
 import { EVIDENCE_PREFIX, EVIDENCE_SOURCES, identityHistory, type EvidenceSource } from './evidence.ts';
+import { FINDING_PREFIX, type FindingRecord } from './reconcile.ts';
 import type { Drift } from './verify.ts';
 
 export const DRIFT_PREFIX = 'positions:drift:';
@@ -25,7 +26,7 @@ export interface DriftRecord {
   readonly drift: readonly Drift[];
 }
 
-export type JournalKind = 'EVIDENCE_ARCHIVED' | 'EVIDENCE_CHANGED' | 'DRIFT';
+export type JournalKind = 'EVIDENCE_ARCHIVED' | 'EVIDENCE_CHANGED' | 'DRIFT' | 'FINDING';
 
 export interface JournalEntry {
   readonly at: string;
@@ -115,12 +116,37 @@ function driftEntries(rows: readonly SnapshotRecord[], day: string): JournalEntr
   return entries;
 }
 
+function findingEntries(rows: readonly SnapshotRecord[], day: string): JournalEntry[] {
+  const entries: JournalEntry[] = [];
+  for (const row of rows) {
+    if (!row.key.startsWith(FINDING_PREFIX) || row.observedAt.slice(0, 10) !== day) continue;
+    const record = row.payload as unknown as FindingRecord;
+    for (const m of record.moved ?? []) {
+      entries.push({
+        at: record.at,
+        kind: 'FINDING',
+        seriesId: record.seriesId,
+        component: m.component,
+        subject: `reconciliation of ${m.component}`,
+        url: null,
+        mark: m.to,
+        detail: `the finding moved from ${m.from} to ${m.to}${record.asOfBlock === null ? '' : ` as of block ${record.asOfBlock}`}; units of a token held against units owed, not an audit of any reserve`,
+      });
+    }
+  }
+  return entries;
+}
+
 /** One day's entries, oldest first. A store that cannot be read is reported, not shown as an empty day. */
 export async function positionsJournal(store: Store, day: string): Promise<Journal> {
-  const [evidence, drift] = await Promise.all([store.snapshots(EVIDENCE_PREFIX), store.snapshots(DRIFT_PREFIX)]);
-  const faults = [evidence, drift].filter((r) => r.state === 'UNREAD').map((r) => (r.state === 'UNREAD' ? `${r.reason}${r.detail ? ` — ${r.detail}` : ''}` : ''));
+  const [evidence, drift, finding] = await Promise.all([store.snapshots(EVIDENCE_PREFIX), store.snapshots(DRIFT_PREFIX), store.snapshots(FINDING_PREFIX)]);
+  const faults = [evidence, drift, finding].filter((r) => r.state === 'UNREAD').map((r) => (r.state === 'UNREAD' ? `${r.reason}${r.detail ? ` — ${r.detail}` : ''}` : ''));
   if (faults.length > 0) return { day, entries: [], storeFault: faults.join('; ') };
-  const entries = [...evidenceEntries(evidence.state === 'UNREAD' ? [] : evidence.value, day), ...driftEntries(drift.state === 'UNREAD' ? [] : drift.value, day)].sort(
+  const entries = [
+    ...evidenceEntries(evidence.state === 'UNREAD' ? [] : evidence.value, day),
+    ...driftEntries(drift.state === 'UNREAD' ? [] : drift.value, day),
+    ...findingEntries(finding.state === 'UNREAD' ? [] : finding.value, day),
+  ].sort(
     (a, b) => a.at.localeCompare(b.at) || a.seriesId.localeCompare(b.seriesId) || a.component.localeCompare(b.component) || a.subject.localeCompare(b.subject),
   );
   return { day, entries, storeFault: null };
