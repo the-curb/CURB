@@ -79,7 +79,9 @@ function evidenceEntries(rows: readonly SnapshotRecord[], day: string): JournalE
           ? `the answer was ${refused.toLowerCase().replace(/_/g, ' ')}${v.httpStatus === null ? '' : ` (HTTP ${v.httpStatus})`}; the refusal is kept, not the record`
           : source.kind === 'page'
             ? 'the visible text is kept by its hash'
-            : 'the record kept as received, versioned by its parsed fields';
+            : source.kind === 'ondo-asset-page'
+              ? 'the record kept by its parsed fields, the page by its hash'
+              : 'the record kept as received, versioned by its parsed fields';
       entries.push({
         at: v.at,
         kind: first ? 'EVIDENCE_ARCHIVED' : 'EVIDENCE_CHANGED',

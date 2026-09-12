@@ -1,0 +1,59 @@
+# The fork evidence, refreshed on a schedule.
+#
+# contracts/evidence/*.json is what the series page shows as "on a fork of
+# Ethereum, block N": the real components' answers at a recorded block. Run
+# by hand it goes stale; run here once a week it stays dated to the week,
+# and every refresh is a commit a person can read. The record is written
+# only when every fork test passes; a public node that does not answer
+# leaves the last record in place and a red run to say so.
+#
+# Needs nothing but the repository's own token: the workflow commits to main
+# with the bot identity, and the deployment follows the push as always.
+
+name: fork-evidence
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-evidence
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        working-directory: contracts
+        run: npm ci
+      - name: Build
+        working-directory: contracts
+        run: npm run build
+      - name: Fork tests, archive state from a public node
+        working-directory: contracts
+        env:
+          ETH_RPC_URL: https://eth.drpc.org
+        run: npm run test:fork
+      - name: Commit the record if it moved
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- contracts/evidence; then
+            echo "the record did not move"
+            exit 0
+          fi
+          BLOCK=$(node -e 'console.log(require("./contracts/evidence/apple-s1.fork.json").block)')
+          git config user.name "the-curb fork evidence"
+          git config user.email "noreply@github.com"
+          git add contracts/evidence
+          git commit -m "Fork evidence refreshed at block ${BLOCK}"
+          git push
