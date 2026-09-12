@@ -22,9 +22,12 @@ on-chain verification of every address they name, an event index and a
 reconciliation for a series once one is deployed, a product API), a contract
 prototype with fork evidence against both real components on Ethereum
 (including a corporate action across a recorded block), a
-rehearsal and an operational drill on a local chain, and the decision records
+rehearsal and an operational drill on a local chain, the decision records
 the blueprint asks for (`docs/decisions/`, rendered at `/mechanism/decisions`)
-— all proposed, none decided.
+— all proposed, none decided — and the token's one proposed function, a
+credit desk at `/services`: prices in dollars for the history and the
+fan-out the site keeps, paid in CURB at a rate read from a pool at a block,
+`NOT_CONFIGURED` until a token exists.
 
 Beneath the product is the desk: a multi-agent intelligence desk for stock
 tokens on Robinhood Chain (chain id 4663). Nine agents read the chain and two
