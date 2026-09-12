@@ -11,6 +11,7 @@
  *     "network": "ethereum-mainnet",
  *     "token": "0x…",                      the CURB token
  *     "desk": "0x…",                       the CreditDesk contract
+ *     "treasury": "0x…",                   the operator multisig the desk pays to — the desk's own immutable, verified each tick
  *     "fromBlock": 21000000,               the block the desk was created in
  *     "priceSource": {
  *       "kind": "uniswap-v2-pair",
@@ -36,6 +37,8 @@ export interface CreditsConfig {
   readonly network: NetworkProfile;
   readonly token: string;
   readonly desk: string;
+  /** Where every top-up goes: the published treasury, the desk's immutable, checked against the code each tick. */
+  readonly treasury: string;
   readonly fromBlock: number;
   readonly priceSource: PriceSource;
 }
@@ -64,6 +67,9 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
   if (!isAddress(e.token)) return { state: 'CONFIG_INVALID', detail: 'token is not a 20-byte hex address' };
   if (!isAddress(e.desk)) return { state: 'CONFIG_INVALID', detail: 'desk is not a 20-byte hex address' };
   if (e.token.toLowerCase() === e.desk.toLowerCase()) return { state: 'CONFIG_INVALID', detail: 'token and desk share an address' };
+  const treasury = e.treasury;
+  if (!isAddress(treasury)) return { state: 'CONFIG_INVALID', detail: 'treasury is not a 20-byte hex address' };
+  if ([e.token, e.desk].some((a) => a.toLowerCase() === treasury.toLowerCase())) return { state: 'CONFIG_INVALID', detail: 'the treasury cannot be the token or the desk' };
   if (!Number.isInteger(e.fromBlock) || (e.fromBlock as number) < 0) return { state: 'CONFIG_INVALID', detail: 'fromBlock must be a non-negative integer' };
   const ps = e.priceSource as Record<string, unknown> | undefined;
   if (!ps || typeof ps !== 'object') return { state: 'CONFIG_INVALID', detail: 'priceSource is missing' };
@@ -80,6 +86,7 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
       network,
       token: e.token.toLowerCase(),
       desk: e.desk.toLowerCase(),
+      treasury: treasury.toLowerCase(),
       fromBlock: e.fromBlock as number,
       priceSource: { kind: 'uniswap-v2-pair', pair: ps.pair.toLowerCase(), quote },
     },

@@ -49,16 +49,17 @@ export interface CodeVerification {
   readonly readAt: string;
 }
 
-const FILE = () => path.join(/*turbopackIgnore: true*/ process.cwd(), 'contracts', 'evidence', 'CompanySeries.build.json');
+const FILE = (contract: string) => path.join(/*turbopackIgnore: true*/ process.cwd(), 'contracts', 'evidence', `${contract}.build.json`);
 export const CODE_KEY = (seriesId: string) => `positions:code:${seriesId}`;
 
-export async function buildRecord(): Promise<{ build: BuildRecord | null; fault: string | null }> {
+/** The committed build of one contract — the series by default; the credit desk reads its own. */
+export async function buildRecord(contract = 'CompanySeries'): Promise<{ build: BuildRecord | null; fault: string | null }> {
   try {
-    const j = JSON.parse(await fs.readFile(FILE(), 'utf8')) as Record<string, unknown>;
+    const j = JSON.parse(await fs.readFile(FILE(contract), 'utf8')) as Record<string, unknown>;
     if (typeof j.deployedBytecode !== 'string' || !Array.isArray(j.immutables) || typeof j.commit !== 'string') return { build: null, fault: 'the build record is not the shape the script writes' };
     return {
       build: {
-        contract: typeof j.contract === 'string' ? j.contract : 'CompanySeries',
+        contract: typeof j.contract === 'string' ? j.contract : contract,
         solc: typeof j.solc === 'string' ? j.solc : null,
         commit: j.commit,
         workingTreeClean: j.workingTreeClean === true,
@@ -73,8 +74,8 @@ export async function buildRecord(): Promise<{ build: BuildRecord | null; fault:
   }
 }
 
-const word = (n: bigint) => n.toString(16).padStart(64, '0');
-const addressWord = (a: string) => a.slice(2).toLowerCase().padStart(64, '0');
+export const word = (n: bigint) => n.toString(16).padStart(64, '0');
+export const addressWord = (a: string) => a.slice(2).toLowerCase().padStart(64, '0');
 
 /** The expected immutable words for a deployment record, by the names the build record uses. */
 export function expectedImmutables(deployment: SeriesDeployment): Record<string, string> {
@@ -89,6 +90,11 @@ export function expectedImmutables(deployment: SeriesDeployment): Record<string,
 
 /** Compare on-chain code with the build: equal outside the immutable slots, and the slots hold the record's values. Pure. */
 export function compareCode(codeHex: string, build: BuildRecord, deployment: SeriesDeployment): { state: 'MATCHES' | 'MISMATCH'; detail: string | null; immutables: ImmutableCheck[] } {
+  return compareAgainst(codeHex, build, expectedImmutables(deployment));
+}
+
+/** The same comparison for any contract with a build record: the expected words are given by the immutables' names. Pure. */
+export function compareAgainst(codeHex: string, build: BuildRecord, want: Readonly<Record<string, string>>): { state: 'MATCHES' | 'MISMATCH'; detail: string | null; immutables: ImmutableCheck[] } {
   const code = codeHex.toLowerCase().replace(/^0x/, '');
   const expected = build.deployedBytecode.replace(/^0x/, '');
   if (code.length !== expected.length) {
@@ -102,7 +108,6 @@ export function compareCode(codeHex: string, build: BuildRecord, deployment: Ser
       return { state: 'MISMATCH', detail: `the code differs from the build at byte ${i}, outside every immutable slot`, immutables: [] };
     }
   }
-  const want = expectedImmutables(deployment);
   const immutables: ImmutableCheck[] = build.immutables.map((im) => {
     const values = new Set(im.slots.map((s) => code.slice(s.start * 2, (s.start + s.length) * 2)));
     const onChain = values.size === 1 ? [...values][0]! : null;
@@ -112,7 +117,7 @@ export function compareCode(codeHex: string, build: BuildRecord, deployment: Ser
   const wrong = immutables.filter((c) => !c.matches);
   return wrong.length === 0
     ? { state: 'MATCHES', detail: null, immutables }
-    : { state: 'MISMATCH', detail: `the code is the build, but ${wrong.map((c) => c.name).join(', ')} in it ${wrong.length === 1 ? 'is' : 'are'} not what the deployment record says`, immutables };
+    : { state: 'MISMATCH', detail: `the code is the build, but ${wrong.map((c) => c.name).join(', ')} in it ${wrong.length === 1 ? 'is' : 'are'} not what the record says`, immutables };
 }
 
 export async function verifySeriesCode(deployment: SeriesDeployment, opts: RpcOptions, now: Date): Promise<CodeVerification> {

@@ -1,5 +1,7 @@
+import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
-import { latestRate } from '@/lib/credits/maintenance';
+import { latestRate, latestRun } from '@/lib/credits/maintenance';
+import { receipts } from '@/lib/credits/receipts';
 import { MINIMUM_OPEN_CENTS, NOTICE_DAYS, SERVICES, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { getStoreAsync } from '@/lib/store';
@@ -15,7 +17,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request): Promise<Response> {
   const status = creditsStatus();
   const store = await getStoreAsync();
-  const rate = status.state === 'CONFIGURED' ? await latestRate(store) : null;
+  const configured = status.state === 'CONFIGURED';
+  const [rate, code, run, paid] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, configured ? latestRun(store) : null, receipts(store)]);
   const usdParam = new URL(request.url).searchParams.get('usd');
 
   let quote: Record<string, unknown> | null = null;
@@ -38,7 +41,12 @@ export async function GET(request: Request): Promise<Response> {
       observedAt: new Date().toISOString(),
       state: status.state,
       detail: status.state === 'CONFIGURED' ? null : status.detail,
-      desk: status.state === 'CONFIGURED' ? { network: status.config.network.id, chainId: status.config.network.chainId, desk: status.config.desk, token: status.config.token, priceSource: status.config.priceSource } : null,
+      desk: status.state === 'CONFIGURED' ? { network: status.config.network.id, chainId: status.config.network.chainId, desk: status.config.desk, token: status.config.token, treasury: status.config.treasury, priceSource: status.config.priceSource } : null,
+      /** The desk's code against the committed build, and the treasury it pays to against the record — verified every tick. */
+      code: code === null ? null : code.storeFault !== null ? { state: 'STORE_UNREADABLE', detail: code.storeFault } : code.code === null ? { state: 'NOT_YET_VERIFIED', detail: 'no tick has read the desk yet' } : code.code,
+      lastRun: run,
+      /** What the chain has paid into the treasury through the desk, as credited: the receipts the token record promises. */
+      receipts: paid,
       minimumOpenCents: MINIMUM_OPEN_CENTS,
       minimumOpen: centsText(MINIMUM_OPEN_CENTS),
       noticeDays: NOTICE_DAYS,

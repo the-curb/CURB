@@ -11,6 +11,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { deliver, type Delivery } from '../ops/alerts.ts';
 import type { Store } from '../store/types.ts';
 import { charge, keyAccount } from './keys.ts';
@@ -48,6 +49,45 @@ export function webhookFault(raw: string): string | null {
   if (HOST_REFUSED.test(url.hostname) || IP_LITERAL.test(url.hostname) || !url.hostname.includes('.')) return 'the hostname must be a public name, not an address or a local name';
   if (raw.length > 2_048) return 'the URL is longer than 2048 characters';
   return null;
+}
+
+/**
+ * An address the desk will not post to: loopback, private, link-local
+ * (the cloud metadata address lives there), unique-local, unspecified. A
+ * public name can resolve to one of these; the check is at delivery time,
+ * on what the name resolves to then, so a name that was public when it was
+ * registered and points inward now is refused now.
+ */
+export function isPrivateAddress(ip: string): boolean {
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  const v6 = ip.toLowerCase();
+  if (v6 === '::' || v6 === '::1') return true;
+  if (/^::ffff:(\d{1,3}\.){3}\d{1,3}$/.test(v6)) return isPrivateAddress(v6.slice(7));
+  return /^(fc|fd|fe[89ab])/.test(v6);
+}
+
+export type Resolver = (hostname: string) => Promise<readonly string[]>;
+
+/** Every address a hostname resolves to, or an empty list when it resolves to nothing. */
+export const resolveAll: Resolver = async (hostname) => (await lookup(hostname, { all: true, verbatim: true })).map((a) => a.address);
+
+/** Why the desk will not post to a URL right now, or null. */
+export async function deliveryFault(url: string, resolve: Resolver = resolveAll): Promise<string | null> {
+  const fault = webhookFault(url);
+  if (fault !== null) return fault;
+  let addresses: readonly string[];
+  try {
+    addresses = await resolve(new URL(url).hostname);
+  } catch (cause) {
+    return `the hostname did not resolve (${cause instanceof Error ? cause.message : 'unknown'})`;
+  }
+  if (addresses.length === 0) return 'the hostname resolves to nothing';
+  const inward = addresses.find(isPrivateAddress);
+  return inward === undefined ? null : `the hostname resolves to ${inward}, which is not a public address`;
 }
 
 function subOf(payload: Readonly<Record<string, unknown>>): Subscription | null {
@@ -122,6 +162,7 @@ export async function fanOut(
   message: string | null,
   transitionId: string | null,
   post: (message: string, webhook: string) => Promise<Delivery> = deliver,
+  resolve: Resolver = resolveAll,
 ): Promise<FanOutReport> {
   const service = serviceById('alert-delivery')!;
   const empty: FanOutReport = { transitionId, considered: 0, delivered: 0, charged: 0, skipped: [], failed: [] };
@@ -138,6 +179,12 @@ export async function fanOut(
     if (account.status !== 'OPEN' || BigInt(account.balanceCents) < BigInt(service.cents)) {
       skipped.push({ id: sub.id, reason: account.status !== 'OPEN' ? account.status : 'INSUFFICIENT' });
       await store.writeSnapshots([{ key: subRow(sub.id), observedAt: now.toISOString(), payload: { ...sub, lastDelivery: { at: now.toISOString(), state: 'NOTHING_TO_SEND', detail: `not delivered: the key is ${account.status === 'OPEN' ? 'short' : account.status.toLowerCase()}`, charged: false } } }]);
+      continue;
+    }
+    const refused = await deliveryFault(sub.url, resolve);
+    if (refused !== null) {
+      skipped.push({ id: sub.id, reason: 'WEBHOOK_REFUSED' });
+      await store.writeSnapshots([{ key: subRow(sub.id), observedAt: now.toISOString(), payload: { ...sub, lastDelivery: { at: now.toISOString(), state: 'NOTHING_TO_SEND', detail: `not delivered: ${refused}`, charged: false } } }]);
       continue;
     }
     const outcome = await post(message, sub.url);

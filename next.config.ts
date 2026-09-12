@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
     '/positions/**': ['./contracts/evidence/*.json'],
     '/api/positions/**': ['./contracts/evidence/*.json'],
     '/api/status': ['./contracts/evidence/*.json'],
+    // The tick verifies deployed code against the committed builds.
+    '/api/tick': ['./contracts/evidence/*.json'],
   },
 };
 

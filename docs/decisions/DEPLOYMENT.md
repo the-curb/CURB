@@ -23,6 +23,16 @@ A deployment record is one JSON file, reviewed by name and date, kept beside the
 5. **Watch.** The tick indexes the series, replays the ledger, reconciles both components at the same block, and verifies the code, every five minutes; the desk's conditions and the webhook say when something moves. The Gazette prints the day's verified changes.
 6. **Announce** the address, the block, the commit and the cap on the series page — by configuration, not by editing prose.
 
+## The credit desk, the same way
+
+If [the token record](TOKEN.md) is decided, the credit desk is deployed by the same discipline, after the token exists:
+
+1. **The record.** `contracts/records/credit-desk.example.json` shows the shape: network, chain id, RPC endpoint, the token and its decimals, the treasury (the operator multisig), the price source (a pool, or `null` until one exists), `reviewedBy`, `reviewedAt`. The token and the treasury are read from the chain, never typed from a launchpad's page.
+2. **Dry run.** `node scripts/deploy-credit-desk.ts <record> --dry-run`: the node answers the record's chain id; the token has code and answers `symbol()`, `decimals()` and `totalSupply()` with the decimals the record expects; the treasury has code (a multisig) on any public chain; the pool, if named, has code. Nothing is sent.
+3. **Deploy.** The same command without `--dry-run`, with `DEPLOYER_PRIVATE_KEY` in the operator's shell and `--reviewed` on a public chain. The tool prints the address, the block, the constructor arguments and the `CURB_CREDITS` line, and writes `contracts/evidence/deployments/credit-desk.<chain>.json`.
+4. **Verify, twice.** Set `CURB_CREDITS` on the deployment; the next tick compares the desk's code with `contracts/evidence/CreditDesk.build.json` and its two immutables with the record's token and treasury, and the services page says *matches the build at commit …* or a DARK condition says what differs. Verify the source on the explorer with the printed constructor arguments as well.
+5. **The pool.** When the token trades in a pool the reader knows, its address goes into the record's `priceSource` from the chain, and the same line is set again. Until then the price list is in dollars and nothing is quoted.
+
 ## What there is no plan for
 
 - **Upgrading.** The series is immutable ([ADR-001](ADR-001-immutable-series.md)). A wrong deployment is retired by stopping mints and letting every holder exit; a corrected one is a new series and a new record.
@@ -31,4 +41,4 @@ A deployment record is one JSON file, reviewed by name and date, kept beside the
 
 ## What exists today
 
-`contracts/scripts/deploy-series.ts`, rehearsed on a local chain with a well-known test key against mock components: the dry run passed every check, the deployment landed, and the site's code verification found the deployed series to be the build in this repository with the record's immutables. The example record is refused, as it should be. No key exists, no record has been reviewed, and nothing has been sent to a public chain.
+`contracts/scripts/deploy-series.ts`, rehearsed on a local chain with a well-known test key against mock components: the dry run passed every check, the deployment landed, and the site's code verification found the deployed series to be the build in this repository with the record's immutables. `contracts/scripts/deploy-credit-desk.ts`, rehearsed the same way against a mock token and a mock pool: the example record refused for want of a reviewer, the local record's dry run passed, the deployment landed, the site found the desk to be the build with the record's token and treasury — and, with the record naming a different treasury, found the mismatch and named the immutable. No key exists, no record has been reviewed, and nothing has been sent to a public chain.

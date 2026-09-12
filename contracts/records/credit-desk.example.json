@@ -1,0 +1,12 @@
+{
+  "_": "An example of a record for scripts/deploy-credit-desk.ts. Illustrative: no CURB token exists, so the token is nobody, the treasury is nobody, the pool is null, and reviewedBy is empty on purpose so the script refuses it. A real record is written after the token exists, with the token and the treasury read from the chain, reviewed by name, and kept beside the deployment it produced.",
+  "network": "ethereum-mainnet",
+  "chainId": 1,
+  "rpcUrl": "https://ethereum-rpc.publicnode.com",
+  "token": "0x0000000000000000000000000000000000000000",
+  "decimals": 18,
+  "treasury": "0x0000000000000000000000000000000000000000",
+  "priceSource": null,
+  "reviewedBy": "",
+  "reviewedAt": ""
+}

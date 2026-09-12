@@ -44,12 +44,13 @@ a stop or a resume without a reason is refused.
 
 ## The recorded build (G02)
 
-`npm run record:build` writes the compiled runtime bytecode, where its five
+`npm run record:build` writes the compiled runtime bytecode, where its
 immutables sit in it, the compiler version and the commit to
-`evidence/CompanySeries.build.json`. The site compares a deployed series
-with it on every tick: equal outside the immutable slots, and the slots
-holding the deployment record's components, units per lot and cap. The
-rehearsal test does the same against the local deployment.
+`evidence/CompanySeries.build.json` (five immutables) and
+`evidence/CreditDesk.build.json` (two: the token and the treasury). The site
+compares a deployed contract with its build on every tick: equal outside
+the immutable slots, and the slots holding the reviewed record's values.
+The rehearsal tests do the same against the local deployments.
 
 ## The recorded run (C07)
 
@@ -162,10 +163,21 @@ CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" npm test     # 
 ```
 
 `tests/credits-rehearsal.test.ts` then reads the rate at the head (US$0.01,
-a market capitalisation of US$10,000,000 on the mock's supply), credits the
-two top-ups at their own blocks (US$20.00 and US$10.00), finds the key open,
-syncs again without crediting anything twice, and charges one paid call.
-No CURB exists; the mock is a mock.
+a market capitalisation of US$10,000,000 on the mock's supply), finds the
+desk's code to be the build in `evidence/CreditDesk.build.json` with the
+record's token and treasury in its immutables, credits the two top-ups at
+their own blocks (US$20.00 and US$10.00), finds the key open, syncs again
+without crediting anything twice, and charges one paid call. No CURB
+exists; the mock is a mock.
+
+`scripts/deploy-credit-desk.ts <record.json> [--dry-run] [--reviewed]` deploys
+the desk from a reviewed record — see `records/credit-desk.example.json` for
+the shape (refused on purpose: nobody reviewed it) and
+`docs/decisions/DEPLOYMENT.md` for the steps. It refuses an unreviewed
+record, a node on the wrong chain, a token that does not answer as the
+record says, a treasury without code on a public chain, and a public chain
+without `--reviewed`; the key comes from `DEPLOYER_PRIVATE_KEY` in the
+operator's shell and is never printed. Rehearsed on a local chain only.
 
 The rehearsal, the drill and the credit desk's rehearsal also run on every
 push, in the `rehearsal` job of `.github/workflows/checks.yml`: a Hardhat

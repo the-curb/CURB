@@ -12,7 +12,7 @@ import { deriveConditions } from '@/lib/ops/alerts';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots, driftSnapshots, positionSnaps, evidenceSnaps] = await Promise.all([
+  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots, driftSnapshots, positionSnaps, evidenceSnaps, creditsRun, creditsCode] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
     store.snapshots('feed:'),
@@ -21,6 +21,8 @@ export async function GET(): Promise<Response> {
     store.snapshots('capture:drift'),
     store.snapshots('positions:'),
     store.snapshots('evidence:'),
+    store.snapshots('credits:run'),
+    store.snapshots('credits:code'),
   ]);
 
   // A store that will not answer is its own response. Serving an empty roster
@@ -51,7 +53,12 @@ export async function GET(): Promise<Response> {
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null),
     driftSnapshot: driftSnapshots.state === 'UNREAD' ? null : (driftSnapshots.value.find((s) => s.key === 'capture:drift') ?? null),
-    positionSnapshots: [...(positionSnaps.state === 'UNREAD' ? [] : positionSnaps.value), ...(evidenceSnaps.state === 'UNREAD' ? [] : evidenceSnaps.value.filter((s) => s.key.endsWith(':latest')))],
+    positionSnapshots: [
+      ...(positionSnaps.state === 'UNREAD' ? [] : positionSnaps.value),
+      ...(evidenceSnaps.state === 'UNREAD' ? [] : evidenceSnaps.value.filter((s) => s.key.endsWith(':latest'))),
+      ...(creditsRun.state === 'UNREAD' ? [] : creditsRun.value),
+      ...(creditsCode.state === 'UNREAD' ? [] : creditsCode.value),
+    ],
     now,
   });
   const head = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((s) => s.key === 'chain:head') ?? null);

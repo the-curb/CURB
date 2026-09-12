@@ -30,6 +30,22 @@ Read the contract and its tests line by line against the blueprint's cases; run 
 | Front-running | `allocateExit` and `claimComponent` act only on the caller's own receipts and claims; a mint's cap check can be raced by another mint, which then fails cleanly | No holder can act on another's rights. |
 | Gas griefing | A component's transfer that consumes all gas makes the call fail closed | The claim stays whole; the drill's frozen-A scenario shows the shape. |
 
+## The credit desk, walked the same way
+
+Against `contracts/src/CreditDesk.sol` (fifteen tests in `test/CreditDesk.t.sol`), on 12 September 2026. It is forty lines and does one thing; the walk is short because the contract is.
+
+| Area | Looked at | Finding |
+| --- | --- | --- |
+| Surface | One external function, `topUp`; two immutables; no owner, no pause, no upgrade, no receive | Held. There is no state to corrupt and no role to capture. |
+| Reentrancy | `topUp` makes one external call (`transferFrom`) and one view call after it; the event is emitted after both; the contract holds no balance and no mapping, so re-entering `topUp` can only pay again | Held; nothing to guard. |
+| Return values | A false, a revert, or malformed data all revert `TransferFailed` | Held (returns-false, halted, no-allowance tests). |
+| Balance delta | The treasury's balance must rise by exactly `amount`, or `DeltaWrong` | Held (fee-on-transfer test); a token that pays the treasury less than the event says cannot be used, which is the point of the check: the site credits from the event. |
+| Zero cases | `amount == 0` and `keyHash == 0` refused; zero addresses and a non-contract token refused at construction | Held. |
+| Who pays whom | `msg.sender` pays; the treasury is immutable; anyone may top up any hash | Held. A top-up to a hash nobody holds is the payer's loss and the record shows it against that hash. |
+| Front-running | A top-up's effect is a credit to a hash the payer chose; observing one gives an attacker nothing to take | None. |
+| Site side | The credit is priced from the event at the block's rate; a reorg uncredits; the index is idempotent; the two rows per key have one writer each | Held by the tests in `tests/credits.test.ts` and the local rehearsal. **Noted:** two concurrent charges on one key can race on the spend row (the store replaces the row); the loser's charge is lost in the customer's favour, never the desk's. Acceptable at this scale; a per-key lock would close it. |
+| The treasury's key | The treasury is a multisig by policy; the tool refuses a treasury without code on a public chain | Held; an EOA treasury is allowed only on chain 31337. |
+
 ## What this review did not do
 
 - It did not read the components' code (the issuers' contracts are proxies whose implementations are theirs); the fork tests read their behaviour, not their source.

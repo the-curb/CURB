@@ -214,6 +214,7 @@ export async function syncTopUps(
     }
     const cents = centsForCurb(rate.value, BigInt(t.amount)).toString();
     const credit: TopUpCredit = {
+      desk: config.desk,
       transactionHash: t.transactionHash,
       logIndex: t.logIndex,
       blockNumber: t.blockNumber,

@@ -18,13 +18,16 @@ reason; do not remove it. The only static route is `/_not-found`.
 Route (app)
 ┌ ƒ /               the front page: the position, its ledger, and the desk beneath it
 ├ ƒ /agents
+├ ƒ /api/credits   the credit desk: the price list, the rate, the receipts, a quote
 ├ ƒ /api/desk
 ├ ƒ /api/floor      the Floor board as data
 ├ ƒ /api/registry   the Registry roll as data
 ├ ƒ /api/positions  the series, their evidence, previews — the product API
+├ ƒ /api/keys      a key and its hash, stored nowhere; /api/keys/[hash] is the public balance
 ├ ƒ /api/session
 ├ ƒ /api/state      the desk's operator page
-├ ƒ /api/status     the position product's status
+├ ƒ /api/status     the position product's status, and the credit desk's
+├ ƒ /api/subscriptions  a key's webhooks, charged per delivery
 ├ ƒ /api/tick
 ├ ƒ /api/wallets    a wallet's receipts and claims, from the index
 ├ ƒ /chambers       the terms watched, the conditions, the three numbers
@@ -34,6 +37,7 @@ Route (app)
 ├ ƒ /mechanism      MECHANISM.md, rendered from the file
 ├ ƒ /positions      the series in design, and /positions/[series] with the ledger simulation
 ├ ƒ /registry
+├ ƒ /services      the price list in dollars, the rate, the key, the receipts
 └ ƒ /vault          flow as an hourly rate sample
 ```
 
@@ -364,8 +368,9 @@ and is reported under `credits`. No token exists; in production it is
 `NOT_CONFIGURED` and `/services` says so.
 
 - **Configuration.** `CURB_CREDITS` is one JSON record — the network profile,
-  the token, the desk contract (`contracts/src/CreditDesk.sol`), the block
-  it was created in, and the price source: a constant-product pool holding
+  the token, the desk contract (`contracts/src/CreditDesk.sol`), the treasury
+  every top-up goes to (the operator multisig), the block the desk was
+  created in, and the price source: a constant-product pool holding
   CURB and a quote asset, the quote taken as dollars (`usd-stable`) or
   priced by a Chainlink feed (`chainlink-feed`). Filled only from what was
   read from the chain after a launch; see `.env.local.example`. A record
@@ -378,6 +383,23 @@ and is reported under `credits`. No token exists; in production it is
   `credits:rate` with the block, or as UNREAD with the reason (an empty pool
   side, a feed that answers nothing positive, a node that cannot serve the
   block). Nothing is quoted from an earlier read and nothing is typed in.
+- **The desk's code, every tick.** The compiled runtime bytecode is committed
+  with its commit (`contracts/evidence/CreditDesk.build.json`, written by
+  `npm run record:build` beside the series' build). The tick reads the code
+  at the desk's address and compares it: equal outside the two immutable
+  slots, and the slots holding exactly the record's token and treasury. A
+  mismatch — other code, or a desk paying somewhere else — is a DARK
+  condition (`credits:code:MISMATCH`) and the services page says so.
+- **Conditions.** The desk's last run is one row (`credits:run`) the
+  conditions read: no rate on the last run is STALE, top-ups waiting for a
+  rate are a NOTE, an index that could not read the head is STALE, a
+  subscriber webhook that failed is a NOTE. They appear on `/api/state` and
+  Chambers with the desk's other conditions and go to the webhook.
+- **Receipts.** `/api/credits` and `/services` carry the receipts — every
+  top-up credited, summed: count, keys, CURB received, dollars credited,
+  how many were priced at their own block — derived from the keys' rows on
+  every request, never a second record. The token record promises the
+  proceeds' budget before a launch and the receipts after; this is the after.
 - **Top-ups, every tick.** `TopUp(bytes32 keyHash, address payer, uint256
   amount)` events from the desk since `fromBlock` (idempotent on transaction
   hash and log index; block hashes kept for reorg rollback, which also
@@ -396,15 +418,26 @@ and is reported under `credits`. No token exists; in production it is
 - **Paid endpoints.** `/api/positions/<series>/evidence/versions?source=`,
   `/api/positions/<series>/journal?day=`, and webhook subscriptions
   (`/api/subscriptions`, charged per delivery of the same message the
-  operator's webhook gets, once per transition, only when delivered). The
-  prices are in `lib/credits/prices.ts` and on `/services` and
-  `/api/credits`, nowhere else. 503 while unconfigured; 401 without a key;
-  402 with the figures and the top-up call when the key cannot pay. Every
-  public endpoint stays free.
+  operator's webhook gets, once per transition, only when delivered, and
+  only to a hostname that resolves to a public address when the post is
+  made). The prices are in `lib/credits/prices.ts` and on `/services` and
+  `/api/credits`, nowhere else. A call is admitted first (configured, keyed,
+  able to pay), answered, and charged only when there is an answer: a store
+  that cannot answer costs nothing. 503 while unconfigured; 401 without a
+  key; 402 with the figures and the top-up call when the key cannot pay.
+  Every public endpoint stays free.
+- **Deploying the desk.** `contracts/scripts/deploy-credit-desk.ts <record> [--dry-run] [--reviewed]`
+  deploys the desk from a reviewed record (`contracts/records/credit-desk.example.json`
+  shows the shape and is refused on purpose): it checks the chain id, the
+  token's code and answers, the treasury's code on a public chain, the
+  pool's code if named; the key comes from `DEPLOYER_PRIVATE_KEY` in the
+  operator's shell; it prints the `CURB_CREDITS` line and writes the
+  deployment record beside the evidence. The deployment plan has the steps.
 - **Rehearsal on a local chain.** `contracts/scripts/credits-rehearsal.ts`
   deploys a mock CURB, a mock dollar, a mock pool and the desk on a Hardhat
   node, tops a key hash up twice at two prices, and prints the record;
   `tests/credits-rehearsal.test.ts` reads it back through the tick, finds
+  the desk's code to be the build with the record's token and treasury,
   each top-up priced at its own block, the key open, and a call charged. The
   checks workflow runs it on every push.
 

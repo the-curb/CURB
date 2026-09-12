@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
 import { latestRate } from '@/lib/credits/maintenance';
+import { receipts } from '@/lib/credits/receipts';
 import { MINIMUM_OPEN_CENTS, NOTICE_DAYS, SERVICES, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { getStoreAsync } from '@/lib/store';
@@ -19,8 +21,10 @@ export const metadata = { title: 'Services and the credit desk' };
 export default async function ServicesPage() {
   const status = creditsStatus();
   const store = await getStoreAsync();
-  const rate = status.state === 'CONFIGURED' ? await latestRate(store) : null;
+  const configured = status.state === 'CONFIGURED';
+  const [rate, code, paid] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store)]);
   const minimumCurb = rate?.state === 'READ' ? curbForCents(rate.rate, BigInt(MINIMUM_OPEN_CENTS)) : null;
+  const decimals = rate?.state === 'READ' ? rate.rate.token.decimals : null;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
@@ -118,6 +122,86 @@ export default async function ServicesPage() {
         </div>
       </section>
 
+      <section className="mt-10 cells grid-cols-1 md:grid-cols-2">
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>The desk and the treasury</b> · code verified every tick
+          </div>
+          {status.state !== 'CONFIGURED' ? (
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No desk is deployed and no treasury is named. When one is, this block shows the desk&rsquo;s address, the treasury every top-up goes to, and whether the code on chain is the contract in this repository paying to that treasury.</p>
+          ) : (
+            <dl className="mt-4 space-y-3 text-[12px]">
+              <div>
+                <dt className="kicker">Desk · on {status.config.network.label}</dt>
+                <dd className="tabular mt-1 break-all text-(--color-paper)">{status.config.desk}</dd>
+              </div>
+              <div>
+                <dt className="kicker">Treasury · where every top-up goes</dt>
+                <dd className="tabular mt-1 break-all text-(--color-paper)">{status.config.treasury}</dd>
+              </div>
+              <div>
+                <dt className="kicker">Code against the build</dt>
+                <dd className="mt-1 leading-relaxed text-(--color-paper-dim)">
+                  {code === null || code.storeFault !== null ? (
+                    <span style={{ color: 'var(--color-state-stale)' }}>not readable{code?.storeFault ? ` — ${code.storeFault}` : ''}</span>
+                  ) : code.code === null ? (
+                    'not yet verified — no tick has read the desk'
+                  ) : code.code.state === 'MATCHES' ? (
+                    <>
+                      <span className="text-(--color-paper)">MATCHES</span> the build at commit <span className="tabular">{code.code.buildCommit?.slice(0, 10)}</span>; the immutables hold the token and the treasury above · read {code.code.readAt}
+                    </>
+                  ) : (
+                    <span style={{ color: code.code.state === 'MISMATCH' ? 'var(--color-state-dark)' : 'var(--color-state-stale)' }}>
+                      {code.code.state}{code.code.detail ? ` — ${code.code.detail}` : ''} · read {code.code.readAt}
+                    </span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>Receipts</b> · what the desk has taken in, as credited
+          </div>
+          {paid.storeFault !== null ? (
+            <p className="mt-3 text-sm" style={{ color: 'var(--color-state-stale)' }}>
+              The receipts could not be read: {paid.storeFault}.
+            </p>
+          ) : paid.topUps === 0 ? (
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No top-up has been credited. {configured ? 'The indexer reads the desk every fifteen minutes.' : 'There is no desk to pay.'}</p>
+          ) : (
+            <dl className="mt-4 space-y-3 text-[12px]">
+              <div>
+                <dt className="kicker">Top-ups · keys</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">
+                  {paid.topUps} · {paid.keys}
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">CURB received · credited</dt>
+                <dd className="tabular mt-1 text-(--color-paper)">
+                  {decimals === null ? `${paid.curbBaseUnits} base units` : `${curbText(BigInt(paid.curbBaseUnits), decimals)} CURB`} · {centsText(BigInt(paid.cents))}
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">Priced at own block · at head when indexed</dt>
+                <dd className="tabular mt-1 text-(--color-paper-dim)">
+                  {paid.pricedAtOwnBlock} · {paid.pricedAtHead}
+                </dd>
+              </div>
+              <div>
+                <dt className="kicker">Last top-up block · indexed to · waiting for a rate</dt>
+                <dd className="tabular mt-1 text-(--color-paper-dim)">
+                  {paid.lastBlock ?? '—'} · {paid.cursor ?? '—'} · {paid.waitingForRate}
+                </dd>
+              </div>
+            </dl>
+          )}
+          <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">Derived from the keys&rsquo; rows on every request; never a second record. The budget for what is received is in the token record, and the spending of it is logged under the operator policy.</p>
+        </div>
+      </section>
+
       <section className="mt-10">
         <h2 className="display text-2xl text-(--color-paper) sm:text-3xl">A key, a quote, a top-up, a balance.</h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
@@ -128,7 +212,7 @@ export default async function ServicesPage() {
             configured={status.state === 'CONFIGURED'}
             desk={status.state === 'CONFIGURED' ? status.config.desk : null}
             network={status.state === 'CONFIGURED' ? status.config.network.label : null}
-            decimals={rate?.state === 'READ' ? rate.rate.token.decimals : null}
+            decimals={decimals}
           />
         </div>
       </section>

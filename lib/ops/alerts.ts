@@ -195,6 +195,20 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
       }
     }
 
+    // The credit desk: its last run, and its code against the build. A rate
+    // that could not be read is stale, not zero; a desk whose code or
+    // treasury is not the record's is dark.
+    if (snap.key === 'credits:run') {
+      if (p.rate === 'UNREAD') out.push({ id: 'credits:rate:UNREAD', severity: 'STALE', text: `the credit desk could not read a rate on its last run (${str(p.rateDetail) ?? 'no reason recorded'}); nothing is quoted and top-ups wait` });
+      if (p.index === 'HEAD_UNREAD' || p.index === 'STORE_UNREADABLE') out.push({ id: `credits:index:${String(p.index)}`, severity: 'STALE', text: `the credit desk's top-ups were not indexed on its last run (${str(p.indexDetail) ?? String(p.index)})` });
+      if (typeof p.waitingForRate === 'number' && p.waitingForRate > 0) out.push({ id: 'credits:topups:WAITING', severity: 'NOTE', text: `${p.waitingForRate} top-up${p.waitingForRate === 1 ? '' : 's'} wait${p.waitingForRate === 1 ? 's' : ''} for a rate the node could give; nothing is credited at a guess` });
+      if (typeof p.fanOutFailed === 'number' && p.fanOutFailed > 0) out.push({ id: 'credits:fanout:FAILED', severity: 'NOTE', text: `${p.fanOutFailed} subscriber webhook${p.fanOutFailed === 1 ? '' : 's'} did not accept the last alert; not charged, tried again next change` });
+    }
+    if (snap.key === 'credits:code') {
+      if (p.state === 'MISMATCH') out.push({ id: 'credits:code:MISMATCH', severity: 'DARK', text: `the credit desk at ${str(p.address) ?? '?'} is not the contract in this repository paying to the recorded treasury${str(p.detail) ? ` — ${str(p.detail)}` : ''}; nothing about it is trusted until a person says why` });
+      else if (p.state === 'UNREAD' || p.state === 'NO_BUILD') out.push({ id: `credits:code:${String(p.state)}`, severity: 'STALE', text: `the credit desk's code at ${str(p.address) ?? '?'} could not be verified${str(p.detail) ? ` — ${str(p.detail)}` : ''}` });
+    }
+
     if (snap.key.startsWith('positions:reconcile:')) {
       const seriesId = str(p.seriesId) ?? snap.key.slice('positions:reconcile:'.length);
       const components = Array.isArray(p.components) ? (p.components as { component?: unknown; finding?: unknown; owed?: unknown; held?: unknown; reason?: unknown }[]) : [];
@@ -298,7 +312,7 @@ export function transitionId(t: Transition): string {
  * than being marked as sent.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
@@ -307,6 +321,8 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     store.snapshots('capture:drift'),
     store.snapshots('positions:'),
     store.snapshots('evidence:'),
+    store.snapshots('credits:run'),
+    store.snapshots('credits:code'),
   ]);
 
   const current = deriveConditions({
@@ -316,7 +332,15 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     lastRegistrar: registrar.state === 'UNREAD' ? null : (registrar.value[0] ?? null),
     headSnapshot: head.state === 'UNREAD' ? null : (head.value.find((s) => s.key === 'chain:head') ?? null),
     driftSnapshot: drift.state === 'UNREAD' ? null : (drift.value.find((s) => s.key === 'capture:drift') ?? null),
-    positionSnapshots: positions.state === 'UNREAD' && evidence.state === 'UNREAD' ? null : [...(positions.state === 'UNREAD' ? [] : positions.value), ...(evidence.state === 'UNREAD' ? [] : evidence.value.filter((s) => s.key.endsWith(':latest')))],
+    positionSnapshots:
+      positions.state === 'UNREAD' && evidence.state === 'UNREAD'
+        ? null
+        : [
+            ...(positions.state === 'UNREAD' ? [] : positions.value),
+            ...(evidence.state === 'UNREAD' ? [] : evidence.value.filter((s) => s.key.endsWith(':latest'))),
+            ...(creditsRun.state === 'UNREAD' ? [] : creditsRun.value),
+            ...(creditsCode.state === 'UNREAD' ? [] : creditsCode.value),
+          ],
     now,
   });
 

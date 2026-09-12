@@ -83,7 +83,7 @@ async function main() {
   if (held !== 5_000n * E18 || atDesk !== 0n) throw new Error('the top-ups did not land as the record says');
 
   const record = {
-    credits: { network: 'hardhat-local', token: curb.address, desk: credit.address, fromBlock: credit.block, priceSource: { kind: 'uniswap-v2-pair', pair: pool.address, quote: { kind: 'usd-stable' } } },
+    credits: { network: 'hardhat-local', token: curb.address, desk: credit.address, treasury, fromBlock: credit.block, priceSource: { kind: 'uniswap-v2-pair', pair: pool.address, quote: { kind: 'usd-stable' } } },
     key,
     keyHash,
     treasury,

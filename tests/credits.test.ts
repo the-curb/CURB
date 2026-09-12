@@ -7,14 +7,17 @@ import { NETWORKS } from '../lib/chain/networks.ts';
 import { forgetChainConfirmations } from '../lib/chain/rpc.ts';
 import { selector } from '../lib/chain/keccak.ts';
 import { CREDITS_ENV, parseCreditsConfig, type CreditsConfig } from '../lib/credits/config.ts';
-import { gate } from '../lib/credits/guard.ts';
+import { admit, gate, settle } from '../lib/credits/guard.ts';
+import { verifyDeskCode } from '../lib/credits/code.ts';
+import { receipts } from '../lib/credits/receipts.ts';
+import { addressWord, buildRecord } from '../lib/positions/code.ts';
 import { INDEX_KEY, TOPUP_TOPIC, decodeTopUp, syncTopUps } from '../lib/credits/indexer.ts';
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
 import { latestRate, runCredits } from '../lib/credits/maintenance.ts';
 import { MINIMUM_OPEN_CENTS, SERVICES, centsText } from '../lib/credits/prices.ts';
 import { centsForCurb, curbForCents, curbText, readRate, usd18Text, type Rate } from '../lib/credits/rate.ts';
-import { createSubscription, fanOut, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
-import { transitionId } from '../lib/ops/alerts.ts';
+import { createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
+import { positionConditions, transitionId } from '../lib/ops/alerts.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
 
 /**
@@ -30,13 +33,24 @@ const PAIR = '0x3000000000000000000000000000000000000003';
 const DESK = '0x4000000000000000000000000000000000000004';
 const FEED = '0x5000000000000000000000000000000000000005';
 const PAYER = '0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
+const TREASURY = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
 
 const word = (v: bigint) => v.toString(16).padStart(64, '0');
 const hexWord = (v: bigint) => `0x${word(v)}`;
 const blockHashOf = (n: number, fork = 0) => `0x${(BigInt(n) * 1_000_003n + BigInt(fork)).toString(16).padStart(64, '0')}`;
 
-const CONFIG_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } });
-const CONFIG_FEED_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'chainlink-feed', feed: FEED } } });
+const CONFIG_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } });
+const CONFIG_FEED_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'chainlink-feed', feed: FEED } } });
+
+/** The committed build's runtime bytecode with the immutable slots holding the given token and treasury — what a real deployment's code looks like. */
+async function deskCodeFor(token: string, treasury: string): Promise<string> {
+  const { build } = await buildRecord('CreditDesk');
+  if (build === null) throw new Error('no CreditDesk build record');
+  let code = build.deployedBytecode.replace(/^0x/, '');
+  const words: Record<string, string> = { curb: addressWord(token), treasury: addressWord(treasury) };
+  for (const im of build.immutables) for (const slot of im.slots) code = code.slice(0, slot.start * 2) + words[im.name] + code.slice((slot.start + slot.length) * 2);
+  return '0x' + code;
+}
 
 interface NodeState {
   head: number;
@@ -46,6 +60,8 @@ interface NodeState {
   logs: { block: number; keyHash: string; payer: string; amount: bigint; txHash: string; logIndex: number }[];
   supply: bigint;
   feedAnswer: bigint;
+  /** What eth_getCode answers for the desk; null means no code. */
+  deskCode: string | null;
   calls: string[];
 }
 
@@ -61,6 +77,9 @@ function fakeNode(state: NodeState) {
     switch (method) {
       case 'eth_chainId':
         result = '0x7a69';
+        break;
+      case 'eth_getCode':
+        result = (params[0] as string).toLowerCase() === DESK ? (state.deskCode ?? '0x') : '0x6001';
         break;
       case 'eth_getBlockByNumber': {
         const tag = params[0] as string;
@@ -117,7 +136,7 @@ function fakeNode(state: NodeState) {
 
 function freshState(): NodeState {
   // 4,000,000 CURB against 20,000 USDC: US$0.005 a CURB; a supply of 1e9 makes the market cap US$5,000,000.
-  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, calls: [] };
+  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, calls: [] };
 }
 
 const profile = NETWORKS['hardhat-local'];
@@ -163,14 +182,44 @@ describe('the credit desk, site side', () => {
     assert.equal(parseCreditsConfig('nope').state, 'CONFIG_INVALID');
     assert.equal(parseCreditsConfig(JSON.stringify({ network: 'mars' })).state, 'CONFIG_INVALID');
     assert.equal(parseCreditsConfig(JSON.stringify({ network: 'hardhat-local', token: CURB, desk: CURB, fromBlock: 1, priceSource: {} })).state, 'CONFIG_INVALID');
-    assert.equal(parseCreditsConfig(JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, fromBlock: 1, priceSource: { kind: 'oracle-of-nothing' } })).state, 'CONFIG_INVALID');
+    assert.equal(parseCreditsConfig(JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 1, priceSource: { kind: 'oracle-of-nothing' } })).state, 'CONFIG_INVALID');
+    assert.equal(parseCreditsConfig(JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, fromBlock: 1, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } })).state, 'CONFIG_INVALID', 'no treasury named');
+    assert.equal(parseCreditsConfig(JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: DESK, fromBlock: 1, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } })).state, 'CONFIG_INVALID', 'the desk as its own treasury');
     const ok = parseCreditsConfig(CONFIG_JSON);
     assert.equal(ok.state, 'CONFIGURED');
     if (ok.state === 'CONFIGURED') {
       assert.equal(ok.config.network.chainId, 31337);
       assert.equal(ok.config.priceSource.pair, PAIR);
       assert.equal(ok.config.priceSource.quote.kind, 'usd-stable');
+      assert.equal(ok.config.treasury, TREASURY);
     }
+  });
+
+  it('verifies the desk’s code against the committed build and the record’s treasury, and names what is wrong', async () => {
+    const state = freshState();
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+
+    const none = await verifyDeskCode(config, opts, new Date());
+    assert.equal(none.state, 'MISMATCH');
+    assert.equal(none.detail, 'no code at the address');
+
+    state.deskCode = await deskCodeFor(CURB, TREASURY);
+    const right = await verifyDeskCode(config, opts, new Date());
+    assert.equal(right.state, 'MATCHES', right.detail ?? '');
+    assert.deepEqual(right.immutables.map((i) => [i.name, i.matches]), [['curb', true], ['treasury', true]]);
+    assert.ok(right.buildCommit && right.codeHash);
+
+    state.deskCode = await deskCodeFor(CURB, PAYER);
+    const elsewhere = await verifyDeskCode(config, opts, new Date());
+    assert.equal(elsewhere.state, 'MISMATCH');
+    assert.match(elsewhere.detail ?? '', /treasury in it is not what the record says/);
+    assert.deepEqual(elsewhere.immutables.map((i) => [i.name, i.matches]), [['curb', true], ['treasury', false]]);
+
+    state.deskCode = (await deskCodeFor(CURB, TREASURY)).replace(/..$/, 'ff');
+    const other = await verifyDeskCode(config, opts, new Date());
+    assert.equal(other.state, 'MISMATCH');
+    assert.match(other.detail ?? '', /differs from the build/);
   });
 
   it('makes keys the desk never stores, and hashes them the way the chain sees them', () => {
@@ -380,20 +429,31 @@ describe('the credit desk, site side', () => {
       assert.equal(body.toOpenCents, '500');
     }
 
-    // At the minimum: charged, answered, and the balance is on the account.
+    // At the minimum: admitted without a charge, then charged when there is an answer, and the balance is on the account.
     await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2010', topUps: [credit('1500', 1), credit('510', 2)] } }]);
-    const ok = await gate(req({ authorization: `Bearer ${key}` }), store, 'evidence-versions', 'apple-s1 · xstocks:AAPLx');
-    assert.equal(ok.ok, true);
-    if (ok.ok) {
-      assert.equal(ok.account.balanceCents, '2005');
-      assert.equal(ok.account.chargeCount, 1);
-      assert.equal(ok.account.charges[0]!.ref, 'apple-s1 · xstocks:AAPLx');
+    const admitted = await admit(req({ authorization: `Bearer ${key}` }), store, 'evidence-versions');
+    assert.equal(admitted.ok, true);
+    if (admitted.ok) {
+      assert.equal(admitted.cents, 5);
+      assert.equal(admitted.account.balanceCents, '2010', 'admission charges nothing');
+    }
+    const beforeSettle = await store.snapshots(spendRow(hash));
+    assert.equal(beforeSettle.state === 'UNREAD' ? -1 : beforeSettle.value.length, 0, 'no spend row before settlement');
+    const settled = await settle(store, hash, 'evidence-versions', 'apple-s1 · xstocks:AAPLx');
+    assert.equal(settled.ok, true);
+    if (settled.ok) {
+      assert.equal(settled.account.balanceCents, '2005');
+      assert.equal(settled.account.chargeCount, 1);
+      assert.equal(settled.account.charges[0]!.ref, 'apple-s1 · xstocks:AAPLx');
     }
     const spend = await store.snapshots(spendRow(hash));
     assert.equal(spend.state === 'UNREAD' ? null : spend.value[0]?.payload.spentCents, '5');
+    const both = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'apple-s1 · 2026-09-12');
+    assert.equal(both.ok, true);
+    if (both.ok) assert.equal(both.account.balanceCents, '2000');
 
     // Spend it down to less than a call: refused as INSUFFICIENT, nothing served.
-    await store.writeSnapshots([{ key: spendRow(hash), observedAt: new Date().toISOString(), payload: { hash, spentCents: '2008', count: 2, charges: [] } }]);
+    await store.writeSnapshots([{ key: spendRow(hash), observedAt: new Date().toISOString(), payload: { hash, spentCents: '2008', count: 3, charges: [] } }]);
     const short = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
     assert.equal(short.ok, false);
     if (!short.ok) {
@@ -414,6 +474,18 @@ describe('the credit desk, site side', () => {
     assert.notEqual(webhookFault('not a url'), null);
   });
 
+  it('refuses, at delivery time, a public name that resolves inward', async () => {
+    for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.9', '172.31.255.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', '::', 'fc00::1', 'fd12::1', 'fe80::1', '::ffff:10.0.0.1']) {
+      assert.equal(isPrivateAddress(ip), true, ip);
+    }
+    for (const ip of ['93.184.216.34', '8.8.8.8', '172.32.0.1', '2606:4700::1111', '100.128.0.1']) assert.equal(isPrivateAddress(ip), false, ip);
+    assert.equal(await deliveryFault('https://hooks.example.com/a', async () => ['93.184.216.34']), null);
+    assert.match((await deliveryFault('https://hooks.example.com/a', async () => ['93.184.216.34', '10.0.0.5'])) ?? '', /10\.0\.0\.5/);
+    assert.match((await deliveryFault('https://hooks.example.com/a', async () => [])) ?? '', /resolves to nothing/);
+    assert.match((await deliveryFault('https://hooks.example.com/a', async () => { throw new Error('ENOTFOUND'); })) ?? '', /did not resolve/);
+    assert.notEqual(await deliveryFault('http://hooks.example.com/a', async () => ['93.184.216.34']), null, 'the static refusals still apply');
+  });
+
   it('fans an alert out to paying subscribers once per transition, charging only what was delivered', async () => {
     process.env[CREDITS_ENV] = CONFIG_JSON;
     const store = tmpStore();
@@ -430,7 +502,9 @@ describe('the credit desk, site side', () => {
     const a = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date());
     const b = await createSubscription(store, rich, 'https://hooks.example.com/b', new Date());
     const c = await createSubscription(store, poor, 'https://hooks.example.com/c', new Date());
-    assert.ok(a.ok && b.ok && c.ok);
+    const d = await createSubscription(store, rich, 'https://inward.example.com/d', new Date());
+    assert.ok(a.ok && b.ok && c.ok && d.ok);
+    const resolve = async (hostname: string) => (hostname === 'inward.example.com' ? ['10.0.0.7'] : ['93.184.216.34']);
     const dup = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date());
     assert.equal(dup.ok === false ? dup.error : '', 'ALREADY_SUBSCRIBED');
 
@@ -440,28 +514,35 @@ describe('the credit desk, site side', () => {
       return webhook.endsWith('/b') ? ({ state: 'FAILED', reason: 'HTTP 500' } as const) : ({ state: 'SENT', status: 204 } as const);
     };
     const t1 = transitionId({ raised: [{ id: 'x', severity: 'DARK', text: 'x' }] as never, cleared: [], active: [{ id: 'x', severity: 'DARK', text: 'x' }] as never });
-    const first = await fanOut(store, new Date(), 'THE CURB · raised x', t1, post);
-    assert.equal(first.considered, 3);
-    assert.equal(first.delivered, 1, 'a delivered, b failed, c short');
+    const first = await fanOut(store, new Date(), 'THE CURB · raised x', t1, post, resolve);
+    assert.equal(first.considered, 4);
+    assert.equal(first.delivered, 1, 'a delivered, b failed, c short, d resolves inward');
     assert.equal(first.charged, 1);
     assert.deepEqual(first.failed.map((f) => f.id), [b.ok ? b.subscription.id : '']);
-    assert.deepEqual(first.skipped.map((s) => [s.id, s.reason]), [[c.ok ? c.subscription.id : '', 'INSUFFICIENT']]);
+    assert.deepEqual(
+      first.skipped.map((s) => [s.id, s.reason]).sort(),
+      [
+        [c.ok ? c.subscription.id : '', 'INSUFFICIENT'],
+        [d.ok ? d.subscription.id : '', 'WEBHOOK_REFUSED'],
+      ].sort(),
+    );
+    assert.ok(!posted.some((w) => w.includes('inward')), 'nothing was posted inward');
     assert.equal((await keyAccount(store, rich)).balanceCents, '1990');
     assert.equal((await keyAccount(store, poor)).balanceCents, '5');
 
     // The same transition again: a already has it; b is tried again and fails again; c is still short. Nothing new is charged.
-    const second = await fanOut(store, new Date(), 'THE CURB · raised x', t1, post);
+    const second = await fanOut(store, new Date(), 'THE CURB · raised x', t1, post, resolve);
     assert.equal(second.delivered, 0);
     assert.equal(second.charged, 0);
     assert.equal((await keyAccount(store, rich)).balanceCents, '1990');
     assert.deepEqual(posted.filter((w) => w.endsWith('/a')).length, 1);
 
     // Nothing to send: nothing considered.
-    const nothing = await fanOut(store, new Date(), null, null, post);
+    const nothing = await fanOut(store, new Date(), null, null, post, resolve);
     assert.equal(nothing.considered, 0);
 
     const mine = await subscriptionsOf(store, rich);
-    assert.equal(mine.subscriptions.length, 2);
+    assert.equal(mine.subscriptions.length, 3);
     const delivered = mine.subscriptions.find((s) => s.url.endsWith('/a'))!;
     assert.equal(delivered.deliveries, 1);
     assert.equal(delivered.lastDelivery?.charged, true);
@@ -475,10 +556,14 @@ describe('the credit desk, site side', () => {
     assert.equal(await latestRate(store), null);
 
     const state = freshState();
+    state.deskCode = await deskCodeFor(CURB, TREASURY);
+    const hash = keyHashOf(newKey());
+    state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '5'.repeat(64), logIndex: 0 });
     globalThis.fetch = fakeNode(state);
     process.env[CREDITS_ENV] = CONFIG_JSON;
     const on = await runCredits(store, new Date(), { message: null, transitionId: null });
     assert.equal(on.state, 'CONFIGURED');
+    assert.equal(on.code?.state, 'MATCHES', on.code?.detail ?? '');
     assert.equal(on.rate?.state, 'READ');
     if (on.rate?.state === 'READ') {
       assert.equal(on.rate.rate.block, 100);
@@ -489,11 +574,40 @@ describe('the credit desk, site side', () => {
     const recorded = await latestRate(store);
     assert.equal(recorded?.state, 'READ');
 
-    // The pool empties: the tick records UNREAD with the reason, not the last rate again.
+    // The receipts: one top-up of 4,000 CURB, US$20.00, priced at its own block.
+    const paid = await receipts(store);
+    assert.equal(paid.topUps, 1);
+    assert.equal(paid.keys, 1);
+    assert.equal(paid.curbBaseUnits, (4_000n * 10n ** 18n).toString());
+    assert.equal(paid.cents, '2000');
+    assert.equal(paid.pricedAtOwnBlock, 1);
+    assert.equal(paid.lastBlock, 42);
+    assert.equal(paid.cursor, 100);
+
+    // A clean run raises no condition; the rows say so.
+    const rows = async () => {
+      const [run, code] = await Promise.all([store.snapshots('credits:run'), store.snapshots('credits:code')]);
+      return [...(run.state === 'UNREAD' ? [] : run.value), ...(code.state === 'UNREAD' ? [] : code.value)];
+    };
+    assert.deepEqual(positionConditions(await rows(), new Date()).map((c) => c.id), []);
+
+    // The pool empties and the desk's treasury is not the record's: the tick records UNREAD with the reason, not the last rate again, and the code is DARK.
     state.reserves = [{ block: 0, curb: 0n, quote: 0n }];
+    state.deskCode = await deskCodeFor(CURB, PAYER);
+    state.head = 120;
+    state.logs.push({ block: 110, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: '0x' + '6'.repeat(64), logIndex: 0 });
     const dry = await runCredits(store, new Date(), null);
     assert.equal(dry.rate?.state, 'UNREAD');
+    assert.equal(dry.code?.state, 'MISMATCH');
+    assert.equal(dry.index?.unpriced, 1, 'the new top-up waits for a rate');
     assert.equal((await latestRate(store))?.state, 'UNREAD');
+    const conditions = positionConditions(await rows(), new Date());
+    assert.deepEqual(conditions.map((c) => [c.id, c.severity]).sort(), [
+      ['credits:code:MISMATCH', 'DARK'],
+      ['credits:rate:UNREAD', 'STALE'],
+      ['credits:topups:WAITING', 'NOTE'],
+    ]);
+    assert.match(conditions.find((c) => c.id === 'credits:code:MISMATCH')!.text, /treasury/);
   });
 });
 

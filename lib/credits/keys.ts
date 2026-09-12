@@ -49,6 +49,8 @@ export function keyHashOf(key: string): string {
 }
 
 export interface TopUpCredit {
+  /** The desk the top-up went through; a desk that is redeployed leaves its earlier credits standing under its old address. */
+  readonly desk?: string;
   readonly transactionHash: string;
   readonly logIndex: number;
   readonly blockNumber: number;

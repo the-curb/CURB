@@ -1,19 +1,28 @@
 /**
- * The gate on a paid endpoint: a key in the `x-curb-key` header, charged
- * the listed price before the answer is composed. A call without a key is
- * 401; a key that cannot pay is 402 with the figures and how to top up; a
- * desk nobody configured is 503, because nothing can be bought where nothing
- * is sold. The public endpoints never pass through here.
+ * The gate on a paid endpoint, in two steps so a call is charged only when
+ * it is answered:
+ *
+ *   admit  — the desk is configured, the key is in the `x-curb-key`
+ *            header, and the key can pay the listed price. No write.
+ *   settle — the charge, recorded with what was bought. Done after the
+ *            answer has been composed, so a store that could not answer
+ *            costs the caller nothing.
+ *
+ * A call without a key is 401; a key that cannot pay is 402 with the
+ * figures and how to top up; a desk nobody configured is 503, because
+ * nothing can be bought where nothing is sold. The public endpoints never
+ * pass through here.
  */
 
 import type { Store } from '../store/types.ts';
 import { creditsStatus } from './config.ts';
-import { charge, isKey, keyHashOf, type KeyAccount } from './keys.ts';
+import { charge, isKey, keyAccount, keyHashOf, type KeyAccount } from './keys.ts';
 import { serviceById, type ServiceId } from './prices.ts';
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
 
-export type GateOutcome = { readonly ok: true; readonly hash: string; readonly account: KeyAccount } | { readonly ok: false; readonly response: Response };
+export type Admission = { readonly ok: true; readonly hash: string; readonly account: KeyAccount; readonly cents: number } | { readonly ok: false; readonly response: Response };
+export type Settlement = { readonly ok: true; readonly account: KeyAccount } | { readonly ok: false; readonly response: Response };
 
 function keyFrom(request: Request): string | null {
   const header = request.headers.get('x-curb-key');
@@ -23,7 +32,26 @@ function keyFrom(request: Request): string | null {
   return null;
 }
 
-export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<GateOutcome> {
+function cannotPay(status: string, detail: string, account: KeyAccount, serviceId: ServiceId, cents: number): Response {
+  const cfg = creditsStatus();
+  const body = {
+    error: status,
+    detail,
+    service: serviceId,
+    priceCents: cents,
+    keyHash: account.hash,
+    creditedCents: account.creditedCents,
+    spentCents: account.spentCents,
+    balanceCents: account.balanceCents,
+    toOpenCents: account.toOpenCents,
+    topUp: cfg.state === 'CONFIGURED' ? { desk: cfg.config.desk, network: cfg.config.network.id, call: 'topUp(bytes32 keyHash, uint256 amount)', quote: '/api/credits?usd=20' } : null,
+  };
+  const httpStatus = status === 'STORE_UNREADABLE' || status === 'NOT_RECORDED' ? 503 : 402;
+  return Response.json(body, { status: httpStatus, headers: NO_STORE });
+}
+
+/** Configured, keyed, and able to pay — without charging yet. */
+export async function admit(request: Request, store: Store, serviceId: ServiceId): Promise<Admission> {
   const service = serviceById(serviceId);
   if (service === null) return { ok: false, response: Response.json({ error: 'SERVICE_UNKNOWN' }, { status: 500, headers: NO_STORE }) };
 
@@ -46,23 +74,28 @@ export async function gate(request: Request, store: Store, serviceId: ServiceId,
     return { ok: false, response: Response.json({ error: 'KEY_MALFORMED', detail: 'a key is curb_ followed by 43 characters of base64url', service: service.id }, { status: 401, headers: NO_STORE }) };
   }
   const hash = keyHashOf(key);
-  const outcome = await charge(store, hash, service.id, service.cents, ref, now);
-  if (outcome.ok) return { ok: true, hash, account: outcome.account };
+  const account = await keyAccount(store, hash);
+  if (account.storeFault !== null) return { ok: false, response: cannotPay('STORE_UNREADABLE', account.storeFault, account, service.id, service.cents) };
+  if (account.status === 'UNFUNDED') return { ok: false, response: cannotPay('UNFUNDED', 'the chain has credited nothing to this key hash', account, service.id, service.cents) };
+  if (account.status === 'BELOW_MINIMUM') return { ok: false, response: cannotPay('BELOW_MINIMUM', `the key has been credited ${account.creditedCents} cents; it opens at ${account.minimumOpenCents}`, account, service.id, service.cents) };
+  if (BigInt(account.balanceCents) < BigInt(service.cents)) return { ok: false, response: cannotPay('INSUFFICIENT', `the balance is ${account.balanceCents} cents; this call is ${service.cents}`, account, service.id, service.cents) };
+  return { ok: true, hash, account, cents: service.cents };
+}
 
-  const body = {
-    error: outcome.status,
-    detail: outcome.detail,
-    service: service.id,
-    priceCents: service.cents,
-    keyHash: hash,
-    creditedCents: outcome.account.creditedCents,
-    spentCents: outcome.account.spentCents,
-    balanceCents: outcome.account.balanceCents,
-    toOpenCents: outcome.account.toOpenCents,
-    topUp: { desk: status.config.desk, network: status.config.network.id, call: 'topUp(bytes32 keyHash, uint256 amount)', quote: '/api/credits?usd=20' },
-  };
-  const httpStatus = outcome.status === 'STORE_UNREADABLE' || outcome.status === 'NOT_RECORDED' ? 503 : 402;
-  return { ok: false, response: Response.json(body, { status: httpStatus, headers: NO_STORE }) };
+/** The charge, once there is an answer to give. Refused with the figures if the balance moved meanwhile. */
+export async function settle(store: Store, hash: string, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<Settlement> {
+  const service = serviceById(serviceId)!;
+  const outcome = await charge(store, hash, service.id, service.cents, ref, now);
+  if (outcome.ok) return { ok: true, account: outcome.account };
+  return { ok: false, response: cannotPay(outcome.status, outcome.detail, outcome.account, service.id, service.cents) };
+}
+
+/** Admit and settle in one step, for a call whose answer needs nothing from the store. */
+export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<Settlement & { readonly hash?: string }> {
+  const a = await admit(request, store, serviceId);
+  if (!a.ok) return a;
+  const s = await settle(store, a.hash, serviceId, ref, now);
+  return s.ok ? { ...s, hash: a.hash } : s;
 }
 
 /** The headers a paid answer carries: what the call cost and what is left. */

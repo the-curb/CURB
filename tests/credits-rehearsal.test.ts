@@ -33,7 +33,7 @@ interface Record {
 describe('the credit desk, rehearsed on a local chain', () => {
   const raw = process.env.CURB_REHEARSAL_CREDITS;
 
-  it('reads the pool, credits the two top-ups at their own blocks, opens the key and charges a call', async (t) => {
+  it('reads the pool, verifies the desk’s code and treasury, credits the two top-ups at their own blocks, opens the key and charges a call', async (t) => {
     if (!raw) {
       t.skip('CURB_REHEARSAL_CREDITS is not set; start a Hardhat node and run contracts/scripts/credits-rehearsal.ts');
       return;
@@ -53,6 +53,10 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.equal(run.rate.rate.usdPerCurb18, (10n ** 16n).toString());
       assert.equal(run.rate.rate.marketCapUsd18, (10_000_000n * 10n ** 18n).toString());
       assert.equal(curbForCents(run.rate.rate, 2000n), 2_000n * 10n ** 18n, 'US$20 is 2,000 CURB at the head');
+
+      // The desk's code is the committed build, and its immutables are the record's token and treasury.
+      assert.equal(run.code?.state, 'MATCHES', run.code?.detail ?? '');
+      assert.deepEqual(run.code?.immutables.map((i) => [i.name, i.matches]), [['curb', true], ['treasury', true]]);
 
       assert.equal(run.index?.state, 'SYNCED', run.index?.detail ?? '');
       assert.equal(run.index?.newTopUps, 2);
