@@ -13,6 +13,7 @@ import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positio
 import { getStoreAsync } from '@/lib/store';
 import { PositionSimulator } from '../../components/position-simulator';
 import { WalletLookup } from '../../components/wallet-lookup';
+import { WalletSign } from '../../components/wallet-sign';
 
 export const dynamic = 'force-dynamic';
 
@@ -708,6 +709,21 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
         </div>
         <WalletLookup seriesId={spec.id} labels={{ A: a.instrument.split(',')[0] ?? 'A', B: b.instrument.split(',')[0] ?? 'B' }} />
       </section>
+
+      {/* ── with your own wallet, only for a deployed series ────────────── */}
+      {deployment.state === 'CONFIGURED' && deployment.address && deployment.chainId !== null ? (
+        <section className="mt-8">
+          <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+            <span className="kicker">
+              <b>Form a position, claim components</b> · your wallet signs, the site sends nothing
+            </span>
+            <Link href="/mechanism/decisions/adr-003-on-chain-access" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+              a permit on chain, ADR-003
+            </Link>
+          </div>
+          <WalletSign seriesId={spec.id} seriesAddress={deployment.address} chainId={deployment.chainId} />
+        </section>
+      ) : null}
 
       {/* ── rules, promises, gates ──────────────────────────────────────── */}
       <section className="mt-8">

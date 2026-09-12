@@ -244,8 +244,8 @@ export function previewMint(spec: SeriesSpec, lotsRaw: string | null, valuation?
     sendsTransaction: false,
     deployment: deploymentView(spec.id),
     signItYourself: signItYourself(status, (d) => [
-      approveCall(d.components.A, d.address, lots * d.q.A, spec.components[0].instrument),
-      approveCall(d.components.B, d.address, lots * d.q.B, spec.components[1].instrument),
+      approveCall(d.components.A, d.address, lots * d.q.A, spec.components[0].instrument.split(',')[0] ?? 'A'),
+      approveCall(d.components.B, d.address, lots * d.q.B, spec.components[1].instrument.split(',')[0] ?? 'B'),
       mintCall(d.address, lots, deadlineFromNow()),
     ]),
   };

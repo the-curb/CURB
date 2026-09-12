@@ -108,6 +108,11 @@ what, to `evidence/drill-local.json`, shown on the series page:
 CURB_DRILL_RECORD="$(cat contracts/drill.json)" npm test
 ```
 
+The same node serves the series page's wallet flow: with
+`CURB_SERIES_DEPLOYMENTS` set to the rehearsal's line and a wallet pointed
+at `http://127.0.0.1:8545` (chain id 31337), a permitted account mints and
+claims from the page, and the next maintenance run indexes it.
+
 It found A `SHORTFALL` by exactly what was seized and B `MATCHED`, a DARK
 condition on A alone, `HEAD_UNREAD` and `UNKNOWN` (not a shortfall) while
 the node was down with the cursor kept, and a STALE condition naming the

@@ -307,6 +307,14 @@ its own RPC override.
   desk's freshness, the feed drifted or is paused), with the assumption
   between them stated; component B `NOT_AVAILABLE` with its reason; the lot
   `INCOMPLETE` and never totalled while a component has no price.
+- **With the holder's wallet.** Once a deployment is configured, the series
+  page shows "Form a position, claim components": the holder's own wallet
+  (any EIP-1193 provider) signs and sends the prepared steps one by one —
+  approvals then the mint, or the exit allocation then a claim per component;
+  a wallet on another chain is refused before anything is sent; the receipt
+  is read from the series contract through the wallet after the mint is
+  mined; the index catches up on the next tick and is shown as the index.
+  The site holds no key and sends nothing itself.
 - **Sign it yourself.** Once a deployment is configured, the previews also
   return `signItYourself`: the two ERC-20 approvals and the series call
   (`mint`, or `allocateExit` and the two `claimComponent` calls) as `to` and

@@ -36,7 +36,7 @@ Both candidate issuers restrict who may acquire and redeem their tokens (see the
 
 ## What exists today
 
-`mintPermitUntil`, `claimPermitted`, `setMintPermit`, `setClaimPermit` with events, `MintPermitMissing` and `ClaimPermitMissing` in `CompanySeries.sol`; tests T19 and the operator-limit cases; the drill's "backend down" scenario. The off-chain access process, the participant list and the attestations do not exist.
+`mintPermitUntil`, `claimPermitted`, `setMintPermit`, `setClaimPermit` with events, `MintPermitMissing` and `ClaimPermitMissing` in `CompanySeries.sol`; tests T19 and the operator-limit cases; the drill's "backend down" scenario; the series page's wallet flow, in which a permitted holder's own wallet mints and claims against a deployed series with no signature from the site (rehearsed on a local chain). The off-chain access process, the participant list and the attestations do not exist.
 
 ## Open
 
