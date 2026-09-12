@@ -145,7 +145,7 @@ export default async function Home() {
               ))}
               <div className="cell p-6 sm:col-span-3 sm:p-8">
                 <div className="kicker">
-                  <b>First series</b> · {APPLE_S1.company} · candidates, unverified
+                  <b>First series</b> · {APPLE_S1.company} · candidates, read on chain, not admitted
                 </div>
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   {[a, b].map((c) => (
