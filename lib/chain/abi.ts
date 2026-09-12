@@ -32,6 +32,9 @@ export const SIGNATURES = {
   // ERC-4626 and ERC-20 reads the position product needs
   asset: 'asset()',
   balanceOf: 'balanceOf(address)',
+  // xStocks' rebasing raw token publishes its corporate-action multiplier; the wrapper converts shares at it
+  multiplier: 'multiplier()',
+  convertToAssets: 'convertToAssets(uint256)',
 } as const;
 
 export const SELECTORS: Readonly<Record<keyof typeof SIGNATURES, string>> = Object.fromEntries(

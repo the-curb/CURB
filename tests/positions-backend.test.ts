@@ -492,3 +492,42 @@ describe('a candidate set that moved', () => {
     if (parsed.ok) assert.equal(parsed.asset.addresses.length, 3);
   });
 });
+
+describe('a corporate action seen by the daily read', () => {
+  it('is a multiplier drift, reported as a NOTE that says what it is, never as a fault', async () => {
+    const { driftBetween } = await import('../lib/positions/verify.ts');
+    const { positionConditions } = await import('../lib/ops/alerts.ts');
+    const base = {
+      sourceId: 'xstocks:AAPLx',
+      component: 'A' as const,
+      role: 'RAW_TOKEN' as const,
+      address: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a',
+      claimedAsset: null,
+      networkChainId: 1,
+      chainId: 1,
+      readAt: '2026-09-12T00:00:00.000Z',
+      source: 'node',
+      hasCode: { value: true, state: 'VERIFIED' as const, reason: null },
+      codeHash: { value: '0xaa', state: 'VERIFIED' as const, reason: null },
+      symbol: { value: 'AAPLx', state: 'VERIFIED' as const, reason: null },
+      decimals: { value: 18, state: 'VERIFIED' as const, reason: null },
+      asset: { value: null, state: 'UNREAD' as const, reason: 'not a wrapper' },
+      assetMatchesClaim: 'NOT_APPLICABLE' as const,
+      answersAsToken: true,
+      multiplier: { value: '1002664207589379700', state: 'VERIFIED' as const, reason: null },
+      notProven: [],
+    };
+    const activated = { ...base, multiplier: { value: '1003269012539818700', state: 'VERIFIED' as const, reason: null } };
+    const drift = driftBetween([base], [activated]);
+    assert.deepEqual(drift.map((d) => [d.field, d.from, d.to]), [['multiplier', '1002664207589379700', '1003269012539818700']]);
+    const conditions = positionConditions(
+      [{ key: 'positions:verify:apple-s1', observedAt: '2026-09-12T11:00:00.000Z', payload: { seriesId: 'apple-s1', driftSince: '2026-09-12T11:00:00.000Z', lastDrift: drift } }],
+      new Date('2026-09-12T12:00:00.000Z'),
+    );
+    assert.equal(conditions.length, 1);
+    assert.equal(conditions[0]!.severity, 'NOTE');
+    assert.match(conditions[0]!.text, /a corporate action activated/);
+    const unread = { ...base, multiplier: { value: null, state: 'UNREAD' as const, reason: 'SOURCE_TIMEOUT' } };
+    assert.deepEqual(driftBetween([base], [unread]), [], 'a multiplier that could not be read is not a drift');
+  });
+});

@@ -58,7 +58,7 @@ export const APPLE_S1: SeriesSpec = {
   company: 'Apple Inc.',
   illustrativeSymbol: 'cAAPL-S1',
   stage: 'DESIGN',
-  stageLine: 'Design and testing. No Curb contract, issuer integration, transaction or deployment exists for this series.',
+  stageLine: 'Design and testing. A prototype contract exists for this series and is tested on forks of Ethereum and on a local chain; nothing is deployed, no issuer integration exists, and no real transaction has been made.',
   chain: 'Ethereum — the candidate network; availability of both components on it is a gate, not a given',
   receiptDecimals: 0,
   capLotsIllustrative: 1_000n,

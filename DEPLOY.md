@@ -246,9 +246,13 @@ its own RPC override.
 - **Verification, after the evidence.** Every EVM address the parsed evidence
   names on the positions network is read on chain: code and its hash,
   `symbol()`, `decimals()`, for a wrapper `asset()` against the raw token
-  the issuer named beside it, and the EIP-1967 implementation, admin and
+  the issuer named beside it, the EIP-1967 implementation, admin and
   beacon slots — a proxy's code hash sleeps through an upgrade, the
-  implementation slot does not, and a slot that moved is a DARK condition. The result is at
+  implementation slot does not, and a slot that moved is a DARK condition —
+  and, for the raw token its corporate-action `multiplier()` and for a
+  wrapper `convertToAssets(1e18)`: a move there is a corporate action,
+  journalled and raised as a NOTE that says so, not a fault. The valuation
+  uses the daily conversion when it is on record. The result is at
   `/api/positions/<series>/evidence` and on the series page. What it does not
   prove is listed with it.
 - **Index and reconciliation, every tick — when a series is deployed.**

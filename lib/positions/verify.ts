@@ -67,6 +67,10 @@ export interface AddressVerification extends Candidate {
    * records written before the slots were read.
    */
   readonly proxy?: ProxySlots;
+  /** The raw token's corporate-action multiplier, 18 places, when the address answers `multiplier()`; absent on older records. */
+  readonly multiplier?: Field<string>;
+  /** A wrapper's raw units per 1e18 shares, `convertToAssets(1e18)`, when it answers; absent on older records. */
+  readonly conversion?: Field<string>;
   readonly notProven: readonly string[];
 }
 
@@ -123,13 +127,16 @@ async function readAsset(address: string, opts: RpcOptions): Promise<Reading<str
 
 export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, now: Date): Promise<AddressVerification> {
   const chainId = (opts.profile ?? positionsNetwork()).chainId;
-  const [code, codeHex, symbol, decimals, asset, proxy] = await Promise.all([
+  const [code, codeHex, symbol, decimals, asset, proxy, multiplier, conversion] = await Promise.all([
     readCode(candidate.address, opts),
     rpcCall<string>('eth_getCode', [candidate.address, 'latest'], opts),
     readTokenString(candidate.address, 'symbol', opts),
     readTokenUint(candidate.address, 'decimals', opts),
     candidate.claimedAsset === null ? Promise.resolve(null) : readAsset(candidate.address, opts),
     readProxySlots(candidate.address, opts),
+    // The corporate-action multiplier, asked of the raw token only; a wrapper's conversion at it, asked of wrappers only.
+    candidate.role === 'RAW_TOKEN' ? readUintCall(candidate.address, SELECTORS.multiplier, opts) : Promise.resolve(null),
+    candidate.claimedAsset === null ? Promise.resolve(null) : readUintCall(candidate.address, `${SELECTORS.convertToAssets}${(10n ** 18n).toString(16).padStart(64, '0')}`, opts),
   ]);
 
   const codeHash: Field<string> =
@@ -162,11 +169,21 @@ export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, no
     assetMatchesClaim,
     answersAsToken,
     proxy,
+    ...(multiplier === null ? {} : { multiplier: field(multiplier) }),
+    ...(conversion === null ? {} : { conversion: field(conversion) }),
     notProven: NOT_PROVEN,
   };
 }
 
-export type DriftField = 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken' | 'implementation' | 'admin' | 'beacon' | 'candidateSet';
+/** A uint256 answer as a decimal string, or the reading's own reason. */
+async function readUintCall(address: string, data: string, opts: RpcOptions): Promise<Reading<string>> {
+  const raw = await rpcCall<string>('eth_call', [{ to: address, data }, 'latest'], opts);
+  if (raw.state === 'UNREAD') return raw;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(raw.value)) return unread('FIELD_ABSENT', { source: raw.source, detail: 'no 32-byte answer — the function reverted or is not implemented' });
+  return { ...raw, value: BigInt(raw.value).toString() };
+}
+
+export type DriftField = 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken' | 'implementation' | 'admin' | 'beacon' | 'candidateSet' | 'multiplier' | 'conversion';
 
 export interface Drift {
   readonly address: string;
@@ -210,6 +227,15 @@ export function driftBetween(before: readonly AddressVerification[], after: read
     }
     if (b.answersAsToken && !a.answersAsToken) {
       out.push({ address: a.address, role: a.role, component: a.component, field: 'answersAsToken', from: 'true', to: 'false' });
+    }
+    // The multiplier and the conversion move by design when a corporate action
+    // activates: reported so the day is on the record, not as a fault.
+    for (const f of ['multiplier', 'conversion'] as const) {
+      const x = b[f];
+      const y = a[f];
+      if (x && y && x.state === 'VERIFIED' && y.state === 'VERIFIED' && x.value !== y.value) {
+        out.push({ address: a.address, role: a.role, component: a.component, field: f, from: String(x.value), to: String(y.value) });
+      }
     }
     // The slots behind a proxy: an implementation that moved is an upgrade
     // the code hash could not see. Compared only when both runs read them.

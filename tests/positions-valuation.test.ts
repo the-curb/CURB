@@ -134,3 +134,31 @@ describe('a deployment’s units per lot', () => {
     await store.close();
   });
 });
+
+describe('the wrapper’s conversion, read daily', () => {
+  it('is preferred over the fork’s recorded rate, and dated by the read', async () => {
+    const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-valuation-')));
+    await store.writeSnapshots([
+      feedSample(new Date(Date.now() - 5 * 60_000).toISOString()),
+      {
+        key: 'positions:verify:apple-s1',
+        observedAt: '2026-09-12T05:00:00.000Z',
+        payload: {
+          seriesId: 'apple-s1',
+          chainId: 1,
+          network: 'ethereum-mainnet',
+          ranAt: '2026-09-12T05:00:00.000Z',
+          verifications: [{ sourceId: 'xstocks:AAPLx', component: 'A', role: 'WRAPPER_V2', address: '0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f', claimedAsset: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a', networkChainId: 1, chainId: 1, readAt: '2026-09-12T05:00:00.000Z', source: 'node', hasCode: { value: true, state: 'VERIFIED', reason: null }, codeHash: { value: '0xaa', state: 'VERIFIED', reason: null }, symbol: { value: 'wAAPLx', state: 'VERIFIED', reason: null }, decimals: { value: 18, state: 'VERIFIED', reason: null }, asset: { value: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a', state: 'VERIFIED', reason: null }, assetMatchesClaim: 'MATCHES', answersAsToken: true, conversion: { value: '1005000000000000000', state: 'VERIFIED', reason: null }, notProven: [] }],
+        },
+      },
+    ]);
+    const v = await indicativeValuation(store, APPLE_S1, { A: 10n, B: 20n }, false);
+    assert.equal(v.perUnit.A.state, 'INDICATIVE');
+    if (v.perUnit.A.state !== 'INDICATIVE') return;
+    assert.equal(v.perUnit.A.perUnitUsd, '334.18', '1.005 raw per share × 332.52');
+    assert.equal(v.perUnit.A.conversion?.atBlock, null);
+    assert.equal(v.perUnit.A.conversion?.atTime, '2026-09-12T05:00:00.000Z');
+    assert.match(v.perUnit.A.conversion?.source ?? '', /daily verification/);
+    await store.close();
+  });
+});

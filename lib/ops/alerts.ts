@@ -173,10 +173,13 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
       const drift = Array.isArray(p.lastDrift) ? (p.lastDrift as { address?: unknown; role?: unknown; field?: unknown; from?: unknown; to?: unknown }[]) : [];
       if (recent(p.driftSince) && drift.length > 0) {
         for (const d of drift) {
+          const expected = d.field === 'multiplier' || d.field === 'conversion';
           out.push({
             id: `positions:${seriesId}:DRIFT:${String(d.address).slice(0, 10)}:${String(d.field)}`,
-            severity: ['answersAsToken', 'codeHash', 'asset', 'implementation', 'admin', 'beacon', 'candidateSet'].includes(String(d.field)) ? 'DARK' : 'STALE',
-            text: `candidate ${String(d.role).toLowerCase().replace('_', ' ')} ${String(d.address)} for ${seriesId}: ${String(d.field)} moved from ${String(d.from)} to ${String(d.to)} — verification to be re-reviewed; minting would be stopped`,
+            severity: expected ? 'NOTE' : ['answersAsToken', 'codeHash', 'asset', 'implementation', 'admin', 'beacon', 'candidateSet'].includes(String(d.field)) ? 'DARK' : 'STALE',
+            text: expected
+              ? `candidate ${String(d.role).toLowerCase().replace('_', ' ')} ${String(d.address)} for ${seriesId}: ${String(d.field)} moved from ${String(d.from)} to ${String(d.to)} — a corporate action activated; the wrapper's shares are unmoved by design and the raw balance moved with it`
+              : `candidate ${String(d.role).toLowerCase().replace('_', ' ')} ${String(d.address)} for ${seriesId}: ${String(d.field)} moved from ${String(d.from)} to ${String(d.to)} — verification to be re-reviewed; minting would be stopped`,
           });
         }
       }

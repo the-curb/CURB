@@ -21,7 +21,7 @@ export const BRAND = {
    * Where the product stands. Public copy follows this line; it moves from
    * "building" only when the stated function is actually available.
    */
-  stage: 'Building — a design under test. No Curb contract, issuer integration, transaction or deployment exists yet.',
+  stage: 'Building — a design under test. A prototype contract exists and is tested on forks and a local chain; nothing is deployed, no issuer integration exists, and no real transaction has been made.',
   /**
    * The desk beneath the product: the measuring agents and their line. Before
    * the American Stock Exchange had a building it was the Curb Market: claims

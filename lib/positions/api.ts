@@ -152,6 +152,8 @@ function verificationView(v: AddressVerification) {
     assetMatchesClaim: v.assetMatchesClaim,
     answersAsToken: v.answersAsToken,
     proxy: v.proxy ?? { state: 'UNREAD' as const, kind: null, implementation: null, admin: null, beacon: null, reason: 'not read in this run — recorded before the slots were read', source: null },
+    multiplier: v.multiplier ?? null,
+    conversion: v.conversion ?? null,
     readAt: v.readAt,
     source: v.source,
     notProven: v.notProven,

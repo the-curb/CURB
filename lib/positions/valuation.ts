@@ -4,8 +4,9 @@
  * totalled while a component has no price.
  *
  * Component A (the current xStocks wrapper) is valued from two inputs the
- * desk already holds: the wrapper's own conversion rate, as the fork test
- * read it at a recorded block (shares → raw AAPLx), and the Chainlink
+ * desk already holds: the wrapper's own conversion rate — read daily by the
+ * verification (convertToAssets on Ethereum), or as the fork test read it at
+ * a recorded block when the daily read is missing — and the Chainlink
  * "Robinhood AAPL / USD" reading the Pillar last sampled on Robinhood Chain.
  * The assumption between them is stated on the record: one raw AAPLx, as
  * balanceOf reports it, is treated as exposure to one AAPL share, because
@@ -26,6 +27,7 @@ import type { Store } from '../store/types.ts';
 import { EVIDENCE_SOURCES, latestEvidence } from './evidence.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
 import type { SeriesSpec } from './series.ts';
+import { latestVerification } from './verify.ts';
 
 export interface PriceInput {
   readonly unit: string;
@@ -137,29 +139,39 @@ export async function indicativeValuation(store: Store, spec: SeriesSpec, q: { r
       };
   }
 
-  // ── component A: the wrapper's conversion at the recorded fork block ──────
-  const fork = await forkEvidenceOf(spec.id);
+  // ── component A: the wrapper's conversion, daily from the chain, else from the recorded fork block ──
+  const [fork, verification] = await Promise.all([forkEvidenceOf(spec.id), latestVerification(store, spec.id)]);
+  const dailyWrapper = verification.run?.verifications.find((v) => v.component === 'A' && v.role === 'WRAPPER_V2' && v.conversion?.state === 'VERIFIED' && typeof v.conversion.value === 'string');
+  const daily = dailyWrapper && dailyWrapper.conversion?.value ? { rawPerShare: BigInt(dailyWrapper.conversion.value), readAt: dailyWrapper.readAt } : null;
   let A: ComponentValue;
   if (price === null) A = unavailable(priceReason ?? 'no price');
-  else if (fork.evidence === null || fork.evidence.component !== 'A') A = unavailable('the wrapper’s conversion rate has not been read on a fork; no rate, no value');
+  else if (daily === null && (fork.evidence === null || fork.evidence.component !== 'A')) A = unavailable('the wrapper’s conversion rate has not been read on chain or on a fork; no rate, no value');
   else {
-    const quoted = BigInt(fork.evidence.findings.unwrapQuotedFor10e18);
-    if (quoted <= 0n) A = unavailable('the recorded conversion is zero; the wrapper quoted nothing');
+    const rawPerShare = daily ? daily.rawPerShare : BigInt(fork.evidence!.findings.unwrapQuotedFor10e18) / 10n; // the fork quoted 10e18 shares
+    if (rawPerShare <= 0n) A = unavailable('the recorded conversion is zero; the wrapper quoted nothing');
     else {
-      const rawPerShare = quoted / 10n; // 10e18 shares were quoted
       const perUnit26 = rawPerShare * BigInt(price.priceRaw); // 18 + decimals places
       A = {
         state: 'INDICATIVE',
         perUnitUsd: toUsd2(perUnit26, 18 + price.decimals),
         price,
-        conversion: {
-          from: '1 wrapper share (wAAPLx)',
-          to: 'raw AAPLx, as balanceOf reports it',
-          rawPerShare: rawPerShare.toString(),
-          source: 'contracts/evidence/apple-s1.fork.json — convertToAssets on a fork of Ethereum',
-          atBlock: fork.evidence.block,
-          atTime: new Date(fork.evidence.blockTimestamp * 1000).toISOString(),
-        },
+        conversion: daily
+          ? {
+              from: '1 wrapper share (wAAPLx)',
+              to: 'raw AAPLx, as balanceOf reports it',
+              rawPerShare: rawPerShare.toString(),
+              source: `the daily verification — convertToAssets(1e18) on Ethereum, read ${daily.readAt}`,
+              atBlock: null,
+              atTime: daily.readAt,
+            }
+          : {
+              from: '1 wrapper share (wAAPLx)',
+              to: 'raw AAPLx, as balanceOf reports it',
+              rawPerShare: rawPerShare.toString(),
+              source: 'contracts/evidence/apple-s1.fork.json — convertToAssets on a fork of Ethereum',
+              atBlock: fork.evidence!.block,
+              atTime: new Date(fork.evidence!.blockTimestamp * 1000).toISOString(),
+            },
         assumption: 'one raw AAPLx, as balanceOf reports it, is treated as exposure to one AAPL share: the issuer applies its corporate-action multiplier to balances on EVM chains; the price is an equity feed on another chain, not the token’s own market',
       };
     }

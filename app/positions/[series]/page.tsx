@@ -373,7 +373,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         {cv.state === 'INDICATIVE' ? (
                           <>
                             <span className="text-(--color-paper)">${valuation.perLotUsd[id]}</span> — {cv.perUnitUsd} per unit · {cv.price.unit} {cv.price.price}, feed updated {ageOf(cv.price.feedUpdatedAt)} ago, sampled {ageOf(cv.price.sampledAt)} ago
-                            {cv.conversion ? ` · ${cv.conversion.rawPerShare.slice(0, 1)}.${cv.conversion.rawPerShare.slice(1, 5)} ${cv.conversion.atBlock === null ? 'shares per token, as published' : `raw per share at block ${cv.conversion.atBlock.toLocaleString('en-US')}`}` : ''}
+                            {cv.conversion ? ` · ${cv.conversion.rawPerShare.slice(0, 1)}.${cv.conversion.rawPerShare.slice(1, 5)} ${id === 'B' ? 'shares per token, as published' : cv.conversion.atBlock === null ? `raw per share, read on chain ${ageOf(cv.conversion.atTime)} ago` : `raw per share at block ${cv.conversion.atBlock.toLocaleString('en-US')}`}` : ''}
                           </>
                         ) : (
                           <span className="absent" title={cv.reason}>
@@ -473,6 +473,18 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     ))}
                   </tbody>
                 </table>
+                {(() => {
+                  const raw = evidence.verification?.addresses.find((v) => v.role === 'RAW_TOKEN' && v.multiplier?.state === 'VERIFIED' && typeof v.multiplier.value === 'string');
+                  const wrapper = evidence.verification?.addresses.find((v) => v.role === 'WRAPPER_V2' && v.conversion?.state === 'VERIFIED' && typeof v.conversion.value === 'string');
+                  if (!raw && !wrapper) return null;
+                  return (
+                    <p className="tabular mt-2 text-[11px] text-(--color-paper-faint)">
+                      Read daily beside them: {raw?.multiplier?.value ? `the raw token’s corporate-action multiplier ${multiplier18(raw.multiplier.value)}` : ''}
+                      {raw && wrapper ? ' · ' : ''}
+                      {wrapper?.conversion?.value ? `the current wrapper converts one share to ${multiplier18(wrapper.conversion.value)} raw` : ''}. A move here is a corporate action, journalled as one; it is not a fault.
+                    </p>
+                  );
+                })()}
               </div>
             )}
             {action.evidence ? (
