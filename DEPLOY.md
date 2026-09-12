@@ -286,7 +286,10 @@ its own RPC override.
   `<series>.corporate-action.json` are written by `npm run test:fork` in
   `contracts/` (the second needs an archive endpoint in `ETH_RPC_URL`) and
   committed; the site reads them at request time and shows them dated. No
-  file, no finding shown.
+  file, no finding shown. `.github/workflows/fork-evidence.yml` reruns the
+  fork tests every Monday against a public node and commits the record when
+  it moved, so the block the page cites stays within the week; a node that
+  does not answer leaves the last record in place and a red run.
 - **Instrument file (R01).** `/api/positions/<series>/file` compiles, from the
   archive and the chain, what is known about each candidate component — the
   underlying and its ISIN as the issuer states them, the issuer record and its
