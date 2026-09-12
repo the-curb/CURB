@@ -92,8 +92,10 @@ describe('the index and the reconciliation, rehearsed on a local chain', () => {
 
     // The bytes the site would hand a wallet, simulated by the node against
     // the real contract from the holders' own addresses. Nothing is sent.
+    // The worked example's holders, in the order the ledger events name them (the operator's permit events precede them and are not the example).
+    const exampleEvents = first.index.events.filter((e) => e.event.name === 'PositionMinted' || e.event.name === 'ExitAllocated' || e.event.name === 'ComponentClaimed');
     const holderOf = (i: number) => {
-      const e = first.index.events[i]!.event;
+      const e = exampleEvents[i]!.event;
       if (!('holder' in e)) throw new Error('the event names no holder');
       return e.holder;
     };
