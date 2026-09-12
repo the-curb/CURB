@@ -24,6 +24,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npx next typegen
       - run: npx tsc --noEmit -p .
       - run: npm test
       - run: npx next build
