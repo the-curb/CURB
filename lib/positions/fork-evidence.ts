@@ -26,8 +26,22 @@ export interface ForkFindings {
 export interface ForkAuthority {
   readonly implementation: string | null;
   readonly admin: string | null;
+  /** A beacon proxy keeps its implementation behind this address; absent on files written before it was read. */
+  readonly beacon: string | null;
   readonly owner: string | null;
   readonly paused: boolean | null;
+}
+
+/** Component B, the issuer's token as its product page publishes it, at the same block. */
+export interface ForkComponentB {
+  readonly token: string;
+  readonly source: string;
+  readonly identityAsPublished: boolean;
+  readonly totalSupply: string;
+  readonly balanceStageableByStorage: boolean;
+  readonly transfersForArbitraryHolder: boolean;
+  readonly seriesMintExitClaimWithBothReal: boolean;
+  readonly authority: ForkAuthority;
 }
 
 /** Execution gas by gasleft() deltas inside one call, warm storage; see the note the test writes. */
@@ -56,6 +70,8 @@ export interface ForkEvidence {
   readonly authority: Readonly<Record<'raw' | 'wrapperV2' | 'wrapperV1', ForkAuthority>> | null;
   /** Absent on files written before gas was measured. */
   readonly gas: ForkGas | null;
+  /** Absent on files written before component B had an address to test. */
+  readonly componentB: ForkComponentB | null;
   readonly notProven: readonly string[];
   readonly how: string;
 }
@@ -90,8 +106,22 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
     const authorityOf = (v: unknown): ForkAuthority => {
       const a = (v ?? {}) as Record<string, unknown>;
       const addr = (x: unknown) => (isStr(x) ? x.toLowerCase() : null);
-      return { implementation: addr(a.implementation), admin: addr(a.admin), owner: addr(a.owner), paused: isBool(a.paused) ? a.paused : null };
+      return { implementation: addr(a.implementation), admin: addr(a.admin), beacon: addr(a.beacon), owner: addr(a.owner), paused: isBool(a.paused) ? a.paused : null };
     };
+    const cb = j.componentB as Record<string, unknown> | undefined;
+    const componentB: ForkComponentB | null =
+      cb && typeof cb === 'object' && isStr(cb.token)
+        ? {
+            token: cb.token.toLowerCase(),
+            source: isStr(cb.source) ? cb.source : '',
+            identityAsPublished: isBool(cb.identityAsPublished) && cb.identityAsPublished,
+            totalSupply: isStr(cb.totalSupply) ? cb.totalSupply : '0',
+            balanceStageableByStorage: isBool(cb.balanceStageableByStorage) && cb.balanceStageableByStorage,
+            transfersForArbitraryHolder: isBool(cb.transfersForArbitraryHolder) && cb.transfersForArbitraryHolder,
+            seriesMintExitClaimWithBothReal: isBool(cb.seriesMintExitClaimWithBothReal) && cb.seriesMintExitClaimWithBothReal,
+            authority: authorityOf(cb.authority),
+          }
+        : null;
     const g = j.gas as Record<string, unknown> | undefined;
     const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
     const gas: ForkGas | null =
@@ -113,6 +143,7 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
         findings,
         authority,
         gas,
+        componentB,
         notProven: Array.isArray(j.notProven) ? j.notProven.filter(isStr) : [],
         how: isStr(j.how) ? j.how : '',
       },

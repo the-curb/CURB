@@ -121,8 +121,17 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     ] as const
                   ).map(([label, status]) => {
                     const fork = evidence.fork && evidence.fork.component === c.id ? evidence.fork : null;
+                    const forkB = c.id === 'B' && evidence.fork?.componentB ? { block: evidence.fork.block, b: evidence.fork.componentB } : null;
                     const hint =
-                      fork === null
+                      forkB !== null
+                        ? label.startsWith('Transferable')
+                          ? `on a fork at block ${forkB.block.toLocaleString('en-US')}: an arbitrary holder moved it ${forkB.b.transfersForArbitraryHolder ? '— yes' : '— no'}; a series took it in beside the real wrapper and paid both out ${forkB.b.seriesMintExitClaimWithBothReal ? '— yes' : '— no'}`
+                          : label.startsWith('Unwrappable')
+                            ? 'not a wrapper: the issuer’s token itself is the unit'
+                            : label.startsWith('A market offer')
+                              ? `${units18(forkB.b.totalSupply)} tokens in all at that block — a size to weigh any intended lot against`
+                              : null
+                        : fork === null
                         ? null
                         : label.startsWith('Transferable')
                           ? `on a fork at block ${fork.block.toLocaleString('en-US')}: a series took it in and paid it out ${fork.findings.seriesMintExitClaimWithRealWrapper ? '— yes' : '— no'}`
@@ -216,7 +225,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
           <div className="cell p-6 sm:p-8">
             <div className="kicker">Shared, or possibly shared</div>
             {sharedParties().length === 0 ? (
-              <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-dim)">No party is named under both components in the documents read. That is a fact about the documents, not a finding of independence: component B’s broker, custodian, security agent and verification agent are described but not named.</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-dim)">No party is named under both components in the documents read. That is a fact about the documents, not a finding of independence: component B’s broker-dealer and custodian are described but not named.</p>
             ) : (
               <ul className="mt-2 space-y-1 text-[12px] text-(--color-paper-dim)">
                 {sharedParties().map((s) => (
@@ -353,7 +362,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         {cv.state === 'INDICATIVE' ? (
                           <>
                             <span className="text-(--color-paper)">${valuation.perLotUsd[id]}</span> — {cv.perUnitUsd} per unit · {cv.price.unit} {cv.price.price}, feed updated {ageOf(cv.price.feedUpdatedAt)} ago, sampled {ageOf(cv.price.sampledAt)} ago
-                            {cv.conversion ? ` · ${cv.conversion.rawPerShare.slice(0, 1)}.${cv.conversion.rawPerShare.slice(1, 5)} raw per share at block ${cv.conversion.atBlock.toLocaleString('en-US')}` : ''}
+                            {cv.conversion ? ` · ${cv.conversion.rawPerShare.slice(0, 1)}.${cv.conversion.rawPerShare.slice(1, 5)} ${cv.conversion.atBlock === null ? 'shares per token, as published' : `raw per share at block ${cv.conversion.atBlock.toLocaleString('en-US')}`}` : ''}
                           </>
                         ) : (
                           <span className="absent" title={cv.reason}>
@@ -470,6 +479,13 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                       [`the wrapper unwraps for such a holder: 10 shares → ${units18(evidence.fork.findings.unwrapRawReceivedFor10e18)} raw, as quoted`, evidence.fork.findings.wrapperUnwrapsForArbitraryHolder],
                       [`the raw token moves for such a holder: 1 sent, ${units18(evidence.fork.findings.rawReceivedFor1e18Sent)} received`, evidence.fork.findings.rawTransfersForArbitraryHolder],
                       ['the raw token’s balance is a stored number', evidence.fork.findings.rawBalanceSettableByStorage],
+                      ...(evidence.fork.componentB
+                        ? ([
+                            ['B · AAPLon answers as the issuer’s product page publishes it (symbol, 18 decimals)', evidence.fork.componentB.identityAsPublished],
+                            ['B · an address that is nobody in particular can transfer AAPLon', evidence.fork.componentB.transfersForArbitraryHolder],
+                            ['B · a series took the real wrapper and real AAPLon in, one lot, and paid both out (mint, exit, claim A, claim B)', evidence.fork.componentB.seriesMintExitClaimWithBothReal],
+                          ] as const)
+                        : []),
                     ] as const
                   ).map(([line, yes]) => (
                     <li key={line} className="flex items-baseline gap-2">
@@ -479,7 +495,8 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   ))}
                 </ul>
                 <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">
-                  The wrapper held {units18(evidence.fork.wrapperRawReserve)} of the raw token and had {units18(evidence.fork.wrapperTotalSupply)} shares in all at that block. {evidence.fork.how}. Rerun:{' '}
+                  The wrapper held {units18(evidence.fork.wrapperRawReserve)} of the raw token and had {units18(evidence.fork.wrapperTotalSupply)} shares in all at that block
+                  {evidence.fork.componentB ? `; AAPLon had ${units18(evidence.fork.componentB.totalSupply)} tokens in all` : ''}. {evidence.fork.how}. Rerun:{' '}
                   <code className="text-(--color-paper-dim)">cd contracts && npm run test:fork</code>.
                 </p>
                 {evidence.fork.gas ? (
@@ -524,13 +541,16 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                               ['raw token', evidence.fork.raw, evidence.fork.authority.raw],
                               ['wrapper v2', evidence.fork.wrapperV2, evidence.fork.authority.wrapperV2],
                               ['wrapper v1', evidence.fork.wrapperV1, evidence.fork.authority.wrapperV1],
+                              ...(evidence.fork.componentB ? ([['B · AAPLon', evidence.fork.componentB.token, evidence.fork.componentB.authority]] as const) : []),
                             ] as const
                           ).map(([label, address, au]) => (
                             <tr key={address} className="border-t border-(--color-rule)">
                               <td className="py-1.5 pr-3 text-(--color-paper)">
                                 {label} <span className="text-(--color-paper-faint)">{address.slice(0, 10)}…</span>
                               </td>
-                              <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.implementation ? `${au.implementation.slice(0, 10)}…${au.implementation.slice(-4)}` : 'no slot set'}</td>
+                              <td className="py-1.5 pr-3 text-(--color-paper-dim)">
+                                {au.implementation ? `${au.implementation.slice(0, 10)}…${au.implementation.slice(-4)}` : au.beacon ? `behind beacon ${au.beacon.slice(0, 10)}…${au.beacon.slice(-4)}` : 'no slot set'}
+                              </td>
                               <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.admin ? `${au.admin.slice(0, 10)}…${au.admin.slice(-4)}` : 'no slot set'}</td>
                               <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.owner ? `${au.owner.slice(0, 10)}…${au.owner.slice(-4)}` : 'not answered'}</td>
                               <td className="py-1.5 text-(--color-paper-dim)">{au.paused === null ? 'not answered' : au.paused ? 'yes' : 'no'}</td>
@@ -543,7 +563,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                       {(() => {
                         const owners = new Set([evidence.fork.authority.raw.owner, evidence.fork.authority.wrapperV2.owner, evidence.fork.authority.wrapperV1.owner].filter((o): o is string => o !== null));
                         const shared = owners.size === 1 && evidence.fork.authority.raw.owner !== null;
-                        return `Every address with an implementation slot set can have its code replaced by whoever controls its admin; that is a fact about the instrument, not a fault. ${shared ? 'The three contracts answer owner() with one and the same address: one party stands behind the raw token and both wrappers.' : 'The owners differ or were not answered; no shared party is inferred.'} Who those addresses belong to is not read from the chain and is not asserted here.`;
+                        return `Every address with an implementation slot set can have its code replaced by whoever controls its admin, and a beacon proxy by whoever controls its beacon; that is a fact about the instrument, not a fault. ${shared ? 'The three xStocks contracts answer owner() with one and the same address: one party stands behind the raw token and both wrappers.' : 'The owners differ or were not answered; no shared party is inferred.'}${evidence.fork.componentB ? ' AAPLon answers neither owner() nor paused(); its code stands behind a beacon.' : ''} Who those addresses belong to is not read from the chain and is not asserted here.`;
                       })()}
                     </p>
                   </div>

@@ -29,8 +29,9 @@ import {
   type OndoAsset,
   type XstocksAsset,
 } from './issuers.ts';
+import { ONDO_ASSET_PAGE_URL, parseOndoAssetPage } from './ondo-page.ts';
 
-export type EvidenceKind = 'xstocks-asset' | 'ondo-addresses' | 'page';
+export type EvidenceKind = 'xstocks-asset' | 'ondo-addresses' | 'ondo-asset-page' | 'page';
 
 export interface EvidenceSource {
   /** Stable id: `<issuer>:<instrument>`. */
@@ -59,12 +60,24 @@ export const EVIDENCE_SOURCES: readonly EvidenceSource[] = [
     url: ONDO_ADDRESSES_URL('AAPLon'),
     title: 'Ondo contract addresses for AAPLon',
   },
+  // The issuer's own product page for the asset carries the same record in
+  // its payload — deployments per network, decimals, the live shares-per-token
+  // figure — without a key. It is the source component B's candidate address
+  // is taken from; the API stays on the list so its refusal stays on record.
+  {
+    id: 'ondo:AAPLon:page',
+    kind: 'ondo-asset-page',
+    seriesId: APPLE_S1.id,
+    component: 'B',
+    url: ONDO_ASSET_PAGE_URL('AAPLon'),
+    title: 'Ondo product page for AAPLon (app.ondo.finance)',
+  },
   // The documents each issuer publishes about the instrument, watched for
   // change by the hash of their visible text and never read for meaning —
   // a change is a page for a person to read, not a fact this desk asserts.
   ...APPLE_S1.components.flatMap((c) =>
     c.sources
-      .filter((doc) => doc.url !== XSTOCKS_ASSET_URL('AAPLx') && !doc.url.startsWith(ONDO_ADDRESSES_URL('')))
+      .filter((doc) => doc.url !== XSTOCKS_ASSET_URL('AAPLx') && !doc.url.startsWith(ONDO_ADDRESSES_URL('')) && doc.url !== ONDO_ASSET_PAGE_URL('AAPLon'))
       .map((doc) => ({
         id: `page:${c.id}:${new URL(doc.url).pathname
           .replace(/[^a-z0-9]+/gi, '-')
@@ -99,6 +112,8 @@ export interface Observation {
   readonly raw: string | null;
   readonly parse: ParseStatus;
   readonly parsed: XstocksAsset | OndoAsset | null;
+  /** Fields the source publishes that move by design (a live multiplier); kept with the observation, outside its identity. */
+  readonly live?: Readonly<Record<string, string | null>> | null;
   readonly detail: string | null;
   /** The hash this body replaced, when it replaced one. */
   readonly previousHash?: string | null;
@@ -118,6 +133,7 @@ function parseFor(
 ): {
   parse: ParseStatus;
   parsed: Observation['parsed'];
+  live?: Observation['live'];
   status: FetchStatus;
   detail: string | null;
 } {
@@ -128,11 +144,12 @@ function parseFor(
       status: fetched.status,
       detail: fetched.detail,
     };
-  const result = kind === 'xstocks-asset' ? parseXstocksAsset(fetched.raw) : parseOndoAddresses(fetched.raw);
+  const result = kind === 'xstocks-asset' ? parseXstocksAsset(fetched.raw) : kind === 'ondo-asset-page' ? parseOndoAssetPage(fetched.raw, 'AAPLon') : parseOndoAddresses(fetched.raw);
   if (result.ok)
     return {
       parse: 'PARSED',
       parsed: result.asset,
+      live: 'live' in result ? { sharesMultiplier: (result as { live: { sharesMultiplier: string | null } }).live.sharesMultiplier } : null,
       status: 'OK',
       detail: null,
     };
@@ -183,9 +200,11 @@ export async function observe(source: EvidenceSource, now: Date): Promise<Observ
     httpStatus: fetched.httpStatus,
     hash: p.parsed === null ? fetched.hash : canonicalHash(p.parsed),
     rawHash: fetched.hash,
-    raw: fetched.raw,
+    // A product page is a few hundred kilobytes of markup; its record is what is kept, its identity is what is hashed.
+    raw: source.kind === 'ondo-asset-page' ? null : fetched.raw,
     parse: p.parse,
     parsed: p.parsed,
+    live: p.live ?? null,
     detail: p.detail,
   };
 }

@@ -1,8 +1,8 @@
 {
   "seriesId": "apple-s1",
   "chainId": 1,
-  "block": 25958643,
-  "blockTimestamp": 1789183751,
+  "block": 25958848,
+  "blockTimestamp": 1789186223,
   "component": "A",
   "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
   "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
@@ -20,24 +20,34 @@
     "rawReceivedFor1e18Sent": "999999999999999999",
     "rawBalanceSettableByStorage": false
   },
+  "componentB": {
+    "token": "0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c",
+    "source": "the issuer's product page, app.ondo.finance/assets/aaplon, as archived by the desk",
+    "identityAsPublished": true,
+    "totalSupply": "16555401068640944732845",
+    "balanceStageableByStorage": true,
+    "transfersForArbitraryHolder": true,
+    "seriesMintExitClaimWithBothReal": true,
+    "authority": { "implementation": null, "admin": null, "beacon": "0x985462C9aA4D6c3Ad59Ae6e1e9c0C11347ED1598", "owner": null, "paused": null }
+  },
   "gas": {
     "note": "execution gas by gasleft() deltas inside one call, with the real wrapper as A and a mock as B: storage already touched is warm, so a real transaction pays cold access, the 21,000 base and its calldata on top; an input to a cost comparison, not a price",
-    "wrapperTransfer": 13590,
-    "mint3Lots": 158751,
-    "allocateExit3Lots": 90696,
-    "claimA": 62081,
-    "claimB": 50962
+    "wrapperTransfer": 13587,
+    "mint3Lots": 158735,
+    "allocateExit3Lots": 90695,
+    "claimA": 62080,
+    "claimB": 50964
   },
   "authority": {
-    "raw": { "implementation": "0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b", "admin": "0x696C685a02A1Fc6E2AaCbe26CD6695F4f4a6a085", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
-    "wrapperV2": { "implementation": "0x76C6851ea0B2741EeDcBBED240715E8817E85583", "admin": "0x312063009E74142339Edc92BcfF6CfCfAA958BFA", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
-    "wrapperV1": { "implementation": "0x14f37168AB9eAFCD94d5b142a00E6e9B261Bad48", "admin": "0xE39FfFFfB0795c99869ba4bCFE3fD1759d2f0Cc7", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null }
+    "raw": { "implementation": "0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b", "admin": "0x696C685a02A1Fc6E2AaCbe26CD6695F4f4a6a085", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV2": { "implementation": "0x76C6851ea0B2741EeDcBBED240715E8817E85583", "admin": "0x312063009E74142339Edc92BcfF6CfCfAA958BFA", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV1": { "implementation": "0x14f37168AB9eAFCD94d5b142a00E6e9B261Bad48", "admin": "0xE39FfFFfB0795c99869ba4bCFE3fD1759d2f0Cc7", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null }
   },
   "notProven": [
     "a static balance under a corporate action (needs a fork at a recorded block across one)",
     "holder eligibility for a series contract or its receipt holders",
     "anything about the issuer's reserves, custody, or the value of a unit",
-    "component B: no address was tested; the issuer's record is behind an API key this desk does not hold"
+    "component B: eligibility of a series contract or its receipt holders under the issuer's rules; a transfer that works on a fork for a staged balance is not eligibility"
   ],
   "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated"
 }

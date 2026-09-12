@@ -31,7 +31,11 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  const dryRun = new URL(request.url).searchParams.get('dry') === '1';
+  const url = new URL(request.url);
+  const dryRun = url.searchParams.get('dry') === '1';
+  // `?daily=force` runs the position product's daily archive and verification
+  // now rather than once a day — for the operator, after a source was added.
+  const forceDaily = url.searchParams.get('daily') === 'force';
   const store = await getStoreAsync();
   const result = await tick(PRODUCERS, { dryRun, store });
 
@@ -47,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
   // The position product's backend rides on the same tick: issuer evidence and
   // on-chain verification once a day, the series index and reconciliation every
   // run — or NOT_DEPLOYED, said plainly, while no reviewed deployment exists.
-  const positions = dryRun ? null : await positionsMaintenance(store, now);
+  const positions = dryRun ? null : await positionsMaintenance(store, now, { forceDaily });
 
   return Response.json(
     {

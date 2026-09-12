@@ -25,6 +25,10 @@ on:
         description: 'Rehearse without writing (dry run)'
         type: boolean
         default: false
+      daily:
+        description: 'Run the position product’s daily evidence and verification now (after a source was added)'
+        type: boolean
+        default: false
 
 concurrency:
   group: tick
@@ -39,7 +43,7 @@ jobs:
         env:
           URL: ${{ secrets.CURB_TICK_URL }}
           SECRET: ${{ secrets.CURB_TICK_SECRET }}
-          DRY: ${{ inputs.dry && '?dry=1' || '' }}
+          DRY: ${{ inputs.dry && '?dry=1' || (inputs.daily && '?daily=force') || '' }}
         run: |
           set -euo pipefail
           if [ -z "$URL" ] || [ -z "$SECRET" ]; then

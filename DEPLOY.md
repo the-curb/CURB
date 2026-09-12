@@ -235,8 +235,14 @@ its own RPC override.
   record); for a document or a refusal, what was received. The raw body is
   kept beside it (`rawHash`). xStocks' public asset record parses; Ondo's
   addresses endpoint needs an `x-api-key` (`CURB_ONDO_API_KEY`) and without
-  one records `ACCESS_DENIED` — that is the finding. No address from an
-  example in a specification is ever used.
+  one records `ACCESS_DENIED` — that is the finding, and it stays on the
+  record. Ondo's own product page for the asset (`app.ondo.finance/assets/
+  aaplon`) carries the same record in its payload — deployments per network,
+  decimals, the live shares-per-token figure — and is parsed as a source of
+  its own; component B's candidate address comes from it. No address from an
+  example in a specification is ever used. `POST /api/tick?daily=force` (or
+  the tick workflow's *daily* input) runs the archive and verification now
+  rather than once a day, for the operator after a source was added.
 - **Verification, after the evidence.** Every EVM address the parsed evidence
   names on the positions network is read on chain: code and its hash,
   `symbol()`, `decimals()`, for a wrapper `asset()` against the raw token
@@ -257,7 +263,7 @@ its own RPC override.
   longer serves that block's state says so, and nothing is compared across
   heights). Without it, every read of a chain for that series is skipped
   and `/api/status` says `NOT_DEPLOYED`.
-- **Documents watched.** The nine pages the issuers publish about the
+- **Documents watched.** The thirteen pages the issuers publish about the
   instruments are fetched on the same daily run and kept as the hash of their
   visible text — never read for meaning. A change raises a NOTE condition for
   two days; a page that stops answering raises a STALE one.

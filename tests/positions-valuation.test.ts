@@ -71,6 +71,28 @@ describe('the indicative value of a lot', () => {
     await store.close();
   });
 
+  it('values B from the issuer’s published shares-per-token figure once the page is archived, and then totals the lot', async () => {
+    const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-valuation-')));
+    await store.writeSnapshots([
+      feedSample(new Date(Date.now() - 5 * 60_000).toISOString()),
+      {
+        key: 'evidence:ondo:AAPLon:page:latest',
+        observedAt: '2026-09-12T04:00:00.000Z',
+        payload: { sourceId: 'ondo:AAPLon:page', kind: 'ondo-asset-page', url: 'https://app.ondo.finance/assets/aaplon', readAt: '2026-09-12T04:00:00.000Z', status: 'OK', httpStatus: 200, hash: 'ab'.repeat(32), raw: null, parse: 'PARSED', parsed: { symbol: 'AAPLon', addresses: [] }, live: { sharesMultiplier: '1.003376073740221058' }, detail: null },
+      },
+    ]);
+    const v = await indicativeValuation(store, APPLE_S1, { A: 10n, B: 20n }, false);
+    assert.equal(v.state, 'INDICATIVE');
+    assert.equal(v.perUnit.B.state, 'INDICATIVE');
+    if (v.perUnit.B.state !== 'INDICATIVE') return;
+    assert.equal(v.perUnit.B.perUnitUsd, '333.64', '1.003376… shares × 332.52');
+    assert.equal(v.perUnit.B.conversion?.atBlock, null, 'dated by the archive’s read, not a block');
+    assert.equal(v.perUnit.B.conversion?.atTime, '2026-09-12T04:00:00.000Z');
+    assert.equal(v.perLotUsd.B, '6,672.85');
+    assert.equal(v.perLotTotalUsd, '10,008.92', 'summed at one scale, rounded once');
+    await store.close();
+  });
+
   it('withholds the value when the sample is stale, the feed drifted, or nothing was sampled', async () => {
     const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-valuation-')));
     const none = await indicativeValuation(store, APPLE_S1, { A: 10n, B: 20n }, false);

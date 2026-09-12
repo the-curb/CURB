@@ -12,14 +12,18 @@
  * the issuer's multiplier is already applied to balances on EVM chains. The
  * feed is an equity price on another chain, not the token's own market.
  *
- * Component B has no address this desk can read and no conversion, so it
- * is NOT_AVAILABLE with the reason, and the lot is INCOMPLETE. A missing
- * price is never shown as zero.
+ * Component B (Ondo's AAPLon) is valued from the shares-per-token figure the
+ * issuer publishes on its own product page — a total-return unit's share
+ * count, read with the daily archive and dated by that read — and the same
+ * AAPL / USD sample. Where an input is missing the component is
+ * NOT_AVAILABLE with the reason, the lot is INCOMPLETE, and a missing price
+ * is never shown as zero.
  */
 
 import { AGENT_BY_ID } from '../agents/registry.ts';
 import { freshnessSeconds } from '../doctrine/reading.ts';
 import type { Store } from '../store/types.ts';
+import { EVIDENCE_SOURCES, latestEvidence } from './evidence.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
 import type { SeriesSpec } from './series.ts';
 
@@ -41,8 +45,15 @@ export interface ConversionInput {
   /** Raw per 1e18 shares, as a string of base units. */
   readonly rawPerShare: string;
   readonly source: string;
-  readonly atBlock: number;
+  readonly atBlock: number | null;
   readonly atTime: string;
+}
+
+/** A decimal string such as "1.003376073740221058" as an integer at 18 places, or null when it is not a decimal. */
+export function decimalTo18(text: string): bigint | null {
+  const m = /^(\d+)(?:\.(\d{1,18}))?$/.exec(text.trim());
+  if (!m) return null;
+  return BigInt(m[1]!) * E18 + BigInt((m[2] ?? '').padEnd(18, '0'));
 }
 
 export type ComponentValue =
@@ -148,21 +159,43 @@ export async function indicativeValuation(store: Store, spec: SeriesSpec, q: { r
     }
   }
 
-  // ── component B: no address, no conversion ────────────────────────────────
-  const B: ComponentValue = unavailable('no address this desk can read and no conversion: the issuer’s record is behind an API key, and the token is a total-return unit whose shares per token are not read');
+  // ── component B: the issuer's shares-per-token figure, as archived ───────
+  const pageSource = EVIDENCE_SOURCES.find((x) => x.id === 'ondo:AAPLon:page');
+  const page = pageSource ? (await latestEvidence(store, [pageSource]))[0] : null;
+  const multiplierText = page?.observation?.live?.sharesMultiplier ?? null;
+  const multiplier = multiplierText === null ? null : decimalTo18(multiplierText);
+  let B: ComponentValue;
+  if (price === null) B = unavailable(priceReason ?? 'no price');
+  else if (!page || page.observation === null) B = unavailable('the issuer’s product page has not been archived yet; the shares-per-token figure is not read from anywhere else');
+  else if (page.observation.status !== 'OK' || multiplier === null) B = unavailable(`the issuer’s product page answered ${page.observation.status.toLowerCase().replace(/_/g, ' ')} and carries no shares-per-token figure this desk can read`);
+  else if (multiplier <= 0n) B = unavailable('the issuer’s shares-per-token figure is zero; the page published nothing to price');
+  else
+    B = {
+      state: 'INDICATIVE',
+      perUnitUsd: toUsd2(multiplier * BigInt(price.priceRaw), 18 + price.decimals),
+      price,
+      conversion: {
+        from: '1 AAPLon token',
+        to: 'shares of AAPL, as the issuer states it',
+        rawPerShare: multiplier.toString(),
+        source: `${pageSource!.url} — sharesMultiplier as published, archived ${page.observation.readAt}`,
+        atBlock: null,
+        atTime: page.observation.readAt,
+      },
+      assumption: 'the issuer’s shares-per-token figure is taken as published on its product page; it moves with reinvested dividends and is dated by the archive’s read, not by a block; the price is an equity feed on another chain, not the token’s own market',
+    };
 
   // Everything is kept at one scale so a total, when both sides exist, is a sum and not a re-rounding.
-  const scale = A.state === 'INDICATIVE' ? 18 + A.price.decimals : 26;
+  const scale = A.state === 'INDICATIVE' ? 18 + A.price.decimals : B.state === 'INDICATIVE' ? 18 + B.price.decimals : 26;
   const perLotARaw = A.state === 'INDICATIVE' ? BigInt(unitsPerLot.A) * BigInt(A.conversion?.rawPerShare ?? '0') * BigInt(A.price.priceRaw) : null;
-  // B is never indicative today; the shape is kept general for the day it is.
-  const perLotBRaw = (B as ComponentValue).state === 'INDICATIVE' ? 0n : null;
+  const perLotBRaw = B.state === 'INDICATIVE' ? BigInt(unitsPerLot.B) * BigInt(B.conversion?.rawPerShare ?? '0') * BigInt(B.price.priceRaw) : null;
   const state: LotValuation['state'] = A.state === 'INDICATIVE' && B.state === 'INDICATIVE' ? 'INDICATIVE' : A.state === 'INDICATIVE' || B.state === 'INDICATIVE' ? 'INCOMPLETE' : 'NOT_AVAILABLE';
   return {
     state,
     perUnit: { A, B },
     unitsPerLot,
     perLotUsd: { A: perLotARaw === null ? null : toUsd2(perLotARaw, scale), B: perLotBRaw === null ? null : toUsd2(perLotBRaw, scale) },
-    perLotUsdRaw: { A: perLotARaw === null ? null : perLotARaw.toString(), B: perLotBRaw === null ? null : String(perLotBRaw), scale },
+    perLotUsdRaw: { A: perLotARaw === null ? null : perLotARaw.toString(), B: perLotBRaw === null ? null : perLotBRaw.toString(), scale },
     perLotTotalUsd: perLotARaw !== null && perLotBRaw !== null ? toUsd2(perLotARaw + perLotBRaw, scale) : null,
     note,
     computedAt,

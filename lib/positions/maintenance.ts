@@ -44,14 +44,16 @@ export interface PositionsMaintenance {
   readonly series: readonly SeriesRun[];
 }
 
-async function runDaily(store: Store, now: Date): Promise<DailyRun> {
+async function runDaily(store: Store, now: Date, force: boolean): Promise<DailyRun> {
   const day = now.toISOString().slice(0, 10);
   const state = await store.snapshots(DAILY_KEY);
   if (state.state === 'UNREAD') {
     return { state: 'STATE_UNREADABLE', day, evidence: null, verification: null, detail: `${state.reason}${state.detail ? ` — ${state.detail}` : ''}` };
   }
   const last = state.value.find((s) => s.key === DAILY_KEY);
-  if (last && last.observedAt.slice(0, 10) === day) {
+  // Once a UTC day, unless the operator forces it — when a source was added or
+  // a page changed and waiting for midnight would leave the record behind.
+  if (!force && last && last.observedAt.slice(0, 10) === day) {
     return { state: 'ALREADY_DONE', day, evidence: null, verification: null, detail: null };
   }
 
@@ -65,10 +67,10 @@ async function runDaily(store: Store, now: Date): Promise<DailyRun> {
   return { state: 'DONE', day, evidence, verification, detail: null };
 }
 
-export async function positionsMaintenance(store: Store, now: Date): Promise<PositionsMaintenance> {
+export async function positionsMaintenance(store: Store, now: Date, options: { readonly forceDaily?: boolean } = {}): Promise<PositionsMaintenance> {
   const profile = positionsNetwork();
   const opts: RpcOptions = { profile, intervalSeconds: INDEX_INTERVAL_SECONDS };
-  const daily = await runDaily(store, now);
+  const daily = await runDaily(store, now, options.forceDaily === true);
 
   const series: SeriesRun[] = [];
   for (const spec of SERIES) {

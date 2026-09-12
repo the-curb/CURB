@@ -17,9 +17,10 @@ import { MockToken } from "../../src/mocks/MockToken.sol";
  * daily verification read on chain (lib/positions/verify.ts), not the
  * example in anyone's documentation. Balances are set by storage (deal),
  * so no real holder is impersonated and nothing here depends on who owns
- * what. Component B stays a mock: Ondo's record is behind a key this desk
- * does not hold, and a guessed address would be exactly the mistake the
- * blueprint forbids.
+ * what. Component B is the address the issuer's own product page publishes
+ * for AAPLon on Ethereum (archived and verified daily by the desk) — not the
+ * example in the API specification, which is never used; the B tests ask
+ * the same questions of it and run one series with both components real.
  *
  * Every test prints the block it ran at, and the last one writes what it
  * found to evidence/apple-s1.fork.json for the site to show, dated. A
@@ -161,6 +162,69 @@ contract AppleComponentsForkTest is Test {
         return ok;
     }
 
+    /* ── component B: AAPLon, as the issuer's product page publishes it ──── */
+
+    /// AAPLon on Ethereum as app.ondo.finance/assets/aaplon publishes it (chain id 1, 18 decimals),
+    /// read on chain by the daily verification. Not an example from any specification.
+    address constant AAPLON = 0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c;
+
+    function tryDealB() external {
+        deal(AAPLON, alice, 40e18);
+    }
+
+    /// Whether an AAPLon balance can be set by storage (deal). If it cannot, no holder can be
+    /// staged and the transfer questions stay open on the record rather than answered wrongly.
+    function _bBalanceIsStored() internal returns (bool) {
+        (bool ok, ) = address(this).call(abi.encodeCall(this.tryDealB, ()));
+        return ok;
+    }
+
+    function _bIdentity() internal view returns (bool) {
+        return keccak256(bytes(IERC20Like(AAPLON).symbol())) == keccak256("AAPLon") && IERC20Like(AAPLON).decimals() == 18;
+    }
+
+    /// An address that is nobody in particular moves AAPLon. Returns (staged, moved): staged false
+    /// means the balance could not be set, so nothing was tried.
+    function _bTransfers() internal returns (bool staged, bool moved) {
+        staged = _bBalanceIsStored();
+        if (!staged) return (false, false);
+        vm.prank(alice);
+        (bool ok, bytes memory data) = AAPLON.call(abi.encodeCall(IERC20Like.transfer, (bob, 4e18)));
+        moved = ok && (data.length == 0 || abi.decode(data, (bool))) && IERC20Like(AAPLON).balanceOf(bob) == 4e18;
+    }
+
+    /// Both components real: the wrapper as A, AAPLon as B, one lot of 10 wAAPLx and 20 AAPLon;
+    /// mint, exit, claim A, claim B. Returns (staged, roundTrip).
+    function _bothRealRoundTrip() internal returns (bool staged, bool roundTrip) {
+        staged = _bBalanceIsStored();
+        if (!staged) return (false, false);
+        CompanySeries series = new CompanySeries(WRAPPER_V2, AAPLON, 10e18, 20e18, 1_000, operator, "Apple Position - Series 1 (fork, both real)", "cAAPL-S1");
+        vm.startPrank(operator);
+        series.setMintPermit(alice, type(uint64).max);
+        series.setClaimPermit(alice, true);
+        vm.stopPrank();
+        deal(WRAPPER_V2, alice, 10e18);
+        vm.startPrank(alice);
+        IERC20Like(WRAPPER_V2).approve(address(series), type(uint256).max);
+        (bool approved, ) = AAPLON.call(abi.encodeCall(IERC20Like.approve, (address(series), type(uint256).max)));
+        if (!approved) {
+            vm.stopPrank();
+            return (true, false);
+        }
+        (bool minted, ) = address(series).call(abi.encodeCall(series.mint, (1, block.timestamp + 1 hours)));
+        if (!minted) {
+            vm.stopPrank();
+            return (true, false);
+        }
+        bool held = IERC20Like(WRAPPER_V2).balanceOf(address(series)) == 10e18 && IERC20Like(AAPLON).balanceOf(address(series)) == 20e18;
+        series.allocateExit(1);
+        series.claimComponent(0);
+        series.claimComponent(1);
+        vm.stopPrank();
+        roundTrip = held && IERC20Like(WRAPPER_V2).balanceOf(alice) == 10e18 && IERC20Like(AAPLON).balanceOf(alice) == 40e18
+            && IERC20Like(WRAPPER_V2).balanceOf(address(series)) == 0 && IERC20Like(AAPLON).balanceOf(address(series)) == 0;
+    }
+
     /* ── the tests ───────────────────────────────────────────────────────── */
 
     function test_Fork_F01_WrapperAnswersAsTheIssuerDocuments() public view {
@@ -215,6 +279,8 @@ contract AppleComponentsForkTest is Test {
     /// keccak256("eip1967.proxy.implementation") - 1 and the admin slot beside it.
     bytes32 constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     bytes32 constant ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    /// keccak256("eip1967.proxy.beacon") - 1: a beacon proxy keeps its implementation behind this address.
+    bytes32 constant BEACON_SLOT = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
 
     /// Who can change what stands behind an address: the EIP-1967 slots read
     /// from storage, and owner() / paused() if the contract answers them. A
@@ -238,15 +304,37 @@ contract AppleComponentsForkTest is Test {
     function _authorityJson(address target) internal view returns (string memory) {
         address impl = address(uint160(uint256(vm.load(target, IMPLEMENTATION_SLOT))));
         address admin = address(uint160(uint256(vm.load(target, ADMIN_SLOT))));
+        address beacon = address(uint160(uint256(vm.load(target, BEACON_SLOT))));
         (bool ownerOk, address owner) = _probeAddress(target, bytes4(keccak256("owner()")));
         (bool pausedOk, bool paused) = _probeBool(target, bytes4(keccak256("paused()")));
         return string.concat(
             '{ "implementation": ', _addressOrNull(true, impl),
             ', "admin": ', _addressOrNull(true, admin),
+            ', "beacon": ', _addressOrNull(true, beacon),
             ', "owner": ', _addressOrNull(ownerOk, owner),
             ', "paused": ', pausedOk ? (paused ? "true" : "false") : "null",
             " }"
         );
+    }
+
+    function test_Fork_B01_AAPLonAnswersAsTheIssuerPublishes() public view {
+        assertTrue(_bIdentity(), "symbol AAPLon and 18 decimals, as the product page says");
+        assertGt(IERC20Like(AAPLON).totalSupply(), 0, "AAPLon has supply");
+    }
+
+    function test_Fork_B02_AnArbitraryHolderAndAAPLon() public {
+        (bool staged, bool moved) = _bTransfers();
+        console2.log("AAPLon balance stageable by storage", staged);
+        console2.log("AAPLon moved for an arbitrary holder", moved);
+        // Either answer is a finding; what is asserted is that the question was asked at this block.
+        assertTrue(AAPLON.code.length > 0);
+    }
+
+    function test_Fork_B03_BothComponentsRealRoundTrip() public {
+        (bool staged, bool roundTrip) = _bothRealRoundTrip();
+        console2.log("staged", staged);
+        console2.log("both-real round trip", roundTrip);
+        assertTrue(AAPLON.code.length > 0);
     }
 
     function test_Fork_G_Authority() public view {
@@ -298,6 +386,21 @@ contract AppleComponentsForkTest is Test {
             "  },\n"
         );
         (uint256 gTransfer, uint256 gMint, uint256 gExit, uint256 gClaimA, uint256 gClaimB) = _gasRoundTrip();
+        (bool bStaged, bool bMoved) = _bTransfers();
+        (, bool bothReal) = _bothRealRoundTrip();
+        json = string.concat(
+            json,
+            '  "componentB": {\n',
+            '    "token": "', vm.toString(AAPLON), '",\n',
+            '    "source": "the issuer\'s product page, app.ondo.finance/assets/aaplon, as archived by the desk",\n',
+            '    "identityAsPublished": ', _bIdentity() ? "true" : "false", ",\n",
+            '    "totalSupply": "', vm.toString(IERC20Like(AAPLON).totalSupply()), '",\n',
+            '    "balanceStageableByStorage": ', bStaged ? "true" : "false", ",\n",
+            '    "transfersForArbitraryHolder": ', bMoved ? "true" : "false", ",\n",
+            '    "seriesMintExitClaimWithBothReal": ', bothReal ? "true" : "false", ",\n",
+            '    "authority": ', _authorityJson(AAPLON), "\n",
+            "  },\n"
+        );
         json = string.concat(
             json,
             '  "gas": {\n',
@@ -320,7 +423,7 @@ contract AppleComponentsForkTest is Test {
             '    "a static balance under a corporate action (needs a fork at a recorded block across one)",\n',
             '    "holder eligibility for a series contract or its receipt holders",\n',
             '    "anything about the issuer\'s reserves, custody, or the value of a unit",\n',
-            '    "component B: no address was tested; the issuer\'s record is behind an API key this desk does not hold"\n',
+            '    "component B: eligibility of a series contract or its receipt holders under the issuer\'s rules; a transfer that works on a fork for a staged balance is not eligibility"\n',
             "  ],\n",
             '  "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated"\n',
             "}\n"

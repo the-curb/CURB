@@ -52,8 +52,11 @@ npm run test:fork
 ```
 
 A public node serves recent state only, so the block is not pinned; an
-archive endpoint in `ETH_RPC_URL` pins one. Component B is a mock here:
-Ondo's record is behind an API key this desk does not hold.
+archive endpoint in `ETH_RPC_URL` pins one. Component B is the address the
+issuer's product page publishes for AAPLon (never the API specification's
+example): the B tests ask it the same questions and run one series with
+both components real. The public node throttles bursts; `ETH_RPC_URL=https://eth.drpc.org`
+has answered.
 
 ## Rehearsal on a local node
 

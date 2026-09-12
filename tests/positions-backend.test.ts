@@ -382,8 +382,53 @@ describe('the map of related parties (R02)', () => {
       if (d.name === null) assert.ok(d.limit !== null && d.limit.length > 0, `an unnamed ${d.partyType} says why it is unnamed`);
     }
     const unnamedB = DEPENDENCIES.filter((d) => d.component === 'B' && d.name === null).map((d) => d.partyType).sort();
-    assert.deepEqual(unnamedB, ['BROKER', 'CONTRACT_AUTHORITY', 'CUSTODIAN', 'SECURITY_AGENT', 'VERIFICATION_AGENT'], 'B’s documents describe these roles without naming the party');
+    assert.deepEqual(unnamedB, ['BROKER', 'CUSTODIAN'], 'B’s documents describe the broker-dealer and the custodian without naming them; the agents are named on the trust page');
     assert.deepEqual(sharedParties(), [], 'no party is named under both components; independence is not thereby claimed');
     assert.ok(POSSIBLY_SHARED.some((p) => p.name === 'Alpaca Securities LLC'), 'a name in one issuer’s role list and the other’s partner list is recorded as possibly shared');
+  });
+});
+
+describe('the issuer’s product page', () => {
+  it('yields the record the page publishes — deployments per network, decimals, the live multiplier apart', async () => {
+    const { parseOndoAssetPage } = await import('../lib/positions/ondo-page.ts');
+    const raw = readFileSync(new URL('./fixtures/ondo-aaplon-page.html', import.meta.url), 'utf8');
+    const parsed = parseOndoAssetPage(raw, 'AAPLon');
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.equal(parsed.asset.symbol, 'AAPLon');
+    assert.equal(parsed.asset.ticker, 'AAPL');
+    assert.equal(parsed.asset.underlyingName, 'Apple Inc. Common Stock');
+    const eth = parsed.asset.addresses.find((a) => a.chainId === 1);
+    assert.ok(eth, 'an Ethereum deployment is published');
+    assert.match(eth.address, /^0x[0-9a-f]{40}$/);
+    assert.equal(eth.decimals, 18);
+    const solana = parsed.asset.addresses.find((a) => a.networkChainId.startsWith('solana'));
+    assert.ok(solana && solana.chainId === null, 'a non-EVM deployment is kept as published and is no candidate anywhere');
+    assert.match(parsed.live.sharesMultiplier ?? '', /^1\.\d+$/, 'the live multiplier is read but kept apart from the record');
+
+    const { canonicalHash } = await import('../lib/positions/evidence.ts');
+    const moved = raw.replace('1.003376073740221058', '1.004000000000000000');
+    const again = parseOndoAssetPage(moved, 'AAPLon');
+    assert.ok(again.ok);
+    if (again.ok) assert.equal(canonicalHash(again.asset), canonicalHash(parsed.asset), 'a moved multiplier is not a change of record');
+
+    const gone = parseOndoAssetPage('<html><script>self.__next_f.push([1,"nothing here"])</script></html>', 'AAPLon');
+    assert.deepEqual(gone, { ok: false, status: 'SCHEMA_CHANGED', detail: 'the page carries no record for AAPLon' });
+  });
+
+  it('is a candidate source for component B on Ethereum, and the refused API is not', async () => {
+    const { parseOndoAssetPage } = await import('../lib/positions/ondo-page.ts');
+    const raw = readFileSync(new URL('./fixtures/ondo-aaplon-page.html', import.meta.url), 'utf8');
+    const parsed = parseOndoAssetPage(raw, 'AAPLon');
+    assert.ok(parsed.ok);
+    if (!parsed.ok) return;
+    const page = EVIDENCE_SOURCES.find((s) => s.id === 'ondo:AAPLon:page')!;
+    const api = EVIDENCE_SOURCES.find((s) => s.id === 'ondo:AAPLon')!;
+    const candidates = candidatesFrom(1, [
+      { source: page, observation: { parsed: parsed.asset } },
+      { source: api, observation: null },
+    ]);
+    assert.deepEqual(candidates.map((c) => [c.component, c.role, c.address]), [['B', 'ISSUER_TOKEN', '0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c']]);
+    assert.deepEqual(candidatesFrom(56, [{ source: page, observation: { parsed: parsed.asset } }]).map((c) => c.address), ['0x390a684ef9cade28a7ad0dfa61ab1eb3842618c4'], 'the BNB deployment is a candidate only on chain 56');
   });
 });
