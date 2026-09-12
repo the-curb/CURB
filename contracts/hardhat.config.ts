@@ -34,6 +34,8 @@ export default defineConfig({
       // scripts/record-tests.mjs writes the seed, the runs, the results and
       // the commit to evidence/unit-tests.json (blueprint C07).
       fuzz: { seed: "0x7727ea51af0441c20da14dcd68a15dac8c9ebd589c5be8fa8c87c1d3720450bc", runs: 256 },
+      // The invariant handler is driven this many sequences deep; the seed above governs both.
+      invariant: { runs: 256, depth: 64, failOnRevert: false },
       // The fork tests write what they found to evidence/, nowhere else.
       fsPermissions: { writeFile: ["evidence/apple-s1.fork.json", "evidence/apple-s1.corporate-action.json"] },
       forking: {

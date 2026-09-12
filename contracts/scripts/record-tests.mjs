@@ -11,13 +11,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const config = readFileSync(new URL('../hardhat.config.ts', import.meta.url), 'utf8');
 const seed = /seed:\s*"(0x[0-9a-f]+)"/.exec(config)?.[1] ?? null;
 const runs = Number(/fuzz:\s*\{[^}]*runs:\s*(\d+)/.exec(config)?.[1] ?? NaN);
+const invariant = { runs: Number(/invariant:\s*\{[^}]*runs:\s*(\d+)/.exec(config)?.[1] ?? NaN), depth: Number(/invariant:\s*\{[^}]*depth:\s*(\d+)/.exec(config)?.[1] ?? NaN) };
 const solc = /version:\s*"([0-9.]+)"/.exec(config)?.[1] ?? null;
 const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 const dirty = execSync('git status --porcelain -- src test hardhat.config.ts', { encoding: 'utf8' }).trim().length > 0;
 
 const run = spawnSync('npx', ['hardhat', 'test', 'solidity', '--grep-exclude', 'Fork'], { encoding: 'utf8', shell: true });
 const out = `${run.stdout}\n${run.stderr}`;
-const tests = [...out.matchAll(/^\s+(✔|✖|\d+\))\s+(test[A-Za-z0-9_]*\([^)]*\))(?:\s+\(runs:\s*(\d+)\))?/gm)].map((m) => ({
+const tests = [...out.matchAll(/^\s+(✔|✖|\d+\))\s+((?:test|invariant)[A-Za-z0-9_]*\([^)]*\))(?:\s+\(runs:\s*(\d+)\))?/gm)].map((m) => ({
   name: m[2],
   passed: m[1] === '✔',
   fuzzRuns: m[3] ? Number(m[3]) : null,
@@ -31,6 +32,7 @@ const record = {
   workingTreeClean: !dirty,
   solc,
   fuzz: { seed, runs },
+  invariant,
   command: 'hardhat test solidity --grep-exclude Fork',
   passing,
   failing,
