@@ -3,7 +3,7 @@ import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
 import { latestRate } from '@/lib/credits/maintenance';
 import { receipts } from '@/lib/credits/receipts';
-import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_STATUS, SERVICES, centsText } from '@/lib/credits/prices';
+import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { getStoreAsync } from '@/lib/store';
 import { CreditDesk } from '../components/credit-desk';
@@ -30,7 +30,7 @@ export default async function ServicesPage() {
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-8">
         <div className="kicker">
-          <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · the minimum decided · the prices {PRICES_STATUS}
+          <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · the minimum and the prices {PRICES_STATUS} · the terms proposed
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
@@ -41,7 +41,7 @@ export default async function ServicesPage() {
       <section className="cells grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>The price list</b> · US dollars · {NOTICE_DAYS} days&rsquo; notice of any change
+            <b>The price list</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · {NOTICE_DAYS} days&rsquo; notice of any change
           </div>
           <table className="mt-4 w-full text-[13px]">
             <tbody>
@@ -56,7 +56,7 @@ export default async function ServicesPage() {
                 <tr key={s.id} className="border-t border-(--color-rule) align-top">
                   <td className="py-3 pr-4 text-(--color-paper)">{s.title}</td>
                   <td className="py-3 pr-4 text-(--color-paper-dim)">
-                    {s.what}. <span className="tabular text-(--color-paper-faint)">{s.path}</span> <span className="text-(--color-paper-faint)">· {PRICES_STATUS}</span>
+                    {s.what}. <span className="tabular text-(--color-paper-faint)">{s.path}</span>
                   </td>
                   <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">
                     {centsText(s.cents)} <span className="text-(--color-paper-faint)">/ {s.unit}</span>

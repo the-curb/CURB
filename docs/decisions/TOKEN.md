@@ -1,6 +1,6 @@
 # The CURB token — one function, priced in dollars, paid in CURB
 
-**Status:** Proposed, 12 September 2026, with one decision on it: **the opening minimum of US$20.00 was decided by the product owner on 12 September 2026.** The per-unit prices, the validity and cancellation terms, the proceeds split and the order of work remain proposed and await the product owner. The mechanism's §16 says the only sensible function to test for CURB is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. This record proposes each of those, and the order in which they happen: the services and the gate first, the token after.
+**Status:** Proposed, 12 September 2026, with the prices decided: **the opening minimum of US$20.00 and the per-unit prices below were decided by the product owner on 12 September 2026.** The validity and cancellation terms, the governance line, the proceeds split and the order of work remain proposed and await the product owner. The mechanism's §16 says the only sensible function to test for CURB is payment for data and integration services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. This record proposes each of those, and the order in which they happen: the services and the gate first, the token after.
 
 ## Why the token comes up now
 
@@ -13,9 +13,9 @@ A CURB paid to the credit desk is a prepaid unit of service. Nothing else. The s
 | Service | What it is | Price |
 | --- | --- | --- |
 | Opening a key | The minimum paid in before a key can be used, cumulative across top-ups | **US$20.00 — decided**, the product owner, 12 September 2026 |
-| Evidence versions | Every archived version of one source's record — the identities, the dates, the parsed record of each — for a series | US$0.05 per call (proposed) |
-| Journal by day | The product's verified changes on one UTC day, as the Gazette prints them | US$0.05 per call (proposed) |
-| Alert delivery | The desk's conditions — raised, cleared, still active — posted to a webhook the key registered, once per change | US$0.10 per delivery (proposed) |
+| Evidence versions | Every archived version of one source's record — the identities, the dates, the parsed record of each — for a series | **US$0.05 per call — decided**, the product owner, 12 September 2026 |
+| Journal by day | The product's verified changes on one UTC day, as the Gazette prints them | **US$0.05 per call — decided**, the product owner, 12 September 2026 |
+| Alert delivery | The desk's conditions — raised, cleared, still active — posted to a webhook the key registered, once per change | **US$0.10 per delivery — decided**, the product owner, 12 September 2026 |
 
 Everything the site shows today stays free: the series page, the latest evidence, the instrument file, the previews, the wallet lookups, the status endpoint, the Gazette. The paid endpoints are the ones that cost the desk something to keep — the history, the fan-out — and the price is for that. A key is not a condition of using the position product; forming or claiming a position needs no CURB and never will (§16: positions never depend on a CURB price).
 
@@ -79,7 +79,7 @@ Shares are of net proceeds after the launchpad's own take, which is not known he
 
 ## Open, for the person who decides
 
-- The per-unit prices above. (The US$20 opening minimum is decided — the product owner, 12 September 2026 — and is the figure in `lib/credits/prices.ts` and on the services page.)
+- ~~The prices above, and the US$20 minimum.~~ Decided — the product owner, 12 September 2026: the figures in `lib/credits/prices.ts` and on the services page. A change from here on is a change of a decided price and gets the thirty days' notice.
 - Whether credits should expire, and after how long, if the reviewers say open-ended credits are a liability the desk should not carry.
 - The proceeds split, and whether the review comes first even if that delays everything else — this record says it does.
 - Which chain the token launches on. The desk's chain profiles are locked in code; a chain not in `lib/chain/networks.ts` is a reviewed code change before anything is read from it.
