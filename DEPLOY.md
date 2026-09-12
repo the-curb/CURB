@@ -339,7 +339,9 @@ its own RPC override.
   run against a Hardhat node on this machine, with the worked example sent as
   real transactions. `contracts/README.md` gives the three commands. It
   proves the plumbing, not a public deployment: chain id 31337 is refused by
-  every profile but `hardhat-local`, which no production setting names.
+  every profile but `hardhat-local`, which no production setting names. The
+  checks workflow runs the rehearsal and the drill on every push, on a node
+  it starts itself.
 
 ## What is not covered here
 

@@ -113,6 +113,10 @@ The same node serves the series page's wallet flow: with
 at `http://127.0.0.1:8545` (chain id 31337), a permitted account mints and
 claims from the page, and the next maintenance run indexes it.
 
+Both the rehearsal and the drill also run on every push, in the `rehearsal`
+job of `.github/workflows/checks.yml`: a Hardhat node is started there, the
+transactions are sent, and the site's tests read them back.
+
 It found A `SHORTFALL` by exactly what was seized and B `MATCHED`, a DARK
 condition on A alone, `HEAD_UNREAD` and `UNKNOWN` (not a shortfall) while
 the node was down with the cursor kept, and a STALE condition naming the
