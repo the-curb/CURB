@@ -39,7 +39,7 @@ export const DECISIONS: readonly DecisionRecord[] = [
     slug: 'token',
     file: 'TOKEN.md',
     title: 'The CURB token: one function',
-    asks: 'prepaid credit for services that exist, priced in dollars and paid in CURB at a rate read from the chain; validity, cancellation, what the token does not do, the proceeds budget, and the order: services first, launch after — decided by the product owner on 12 September 2026; the chain it launches on still open',
+    asks: 'prepaid credit for services that exist, priced in dollars and paid in CURB at a rate read from the chain; validity, cancellation, what the token does not do, the proceeds budget, and the order: services first, launch after — decided by the product owner on 12 September 2026, Robinhood Chain included',
     backlog: '§16',
     status: 'decided',
   },

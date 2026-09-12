@@ -8,7 +8,10 @@ import { CREDITS_ENV } from '../lib/credits/config.ts';
 import { gate } from '../lib/credits/guard.ts';
 import { keyAccount, keyHashOf } from '../lib/credits/keys.ts';
 import { runCredits } from '../lib/credits/maintenance.ts';
-import { curbForCents } from '../lib/credits/rate.ts';
+import { curbForCents, readRateFromEvents } from '../lib/credits/rate.ts';
+import { NETWORKS } from '../lib/chain/networks.ts';
+import { CREDITS_INTERVAL_SECONDS } from '../lib/credits/indexer.ts';
+import { parseCreditsConfig } from '../lib/credits/config.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
 
 /**
@@ -65,6 +68,21 @@ describe('the credit desk, rehearsed on a local chain', () => {
         record.topUps.map((u) => [record.keyHash, u.expectCents, 'TOP_UP_BLOCK']),
         'each top-up priced at its own block: 4,000 CURB at US$0.005, then 1,000 at US$0.01',
       );
+
+      // The same two prices from the pair's own Sync events at the top-up blocks — the path a node with a short state window takes.
+      const parsed = parseCreditsConfig(JSON.stringify(record.credits));
+      assert.equal(parsed.state, 'CONFIGURED');
+      if (parsed.state === 'CONFIGURED') {
+        const opts = { profile: NETWORKS['hardhat-local'], intervalSeconds: CREDITS_INTERVAL_SECONDS };
+        const first = await readRateFromEvents(parsed.config, record.topUps[0]!.block, opts);
+        const second = await readRateFromEvents(parsed.config, record.topUps[1]!.block, opts);
+        if (first.state === 'UNREAD') assert.fail(JSON.stringify(first));
+        if (second.state === 'UNREAD') assert.fail(JSON.stringify(second));
+        assert.equal(first.value.basis, 'EVENTS');
+        assert.equal(first.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'US/usr/bin/bash.005 from the Sync before the first top-up');
+        assert.equal(second.value.usdPerCurb18, (10n ** 16n).toString(), 'US/usr/bin/bash.01 from the Sync before the second');
+        assert.ok(first.value.pool.eventBlock! < record.topUps[0]!.block);
+      }
 
       const account = await keyAccount(store, record.keyHash);
       assert.equal(account.status, 'OPEN');

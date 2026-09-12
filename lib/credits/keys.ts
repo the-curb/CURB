@@ -59,9 +59,14 @@ export interface TopUpCredit {
   readonly amount: string;
   /** US dollars per CURB scaled by 1e18, as read. */
   readonly usdPerCurb18: string;
-  /** The block the rate was read at, and why it was that one. */
+  /**
+   * The block the rate was read at, and how: TOP_UP_BLOCK by state at that
+   * block; TOP_UP_BLOCK_EVENTS from the pool's last event at or before it,
+   * when the node no longer served its state; HEAD_AT_INDEXING when neither
+   * could be had and the head when indexed was used instead.
+   */
   readonly ratedAtBlock: number;
-  readonly basis: 'TOP_UP_BLOCK' | 'HEAD_AT_INDEXING';
+  readonly basis: 'TOP_UP_BLOCK' | 'TOP_UP_BLOCK_EVENTS' | 'HEAD_AT_INDEXING';
   readonly cents: string;
   readonly creditedAt: string;
 }

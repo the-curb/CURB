@@ -14,7 +14,7 @@
  *     "treasury": "0x…",                   the operator multisig the desk pays to — the desk's own immutable, verified each tick
  *     "fromBlock": 21000000,               the block the desk was created in
  *     "priceSource": {
- *       "kind": "uniswap-v2-pair",
+ *       "kind": "uniswap-v2-pair",         or "uniswap-v3-pool" for a concentrated-liquidity pool (slot0 / Swap)
  *       "pair": "0x…",                     a pool holding CURB and the quote asset
  *       "quote": { "kind": "usd-stable" }  or { "kind": "chainlink-feed", "feed": "0x…" } for a quote priced in USD by a feed
  *     }
@@ -27,8 +27,11 @@ export const CREDITS_ENV = 'CURB_CREDITS';
 
 export type QuoteSource = { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: string };
 
+export type PoolKind = 'uniswap-v2-pair' | 'uniswap-v3-pool';
+
 export interface PriceSource {
-  readonly kind: 'uniswap-v2-pair';
+  readonly kind: PoolKind;
+  /** The pool's address — a pair or a v3 pool; the field keeps its first name. */
   readonly pair: string;
   readonly quote: QuoteSource;
 }
@@ -73,7 +76,7 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
   if (!Number.isInteger(e.fromBlock) || (e.fromBlock as number) < 0) return { state: 'CONFIG_INVALID', detail: 'fromBlock must be a non-negative integer' };
   const ps = e.priceSource as Record<string, unknown> | undefined;
   if (!ps || typeof ps !== 'object') return { state: 'CONFIG_INVALID', detail: 'priceSource is missing' };
-  if (ps.kind !== 'uniswap-v2-pair') return { state: 'CONFIG_INVALID', detail: `priceSource.kind ${JSON.stringify(ps.kind)} is not supported; the reader knows uniswap-v2-pair` };
+  if (ps.kind !== 'uniswap-v2-pair' && ps.kind !== 'uniswap-v3-pool') return { state: 'CONFIG_INVALID', detail: `priceSource.kind ${JSON.stringify(ps.kind)} is not supported; the reader knows uniswap-v2-pair and uniswap-v3-pool` };
   if (!isAddress(ps.pair)) return { state: 'CONFIG_INVALID', detail: 'priceSource.pair is not a 20-byte hex address' };
   const q = ps.quote as Record<string, unknown> | undefined;
   let quote: QuoteSource;
@@ -88,7 +91,7 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
       desk: e.desk.toLowerCase(),
       treasury: treasury.toLowerCase(),
       fromBlock: e.fromBlock as number,
-      priceSource: { kind: 'uniswap-v2-pair', pair: ps.pair.toLowerCase(), quote },
+      priceSource: { kind: ps.kind, pair: ps.pair.toLowerCase(), quote },
     },
   };
 }

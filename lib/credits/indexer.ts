@@ -6,9 +6,11 @@
  * row is not credited twice, whatever the cursor says. Reorg-aware in the
  * same way as the series index: the hash of every indexed block is kept,
  * and a height whose hash moved is rolled back — its credits removed from
- * the keys' rows — and read again. A top-up whose block the node cannot
- * price is not credited at a guessed rate; it waits, listed, for a tick
- * that can.
+ * the keys' rows — and read again. A top-up is priced at its own block:
+ * by state if the node still serves it, else from the pool's own events at
+ * that block; only when neither can be had is the head at indexing used,
+ * and the credit says so. One that cannot be priced at all is not credited
+ * at a guessed rate; it waits, listed, for a tick that can.
  */
 
 import { keccak256Hex } from '../chain/keccak.ts';
@@ -19,7 +21,7 @@ import { isRead, type Reading } from '../doctrine/reading.ts';
 import type { Store } from '../store/types.ts';
 import type { CreditsConfig } from './config.ts';
 import { topUpsRow, type TopUpCredit } from './keys.ts';
-import { centsForCurb, readRate, type Rate } from './rate.ts';
+import { centsForCurb, readRate, readRateFromEvents, type Rate } from './rate.ts';
 
 export const TOPUP_TOPIC = keccak256Hex('TopUp(bytes32,address,uint256)');
 export const INDEX_KEY = 'credits:index';
@@ -95,6 +97,11 @@ export interface CreditsSyncReport {
 }
 
 type RateReader = (config: CreditsConfig, block: number, opts: RpcOptions, now: Date) => Promise<Reading<Rate>>;
+export interface RateReaders {
+  readonly byState: RateReader;
+  readonly byEvents: RateReader;
+}
+export const RATE_READERS: RateReaders = { byState: readRate, byEvents: readRateFromEvents };
 
 /** Add a priced top-up to its key's row unless the row already has it. */
 async function creditKey(store: Store, credit: TopUpCredit, keyHash: string, now: Date): Promise<boolean> {
@@ -126,7 +133,7 @@ export async function syncTopUps(
   config: CreditsConfig,
   opts: RpcOptions,
   now: Date,
-  rateReader: RateReader = readRate,
+  readers: RateReaders = RATE_READERS,
 ): Promise<{ index: CreditsIndexState; report: CreditsSyncReport }> {
   const loaded = await loadCreditsIndex(store, config);
   let index = loaded.state;
@@ -186,30 +193,39 @@ export async function syncTopUps(
     }
   }
 
-  // Price and credit: the fresh top-ups and the ones still waiting, at their own block or, failing that, at the head.
-  const rates = new Map<number, Reading<Rate>>();
-  const rateAt = async (block: number) => {
-    const held = rates.get(block);
+  // Price and credit: the fresh top-ups and the ones still waiting — at their
+  // own block by state, else at their own block by the pool's events, else at
+  // the head. Each read is made once per block per run.
+  const byState = new Map<number, Reading<Rate>>();
+  const byEvents = new Map<number, Reading<Rate>>();
+  const rateAt = async (block: number, how: 'STATE' | 'EVENTS') => {
+    const cache = how === 'STATE' ? byState : byEvents;
+    const held = cache.get(block);
     if (held) return held;
-    const r = await rateReader(config, block, opts, now);
-    rates.set(block, r);
+    const r = await (how === 'STATE' ? readers.byState : readers.byEvents)(config, block, opts, now);
+    cache.set(block, r);
     return r;
   };
   const credited: { keyHash: string; cents: string; basis: TopUpCredit['basis'] }[] = [];
   const applied = [...index.applied];
   const unpriced: (TopUpLog & { reason: string })[] = [];
   for (const t of [...index.unpriced, ...fresh].sort((a, b) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex)) {
-    let rate = await rateAt(t.blockNumber);
+    let rate = await rateAt(t.blockNumber, 'STATE');
     let basis: TopUpCredit['basis'] = 'TOP_UP_BLOCK';
+    const reasons: string[] = [];
     if (!isRead(rate)) {
-      const atHead = await rateAt(head.value.number);
-      if (isRead(atHead)) {
-        rate = atHead;
-        basis = 'HEAD_AT_INDEXING';
-      }
+      reasons.push(`by state: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
+      rate = await rateAt(t.blockNumber, 'EVENTS');
+      basis = 'TOP_UP_BLOCK_EVENTS';
     }
     if (!isRead(rate)) {
-      unpriced.push({ ...t, reason: `${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}` });
+      reasons.push(`by events: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
+      rate = await rateAt(head.value.number, 'STATE');
+      basis = 'HEAD_AT_INDEXING';
+    }
+    if (!isRead(rate)) {
+      reasons.push(`at the head: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
+      unpriced.push({ ...t, reason: reasons.join('; ') });
       continue;
     }
     const cents = centsForCurb(rate.value, BigInt(t.amount)).toString();

@@ -25,13 +25,13 @@ A deployment record is one JSON file, reviewed by name and date, kept beside the
 
 ## The credit desk, the same way
 
-[The token record](TOKEN.md) is decided; the credit desk is deployed by the same discipline, after the token exists:
+[The token record](TOKEN.md) is decided, Robinhood Chain (chain id 4663, the profile `robinhood-mainnet`) included; the credit desk is deployed there by the same discipline, after the token exists:
 
 1. **The record.** `contracts/records/credit-desk.example.json` shows the shape: network, chain id, RPC endpoint, the token and its decimals, the treasury (the operator multisig), the price source (a pool, or `null` until one exists), `reviewedBy`, `reviewedAt`. The token and the treasury are read from the chain, never typed from a launchpad's page.
-2. **Dry run.** `node scripts/deploy-credit-desk.ts <record> --dry-run`: the node answers the record's chain id; the token has code and answers `symbol()`, `decimals()` and `totalSupply()` with the decimals the record expects; the treasury has code (a multisig) on any public chain; the pool, if named, has code. Nothing is sent.
-3. **Deploy.** The same command without `--dry-run`, with `DEPLOYER_PRIVATE_KEY` in the operator's shell and `--reviewed` on a public chain. The tool prints the address, the block, the constructor arguments and the `CURB_CREDITS` line, and writes `contracts/evidence/deployments/credit-desk.<chain>.json`.
+2. **Dry run.** `node scripts/deploy-credit-desk.ts <record> --dry-run`: the node answers the record's chain id (4663); the token has code and answers `symbol()`, `decimals()` and `totalSupply()` with the decimals the record expects; the treasury has code (a multisig) on any public chain; the pool, if named, has code. Nothing is sent.
+3. **Deploy.** The same command without `--dry-run`, with `DEPLOYER_PRIVATE_KEY` in the operator's shell and `--reviewed`, which every chain but a local one needs. The tool prints the address, the block, the constructor arguments and the `CURB_CREDITS` line, and writes `contracts/evidence/deployments/credit-desk.<chain>.json`.
 4. **Verify, twice.** Set `CURB_CREDITS` on the deployment; the next tick compares the desk's code with `contracts/evidence/CreditDesk.build.json` and its two immutables with the record's token and treasury, and the services page says *matches the build at commit …* or a DARK condition says what differs. Verify the source on the explorer with the printed constructor arguments as well.
-5. **The pool.** When the token trades in a pool the reader knows, its address goes into the record's `priceSource` from the chain, and the same line is set again. Until then the price list is in dollars and nothing is quoted.
+5. **The pool.** When the token trades in a pool the reader knows — a constant-product pair (`uniswap-v2-pair`) or a concentrated-liquidity pool (`uniswap-v3-pool`) — its address goes into the record's `priceSource` from the chain, with the quote taken as dollars (USDG) or priced by a feed (ETH / USD for WETH), and the same line is set again. Until then the price list is in dollars and nothing is quoted. The public node keeps about ten minutes of state, so a top-up's own block is priced from the pool's events; nothing about that needs configuring.
 
 ## What there is no plan for
 

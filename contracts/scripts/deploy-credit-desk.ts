@@ -8,8 +8,9 @@
  *   - the record is a file, reviewed and named in it (`reviewedBy`), never
  *     arguments typed on a command line;
  *   - the node must answer with the record's chain id, or nothing is sent;
- *   - a public chain (chain id 1) needs `--reviewed` on top of the record's
- *     own review, so a rehearsal record cannot be sent there by habit;
+ *   - any chain but a local one (31337) needs `--reviewed` on top of the
+ *     record's own review, so a rehearsal record cannot be sent to a public
+ *     chain by habit;
  *   - the token must be a contract that answers symbol(), decimals() and
  *     totalSupply(), with the decimals the record expects;
  *   - the treasury must be a contract — the operator multisig — except on
@@ -73,7 +74,7 @@ if (record.priceSource !== null) {
   if (ps.kind !== 'uniswap-v2-pair' || !isAddress(ps.pair)) fail('priceSource must be a uniswap-v2-pair with a pair address, or null until the pool exists');
   if (ps.quote.kind !== 'usd-stable' && !(ps.quote.kind === 'chainlink-feed' && isAddress(ps.quote.feed))) fail('priceSource.quote must be usd-stable or a chainlink-feed with a feed address');
 }
-if (record.chainId === 1 && !reviewedFlag) fail('chain id 1 needs --reviewed on top of the record’s own review');
+if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
 
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [record.rpcUrl] } } } as const;

@@ -8,8 +8,9 @@
  *   - the record is a file, reviewed and named in it (`reviewedBy`), never
  *     an argument typed on a command line;
  *   - the node must answer with the record's chain id, or nothing is sent;
- *   - a public chain (chain id 1) needs `--reviewed` on top of the record's
- *     own review, so a rehearsal record cannot be sent there by habit;
+ *   - any chain but a local one (31337) needs `--reviewed` on top of the
+ *     record's own review, so a rehearsal record cannot be sent to a public
+ *     chain by habit;
  *   - both components must be contracts that answer symbol() and decimals()
  *     with the decimals the record expects, and must differ;
  *   - `--dry-run` does every check and prints the plan without a key.
@@ -68,7 +69,7 @@ if (record.components.A.toLowerCase() === record.components.B.toLowerCase()) fai
 if (!isAddress(record.operator)) fail('the record needs an operator address (the multisig)');
 if (!/^[1-9][0-9]*$/.test(record.q?.A ?? '') || !/^[1-9][0-9]*$/.test(record.q?.B ?? '') || !/^[1-9][0-9]*$/.test(record.capLots ?? '')) fail('q.A, q.B and capLots must be positive integers as strings');
 if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
-if (record.chainId === 1 && !reviewedFlag) fail('chain id 1 needs --reviewed on top of the record’s own review');
+if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
 
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [record.rpcUrl] } } } as const;

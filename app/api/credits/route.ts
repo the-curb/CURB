@@ -70,8 +70,10 @@ export async function GET(request: Request): Promise<Response> {
                 marketCapUsd18: rate.rate.marketCapUsd18,
                 marketCap: usd18Text(rate.rate.marketCapUsd18, 2),
                 supply: rate.rate.token.supply,
+                supplyAt: rate.rate.token.supplyAt,
                 decimals: rate.rate.token.decimals,
-                pair: rate.rate.pair,
+                basis: rate.rate.basis,
+                pool: rate.rate.pool,
                 quote: rate.rate.quote,
                 source: rate.rate.source,
               }

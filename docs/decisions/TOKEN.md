@@ -24,7 +24,7 @@ Everything the site shows today stays free: the series page, the latest evidence
 **Prices are in dollars; payment is in CURB; the amount of CURB changes with the market.** The rule:
 
 1. The desk reads CURB's price from a pool the site can read on chain: the ratio of the pool's reserves, at a block. Market capitalisation is that price times the token's `totalSupply()`, read at the same block. The two are the same fact in two units, so *CURB for US$20 = 20 × supply ÷ market cap*, and the page shows both.
-2. A top-up is credited at the price read **at the block the top-up was mined**. Where the node no longer serves that block by the time the desk indexes it, the price at the head of the chain when it was indexed is used instead, and the record says which basis was used. The desk indexes every fifteen minutes, so that difference is bounded by fifteen minutes of market movement.
+2. A top-up is credited at the price **at the block the top-up was mined**, read one of two ways: by state, an `eth_call` at that block, while the node still serves it; else from the pool's own last event at or before that block — a pair's `Sync`, a v3 pool's `Swap` — which the node serves far deeper than state. Only if neither can be had is the price at the head of the chain when it was indexed used instead. The credit says which of the three it was. (On the chain decided below, the public node keeps about ten minutes of state and the desk indexes every quarter of an hour, so the pool's events are the usual way to a top-up's own block — measured, not assumed; see *the chain*.)
 3. A quote — "US$20 is *n* CURB" — is read at a block and shown with it. Between the quote and the top-up the price moves; that movement is the payer's slippage, and it is bounded only by how long they wait. The desk does not hold a quote open, because the contract cannot check a dollar figure and the desk will not credit a figure it did not read.
 4. No pool the site can read means no conversion. Until the token trades in a pool the desk's chain profile can read, the price list stays in dollars and no CURB amount is quoted. The desk will not type a price in by hand: a rate that was not read from the chain is not a rate the desk states.
 5. The price source is named on the page — pool address, chain, quote asset — the day it exists, from the chain, not from a launchpad's page. A launchpad's terms, curve or listing rules are not assumed here; if the token trades on a bonding curve before a pool exists, that is a period with no conversion, and it is said so.
@@ -81,7 +81,19 @@ Shares are of net proceeds after the launchpad's own take, which is not known he
 
 Decided by the product owner on 12 September 2026, in this order: the US$20.00 opening minimum; the per-unit prices (US$0.05 a call for evidence versions and the journal, US$0.10 an alert delivery); then the rest of the record as written — the validity and cancellation terms, the governance line, the proceeds split with the review first, and the order of work. The figures are the ones in `lib/credits/prices.ts` and on the services page. A change from here on is a change of a decided term and gets the thirty days' notice.
 
+## The chain
+
+**Decided — the product owner, 12 September 2026: the token launches on Robinhood Chain** (chain id 4663), the desk's own chain, read through the profile `robinhood-mainnet` in `lib/chain/networks.ts` (RPC `rpc.mainnet.chain.robinhood.com`, overridable by `CURB_RPC_URL`; explorer `robinhoodchain.blockscout.com`). No new profile is needed. The position product's candidate components live on Ethereum; the token and the position never meet, and the mechanism's §1 line holds: a launch proves nothing about the components' availability on any network.
+
+What the desk measured on that chain's public node on 12 September 2026, and what follows from it:
+
+| Measured | Figure | Consequence |
+| --- | --- | --- |
+| Block time | 0.103 s (10,000 blocks in 1,028 s) | A quarter of an hour is about 9,000 blocks; `MAX_BLOCKS_PER_SYNC` of 20,000 covers a tick with margin. |
+| State the node serves | about 6,200 blocks behind the head — ten and a half minutes | A top-up is usually older than that when a tick reaches it, so its own block is priced from the pool's events, not by `eth_call`. |
+| Log range the node serves | 100,000 blocks in one query, with an address filter, in under a second | The pool's last event before a block is found in the first window looked at. |
+| Dollar assets and feeds the desk already knows there | USDG (Global Dollar, 6 decimals, from the chain's official contracts page); Chainlink ETH / USD and USDG / USD feeds in the desk's feed directory | A CURB / USDG pool is the natural price source, with the quote taken as dollars or priced by the USDG / USD feed; a CURB / WETH pool would be priced by the ETH / USD feed. Which pool exists is read from the chain the day it does. |
+
 Still open:
 
-- **Which chain the token launches on.** The desk's chain profiles are locked in code; a chain not in `lib/chain/networks.ts` is a reviewed code change before anything is read from it. Decided when the launch is.
 - **A reviewer's view on credit expiry.** If the independent review says open-ended credits are a liability the desk should not carry, an expiry is a change of a decided term: thirty days' notice, and credits already held keep their dollar value until it.

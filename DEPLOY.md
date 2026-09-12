@@ -376,10 +376,15 @@ and is reported under `credits`. No token exists; in production it is
   read from the chain after a launch; see `.env.local.example`. A record
   that does not parse is `CONFIG_INVALID` with its reason. A chain not in
   `lib/chain/networks.ts` is a reviewed code change first.
-- **The rate, every tick.** The pool's `token0()`, `token1()` and
-  `getReserves()` and the token's `decimals()` and `totalSupply()` are read
-  at the head block; the price is the ratio of the reserves, the market
-  capitalisation is price × supply, both at that block. Recorded under
+- **The chain.** The token record decides the launch for Robinhood Chain
+  (chain id 4663): `network` is `robinhood-mainnet`, read through `CURB_RPC_URL`
+  like the desk's own agents. Measured there on 12 September 2026: 0.103 s
+  blocks; the public node serves state for about 6,200 blocks (ten minutes)
+  and logs for 100,000 blocks in one query.
+- **The rate, every tick.** The pool's `token0()`, `token1()` and its price —
+  `getReserves()` for a pair, `slot0()` for a v3 pool — and the token's
+  `decimals()` and `totalSupply()` are read at the head block; the market
+  capitalisation is price × supply at that block. Recorded under
   `credits:rate` with the block, or as UNREAD with the reason (an empty pool
   side, a feed that answers nothing positive, a node that cannot serve the
   block). Nothing is quoted from an earlier read and nothing is typed in.
@@ -404,10 +409,12 @@ and is reported under `credits`. No token exists; in production it is
   amount)` events from the desk since `fromBlock` (idempotent on transaction
   hash and log index; block hashes kept for reorg rollback, which also
   removes the credits of a rolled-back block). Each is priced at the rate at
-  its own block — or, if the node no longer serves it, at the head when
-  indexed, and the credit says which — and credited in cents to
-  `credits:topups:<keyHash>`. One that cannot be priced waits, listed, for a
-  tick that can.
+  its own block — by state while the node serves it (`TOP_UP_BLOCK`), else
+  from the pool's last `Sync` or `Swap` at or before it and, for a feed-priced
+  quote, the aggregator's last `AnswerUpdated` (`TOP_UP_BLOCK_EVENTS`); only
+  if neither can be had, at the head when indexed (`HEAD_AT_INDEXING`) — and
+  credited in cents to `credits:topups:<keyHash>` with the basis on the
+  credit. One that cannot be priced waits, listed, for a tick that can.
 - **Keys.** A key is thirty-two random bytes the caller makes (`/services`
   makes one in the browser; `POST /api/keys` makes one and stores nothing);
   its SHA-256 is what the chain credits and what the desk keeps rows by. The

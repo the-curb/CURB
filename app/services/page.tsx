@@ -5,8 +5,20 @@ import { latestRate } from '@/lib/credits/maintenance';
 import { receipts } from '@/lib/credits/receipts';
 import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, TERMS_DECISION, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
+import { explorerAddress } from '@/lib/chain/networks';
 import { getStoreAsync } from '@/lib/store';
 import { CreditDesk } from '../components/credit-desk';
+
+/** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
+function Addr({ address, href }: { address: string; href: string | null }) {
+  return href === null ? (
+    <span className="tabular break-all">{address}</span>
+  ) : (
+    <a href={href} className="tabular break-all underline decoration-(--color-rule) underline-offset-4 hover:decoration-(--color-accent)" rel="noreferrer">
+      {address}
+    </a>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Services and the credit desk' };
@@ -25,6 +37,7 @@ export default async function ServicesPage() {
   const [rate, code, paid] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store)]);
   const minimumCurb = rate?.state === 'READ' ? curbForCents(rate.rate, BigInt(MINIMUM_OPEN_CENTS)) : null;
   const decimals = rate?.state === 'READ' ? rate.rate.token.decimals : null;
+  const link = (address: string) => (status.state === 'CONFIGURED' ? explorerAddress(status.config.network, address) : null);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
@@ -110,13 +123,14 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">Read</dt>
                 <dd className="tabular mt-1 text-[12px] text-(--color-paper-dim)">
-                  block {rate.rate.block} · {rate.at} · pool {rate.rate.pair.address} on {status.config.network.label} · quote {rate.rate.quote.kind === 'usd-stable' ? `${rate.rate.pair.quoteAddress} taken as US dollars` : `${rate.rate.pair.quoteAddress} priced by feed ${rate.rate.quote.feed}`}
+                  block {rate.rate.block} · {rate.at} · {rate.rate.pool.kind === 'uniswap-v2-pair' ? 'pair' : 'v3 pool'} <Addr address={rate.rate.pool.address} href={link(rate.rate.pool.address)} /> on {status.config.network.label} · quote <Addr address={rate.rate.pool.quoteAddress} href={link(rate.rate.pool.quoteAddress)} /> {rate.rate.quote.kind === 'usd-stable' ? 'taken as US dollars' : `priced by feed ${rate.rate.quote.feed}`}
+                  {rate.rate.basis === 'EVENTS' ? ` · from the pool's event at block ${rate.rate.pool.eventBlock}` : ''}
                 </dd>
               </div>
               <div>
                 <dt className="kicker">The rule</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                  The price is the ratio of the pool&rsquo;s reserves at the block; the capitalisation is that price times <span className="tabular">totalSupply()</span> at the same block, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined, or, where the node no longer serves that block, at the head when it was indexed — and the record says which.
+                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if neither can be had is the head when indexed used — and the credit says which.
                 </dd>
               </div>
             </dl>
@@ -135,11 +149,15 @@ export default async function ServicesPage() {
             <dl className="mt-4 space-y-3 text-[12px]">
               <div>
                 <dt className="kicker">Desk · on {status.config.network.label}</dt>
-                <dd className="tabular mt-1 break-all text-(--color-paper)">{status.config.desk}</dd>
+                <dd className="mt-1 text-(--color-paper)">
+                  <Addr address={status.config.desk} href={link(status.config.desk)} />
+                </dd>
               </div>
               <div>
                 <dt className="kicker">Treasury · where every top-up goes</dt>
-                <dd className="tabular mt-1 break-all text-(--color-paper)">{status.config.treasury}</dd>
+                <dd className="mt-1 text-(--color-paper)">
+                  <Addr address={status.config.treasury} href={link(status.config.treasury)} />
+                </dd>
               </div>
               <div>
                 <dt className="kicker">Code against the build</dt>

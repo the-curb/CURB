@@ -11,11 +11,11 @@ import { admit, gate, settle } from '../lib/credits/guard.ts';
 import { verifyDeskCode } from '../lib/credits/code.ts';
 import { receipts } from '../lib/credits/receipts.ts';
 import { addressWord, buildRecord } from '../lib/positions/code.ts';
-import { INDEX_KEY, TOPUP_TOPIC, decodeTopUp, syncTopUps } from '../lib/credits/indexer.ts';
+import { INDEX_KEY, TOPUP_TOPIC, decodeTopUp, syncTopUps, type RateReaders } from '../lib/credits/indexer.ts';
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
 import { latestRate, runCredits } from '../lib/credits/maintenance.ts';
 import { MINIMUM_OPEN_CENTS, SERVICES, centsText } from '../lib/credits/prices.ts';
-import { centsForCurb, curbForCents, curbText, readRate, usd18Text, type Rate } from '../lib/credits/rate.ts';
+import { TOPICS, centsForCurb, curbForCents, curbText, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
 import { createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
 import { positionConditions, transitionId } from '../lib/ops/alerts.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
@@ -32,6 +32,8 @@ const USDC = '0x2000000000000000000000000000000000000002';
 const PAIR = '0x3000000000000000000000000000000000000003';
 const DESK = '0x4000000000000000000000000000000000000004';
 const FEED = '0x5000000000000000000000000000000000000005';
+const AGGREGATOR = '0x6000000000000000000000000000000000000006';
+const POOL3 = '0x7000000000000000000000000000000000000007';
 const PAYER = '0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
 const TREASURY = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
 
@@ -41,6 +43,24 @@ const blockHashOf = (n: number, fork = 0) => `0x${(BigInt(n) * 1_000_003n + BigI
 
 const CONFIG_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } });
 const CONFIG_FEED_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'chainlink-feed', feed: FEED } } });
+const CONFIG_V3_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v3-pool', pair: POOL3, quote: { kind: 'usd-stable' } } });
+
+const isqrt = (n: bigint): bigint => {
+  if (n < 2n) return n;
+  // Newton's method from a power-of-two estimate; exact for any size of n.
+  let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2));
+  for (;;) {
+    const y = (x + n / x) >> 1n;
+    if (y >= x) break;
+    x = y;
+  }
+  while (x * x > n) x -= 1n;
+  while ((x + 1n) * (x + 1n) <= n) x += 1n;
+  return x;
+};
+/** The v3 square-root price for a ratio of token1 base units per token0 base unit given as num/den. */
+const sqrtPriceX96For = (num: bigint, den: bigint): bigint => isqrt((num * (1n << 192n)) / den);
+const UNREAD_READER = async () => ({ state: 'UNREAD' as const, value: null, reason: 'SOURCE_UNREACHABLE' as const, source: null, observedAt: new Date().toISOString(), detail: 'archive gone' });
 
 /** The committed build's runtime bytecode with the immutable slots holding the given token and treasury — what a real deployment's code looks like. */
 async function deskCodeFor(token: string, treasury: string): Promise<string> {
@@ -62,12 +82,21 @@ interface NodeState {
   feedAnswer: bigint;
   /** What eth_getCode answers for the desk; null means no code. */
   deskCode: string | null;
+  /** Blocks behind the head the node still serves state for; null means every block. */
+  stateWindow: number | null;
+  /** The pair's Sync events, as the chain has them (reserves in token0/token1 order = CURB/quote). */
+  syncs: { block: number; curb: bigint; quote: bigint; logIndex?: number }[];
+  /** A v3 pool: CURB's side, its current square-root price, its swaps and its initialisation. */
+  v3: { curbIs0: boolean; sqrt: bigint; swaps: { block: number; sqrt: bigint }[]; initialize: { block: number; sqrt: bigint } | null } | null;
+  /** The feed's AnswerUpdated events on its aggregator. */
+  feedAnswers: { block: number; answer: bigint; roundId: bigint; updatedAt: bigint }[];
   calls: string[];
 }
 
 /** A node that answers the chain id, heads, block hashes, logs and the pool's and token's views at a block. */
 function fakeNode(state: NodeState) {
-  const SEL = { token0: selector('token0()'), token1: selector('token1()'), getReserves: selector('getReserves()'), decimals: selector('decimals()'), totalSupply: selector('totalSupply()'), latestRoundData: selector('latestRoundData()') };
+  const SEL = { token0: selector('token0()'), token1: selector('token1()'), getReserves: selector('getReserves()'), slot0: selector('slot0()'), decimals: selector('decimals()'), totalSupply: selector('totalSupply()'), latestRoundData: selector('latestRoundData()'), aggregator: selector('aggregator()') };
+  const logOf = (address: string, block: number, topics: string[], data: string, logIndex = 0) => ({ address, topics, data, blockNumber: `0x${block.toString(16)}`, blockHash: blockHashOf(block, block >= 42 ? state.fork : 0), transactionHash: `0x${block.toString(16).padStart(64, 'e')}`, logIndex: `0x${logIndex.toString(16)}` });
   const reservesAt = (block: number) => [...state.reserves].filter((r) => r.block <= block).sort((a, b) => a.block - b.block).at(-1) ?? null;
   const fetch = async (_url: string | URL | Request, init?: RequestInit) => {
     const { method, id, params } = JSON.parse(String(init?.body)) as { method: string; id: number; params: unknown[] };
@@ -91,8 +120,27 @@ function fakeNode(state: NodeState) {
         const q = params[0] as { address: string; fromBlock: string; toBlock: string; topics: string[] };
         const from = Number.parseInt(q.fromBlock, 16);
         const to = Number.parseInt(q.toBlock, 16);
+        const address = q.address.toLowerCase();
+        const topic = (q.topics[0] ?? '').toLowerCase();
+        const within = (b: number) => b >= from && b <= to;
+        if (address === PAIR && topic === TOPICS.sync) {
+          result = state.syncs.filter((e) => within(e.block)).map((e) => logOf(PAIR, e.block, [TOPICS.sync], `0x${word(e.curb)}${word(e.quote)}`, e.logIndex ?? 0));
+          break;
+        }
+        if (address === POOL3 && state.v3 !== null && topic === TOPICS.swap) {
+          result = state.v3.swaps.filter((e) => within(e.block)).map((e) => logOf(POOL3, e.block, [TOPICS.swap, hexWord(0n), hexWord(0n)], `0x${word(0n)}${word(0n)}${word(e.sqrt)}${word(1n)}${word(0n)}`));
+          break;
+        }
+        if (address === POOL3 && state.v3 !== null && topic === TOPICS.initialize) {
+          result = state.v3.initialize !== null && within(state.v3.initialize.block) ? [logOf(POOL3, state.v3.initialize.block, [TOPICS.initialize], `0x${word(state.v3.initialize.sqrt)}${word(0n)}`)] : [];
+          break;
+        }
+        if (address === AGGREGATOR && topic === TOPICS.answerUpdated) {
+          result = state.feedAnswers.filter((e) => within(e.block)).map((e) => logOf(AGGREGATOR, e.block, [TOPICS.answerUpdated, hexWord(e.answer), hexWord(e.roundId)], hexWord(e.updatedAt)));
+          break;
+        }
         result = state.logs
-          .filter((l) => l.block >= from && l.block <= to && q.address.toLowerCase() === DESK)
+          .filter((l) => within(l.block) && address === DESK)
           .map((l) => ({
             address: DESK,
             topics: [TOPUP_TOPIC, l.keyHash, `0x${l.payer.slice(2).padStart(64, '0')}`],
@@ -106,15 +154,25 @@ function fakeNode(state: NodeState) {
       }
       case 'eth_call': {
         const { to, data } = params[0] as { to: string; data: string };
-        const block = Number.parseInt(params[1] as string, 16);
+        const tag = params[1] as string;
+        const block = tag === 'latest' ? state.head : Number.parseInt(tag, 16);
         if (block > state.head) {
           error = { code: -32000, message: 'header not found' };
+          break;
+        }
+        if (state.stateWindow !== null && block < state.head - state.stateWindow) {
+          // Robinhood Chain's public node, measured 12 September 2026: state beyond its window is refused this way.
+          error = { code: -32000, message: `metadata is not found, ${block + 3}` };
           break;
         }
         const t = to.toLowerCase();
         const sel = data.slice(0, 10);
         if (t === PAIR && sel === SEL.token0) result = hexWord(BigInt(CURB));
         else if (t === PAIR && sel === SEL.token1) result = hexWord(BigInt(USDC));
+        else if (t === POOL3 && sel === SEL.token0) result = hexWord(BigInt(state.v3?.curbIs0 === false ? USDC : CURB));
+        else if (t === POOL3 && sel === SEL.token1) result = hexWord(BigInt(state.v3?.curbIs0 === false ? CURB : USDC));
+        else if (t === POOL3 && sel === SEL.slot0) result = state.v3 === null ? '0x' : `0x${word(state.v3.sqrt)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(1n)}`;
+        else if (t === FEED && sel === SEL.aggregator) result = hexWord(BigInt(AGGREGATOR));
         else if (t === PAIR && sel === SEL.getReserves) {
           const r = reservesAt(block);
           result = r === null ? '0x' : `0x${word(r.curb)}${word(r.quote)}${word(BigInt(block))}`;
@@ -136,7 +194,7 @@ function fakeNode(state: NodeState) {
 
 function freshState(): NodeState {
   // 4,000,000 CURB against 20,000 USDC: US$0.005 a CURB; a supply of 1e9 makes the market cap US$5,000,000.
-  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, calls: [] };
+  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, stateWindow: null, syncs: [], v3: null, feedAnswers: [], calls: [] };
 }
 
 const profile = NETWORKS['hardhat-local'];
@@ -235,8 +293,9 @@ describe('the credit desk, site side', () => {
   it('converts between cents and CURB in base units, rounding once and in the payer’s disfavour', () => {
     const rate: Rate = {
       block: 100,
-      token: { address: CURB, decimals: 18, supply: (10n ** 27n).toString() },
-      pair: { address: PAIR, reserveCurb: '0', reserveQuote: '0', quoteAddress: USDC, quoteDecimals: 6 },
+      basis: 'STATE',
+      token: { address: CURB, decimals: 18, supply: (10n ** 27n).toString(), supplyAt: 'BLOCK' },
+      pool: { kind: 'uniswap-v2-pair', address: PAIR, reserveCurb: '0', reserveQuote: '0', quoteAddress: USDC, quoteDecimals: 6 },
       quote: { kind: 'usd-stable' },
       usdPerCurb18: (5n * 10n ** 15n).toString(), // US$0.005
       marketCapUsd18: (5_000_000n * 10n ** 18n).toString(),
@@ -269,8 +328,9 @@ describe('the credit desk, site side', () => {
     assert.equal(rate.state, 'VERIFIED');
     assert.equal(rate.value.usdPerCurb18, (5n * 10n ** 15n).toString());
     assert.equal(rate.value.marketCapUsd18, (5_000_000n * 10n ** 18n).toString());
-    assert.equal(rate.value.pair.quoteAddress, USDC);
-    assert.equal(rate.value.pair.quoteDecimals, 6);
+    assert.equal(rate.value.pool.quoteAddress, USDC);
+    assert.equal(rate.value.pool.quoteDecimals, 6);
+    assert.equal(rate.value.basis, 'STATE');
     assert.equal(rate.value.token.decimals, 18);
     assert.equal(curbForCents(rate.value, 2000n), 4_000n * 10n ** 18n);
 
@@ -304,6 +364,93 @@ describe('the credit desk, site side', () => {
     state.feedAnswer = 0n;
     const none = await readRate(config, 100, opts);
     assert.equal(none.state, 'UNREAD');
+
+    // By events: the aggregator's last AnswerUpdated at or before the block, not a later one.
+    state.syncs = [{ block: 10, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }];
+    state.feedAnswers = [
+      { block: 20, answer: 2_500n * 10n ** 8n, roundId: 1n, updatedAt: 1_700_000_000n },
+      { block: 80, answer: 5_000n * 10n ** 8n, roundId: 2n, updatedAt: 1_700_000_600n },
+    ];
+    const at50 = await readRateFromEvents(config, 50, opts);
+    if (at50.state === 'UNREAD') assert.fail(JSON.stringify(at50));
+    assert.equal(at50.value.usdPerCurb18, (125n * 10n ** 17n).toString(), 'the US$2,500 answer at block 20 applies at block 50');
+    assert.equal(at50.value.quote.kind === 'chainlink-feed' ? at50.value.quote.eventBlock : null, 20);
+    const at90 = await readRateFromEvents(config, 90, opts);
+    if (at90.state === 'UNREAD') assert.fail(JSON.stringify(at90));
+    assert.equal(at90.value.usdPerCurb18, (25n * 10n ** 18n).toString(), 'the US$5,000 answer at block 80 applies at block 90');
+  });
+
+  it('prices at a block from the pair’s own Sync events when the node no longer serves the state, and never from a later event', async () => {
+    const state = freshState();
+    state.stateWindow = 30;
+    state.syncs = [
+      { block: 10, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n },
+      { block: 42, curb: 4_000_000n * 10n ** 18n, quote: 30_000n * 10n ** 6n, logIndex: 3 },
+      { block: 42, curb: 4_000_000n * 10n ** 18n, quote: 32_000n * 10n ** 6n, logIndex: 7 },
+      { block: 60, curb: 4_000_000n * 10n ** 18n, quote: 40_000n * 10n ** 6n },
+    ];
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+
+    const byState = await readRate(config, 42, opts);
+    assert.equal(byState.state, 'UNREAD', 'block 42 is beyond the window of 30 blocks');
+    assert.match(byState.state === 'UNREAD' ? (byState.detail ?? '') : '', /metadata is not found/);
+
+    const at42 = await readRateFromEvents(config, 42, opts);
+    if (at42.state === 'UNREAD') assert.fail(JSON.stringify(at42));
+    assert.equal(at42.value.basis, 'EVENTS');
+    assert.equal(at42.value.usdPerCurb18, (8n * 10n ** 15n).toString(), 'the later Sync in the same block (log index 7): US$0.008');
+    assert.equal(at42.value.pool.eventBlock, 42);
+    assert.equal(at42.value.token.supplyAt, 'HEAD');
+    const at41 = await readRateFromEvents(config, 41, opts);
+    if (at41.state === 'UNREAD') assert.fail(JSON.stringify(at41));
+    assert.equal(at41.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'block 41 is priced by the Sync at block 10, not the one at 42');
+    const at99 = await readRateFromEvents(config, 99, opts);
+    if (at99.state === 'UNREAD') assert.fail(JSON.stringify(at99));
+    assert.equal(at99.value.usdPerCurb18, (10n ** 16n).toString());
+
+    state.syncs = [];
+    const none = await readRateFromEvents(config, 42, opts);
+    assert.equal(none.state, 'UNREAD');
+    assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /no Sync/);
+  });
+
+  it('reads a v3 pool by state and by events, with CURB on either side', async () => {
+    const state = freshState();
+    // US$0.005 a CURB with CURB as token0: token1 (6 decimals) per token0 (18 decimals) base unit is 5 × 10⁶ ÷ 10³ ÷ 10¹⁸.
+    const forCurbIs0 = sqrtPriceX96For(5n * 10n ** 6n, 10n ** 3n * 10n ** 18n);
+    state.v3 = { curbIs0: true, sqrt: forCurbIs0, swaps: [], initialize: { block: 5, sqrt: forCurbIs0 } };
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_V3_JSON) as { config: CreditsConfig }).config;
+    const near = (v: string, target: bigint, label: string) => {
+      const d = BigInt(v) > target ? BigInt(v) - target : target - BigInt(v);
+      assert.ok(d * 1_000_000n <= target, `${label}: ${v} is not within a millionth of ${target}`);
+    };
+    const byState = await readRate(config, 100, opts);
+    if (byState.state === 'UNREAD') assert.fail(JSON.stringify(byState));
+    near(byState.value.usdPerCurb18, 5n * 10n ** 15n, 'v3 by state, CURB token0');
+    assert.equal(byState.value.pool.kind, 'uniswap-v3-pool');
+    assert.ok(byState.value.pool.sqrtPriceX96);
+
+    // No swap yet: the initialisation price applies by events. Then a swap doubles it from block 60.
+    const init = await readRateFromEvents(config, 50, opts);
+    if (init.state === 'UNREAD') assert.fail(JSON.stringify(init));
+    near(init.value.usdPerCurb18, 5n * 10n ** 15n, 'v3 by Initialize');
+    assert.equal(init.value.pool.eventBlock, 5);
+    state.v3.swaps.push({ block: 60, sqrt: sqrtPriceX96For(10n * 10n ** 6n, 10n ** 3n * 10n ** 18n) });
+    const after = await readRateFromEvents(config, 70, opts);
+    if (after.state === 'UNREAD') assert.fail(JSON.stringify(after));
+    near(after.value.usdPerCurb18, 10n ** 16n, 'v3 by Swap');
+    const before = await readRateFromEvents(config, 59, opts);
+    if (before.state === 'UNREAD') assert.fail(JSON.stringify(before));
+    near(before.value.usdPerCurb18, 5n * 10n ** 15n, 'v3 before the swap');
+
+    // CURB as token1: token1 per token0 is CURB base units per quote base unit — the inverse.
+    state.v3 = { curbIs0: false, sqrt: sqrtPriceX96For(10n ** 3n * 10n ** 18n, 5n * 10n ** 6n), swaps: [], initialize: null };
+    const flipped = await readRate(config, 100, opts);
+    if (flipped.state === 'UNREAD') assert.fail(JSON.stringify(flipped));
+    near(flipped.value.usdPerCurb18, 5n * 10n ** 15n, 'v3 by state, CURB token1');
+    assert.equal(flipped.value.pool.quoteAddress, USDC);
   });
 
   it('decodes a TopUp and sets aside a log that is not one', () => {
@@ -374,20 +521,57 @@ describe('the credit desk, site side', () => {
     const hash = keyHashOf(newKey());
     state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '3'.repeat(64), logIndex: 0 });
 
-    // A node that prices nothing: the top-up waits, listed with the reason.
-    const priceless = await syncTopUps(store, config, opts, new Date(), async () => ({ state: 'UNREAD', value: null, reason: 'SOURCE_UNREACHABLE', source: null, observedAt: new Date().toISOString(), detail: 'archive gone' }));
+    // A node that prices nothing, by state or by events: the top-up waits, listed with every reason.
+    const nothing: RateReaders = { byState: UNREAD_READER, byEvents: UNREAD_READER };
+    const priceless = await syncTopUps(store, config, opts, new Date(), nothing);
     assert.equal(priceless.report.newTopUps, 1);
     assert.equal(priceless.report.credited.length, 0);
     assert.equal(priceless.report.unpriced, 1);
+    assert.match(priceless.index.unpriced[0]!.reason, /by state: .*; by events: .*; at the head: /);
     assert.equal((await keyAccount(store, hash)).status, 'UNFUNDED');
 
-    // The next tick prices at the head when the block itself cannot be, and the record says which basis it used.
-    const atHead = await syncTopUps(store, config, opts, new Date(), async (c, block, o, now) => (block === 42 ? { state: 'UNREAD', value: null, reason: 'SOURCE_UNREACHABLE', source: null, observedAt: now.toISOString(), detail: 'archive gone' } : readRate(c, block, o, now)));
+    // The next tick prices at the head when the block itself cannot be, by state or by events, and the record says which basis it used.
+    const headOnly: RateReaders = { byState: async (c, block, o, now) => (block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: UNREAD_READER };
+    const atHead = await syncTopUps(store, config, opts, new Date(), headOnly);
     assert.equal(atHead.report.unpriced, 0);
     assert.deepEqual(atHead.report.credited.map((c) => [c.cents, c.basis]), [['2000', 'HEAD_AT_INDEXING']]);
     const account = await keyAccount(store, hash);
     assert.equal(account.topUps[0]!.ratedAtBlock, 100);
     assert.equal(account.status, 'OPEN');
+  });
+
+  it('prices a top-up at its own block from the pool’s events when the node’s state window has passed, and says so', async () => {
+    const state = freshState();
+    state.head = 10_000;
+    state.stateWindow = 6_200; // Robinhood Chain's public node, measured
+    state.syncs = [
+      { block: 100, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n },
+      { block: 3_000, curb: 4_000_000n * 10n ** 18n, quote: 40_000n * 10n ** 6n },
+    ];
+    // The head's state reads the pool's current reserves; the reserves table serves eth_call for blocks in the window.
+    state.reserves = [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 40_000n * 10n ** 6n }];
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    // A top-up at block 2,000 — 8,000 blocks ago, beyond the window — when the pool said US$0.005; and one at 9,900, inside the window, at US$0.01.
+    state.logs.push({ block: 2_000, keyHash: hash, payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '7'.repeat(64), logIndex: 0 });
+    state.logs.push({ block: 9_900, keyHash: hash, payer: PAYER, amount: 1_000n * 10n ** 18n, txHash: '0x' + '8'.repeat(64), logIndex: 0 });
+    const run = await syncTopUps(store, config, opts, new Date());
+    assert.equal(run.report.state, 'SYNCED', run.report.detail ?? '');
+    assert.deepEqual(
+      run.report.credited.map((c) => [c.cents, c.basis]),
+      [
+        ['2000', 'TOP_UP_BLOCK_EVENTS'],
+        ['1000', 'TOP_UP_BLOCK'],
+      ],
+      'the old one at its own block by the Sync at block 100; the recent one by state',
+    );
+    const account = await keyAccount(store, hash);
+    assert.equal(account.topUps[0]!.ratedAtBlock, 2_000);
+    assert.equal(account.topUps[0]!.usdPerCurb18, (5n * 10n ** 15n).toString());
+    assert.equal(account.topUps[1]!.usdPerCurb18, (10n ** 16n).toString());
+    assert.equal(account.creditedCents, '3000');
   });
 
   it('gates a paid endpoint: 503 unsold, 401 without a key, 402 with the figures, then charges and answers', async () => {
