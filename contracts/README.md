@@ -88,6 +88,17 @@ compares a deployed contract with its build on every tick: equal outside
 the immutable slots, and the slots holding the reviewed record's values.
 The rehearsal tests do the same against the local deployments.
 
+A record is written from a clean `src/` and `hardhat.config.ts` only, and
+names `sourceCommit` — the last commit that changed them — as the commit
+that compiles to its bytes; `--allow-dirty` writes one for a local
+rehearsal, which the checks refuse. The bytecode carries no metadata hash
+(`bytecodeHash: 'none'`), so the same source is the same bytes on every
+machine. `npm run check:build` (in CI after every compile) refuses a record
+whose bytes, immutable slots — by name, from the compiler's AST — or
+provenance no longer match the source: after any change under `src/` or to
+the compiler settings, commit, run `npm run record:build`, commit the
+records.
+
 ## The recorded run (C07)
 
 `npm run record:tests` runs the unit tests with the fuzz seed pinned in
