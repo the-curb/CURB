@@ -509,7 +509,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                           ['mint 3 lots (both deposits, the receipt)', evidence.fork.gas.mint3Lots],
                           ['allocate 3 lots for exit (no token moves)', evidence.fork.gas.allocateExit3Lots],
                           ['claim A (the real wrapper moves out)', evidence.fork.gas.claimA],
-                          ['claim B (a mock moves out)', evidence.fork.gas.claimB],
+                          [evidence.fork.componentB ? 'claim B (real AAPLon moves out)' : 'claim B (a mock moves out)', evidence.fork.gas.claimB],
                         ] as const
                       ).map(([label, gas]) => (
                         <div key={label} className="contents">
