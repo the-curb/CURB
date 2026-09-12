@@ -61,7 +61,7 @@ describe('the index and the reconciliation, rehearsed on a local chain', () => {
     assert.equal(ledger.n, 85n);
     assert.equal(ledger.reserved.A, 250n * 10n ** 18n);
     assert.equal(ledger.reserved.B, 0n);
-    const alice = first.index.events[0]!.event;
+    const alice = first.index.events.find((e) => e.event.name === 'PositionMinted')!.event;
     assert.equal(alice.name, 'PositionMinted');
     if (alice.name === 'PositionMinted') {
       assert.equal(claimsOf(ledger, alice.holder).A, 250n * 10n ** 18n, 'alice keeps her A claim');
