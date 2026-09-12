@@ -228,10 +228,15 @@ its own RPC override.
   merged by accident.
 - **Evidence, once a UTC day.** The issuers' documented endpoints are fetched
   and archived as received: `evidence:<source>:latest` always moves, and a
-  body not seen before is kept under `evidence:<source>:v:<sha256>`. xStocks'
-  public asset record parses; Ondo's addresses endpoint needs an `x-api-key`
-  (`CURB_ONDO_API_KEY`) and without one records `ACCESS_DENIED` — that is the
-  finding. No address from an example in a specification is ever used.
+  record not seen before is kept under `evidence:<source>:v:<sha256>`. The
+  hash is the record's identity — for a parsed record, its parsed fields in
+  canonical order (xStocks' body embeds the trading session and lists its
+  deployments in varying order; a body that differs only there is the same
+  record); for a document or a refusal, what was received. The raw body is
+  kept beside it (`rawHash`). xStocks' public asset record parses; Ondo's
+  addresses endpoint needs an `x-api-key` (`CURB_ONDO_API_KEY`) and without
+  one records `ACCESS_DENIED` — that is the finding. No address from an
+  example in a specification is ever used.
 - **Verification, after the evidence.** Every EVM address the parsed evidence
   names on the positions network is read on chain: code and its hash,
   `symbol()`, `decimals()`, and for a wrapper `asset()` against the raw token

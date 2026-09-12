@@ -2,7 +2,7 @@
  * The position product's journal: what changed, by day, as the store has it.
  *
  * Nothing here is a second record. A day's entries are derived from the
- * evidence archive's version rows — one per body first seen — and the drift
+ * evidence archive's version rows — one per record first seen — and the drift
  * rows the verification writes when a candidate address moves. Composed
  * again tomorrow from the same rows, the day reads the same. The Gazette
  * prints it under the product's own heading (§9: the Gazette publishes
@@ -10,7 +10,7 @@
  */
 
 import type { SnapshotRecord, Store } from '../store/types.ts';
-import { EVIDENCE_PREFIX, EVIDENCE_SOURCES, type EvidenceSource } from './evidence.ts';
+import { EVIDENCE_PREFIX, EVIDENCE_SOURCES, identityHistory, type EvidenceSource } from './evidence.ts';
 import type { Drift } from './verify.ts';
 
 export const DRIFT_PREFIX = 'positions:drift:';
@@ -35,7 +35,7 @@ export interface JournalEntry {
   /** The source's title, or the address that moved. */
   readonly subject: string;
   readonly url: string | null;
-  /** The first eight hex digits of the body's hash, or the field that moved. */
+  /** The first eight hex digits of the record's identity, or the field that moved. */
   readonly mark: string;
   readonly detail: string;
 }
@@ -52,23 +52,21 @@ function sourceOf(id: string): EvidenceSource | null {
   return EVIDENCE_SOURCES.find((s) => s.id === id) ?? null;
 }
 
-/** Version rows grouped by source, oldest first, so "first archived" and "changed" can be told apart. */
+/** Version rows grouped by source and collapsed to identities, oldest first, so "first archived" and "changed" can be told apart. */
 function evidenceEntries(rows: readonly SnapshotRecord[], day: string): JournalEntry[] {
-  const bySource = new Map<string, { hash: string; at: string; status: string | null; httpStatus: number | null }[]>();
+  const bySource = new Map<string, SnapshotRecord[]>();
   for (const row of rows) {
     const m = VERSION_KEY.exec(row.key);
     if (!m) continue;
     const list = bySource.get(m[1]!) ?? [];
-    const status = typeof row.payload.status === 'string' ? row.payload.status : null;
-    const httpStatus = typeof row.payload.httpStatus === 'number' ? row.payload.httpStatus : null;
-    list.push({ hash: m[2]!, at: row.observedAt, status, httpStatus });
+    list.push(row);
     bySource.set(m[1]!, list);
   }
   const entries: JournalEntry[] = [];
-  for (const [id, versions] of bySource) {
+  for (const [id, sourceRows] of bySource) {
     const source = sourceOf(id);
     if (!source) continue; // a source no longer watched leaves no orphan entry
-    versions.sort((a, b) => a.at.localeCompare(b.at));
+    const versions = identityHistory(sourceRows).map((v) => ({ ...v, hash: v.identity }));
     versions.forEach((v, i) => {
       if (v.at.slice(0, 10) !== day) return;
       const first = i === 0;
@@ -80,7 +78,7 @@ function evidenceEntries(rows: readonly SnapshotRecord[], day: string): JournalE
           ? `the answer was ${refused.toLowerCase().replace(/_/g, ' ')}${v.httpStatus === null ? '' : ` (HTTP ${v.httpStatus})`}; the refusal is kept, not the record`
           : source.kind === 'page'
             ? 'the visible text is kept by its hash'
-            : 'kept as received';
+            : 'the record kept as received, versioned by its parsed fields';
       entries.push({
         at: v.at,
         kind: first ? 'EVIDENCE_ARCHIVED' : 'EVIDENCE_CHANGED',

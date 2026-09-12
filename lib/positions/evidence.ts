@@ -3,12 +3,14 @@
  * components, fetched on a schedule, kept exactly as received, and parsed
  * separately.
  *
- * Every fetch is an observation with a source, a read time, a hash of the
- * body and an explicit status. A body that changed since the last one is a
- * new versioned record; a body that did not is a note that it was checked.
- * The parse never overwrites the raw text, and a raw text is never trusted
- * further than its status allows. Nothing here reads a chain: what an
- * address does on chain is the verification's job, not the archive's.
+ * Every fetch is an observation with a source, a read time, a hash and an
+ * explicit status. The hash is the record's identity — for a parsed API
+ * record the hash of the fields the series reads, in canonical order; for a
+ * document or a refusal the hash of what was received — and a new identity
+ * is a new versioned record, while the same one is a note that it was
+ * checked. The parse never overwrites the raw text, and a raw text is never
+ * trusted further than its status allows. Nothing here reads a chain: what
+ * an address does on chain is the verification's job, not the archive's.
  */
 
 import type { SnapshotRecord, Store } from '../store/types.ts';
@@ -20,6 +22,7 @@ import {
   ONDO_ADDRESSES_URL,
   parseOndoAddresses,
   parseXstocksAsset,
+  sha256Hex,
   XSTOCKS_ASSET_URL,
   type Fetched,
   type FetchStatus,
@@ -85,7 +88,14 @@ export interface Observation {
   readonly readAt: string;
   readonly status: FetchStatus;
   readonly httpStatus: number | null;
+  /**
+   * The record's identity: for a parsed API record, the hash of its parsed
+   * fields in canonical order; otherwise the hash of the body as received.
+   * A version is a new identity. See `canonicalHash`.
+   */
   readonly hash: string | null;
+  /** sha256 of the body exactly as received, whatever the identity hashed. */
+  readonly rawHash?: string | null;
   readonly raw: string | null;
   readonly parse: ParseStatus;
   readonly parsed: XstocksAsset | OndoAsset | null;
@@ -134,6 +144,32 @@ function parseFor(
   };
 }
 
+/** Keys sorted at every level, arrays of records sorted by their own text, so the same record hashes the same. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const items = value.map(canonical);
+    return items.every((x) => x !== null && typeof x === 'object') ? items.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) : items;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(value as Record<string, unknown>).sort()) out[k] = canonical((value as Record<string, unknown>)[k]);
+    return out;
+  }
+  return value;
+}
+
+/**
+ * The identity of a parsed record: the fields the series reads, in canonical
+ * order, hashed. The issuers' bodies carry live fields beside the record —
+ * xStocks embeds the trading session and serves its deployments in varying
+ * order — and a body that differs only there is the same record. What moves
+ * the identity is what the series reads: symbols, ISINs, addresses,
+ * wrappers, a halt flag. The body as received is still kept beside it.
+ */
+export function canonicalHash(parsed: XstocksAsset | OndoAsset): string {
+  return sha256Hex(JSON.stringify(canonical(parsed)));
+}
+
 export async function observe(source: EvidenceSource, now: Date): Promise<Observation> {
   if (source.kind === 'page') return observePage(source, now);
   const fetched = source.kind === 'ondo-addresses' ? await fetchOndo(source.url, now) : await fetchDocumented(source.url, now);
@@ -145,7 +181,8 @@ export async function observe(source: EvidenceSource, now: Date): Promise<Observ
     readAt: fetched.readAt,
     status: p.status,
     httpStatus: fetched.httpStatus,
-    hash: fetched.hash,
+    hash: p.parsed === null ? fetched.hash : canonicalHash(p.parsed),
+    rawHash: fetched.hash,
     raw: fetched.raw,
     parse: p.parse,
     parsed: p.parsed,
@@ -213,12 +250,28 @@ export async function archiveEvidence(store: Store, now: Date, sources: readonly
     const observation = await observe(source, now);
     const prior = await store.snapshots(evidenceLatestKey(source.id));
     const priorLatest = prior.state === 'UNREAD' ? null : observationOf(prior.value.find((s) => s.key === evidenceLatestKey(source.id)));
-    const version: ArchiveOutcome['version'] = observation.hash === null ? 'NONE' : priorLatest?.hash === observation.hash ? 'SAME' : 'NEW';
-    const changed = version === 'NEW' && priorLatest !== null && priorLatest.hash !== null;
+    // A latest written before identities were canonical carries the hash of
+    // its bytes; its parsed record still says what it was, so it is compared
+    // by that, and the same record is not archived again as a change.
+    const migrating = priorLatest !== null && priorLatest.rawHash === undefined && priorLatest.parsed !== null;
+    const priorIdentity = priorLatest === null ? null : migrating ? canonicalHash(priorLatest.parsed!) : priorLatest.hash;
+    const version: ArchiveOutcome['version'] = observation.hash === null ? 'NONE' : priorIdentity === observation.hash ? 'SAME' : 'NEW';
+    const changed = version === 'NEW' && priorIdentity !== null;
+    // The change a pre-canonical latest dated may have been bytes, not the
+    // record; on the day the identity is first computed it is re-dated from
+    // the version rows' identities, so a session field is not a change.
+    let carried = { previousHash: priorLatest?.previousHash ?? null, changedAt: priorLatest?.changedAt ?? null };
+    if (migrating && version === 'SAME') {
+      const rows = await store.snapshots(`${EVIDENCE_PREFIX}${source.id}:v:`);
+      const history = rows.state === 'UNREAD' ? [] : identityHistory(rows.value);
+      const last = history[history.length - 1];
+      const before = history[history.length - 2];
+      carried = last && before ? { previousHash: before.identity, changedAt: last.at } : { previousHash: null, changedAt: null };
+    }
     const latest: Observation = {
       ...observation,
-      previousHash: changed ? priorLatest.hash : (priorLatest?.previousHash ?? null),
-      changedAt: changed ? observation.readAt : (priorLatest?.changedAt ?? null),
+      previousHash: changed ? priorIdentity : carried.previousHash,
+      changedAt: changed ? observation.readAt : carried.changedAt,
       firstSeenAt: priorLatest?.firstSeenAt ?? priorLatest?.readAt ?? observation.readAt,
     };
 
@@ -276,8 +329,43 @@ export async function latestEvidence(
   });
 }
 
-/** How many distinct bodies have been archived for a source. */
+export interface IdentityVersion {
+  /** The record's identity — canonical for a parsed record, the body's hash otherwise. */
+  readonly identity: string;
+  /** When this identity was first seen. */
+  readonly at: string;
+  readonly status: string | null;
+  readonly httpStatus: number | null;
+}
+
+/**
+ * A source's history as identities, oldest first, from its version rows.
+ * Rows written before identities were canonical are keyed by the hash of
+ * their bytes; each still carries its parsed record, so its identity is
+ * computed now and two bodies of the same record collapse into one entry.
+ */
+export function identityHistory(rows: readonly SnapshotRecord[]): IdentityVersion[] {
+  const versions = rows
+    .filter((r) => /:v:[0-9a-f]{64}$/.test(r.key))
+    .map((r) => {
+      const p = r.payload;
+      const parsed = p.parsed !== null && typeof p.parsed === 'object' ? (p.parsed as XstocksAsset | OndoAsset) : null;
+      const hash = typeof p.hash === 'string' ? p.hash : r.key.slice(-64);
+      return {
+        identity: parsed === null ? hash : canonicalHash(parsed),
+        at: r.observedAt,
+        status: typeof p.status === 'string' ? p.status : null,
+        httpStatus: typeof p.httpStatus === 'number' ? p.httpStatus : null,
+      };
+    })
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const out: IdentityVersion[] = [];
+  for (const v of versions) if (out.length === 0 || out[out.length - 1]!.identity !== v.identity) out.push(v);
+  return out;
+}
+
+/** How many distinct records have been archived for a source. */
 export async function versionCount(store: Store, sourceId: string): Promise<number | null> {
   const read = await store.snapshots(`${EVIDENCE_PREFIX}${sourceId}:v:`);
-  return read.state === 'UNREAD' ? null : read.value.length;
+  return read.state === 'UNREAD' ? null : identityHistory(read.value).length;
 }

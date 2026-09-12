@@ -361,7 +361,7 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Piece | Status | Where to check |
 | --- | --- | --- |
 | Ledger model (§7) with the blueprint's test cases | Implemented, tested | `lib/positions/ledger.ts`, `tests/positions.test.ts`, the simulation |
-| Issuer evidence archive: fetched daily, kept as received, versioned by hash (D02) | Implemented, running on the tick | `/api/positions/apple-s1/evidence` |
+| Issuer evidence archive: fetched daily, kept as received, versioned by the identity of the record — its parsed fields in canonical order, so a trading-session field or a reordered list is not a change (D02) | Implemented, running on the tick | `/api/positions/apple-s1/evidence` |
 | On-chain verification of every address the evidence names — code, symbol, decimals, `asset()` against the claimed raw token | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
 | Separate network profile for the product, with its own RPC override; chain id confirmed before any read (D05) | Implemented | `lib/chain/networks.ts`, `lib/chain/rpc.ts` |
 | Event codec, idempotent index with reorg rollback, replay to the ledger (D03) | Implemented, tested against fixtures; no contract to index | `lib/positions/index.ts`, `tests/positions-backend.test.ts` |

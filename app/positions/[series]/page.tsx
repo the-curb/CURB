@@ -196,7 +196,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     ) : (
                       <>
                         read {ageOf(s.latest.readAt)} ago · {s.latest.parse.toLowerCase().replace('_', ' ')} · {s.versions ?? '—'} version{s.versions === 1 ? '' : 's'}
-                        {s.latest.hash ? ` · sha256 ${s.latest.hash.slice(0, 12)}…` : ''}
+                        {s.latest.hash ? ` · ${s.latest.parse === 'PARSED' ? 'record' : 'body'} ${s.latest.hash.slice(0, 12)}…` : ''}
                       </>
                     )}
                   </div>
@@ -228,7 +228,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         {s.title}
                       </a>
                       <span className="ml-auto whitespace-nowrap text-(--color-paper-faint)">
-                        {s.latest === null ? 'not fetched' : s.latest.status !== 'OK' ? s.latest.status.toLowerCase().replace('_', ' ') : (s.versions ?? 1) > 1 ? `changed · ${s.versions} versions` : `unchanged · ${ageOf(s.latest.readAt)}`}
+                        {s.latest === null ? 'not fetched' : s.latest.status !== 'OK' ? s.latest.status.toLowerCase().replace('_', ' ') : s.latest.changedAt ? `changed ${ageOf(s.latest.changedAt)} ago · ${s.versions ?? '—'} versions` : `unchanged · read ${ageOf(s.latest.readAt)} ago`}
                       </span>
                     </li>
                   ))}
