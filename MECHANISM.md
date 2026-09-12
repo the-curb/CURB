@@ -322,7 +322,7 @@ If two eligible issuers are not available on Robinhood Chain, the thesis cannot 
 | T24 | Alternative mint or burn paths | No admin mint, no public burn that bypasses two-component bookkeeping. |
 | T25 | Backend down, mint permit expired, claim permit active or revoked | Claims follow on-chain state without a new backend signature; live restrictions shown exactly. |
 
-Fuzz and invariant tests vary the number of holders, the order of mint, allocation and claim, which component fails, and the lot count. The minimum lot must make every `q[i]` a positive integer. Mock tests come first; fork tests check real code but do not prove every future operating condition. The cases marked T01–T08, T11, T12, T19, T22, T23 and T24 run against the ledger model in this repository, and T01–T12, T17, T19, T20, T22–T25 run against the prototype contract in `contracts/`, with a fuzz run over sequences of mints, exits and claims. T13–T16, T18 and T21 wait for a real component, a fork test and a running index.
+Fuzz and invariant tests vary the number of holders, the order of mint, allocation and claim, which component fails, and the lot count. The minimum lot must make every `q[i]` a positive integer. Mock tests come first; fork tests check real code but do not prove every future operating condition. The cases marked T01–T08, T11, T12, T19, T22, T23 and T24 run against the ledger model in this repository, and T01–T12, T17, T19, T20, T22–T25 run against the prototype contract in `contracts/`, with a fuzz run over sequences of mints, exits and claims. T21 is answered on a fork of Ethereum for component A — the wrapper unwraps for an arbitrary holder, and its whole reserve was about ten tokens at the block read. T13, T14, T16 and T18 wait for a corporate action across a recorded block, a running index and a backend under test.
 
 ## 15. Validation and the measure of success
 
@@ -366,7 +366,8 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Reconciliation of units owed against `balanceOf` per component (D04) | Implemented; runs only for a configured deployment | `lib/positions/reconcile.ts` |
 | Product API (§10) with string amounts, previews that send nothing | Implemented | `/api/positions`, `/api/wallets/…`, `/api/status` |
 | Series contract prototype (§7, §9.1, §11) with Solidity tests T01–T12, T17, T19, T20, T22–T25 and a fuzz run | Implemented in `contracts/`; unaudited, unreviewed, undeployed | `contracts/src/CompanySeries.sol`, `contracts/test/CompanySeries.t.sol` |
-| Tests T13–T16, T18, T21 (real component, fork, running index) | Not started | — |
+| Fork tests of the real component A on Ethereum (C08, G3): identity, transfer, a series round trip, unwrap (T21), the raw token's derived balance, the wrapper's size — findings written to `contracts/evidence/apple-s1.fork.json` and shown dated | Implemented; block not pinned (public node) | `contracts/test/fork/`, the series page |
+| Tests T13, T14 (a corporate action across a recorded block), T16, T18 | Not started | — |
 | Independent review and audit of the contract | Not started | — |
 | Drift between daily verification runs and changes in the evidence raised as conditions and alerted (T15) | Implemented | `/api/state` → `conditions`, the webhook |
 | Instrument file compiled from the archive and the chain (R01, the automatable half) | Implemented | `/api/positions/apple-s1/file` |

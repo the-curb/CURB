@@ -14,6 +14,7 @@ import { claimsOf, receiptsOf, type LedgerState } from './ledger.ts';
 import { latestReconciliation, type Reconciliation } from './reconcile.ts';
 import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.ts';
 import { latestVerification, type AddressVerification } from './verify.ts';
+import { forkEvidenceOf } from './fork-evidence.ts';
 
 export interface DeploymentView {
   readonly state: DeploymentStatus['state'];
@@ -94,10 +95,12 @@ export async function seriesEvidence(store: Store, spec: SeriesSpec) {
       storeFault,
     });
   }
-  const verification = await latestVerification(store, spec.id);
+  const [verification, fork] = await Promise.all([latestVerification(store, spec.id), forkEvidenceOf(spec.id)]);
   return {
     seriesId: spec.id,
     sources,
+    fork: fork.evidence,
+    forkFault: fork.fault,
     verification: verification.run
       ? {
           chainId: verification.run.chainId,
@@ -333,6 +336,7 @@ export async function instrumentFile(store: Store, spec: SeriesSpec) {
       documents: documents.map((d) => ({ title: d.title, url: d.url, status: d.latest?.status ?? null, hash: d.latest?.hash ?? null, firstSeenAt: d.latest?.firstSeenAt ?? null, changedAt: d.latest?.changedAt ?? null, versions: d.versions })),
       notKnown: c.unknown,
       notProven: evidence.verification?.addresses[0]?.notProven ?? [],
+      onAFork: evidence.fork && evidence.fork.component === c.id ? evidence.fork : null,
       statuses: c.statuses,
       verification: c.verification,
     };

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { describeAge } from '@/lib/doctrine/reading';
+import { units18 } from '@/lib/positions/fork-evidence';
 import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
@@ -114,15 +115,34 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                       ['A market offer for the intended size', c.statuses.marketOffer],
                       ['Eligible for redemption through the issuer', c.statuses.issuerRedemption],
                     ] as const
-                  ).map(([label, status]) => (
-                    <div key={label} className="contents">
-                      <dt className="text-(--color-paper-dim)">{label}</dt>
-                      <dd className="text-right" style={{ color: STATUS_LABEL[status].colour }}>
-                        {STATUS_LABEL[status].text}
-                      </dd>
-                    </div>
-                  ))}
+                  ).map(([label, status]) => {
+                    const fork = evidence.fork && evidence.fork.component === c.id ? evidence.fork : null;
+                    const hint =
+                      fork === null
+                        ? null
+                        : label.startsWith('Transferable')
+                          ? `on a fork at block ${fork.block.toLocaleString('en-US')}: a series took it in and paid it out ${fork.findings.seriesMintExitClaimWithRealWrapper ? '— yes' : '— no'}`
+                          : label.startsWith('Unwrappable')
+                            ? `on a fork at block ${fork.block.toLocaleString('en-US')}: redeem for an arbitrary holder ${fork.findings.wrapperUnwrapsForArbitraryHolder ? '— yes' : '— no'}`
+                            : label.startsWith('A market offer')
+                              ? `the wrapper holds ${units18(fork.wrapperRawReserve)} of the raw token and has ${units18(fork.wrapperTotalSupply)} shares in all — a size to weigh any intended lot against`
+                              : null;
+                    return (
+                      <div key={label} className="contents">
+                        <dt className="text-(--color-paper-dim)">
+                          {label}
+                          {hint ? <span className="block text-[10px] normal-case tracking-normal text-(--color-paper-faint)">{hint}</span> : null}
+                        </dt>
+                        <dd className="text-right" style={{ color: STATUS_LABEL[status].colour }}>
+                          {STATUS_LABEL[status].text}
+                        </dd>
+                      </div>
+                    );
+                  })}
                 </dl>
+                <p className="mt-2 text-[10px] leading-relaxed text-(--color-paper-faint)">
+                  A status is an admission decision; the lines under them are evidence, dated, for whoever decides.
+                </p>
               </div>
 
               <div className="mt-5 border-t border-(--color-rule) pt-4">
@@ -287,6 +307,36 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                 </table>
               </div>
             )}
+            {evidence.fork ? (
+              <div className="mt-5 border-t border-(--color-rule) pt-4">
+                <div className="kicker">
+                  On a fork of Ethereum · block {evidence.fork.block.toLocaleString('en-US')} ·{' '}
+                  {new Date(evidence.fork.blockTimestamp * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC · component {evidence.fork.component}
+                </div>
+                <ul className="tabular mt-2 space-y-1 text-[11px]">
+                  {(
+                    [
+                      ['asset(), symbols and decimals as the issuer’s record says', evidence.fork.findings.identityAsDocumented],
+                      ['an address that is nobody in particular can transfer the wrapper', evidence.fork.findings.wrapperTransfersForArbitraryHolder],
+                      ['a series contract took the real wrapper in and paid it out (mint, exit, claim)', evidence.fork.findings.seriesMintExitClaimWithRealWrapper],
+                      [`the wrapper unwraps for such a holder: 10 shares → ${units18(evidence.fork.findings.unwrapRawReceivedFor10e18)} raw, as quoted`, evidence.fork.findings.wrapperUnwrapsForArbitraryHolder],
+                      [`the raw token moves for such a holder: 1 sent, ${units18(evidence.fork.findings.rawReceivedFor1e18Sent)} received`, evidence.fork.findings.rawTransfersForArbitraryHolder],
+                      ['the raw token’s balance is a stored number', evidence.fork.findings.rawBalanceSettableByStorage],
+                    ] as const
+                  ).map(([line, yes]) => (
+                    <li key={line} className="flex items-baseline gap-2">
+                      <span style={{ color: yes ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>{yes ? 'yes' : 'no'}</span>
+                      <span className="text-(--color-paper-dim)">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">
+                  The wrapper held {units18(evidence.fork.wrapperRawReserve)} of the raw token and had {units18(evidence.fork.wrapperTotalSupply)} shares in all at that block. {evidence.fork.how}. Rerun:{' '}
+                  <code className="text-(--color-paper-dim)">cd contracts && npm run test:fork</code>.
+                </p>
+              </div>
+            ) : null}
+
             <div className="mt-5 border-t border-(--color-rule) pt-4">
               <div className="kicker">What this does not prove</div>
               <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-(--color-paper-faint)">

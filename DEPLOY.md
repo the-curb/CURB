@@ -258,6 +258,9 @@ its own RPC override.
   owes, a balance that could not be read, and an event the ledger model
   refuses. They appear on `/api/state` under `conditions` and on Chambers,
   and are posted to the webhook once when raised and once when cleared.
+- **Fork evidence.** `contracts/evidence/<series>.fork.json` is written by
+  `npm run test:fork` in `contracts/` and committed; the site reads it at
+  request time and shows it dated. No file, no finding shown.
 - **Instrument file (R01).** `/api/positions/<series>/file` compiles, from the
   archive and the chain, what is known about each candidate component — the
   underlying and its ISIN as the issuer states them, the issuer record and its

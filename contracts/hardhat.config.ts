@@ -3,17 +3,40 @@ import { defineConfig } from "hardhat/config";
 /**
  * The series contract and its Solidity tests. Sources in src/, tests in
  * test/. Solidity tests run in the EVM with forge-std cheatcodes; there is
- * no network configured on purpose — nothing here is deployed.
+ * no deployment network configured on purpose — nothing here is deployed.
+ *
+ * The fork tests in test/fork/ read Ethereum through the endpoint named
+ * `mainnet` (ETH_RPC_URL, or the public node) and are excluded from the
+ * default run because they need the network:
+ *
+ *   npm test                      # unit tests, no network
+ *   npm run test:fork             # the fork tests against Ethereum, latest block
+ *
+ * A pinned block needs an archive endpoint; public nodes serve recent state
+ * only, so the fork tests print the block they ran at instead of pinning one.
  */
 export default defineConfig({
   solidity: {
     version: "0.8.30",
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // The fork test builds one JSON record from many locals; via-IR keeps that off the stack.
+      viaIR: true,
     },
   },
   paths: {
     sources: "src",
     tests: "test",
+  },
+  test: {
+    solidity: {
+      // The fork tests write what they found to evidence/, nowhere else.
+      fsPermissions: { writeFile: ["evidence/apple-s1.fork.json"] },
+      forking: {
+        rpcEndpoints: {
+          mainnet: process.env.ETH_RPC_URL ?? "https://ethereum-rpc.publicnode.com",
+        },
+      },
+    },
   },
 });

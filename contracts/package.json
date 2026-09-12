@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "hardhat build",
-    "test": "hardhat test solidity"
+    "test": "hardhat test solidity --grep-exclude Fork",
+    "test:fork": "hardhat test solidity --grep Fork"
   },
   "devDependencies": {
     "forge-std": "github:foundry-rs/forge-std#v1.16.2",

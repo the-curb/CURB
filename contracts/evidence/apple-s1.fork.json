@@ -1,0 +1,30 @@
+{
+  "seriesId": "apple-s1",
+  "chainId": 1,
+  "block": 25957626,
+  "blockTimestamp": 1789171451,
+  "component": "A",
+  "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
+  "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
+  "wrapperV1": "0x5AA7649fdbDa47De64A07aC81D64B682AF9C0724",
+  "wrapperRawReserve": "10161550335118726589",
+  "wrapperTotalSupply": "10128440336649414114",
+  "findings": {
+    "identityAsDocumented": true,
+    "wrapperTransfersForArbitraryHolder": true,
+    "seriesMintExitClaimWithRealWrapper": true,
+    "wrapperUnwrapsForArbitraryHolder": true,
+    "unwrapRawReceivedFor10e18": "10032690125398187000",
+    "unwrapQuotedFor10e18": "10032690125398187000",
+    "rawTransfersForArbitraryHolder": true,
+    "rawReceivedFor1e18Sent": "999999999999999999",
+    "rawBalanceSettableByStorage": false
+  },
+  "notProven": [
+    "a static balance under a corporate action (needs a fork at a recorded block across one)",
+    "holder eligibility for a series contract or its receipt holders",
+    "anything about the issuer's reserves, custody, or the value of a unit",
+    "component B: no address was tested; the issuer's record is behind an API key this desk does not hold"
+  ],
+  "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated"
+}

@@ -1,0 +1,97 @@
+/**
+ * What the fork tests found, as they wrote it: contracts/evidence/<series>.fork.json.
+ *
+ * The file is produced by `npm run test:fork` in contracts/ against a fork
+ * of Ethereum and committed with the block it ran at. The site reads it at
+ * request time like the doctrine, shows it dated, and shows nothing when
+ * it is absent — a finding nobody ran is not a finding.
+ */
+
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+
+export interface ForkFindings {
+  readonly identityAsDocumented: boolean;
+  readonly wrapperTransfersForArbitraryHolder: boolean;
+  readonly seriesMintExitClaimWithRealWrapper: boolean;
+  readonly wrapperUnwrapsForArbitraryHolder: boolean;
+  readonly unwrapRawReceivedFor10e18: string;
+  readonly unwrapQuotedFor10e18: string;
+  readonly rawTransfersForArbitraryHolder: boolean;
+  readonly rawReceivedFor1e18Sent: string;
+  readonly rawBalanceSettableByStorage: boolean;
+}
+
+export interface ForkEvidence {
+  readonly seriesId: string;
+  readonly chainId: number;
+  readonly block: number;
+  readonly blockTimestamp: number;
+  readonly component: 'A' | 'B';
+  readonly raw: string;
+  readonly wrapperV2: string;
+  readonly wrapperV1: string;
+  readonly wrapperRawReserve: string;
+  readonly wrapperTotalSupply: string;
+  readonly findings: ForkFindings;
+  readonly notProven: readonly string[];
+  readonly how: string;
+}
+
+const FILE = (seriesId: string) => path.join(/*turbopackIgnore: true*/ process.cwd(), 'contracts', 'evidence', `${seriesId}.fork.json`);
+
+const isBool = (v: unknown): v is boolean => typeof v === 'boolean';
+const isStr = (v: unknown): v is string => typeof v === 'string';
+
+export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: ForkEvidence | null; fault: string | null }> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(FILE(seriesId), 'utf8');
+  } catch {
+    return { evidence: null, fault: null }; // never run, or not committed: not a fault, simply no finding
+  }
+  try {
+    const j = JSON.parse(raw) as Record<string, unknown>;
+    const f = (j.findings ?? {}) as Record<string, unknown>;
+    if (!Number.isInteger(j.block) || !Number.isInteger(j.chainId) || !isStr(j.raw) || !isStr(j.wrapperV2)) return { evidence: null, fault: 'the fork evidence file is not the shape the tests write' };
+    const findings: ForkFindings = {
+      identityAsDocumented: isBool(f.identityAsDocumented) && f.identityAsDocumented,
+      wrapperTransfersForArbitraryHolder: isBool(f.wrapperTransfersForArbitraryHolder) && f.wrapperTransfersForArbitraryHolder,
+      seriesMintExitClaimWithRealWrapper: isBool(f.seriesMintExitClaimWithRealWrapper) && f.seriesMintExitClaimWithRealWrapper,
+      wrapperUnwrapsForArbitraryHolder: isBool(f.wrapperUnwrapsForArbitraryHolder) && f.wrapperUnwrapsForArbitraryHolder,
+      unwrapRawReceivedFor10e18: isStr(f.unwrapRawReceivedFor10e18) ? f.unwrapRawReceivedFor10e18 : '0',
+      unwrapQuotedFor10e18: isStr(f.unwrapQuotedFor10e18) ? f.unwrapQuotedFor10e18 : '0',
+      rawTransfersForArbitraryHolder: isBool(f.rawTransfersForArbitraryHolder) && f.rawTransfersForArbitraryHolder,
+      rawReceivedFor1e18Sent: isStr(f.rawReceivedFor1e18Sent) ? f.rawReceivedFor1e18Sent : '0',
+      rawBalanceSettableByStorage: isBool(f.rawBalanceSettableByStorage) && f.rawBalanceSettableByStorage,
+    };
+    return {
+      evidence: {
+        seriesId: isStr(j.seriesId) ? j.seriesId : seriesId,
+        chainId: j.chainId as number,
+        block: j.block as number,
+        blockTimestamp: Number.isInteger(j.blockTimestamp) ? (j.blockTimestamp as number) : 0,
+        component: j.component === 'B' ? 'B' : 'A',
+        raw: j.raw.toLowerCase(),
+        wrapperV2: j.wrapperV2.toLowerCase(),
+        wrapperV1: isStr(j.wrapperV1) ? j.wrapperV1.toLowerCase() : '',
+        wrapperRawReserve: isStr(j.wrapperRawReserve) ? j.wrapperRawReserve : '0',
+        wrapperTotalSupply: isStr(j.wrapperTotalSupply) ? j.wrapperTotalSupply : '0',
+        findings,
+        notProven: Array.isArray(j.notProven) ? j.notProven.filter(isStr) : [],
+        how: isStr(j.how) ? j.how : '',
+      },
+      fault: null,
+    };
+  } catch (cause) {
+    return { evidence: null, fault: cause instanceof Error ? cause.message : 'unreadable fork evidence' };
+  }
+}
+
+/** Base units as a decimal with 18 places trimmed to four, for a human line. */
+export function units18(value: string): string {
+  const n = BigInt(value);
+  const whole = n / 10n ** 18n;
+  const frac = ((n % 10n ** 18n) / 10n ** 14n).toString().padStart(4, '0');
+  return `${whole.toLocaleString('en-US')}.${frac}`;
+}
