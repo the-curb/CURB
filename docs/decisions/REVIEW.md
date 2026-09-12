@@ -46,9 +46,22 @@ Against `contracts/src/CreditDesk.sol` (fifteen tests in `test/CreditDesk.t.sol`
 | Site side | The credit is priced from the event at the block's rate; a reorg uncredits; the index is idempotent; the two rows per key have one writer each | Held by the tests in `tests/credits.test.ts` and the local rehearsal. **Closed 13 September 2026:** two concurrent charges on one key once raced on the spend row (the store replaced the row, the loser's charge was lost); the spend row is now written conditionally onto the version read (`writeSnapshotIf`), a losing charge reads again and is refused with the figures when the first left too little, and a write whose reply was lost is found by its token rather than made twice (`tests/credits.test.ts`, `tests/store-conformance.ts`). |
 | The treasury's key | The treasury is a multisig by policy; the tool refuses a treasury without code on a public chain | Held; an EOA treasury is allowed only on chain 31337. |
 
+## Static analysis, run and read (13 September 2026)
+
+Slither 0.11 on both contracts, compiled as the build compiles them (solc 0.8.30, via-IR, optimizer 200, prague), on every push to the source (`.github/workflows/static-analysis.yml`, advisory; the reports are kept with each run). Fifteen findings, none of which changes the source; each is read here, not waved through, and a reviewer who disagrees with a reading is the reason the job exists.
+
+| Detector | Where | Reading |
+| --- | --- | --- |
+| `reentrancy-balance` (high, medium confidence) | `CreditDesk.topUp`; `CompanySeries.mint`, `claimComponent` | The balance-before / external call / balance-after pattern is the point of these functions: the delta check is what refuses a token that pays less than it says. In the series the two functions are `nonReentrant` (the guard the analyser does not credit) and the ledger is written after every check. In the desk there is no guard and no state: a token whose `transferFrom` reentered `topUp` would run an inner top-up whose own delta check passes, and then fail the outer one — the treasury moved by both amounts — so the whole transaction reverts and nothing is emitted. A guard would cost a slot and change the recorded bytecode for a case the delta check already refuses; not added. The token itself is the launch condition the record states: a plain ERC-20 that calls nobody. |
+| `reentrancy-no-eth`, `reentrancy-benign` (medium, low) | `CompanySeries.mint` | The same functions, `nonReentrant`; the state written after the pulls (`totalSupply`, `balanceOf`) is written after the deltas were checked against it. |
+| `reentrancy-events` (low) | `CreditDesk.topUp` | The event follows the call on purpose: an event before a failed transfer would be a top-up that did not happen. |
+| `timestamp` (low) | `CompanySeries.mint` | `block.timestamp` against a preview's deadline and a permit's expiry, both in seconds and both minutes to days wide; a sequencer's few seconds of drift change nothing. |
+| `low-level-calls` (informational) | `_pull`, `_push`, `topUp` | Deliberate: the raw call plus decode is how a token that returns nothing (the older ERC-20 shape) and one that returns `false` are both handled without a library. |
+| `cyclomatic-complexity` (informational) | `claimComponent` | Two components spelled out in full rather than indexed, so the reader sees each path; a style the self-review chose. |
+
 ## What this review did not do
 
 - It did not read the components' code (the issuers' contracts are proxies whose implementations are theirs); the fork tests read their behaviour, not their source.
 - It did not look for economic attacks across series, because there is one series and no factory.
-- It did not use a static analyser; none is set up in this repository, and adding one is a reasonable first ask of a reviewer.
+- It ran a static analyser only after the fact (above); its readings of the analyser's findings are the author's, and a reviewer may read them differently.
 - It was done by the person who wrote the code.
