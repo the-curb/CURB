@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { describeAge } from '@/lib/doctrine/reading';
 import { units18 } from '@/lib/positions/fork-evidence';
 import { drillEvidence } from '@/lib/positions/drill-evidence';
+import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from '@/lib/positions/dependencies';
 import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
@@ -161,6 +162,81 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── related parties ─────────────────────────────────────────────── */}
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+          <span className="kicker">
+            <b>Related parties</b> · as the issuers’ documents name them · read {DEPENDENCIES[0]?.readOn}
+          </span>
+          <Link href="/mechanism#6-flows-and-screens" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+            the map of related parties, §6
+          </Link>
+        </div>
+        <div className="cells grid-cols-1 md:grid-cols-2">
+          {(['A', 'B'] as const).map((id) => (
+            <div key={id} className="cell p-6 sm:p-8">
+              <div className="kicker">
+                <b>Component {id}</b> · {id === 'A' ? a.instrument.split(',')[0] : b.instrument.split(',')[0]}
+              </div>
+              <dl className="mt-3 grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)] gap-x-4 gap-y-2 text-[12px]">
+                {DEPENDENCIES.filter((d) => d.component === id).map((d, i) => (
+                  <div key={`${d.partyType}-${d.name ?? 'none'}-${i}`} className="contents">
+                    <dt className="kicker pt-0.5">{d.partyType.toLowerCase().replace('_', ' ')}</dt>
+                    <dd>
+                      {d.name === null ? (
+                        <span className="text-(--color-state-fog)">not known — {d.relationship}</span>
+                      ) : (
+                        <>
+                          <span className="text-(--color-paper)">{d.name}</span>
+                          <span className="text-(--color-paper-dim)"> — {d.relationship}</span>
+                        </>
+                      )}
+                      <span className="block text-[10px] leading-relaxed text-(--color-paper-faint)">
+                        {d.source.url ? (
+                          <a href={d.source.url} className="underline decoration-(--color-rule-2) underline-offset-4 hover:text-(--color-paper)" rel="noopener noreferrer" target="_blank">
+                            {d.source.title}
+                          </a>
+                        ) : (
+                          d.source.title
+                        )}
+                        {d.limit ? ` · ${d.limit}` : ''}
+                      </span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="cells mt-px grid-cols-1">
+          <div className="cell p-6 sm:p-8">
+            <div className="kicker">Shared, or possibly shared</div>
+            {sharedParties().length === 0 ? (
+              <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-dim)">No party is named under both components in the documents read. That is a fact about the documents, not a finding of independence: component B’s broker, custodian, security agent and verification agent are described but not named.</p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-[12px] text-(--color-paper-dim)">
+                {sharedParties().map((s) => (
+                  <li key={s.name}>
+                    <span className="text-(--color-paper)">{s.name}</span> — {s.roles.join(', ')}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <ul className="mt-3 space-y-2 text-[12px] leading-relaxed text-(--color-paper-dim)">
+              {POSSIBLY_SHARED.map((p) => (
+                <li key={p.name} className="grid grid-cols-[1rem_minmax(0,1fr)]">
+                  <span className="text-(--color-paper-faint)">?</span>
+                  <span>
+                    <span className="text-(--color-paper)">{p.name}</span> — {p.note}.
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">{NOT_KNOWN_LINE} The pages these lines come from are watched for change by hash; a changed page is a note on the desk and a reason to read them again.</p>
+          </div>
         </div>
       </section>
 

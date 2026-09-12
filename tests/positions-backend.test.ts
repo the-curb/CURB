@@ -372,3 +372,18 @@ describe('verification drift', () => {
     assert.equal(addressInWord('0x1234'), undefined, 'a short word is not a word');
   });
 });
+
+describe('the map of related parties (R02)', () => {
+  it('names every source, leaves unnamed roles empty, and finds no party named under both components', async () => {
+    const { DEPENDENCIES, sharedParties, POSSIBLY_SHARED } = await import('../lib/positions/dependencies.ts');
+    for (const d of DEPENDENCIES) {
+      assert.ok(d.source.title.length > 0, 'every line names a source');
+      assert.match(d.readOn, /^\d{4}-\d{2}-\d{2}$/);
+      if (d.name === null) assert.ok(d.limit !== null && d.limit.length > 0, `an unnamed ${d.partyType} says why it is unnamed`);
+    }
+    const unnamedB = DEPENDENCIES.filter((d) => d.component === 'B' && d.name === null).map((d) => d.partyType).sort();
+    assert.deepEqual(unnamedB, ['BROKER', 'CONTRACT_AUTHORITY', 'CUSTODIAN', 'SECURITY_AGENT', 'VERIFICATION_AGENT'], 'B’s documents describe these roles without naming the party');
+    assert.deepEqual(sharedParties(), [], 'no party is named under both components; independence is not thereby claimed');
+    assert.ok(POSSIBLY_SHARED.some((p) => p.name === 'Alpaca Securities LLC'), 'a name in one issuer’s role list and the other’s partner list is recorded as possibly shared');
+  });
+});

@@ -110,7 +110,7 @@ The last four are never collapsed into one label such as "withdraw to cash". The
 | Claim components | Allocation and individual claims | A failed A transfer is not a precondition of claiming B. |
 | Evidence and status | Reconciliation, source status, changes | Old, partial and unavailable data are told apart. |
 
-Today the front, the company detail and the evidence screens exist as described; "My position" and "Claim components" exist in a read-only form on the series page — an address is looked up in the index and, once a series is deployed, the claim calls are shown as bytes for the holder's own wallet. "Form position" exists as the preview and, for a deployed series, the prepared approvals and mint call. No screen connects a wallet or sends anything.
+Today the front, the company detail (with the map of related parties as the issuers' documents name them), and the evidence screens exist as described; "My position" and "Claim components" exist in a read-only form on the series page — an address is looked up in the index and, once a series is deployed, the claim calls are shown as bytes for the holder's own wallet. "Form position" exists as the preview and, for a deployed series, the prepared approvals and mint call. No screen connects a wallet or sends anything.
 
 ## 7. The ledger: lots with fixed components
 
@@ -380,7 +380,8 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Drift between daily verification runs and changes in the evidence raised as conditions and alerted (T15) | Implemented | `/api/state` → `conditions`, the webhook |
 | Instrument file compiled from the archive and the chain (R01, the automatable half) | Implemented | `/api/positions/apple-s1/file` |
 | Issuer documents watched for change by the hash of their visible text (9 pages) | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
-| Instrument file (R01), rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started | — |
+| The map of related parties (R02): issuer, tokenizer, brokers, custodians, security agent, underlying, settlement asset, bridge and contract authority for each component, every line with its source and date; a role the documents describe without naming is left empty; no party is named under both components and no independence is claimed | Implemented from the issuers' documents as read on 12 September 2026; the pages are watched for change | the series page, `lib/positions/dependencies.ts`, `/api/positions/apple-s1/file` |
+| Rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started — decisions and interviews, not code | — |
 | Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
 
 The Ondo source records `ACCESS_DENIED`: its documented endpoint requires an API key this desk does not hold. That is archived as the finding; the example address in Ondo's specification is not used.

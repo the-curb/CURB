@@ -281,7 +281,8 @@ its own RPC override.
   archive and the chain, what is known about each candidate component — the
   underlying and its ISIN as the issuer states them, the issuer record and its
   status, every address with code hash, symbol, decimals and `asset()`, the
-  documents and their hashes — and what is not known, for an admission review.
+  documents and their hashes, the related parties as the issuers' documents
+  name them (R02) — and what is not known, for an admission review.
   Nothing in it is typed by hand and nothing in it admits a component.
 - **Product API.** `/api/positions`, `/api/positions/<series>`,
   `/api/positions/<series>/evidence`, `/api/positions/<series>/file`, `/api/positions/<series>/preview-mint?lots=`,

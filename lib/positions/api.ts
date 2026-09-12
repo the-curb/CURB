@@ -16,6 +16,7 @@ import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.t
 import { latestVerification, type AddressVerification } from './verify.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
 import { allocateExitCall, approveCall, claimCall, mintCall, type PreparedCall } from './calldata.ts';
+import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from './dependencies.ts';
 
 /**
  * The calls a wallet would sign, when there is a contract to sign against.
@@ -359,6 +360,8 @@ export async function instrumentFile(store: Store, spec: SeriesSpec) {
           : { role: 'ISSUER_TOKEN', why: 'the issuer’s own token, once its record answers', chosen: false },
       documents: documents.map((d) => ({ title: d.title, url: d.url, status: d.latest?.status ?? null, hash: d.latest?.hash ?? null, firstSeenAt: d.latest?.firstSeenAt ?? null, changedAt: d.latest?.changedAt ?? null, versions: d.versions })),
       notKnown: c.unknown,
+      // R02: the parties behind the component as the issuer's documents name them; a role without a name is left empty on purpose.
+      relatedParties: DEPENDENCIES.filter((d) => d.component === c.id).map((d) => ({ partyType: d.partyType, name: d.name, relationship: d.relationship, source: d.source, readOn: d.readOn, limit: d.limit })),
       notProven: evidence.verification?.addresses[0]?.notProven ?? [],
       onAFork: evidence.fork && evidence.fork.component === c.id ? evidence.fork : null,
       statuses: c.statuses,
@@ -374,6 +377,8 @@ export async function instrumentFile(store: Store, spec: SeriesSpec) {
     stage: spec.stageLine,
     admission: 'not decided — a reviewer decides from this file, the fork tests and the rights review; nothing here admits a component by itself',
     components,
+    // R02: parties named under both components, and names that may be shared but are not established as such.
+    relatedParties: { shared: sharedParties(), possiblyShared: POSSIBLY_SHARED, note: NOT_KNOWN_LINE },
     gates: GATES,
   };
 }
