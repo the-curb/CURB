@@ -6,7 +6,7 @@
  * exception that some caller quietly turns into a zero.
  */
 
-import { activeNetwork, rpcUrl, type NetworkProfile } from './networks.ts';
+import { activeNetwork, rpcUrl, rpcUrls, type NetworkProfile } from './networks.ts';
 import { request } from './transport.ts';
 import { read, unread, type Reading } from '../doctrine/reading.ts';
 
@@ -40,6 +40,20 @@ const CHAIN_RETRY_SECONDS = 60;
 
 const confirmations = new Map<string, { until: number; fault: Reading<never> | null }>();
 
+/** How long an endpoint that did not answer is passed over for the next one, before it is tried again. */
+export const DEMOTION_SECONDS = 60;
+const demotions = new Map<string, number>();
+
+/** A provider's own refusal that is about the account, not the query: the next endpoint is asked. */
+const QUOTA = /rate limit|too many requests|quota|exceeded .*(?:limit|plan|credits)|compute units|429/i;
+
+/** Whether a reading is the endpoint failing to answer at all — to be tried elsewhere — as opposed to an answer, right or wrong. */
+export function isTransportFailure(r: Reading<unknown>): boolean {
+  if (r.state !== 'UNREAD') return false;
+  if (r.reason === 'SOURCE_UNREACHABLE' || r.reason === 'SOURCE_TIMEOUT') return true;
+  return r.reason === 'SOURCE_MALFORMED' && QUOTA.test(r.detail ?? '') && !/chain \d+; the .* profile expects/.test(r.detail ?? '');
+}
+
 /**
  * The endpoint's own chain id, compared with the profile's, before any other
  * call is trusted. Asked once per process per endpoint and again after
@@ -48,14 +62,13 @@ const confirmations = new Map<string, { until: number; fault: Reading<never> | n
  * id can. A mismatch makes every read UNREAD with the endpoint named, rather
  * than a clean-looking record of the wrong chain.
  */
-export async function chainFault(opts: RpcOptions): Promise<Reading<never> | null> {
+export async function chainFault(opts: RpcOptions, url: string = rpcUrl(opts.profile ?? activeNetwork())): Promise<Reading<never> | null> {
   const profile = opts.profile ?? activeNetwork();
-  const url = rpcUrl(profile);
   const held = confirmations.get(url);
   const now = Date.now();
   if (held && held.until > now) return held.fault;
 
-  const id = await readChainId(opts);
+  const id = await readChainIdAt(url, opts);
   let fault: Reading<never> | null = null;
   if (id.state === 'UNREAD') {
     fault = id;
@@ -69,27 +82,64 @@ export async function chainFault(opts: RpcOptions): Promise<Reading<never> | nul
   return fault;
 }
 
-/** Forgets every confirmation. For tests that stand up a different endpoint. */
+/** Forgets every confirmation and demotion. For tests that stand up a different endpoint. */
 export function forgetChainConfirmations(): void {
   confirmations.clear();
+  demotions.clear();
 }
 
 /**
  * One RPC call, returned as a reading. `source` names the endpoint host so the
  * provenance line points at something a reader could check themselves. Every
  * method but `eth_chainId` itself waits on the chain being confirmed first.
+ *
+ * The profile's endpoints are tried in order (the operator's own, then the
+ * public node): one that does not answer — the transport, a timeout, a
+ * quota — is passed over for the next and not asked again for
+ * DEMOTION_SECONDS; an answer, including a wrong one (a reverted call, a
+ * refused query, another chain's id), is the reading, never retried
+ * elsewhere. When none answers, the first endpoint's failure is the reading,
+ * with the others' noted in its detail.
  */
 export async function rpcCall<T>(
   method: string,
   params: readonly unknown[],
   opts: RpcOptions,
 ): Promise<Reading<T>> {
-  if (method !== 'eth_chainId') {
-    const fault = await chainFault(opts);
-    if (fault !== null) return fault;
-  }
   const profile = opts.profile ?? activeNetwork();
-  const url = rpcUrl(profile);
+  const urls = rpcUrls(profile);
+  const now = Date.now();
+  const live = urls.filter((u) => (demotions.get(u) ?? 0) <= now);
+  const order = live.length > 0 ? live : urls;
+  let first: Reading<T> | null = null;
+  const others: string[] = [];
+  for (const url of order) {
+    let r: Reading<T>;
+    if (method !== 'eth_chainId') {
+      const fault = await chainFault(opts, url);
+      r = fault !== null ? fault : await rpcCallAt<T>(url, method, params, opts);
+    } else {
+      r = await rpcCallAt<T>(url, method, params, opts);
+    }
+    if (!isTransportFailure(r)) return r;
+    if (order.length > 1) demotions.set(url, Date.now() + DEMOTION_SECONDS * 1000);
+    if (first === null) first = r;
+    else others.push(`${new URL(url).host}: ${r.state === 'UNREAD' ? (r.detail ?? r.reason) : ''}`);
+  }
+  const f = first!;
+  return others.length === 0 || f.state !== 'UNREAD' ? f : { ...f, detail: `${f.detail ?? f.reason}; the fallback did not answer either (${others.join('; ')})` };
+}
+
+/** The chain id as one endpoint reports it. */
+async function readChainIdAt(url: string, opts: RpcOptions): Promise<Reading<number>> {
+  const hex = await rpcCallAt<string>(url, 'eth_chainId', [], opts);
+  if (hex.state === 'UNREAD') return hex;
+  const parsed = Number.parseInt(hex.value, 16);
+  if (!Number.isInteger(parsed)) return unread('SOURCE_MALFORMED', { source: hex.source, detail: `chainId ${hex.value}` });
+  return { ...hex, value: parsed };
+}
+
+async function rpcCallAt<T>(url: string, method: string, params: readonly unknown[], opts: RpcOptions): Promise<Reading<T>> {
   const source = `${new URL(url).host} · ${method}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);

@@ -20,6 +20,10 @@ export const EVENT_SIGNATURES = {
   ComponentClaimed: 'ComponentClaimed(address,uint8,uint256)',
   MintStatusChanged: 'MintStatusChanged(bool,string)',
   ComponentClaimStatusChanged: 'ComponentClaimStatusChanged(uint8,bool,string)',
+  /** The operator's own actions — the audit trail the policy asks for, read from the chain rather than from a log kept by hand. */
+  MintPermitSet: 'MintPermitSet(address,uint64)',
+  ClaimPermitSet: 'ClaimPermitSet(address,bool)',
+  OperatorChanged: 'OperatorChanged(address,address)',
 } as const;
 
 export type EventName = keyof typeof EVENT_SIGNATURES;
@@ -35,7 +39,11 @@ export type SeriesEvent =
   | { readonly name: 'ExitAllocated'; readonly holder: string; readonly lots: bigint; readonly unitsA: bigint; readonly unitsB: bigint }
   | { readonly name: 'ComponentClaimed'; readonly holder: string; readonly component: ComponentId; readonly units: bigint }
   | { readonly name: 'MintStatusChanged'; readonly paused: boolean; readonly reason: string }
-  | { readonly name: 'ComponentClaimStatusChanged'; readonly component: ComponentId; readonly paused: boolean; readonly reason: string };
+  | { readonly name: 'ComponentClaimStatusChanged'; readonly component: ComponentId; readonly paused: boolean; readonly reason: string }
+  /** A mint permit set for a holder, until a unix time; zero revokes it. */
+  | { readonly name: 'MintPermitSet'; readonly holder: string; readonly until: bigint }
+  | { readonly name: 'ClaimPermitSet'; readonly holder: string; readonly permitted: boolean }
+  | { readonly name: 'OperatorChanged'; readonly previous: string; readonly next: string };
 
 export interface IndexedEvent {
   readonly chainId: number;
@@ -109,6 +117,24 @@ export function decodeSeriesEvent(log: Pick<LogEntry, 'topics' | 'data'>): Decod
       if (component === null || paused === null || reason === null) return { ok: false, detail: 'component, paused or reason undecodable' };
       return { ok: true, event: { name: 'ComponentClaimStatusChanged', component, paused: paused !== 0n, reason } };
     }
+    case EVENT_TOPICS.MintPermitSet: {
+      const holder = log.topics[1] ? decodeAddressWord(log.topics[1]) : null;
+      const until = uint(0);
+      if (holder === null || until === null) return { ok: false, detail: 'holder or until undecodable' };
+      return { ok: true, event: { name: 'MintPermitSet', holder: holder.toLowerCase(), until } };
+    }
+    case EVENT_TOPICS.ClaimPermitSet: {
+      const holder = log.topics[1] ? decodeAddressWord(log.topics[1]) : null;
+      const permitted = uint(0);
+      if (holder === null || permitted === null) return { ok: false, detail: 'holder or permitted undecodable' };
+      return { ok: true, event: { name: 'ClaimPermitSet', holder: holder.toLowerCase(), permitted: permitted !== 0n } };
+    }
+    case EVENT_TOPICS.OperatorChanged: {
+      const previous = log.topics[1] ? decodeAddressWord(log.topics[1]) : null;
+      const next = log.topics[2] ? decodeAddressWord(log.topics[2]) : null;
+      if (previous === null || next === null) return { ok: false, detail: 'previous or next undecodable' };
+      return { ok: true, event: { name: 'OperatorChanged', previous: previous.toLowerCase(), next: next.toLowerCase() } };
+    }
     default:
       return { ok: 'IGNORED' };
   }
@@ -143,5 +169,11 @@ export function encodeSeriesEvent(event: SeriesEvent): { topics: string[]; data:
         topics: [EVENT_TOPICS.ComponentClaimStatusChanged],
         data: `0x${word(event.component === 'A' ? 0n : 1n).slice(2)}${word(event.paused ? 1n : 0n).slice(2)}${stringTail(event.reason, 3)}`,
       };
+    case 'MintPermitSet':
+      return { topics: [EVENT_TOPICS.MintPermitSet, addressWord(event.holder)], data: word(event.until) };
+    case 'ClaimPermitSet':
+      return { topics: [EVENT_TOPICS.ClaimPermitSet, addressWord(event.holder)], data: word(event.permitted ? 1n : 0n) };
+    case 'OperatorChanged':
+      return { topics: [EVENT_TOPICS.OperatorChanged, addressWord(event.previous), addressWord(event.next)], data: '0x' };
   }
 }

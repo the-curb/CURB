@@ -63,9 +63,32 @@ Done once.
    ```
 
    The verification creates and drops `curb_conformance`; it never touches
-   `public`. Do not deploy against a store that has not passed it.
+   `public`. Do not deploy against a store that has not passed it. The
+   checks workflow runs it too, against a Postgres of its own.
+
+   **Backups.** The record is the store; a provider's backups are the
+   provider's. `npm run db:dump <directory>` writes every table but the run
+   lock as gzipped JSONL with a manifest (counts, columns, time), paged so
+   the size does not matter; `npm run db:restore <directory>` reads one back,
+   inserting what is missing and leaving what is there. A dump before every
+   migration, and one a week, kept off the provider. Rehearsed 13 September
+   2026: 5,404 observations, 297 snapshots, 100 publications dumped and
+   restored into a fresh schema, twice (the second time inserting nothing).
+
+   **Schema.** A build that needs a column a migration adds says so: the tick
+   and `/api/state` carry `storeSchema` (`CURRENT` or `BEHIND`, naming the
+   column), and the scheduler's run turns red on it. Run `db:migrate` before
+   the push that needs it; the migration is idempotent and additive.
 
 ## 2. App — Vercel
+
+The plan: the desk sells services for dollars once `CURB_CREDITS` is set;
+Vercel's Hobby plan is for non-commercial use, so the project moves to a
+paid plan before LAUNCH row 8 — and the function ceiling (`maxDuration`
+60 s here) and the `sin1` region pin are checked again after the move.
+Vercel deploys every push to `main` whether or not the checks passed: a
+red check is the earlier warning, not a gate, so a push that fails them is
+followed by the fix or a revert at once.
 
 1. Import the repository. Framework: Next.js. No build overrides.
 2. Environment variables, **Production**:
@@ -76,6 +99,19 @@ Done once.
    | `CURB_TICK_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
    | `CURB_NETWORK` | `robinhood-mainnet` (the default; set it anyway so it is visible) |
    | `CURB_ALERT_WEBHOOK` | optional — a Discord or Slack incoming-webhook URL; see Alerting below |
+   | `CURB_RPC_URL` | optional — the operator's own Robinhood Chain endpoint, measured first with `npm run probe:rpc` (set 13 September 2026 to a keyed dRPC endpoint: full archive state, `eth_getLogs` to 100,000 blocks). Unset, the public node. Whichever is set, the public node is the fallback: an endpoint that does not answer — the transport, a timeout, a quota — is passed over for it and not asked again for a minute |
+   | `CURB_RPC_URL_ETHEREUM` | optional — the position product's Ethereum endpoint; unset, `ethereum-rpc.publicnode.com` |
+   | `ANTHROPIC_API_KEY` | optional — the Gazette's narration; unset, the day is printed unnarrated |
+   | `CURB_ONDO_API_KEY` | not held (register A8); the issuer's API answers ACCESS_DENIED without it and the page stays the source |
+   | `CURB_CREDITS` | the credit desk, only after LAUNCH row 7 — the line the deployment tool prints; absent means NOT_CONFIGURED |
+
+   A keyed URL is a secret: it lives on Vercel and in the operator's
+   `.env.local`, nowhere else, and is rotated at the provider when anyone who
+   saw it leaves. `CURB_TICK_SECRET` is rotated by setting the new value on
+   Vercel and in the repository's secrets in the same minute — the tick runs
+   every five, so one may fail — and every secret's owner is the operator the
+   policy names (register A4). Without `CURB_TICK_SECRET` the tick and the
+   desk endpoint refuse in production (503) rather than run open.
 
    Do **not** set `CURB_DNS_OVER_HTTPS` on Vercel. It exists for a local network
    whose resolver hijacks the RPC hostname. Vercel's does not, and the plain
@@ -131,6 +167,7 @@ Repository → Settings → Secrets and variables → Actions:
 | --- | --- |
 | `CURB_TICK_URL` | `https://<deployment>/api/tick` |
 | `CURB_TICK_SECRET` | the same value as on Vercel |
+| (none) | the checks workflow's Postgres conformance job needs no secret: it runs against a Postgres of its own |
 
 Then Actions → **tick** → **Run workflow** with *dry run* ticked. A dry run
 takes no lock and writes nothing, so it proves the wiring without moving the
@@ -208,6 +245,16 @@ verify every entry on chain refuses to write.
 
 Both ride on the tick, and both are reported in its response.
 
+- **Who reads it.** A webhook is not an on-call rota: the person who reads
+  the channel, and how soon, is named in the operator policy when the
+  operator is (register A4); until then the operator of record is whoever
+  holds the Vercel project and the repository, and the tick's red runs are
+  the second channel. The scheduler itself is GitHub's: a public repository
+  with no commit for sixty days has its scheduled workflows disabled — the
+  weekly fork-evidence commit keeps it alive, and `reportingLastHour` on
+  `/api/state` falling to zero is the sign from outside (an uptime monitor
+  that fetches it is the probe this system does not carry). Once a week:
+  `npm run db:dump` to a directory off the provider.
 - **Alerting.** Set `CURB_ALERT_WEBHOOK` to a Discord or Slack incoming-webhook
   URL. After each tick the active conditions — an agent absent, degraded or
   stale; the board's sample absent; a feed paused, drifted, or past its
@@ -540,3 +587,22 @@ and is reported under `credits`. No token exists; in production it is
 - **Prices for 159 of the 194 stock tokens.** The directory lists a feed for
   35. The rest are on the Registry roll with every measured column present and
   no price, and nothing on the site states one for them.
+- **Logs and errors off the platform.** Vercel keeps runtime logs briefly and
+  the tick's durable log is the GitHub Actions run (ninety days); a 500 on a
+  page or on an API route other than the tick is recorded nowhere. A log
+  drain is a platform setting the paid plan brings; until then the tick's red
+  runs and `/api/state` are what there is.
+- **A probe from outside.** The desk cannot notice its own scheduler
+  stopping: `reportingLastHour` on `/api/state` falling to zero is the sign,
+  and only a monitor that is not this system — any uptime check that fetches
+  the endpoint and reads the field — sees it. None is set up.
+- **The certificate of the store's connection.** `sslmode=require` encrypts
+  the connection but does not verify the server's certificate; `verify-full`
+  needs the provider's CA certificate on the deployment, which has not been
+  set up (see the note in `.env.local.example`).
+- **What it costs.** The token record has the desk's costs published and the
+  policy has the treasury pay them monthly against the published figures; the
+  tiers and quotas of Vercel, Supabase and the RPC provider, and their monthly
+  cost, are not on a page yet — they go into the token record's proceeds table
+  when the operator is named and the plans are decided (register A4, LAUNCH
+  row 8).

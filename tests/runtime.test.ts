@@ -167,6 +167,9 @@ class MemoryStore implements Store {
     });
   }
   snapshotRows = new Map<string, SnapshotRecord>();
+  async schemaStatus(): Promise<{ readonly state: 'CURRENT' | 'BEHIND' | 'UNREAD'; readonly detail: string | null }> {
+    return { state: 'CURRENT', detail: null };
+  }
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };
     for (const r of records) this.snapshotRows.set(r.key, { ...r, version: (this.snapshotRows.get(r.key)?.version ?? -1) + 1 });

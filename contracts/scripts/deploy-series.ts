@@ -131,6 +131,7 @@ const env = {
     fromBlock: block,
     q: { A: record.q.A, B: record.q.B },
     capLots: record.capLots,
+    operator: record.operator,
   },
 };
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });

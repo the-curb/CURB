@@ -132,9 +132,61 @@ export function reduceLedger(state: IndexState, q: Units, capLots: bigint): { le
       case 'ComponentClaimStatusChanged':
         ledger = setClaimPaused(ledger, ev.component, ev.paused);
         break;
+      case 'MintPermitSet':
+      case 'ClaimPermitSet':
+      case 'OperatorChanged':
+        // The operator's actions: not ledger movements; read out by operatorLog().
+        break;
     }
   }
   return { ledger, disagreements };
+}
+
+export interface OperatorLog {
+  /** The operator as the chain last said (the latest OperatorChanged), or null when no change was seen. */
+  readonly operator: string | null;
+  readonly changes: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly previous: string; readonly next: string }[];
+  /** Mint permits by holder, as last set: the unix time they run until; 0 means revoked. */
+  readonly mintPermits: readonly { readonly holder: string; readonly until: string; readonly blockNumber: number; readonly transactionHash: string }[];
+  readonly claimPermits: readonly { readonly holder: string; readonly permitted: boolean; readonly blockNumber: number; readonly transactionHash: string }[];
+  /** Every pause and resume, with the reason given on chain. */
+  readonly stops: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly what: string; readonly paused: boolean; readonly reason: string }[];
+}
+
+/**
+ * The operator's actions on a series as the chain recorded them — permits
+ * granted and revoked, stops and resumes with their reasons, the operator
+ * changing hands. The policy asks for every operator transaction logged;
+ * this is that log, derived from the events rather than kept by hand.
+ */
+export function operatorLog(state: IndexState): OperatorLog {
+  const changes: OperatorLog['changes'][number][] = [];
+  const mint = new Map<string, OperatorLog['mintPermits'][number]>();
+  const claim = new Map<string, OperatorLog['claimPermits'][number]>();
+  const stops: OperatorLog['stops'][number][] = [];
+  for (const e of state.events) {
+    const at = { blockNumber: e.blockNumber, transactionHash: e.transactionHash };
+    switch (e.event.name) {
+      case 'OperatorChanged':
+        changes.push({ ...at, previous: e.event.previous, next: e.event.next });
+        break;
+      case 'MintPermitSet':
+        mint.set(e.event.holder, { ...at, holder: e.event.holder, until: e.event.until.toString() });
+        break;
+      case 'ClaimPermitSet':
+        claim.set(e.event.holder, { ...at, holder: e.event.holder, permitted: e.event.permitted });
+        break;
+      case 'MintStatusChanged':
+        stops.push({ ...at, what: 'mint', paused: e.event.paused, reason: e.event.reason });
+        break;
+      case 'ComponentClaimStatusChanged':
+        stops.push({ ...at, what: `claim ${e.event.component}`, paused: e.event.paused, reason: e.event.reason });
+        break;
+      default:
+        break;
+    }
+  }
+  return { operator: changes.at(-1)?.next ?? null, changes, mintPermits: [...mint.values()], claimPermits: [...claim.values()], stops };
 }
 
 const INDEX_KEY = (seriesId: string) => `positions:index:${seriesId}`;

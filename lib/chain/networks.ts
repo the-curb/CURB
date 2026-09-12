@@ -94,6 +94,18 @@ export function rpcUrl(profile: NetworkProfile = activeNetwork()): string {
   return process.env[profile.rpcEnv] ?? profile.defaultRpcUrl;
 }
 
+/**
+ * The endpoints for a profile, in the order they are tried: the operator's
+ * own (the environment override) first, the profile's public node after it
+ * when the two differ. A read that the first cannot make — the transport,
+ * a timeout, a quota — is made on the second; an answer, right or wrong, is
+ * never second-guessed on another node.
+ */
+export function rpcUrls(profile: NetworkProfile = activeNetwork()): readonly string[] {
+  const own = process.env[profile.rpcEnv];
+  return own && own !== profile.defaultRpcUrl ? [own, profile.defaultRpcUrl] : [profile.defaultRpcUrl];
+}
+
 /** An explorer link for an address, or null where the network publishes no explorer. */
 export function explorerAddress(profile: NetworkProfile, address: string): string | null {
   return profile.explorerUrl === null ? null : `${profile.explorerUrl}/address/${address}`;

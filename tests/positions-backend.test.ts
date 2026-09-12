@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { parseDeployments } from '../lib/positions/deployments.ts';
 import { decodeSeriesEvent, encodeSeriesEvent, EVENT_TOPICS } from '../lib/positions/events.ts';
-import { applyLogs, emptyIndex, reduceLedger, rollbackFrom } from '../lib/positions/index.ts';
+import { applyLogs, emptyIndex, operatorLog, reduceLedger, rollbackFrom } from '../lib/positions/index.ts';
 import { parseOndoAddresses, parseXstocksAsset } from '../lib/positions/issuers.ts';
 import { candidatesFrom } from '../lib/positions/verify.ts';
 import { balanceOfCalldata, reconcileComponent } from '../lib/positions/reconcile.ts';
@@ -103,6 +103,9 @@ describe('the event codec', () => {
       { name: 'ComponentClaimed', holder: HOLDER, component: 'B', units: 20n },
       { name: 'MintStatusChanged', paused: true, reason: 'assumptions unconfirmed — a reason longer than one word' },
       { name: 'ComponentClaimStatusChanged', component: 'A', paused: true, reason: 'exploit risk' },
+      { name: 'MintPermitSet', holder: HOLDER, until: 1_800_000_000n },
+      { name: 'ClaimPermitSet', holder: OTHER, permitted: true },
+      { name: 'OperatorChanged', previous: HOLDER, next: OTHER },
     ] as const;
     for (const e of events) {
       const decoded = decodeSeriesEvent(encodeSeriesEvent(e));
@@ -172,6 +175,28 @@ describe('the chain index', () => {
     assert.equal(ledger.claimPaused.A, true);
     assert.equal(disagreements.length, 1);
     assert.match(disagreements[0] ?? '', /INSUFFICIENT_RECEIPTS/);
+  });
+
+  it('reads the operator’s actions out of the events: permits as last set, every stop with its reason, the operator as the chain last said', () => {
+    const logs = [
+      log(100, 0, { name: 'MintPermitSet', holder: HOLDER, until: 1_800_000_000n }),
+      log(100, 1, { name: 'ClaimPermitSet', holder: HOLDER, permitted: true }),
+      log(101, 0, { name: 'MintStatusChanged', paused: true, reason: 'assumptions unconfirmed' }),
+      log(102, 0, { name: 'MintPermitSet', holder: HOLDER, until: 0n }),
+      log(103, 0, { name: 'OperatorChanged', previous: HOLDER, next: OTHER }),
+      log(104, 0, { name: 'MintStatusChanged', paused: false, reason: 'confirmed' }),
+    ];
+    const state = applyLogs(emptyIndex(deployment), logs, NOW);
+    const log_ = operatorLog(state);
+    assert.equal(log_.operator, OTHER);
+    assert.deepEqual(log_.mintPermits.map((p) => [p.holder, p.until, p.blockNumber]), [[HOLDER, '0', 102]], 'the permit as last set: revoked at block 102');
+    assert.deepEqual(log_.claimPermits.map((p) => [p.holder, p.permitted]), [[HOLDER, true]]);
+    assert.deepEqual(log_.stops.map((x) => [x.blockNumber, x.what, x.paused, x.reason]), [[101, 'mint', true, 'assumptions unconfirmed'], [104, 'mint', false, 'confirmed']]);
+    assert.deepEqual(log_.changes.map((c) => [c.previous, c.next]), [[HOLDER, OTHER]]);
+    // The ledger is untouched by the operator's own actions.
+    const { ledger } = reduceLedger(state, deployment.q, deployment.capLots);
+    assert.equal(ledger.n, 0n);
+    assert.equal(ledger.mintPaused, false);
   });
 });
 

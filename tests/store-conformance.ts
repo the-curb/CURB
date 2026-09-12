@@ -466,6 +466,13 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('the schema', () => {
+      it('is current for this build', async () => {
+        const status = await store.schemaStatus();
+        assert.equal(status.state, 'CURRENT', status.detail ?? '');
+      });
+    });
+
     describe('the conditional snapshot write', () => {
       it('writes a new row only when none exists, and a replacement only onto the version read', async () => {
         const first = await store.writeSnapshotIf({ key: 'cas:a', observedAt: '2026-09-13T00:00:00.000Z', payload: { n: 1 } }, null);

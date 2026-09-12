@@ -915,6 +915,28 @@ export class PostgresStore implements Store {
     }
   }
 
+  /** The columns this build writes that a migration adds: each named here is checked to exist. */
+  static readonly REQUIRED_COLUMNS: readonly { table: string; column: string }[] = [
+    { table: 'snapshots', column: 'version' },
+    { table: 'snapshots', column: 'write_token' },
+  ];
+
+  async schemaStatus(): Promise<{ readonly state: 'CURRENT' | 'BEHIND' | 'UNREAD'; readonly detail: string | null }> {
+    try {
+      return await this.guard('schemaStatus', async () => {
+        const rows = await this.sql<{ table_name: string; column_name: string }[]>`
+          select table_name, column_name from information_schema.columns
+          where table_schema = current_schema() and table_name in ('snapshots')
+        `;
+        const present = new Set(rows.map((r) => `${r.table_name}.${r.column_name}`));
+        const missing = PostgresStore.REQUIRED_COLUMNS.filter((c) => !present.has(`${c.table}.${c.column}`)).map((c) => `${c.table}.${c.column}`);
+        return missing.length === 0 ? { state: 'CURRENT' as const, detail: null } : { state: 'BEHIND' as const, detail: `missing ${missing.join(', ')}; run npm run db:migrate` };
+      });
+    } catch (cause) {
+      return { state: 'UNREAD', detail: failureReason(cause) };
+    }
+  }
+
   /** One statement either way: an insert that yields to an existing row, or an update that matches only the version read. Zero rows back is the conflict. */
   async writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome> {
     // One token per call, outside the guarded closure: guard() resends the

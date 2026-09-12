@@ -1,3 +1,4 @@
+import { checkBearer } from '@/lib/ops/bearer';
 import { AGENT_BY_ID } from '@/lib/agents/registry';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { runAgent } from '@/lib/agents/runtime';
@@ -23,13 +24,8 @@ export const maxDuration = 60;
  * production — because a public GET that publishes is a wire anyone can fill.
  */
 export async function POST(request: Request): Promise<Response> {
-  const secret = process.env.CURB_TICK_SECRET;
-  if (secret) {
-    const offered = request.headers.get('authorization');
-    if (offered !== `Bearer ${secret}`) {
-      return Response.json({ error: 'unauthorized' }, { status: 401 });
-    }
-  }
+  const bearer = checkBearer(request);
+  if (!bearer.ok) return Response.json({ error: bearer.error, detail: bearer.detail }, { status: bearer.status });
 
   const spec = AGENT_BY_ID.surveyor;
   const producer = PRODUCERS.surveyor;

@@ -1,0 +1,59 @@
+# Static analysis of the two contracts with Slither — the first reasonable ask
+# of a reviewer (docs/decisions/REVIEW.md), run on every push so a finding is
+# on the record before a reviewer is. Advisory: the job reports, it does not
+# gate, because an analyser's finding is a question for a person to answer,
+# not a verdict; the report is kept with the run for ninety days and the
+# summary is printed in the log. The contracts import nothing, so they are
+# analysed straight from the source with the compiler the build uses.
+
+name: static analysis
+
+on:
+  push:
+    branches: [main]
+    paths: ['contracts/src/**', '.github/workflows/static-analysis.yml']
+  pull_request:
+    paths: ['contracts/src/**']
+  workflow_dispatch:
+
+jobs:
+  slither:
+    name: contracts · slither (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install slither and the compiler the build uses
+        run: |
+          pip install --quiet slither-analyzer solc-select
+          solc-select install 0.8.30
+          solc-select use 0.8.30
+      - name: Analyse CreditDesk.sol and CompanySeries.sol
+        working-directory: contracts
+        run: |
+          set +e
+          slither src/CreditDesk.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-credit-desk.json --print human-summary 2>&1 | tail -60
+          slither src/CompanySeries.sol --solc-args "--via-ir --optimize --optimize-runs 200 --evm-version prague" --json ../slither-company-series.json --print human-summary 2>&1 | tail -60
+          exit 0
+      - name: Summary — findings by severity
+        run: |
+          node -e '
+            for (const f of ["slither-credit-desk.json", "slither-company-series.json"]) {
+              try {
+                const r = JSON.parse(require("fs").readFileSync(f, "utf8"));
+                const ds = (r.results && r.results.detectors) || [];
+                const by = {};
+                for (const d of ds) by[d.impact] = (by[d.impact] || 0) + 1;
+                console.log(f, "detectors:", ds.length, JSON.stringify(by));
+                for (const d of ds.filter((x) => x.impact === "High" || x.impact === "Medium")) console.log("  ", d.impact, d.check, "—", (d.description || "").split("\n")[0].slice(0, 160));
+              } catch (e) { console.log(f, "no report:", e.message); }
+            }
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slither-reports
+          path: slither-*.json
+          if-no-files-found: ignore
+          retention-days: 90

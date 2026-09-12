@@ -31,6 +31,8 @@ export interface SeriesDeployment {
   /** The contract's immutable units per lot and its lot cap, as deployed — never the illustrative figures. */
   readonly q: { readonly A: bigint; readonly B: bigint };
   readonly capLots: bigint;
+  /** The operator the record deployed with; the chain's OperatorChanged events say who it is since. */
+  readonly operator?: string;
 }
 
 export type DeploymentStatus =
@@ -74,6 +76,7 @@ export function parseDeployments(raw: string | undefined): { ok: true; deploymen
       address: e.address.toLowerCase(),
       components: { A: components.A.toLowerCase(), B: components.B.toLowerCase() },
       fromBlock: e.fromBlock as number,
+      ...(typeof e.operator === 'string' && /^0x[0-9a-fA-F]{40}$/.test(e.operator) ? { operator: e.operator.toLowerCase() } : {}),
       q: { A: qA, B: qB },
       capLots,
     };

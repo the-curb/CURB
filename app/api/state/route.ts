@@ -12,7 +12,7 @@ import { deriveConditions } from '@/lib/ops/alerts';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots, driftSnapshots, positionSnaps, evidenceSnaps, creditsRun, creditsCode] = await Promise.all([
+  const [heartbeatsRead, blocksRead, feedSnapshots, registrar, headSnapshots, driftSnapshots, positionSnaps, evidenceSnaps, creditsRun, creditsCode, storeSchema] = await Promise.all([
     store.latestHeartbeats(),
     store.recentBlocks(10),
     store.snapshots('feed:'),
@@ -23,6 +23,7 @@ export async function GET(): Promise<Response> {
     store.snapshots('evidence:'),
     store.snapshots('credits:run'),
     store.snapshots('credits:code'),
+    store.schemaStatus(),
   ]);
 
   // A store that will not answer is its own response. Serving an empty roster
@@ -84,6 +85,8 @@ export async function GET(): Promise<Response> {
       /** The chain head as the Pillar last read it: the one liveness signal this chain offers. Null means never sampled. */
       chainHead: head === null ? null : { ...head.payload, sampledAt: head.observedAt },
       alerting: process.env.CURB_ALERT_WEBHOOK ? 'CONFIGURED' : 'NOT_CONFIGURED',
+      /** The store's schema against this build; BEHIND names the migration not yet run. */
+      storeSchema,
       agents: health.statuses.map((status) => ({
         ...status,
         /** Wired means a producer exists. Described in the registry is not running. */

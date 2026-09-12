@@ -455,6 +455,11 @@ export class FileSystemStore implements Store {
     return next;
   }
 
+  /** The filesystem store has no schema to fall behind: rows are what was written. */
+  async schemaStatus(): Promise<{ readonly state: 'CURRENT' | 'BEHIND' | 'UNREAD'; readonly detail: string | null }> {
+    return { state: 'CURRENT', detail: null };
+  }
+
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (records.length === 0) return { state: 'WRITTEN' };
     return this.serial(async () => {

@@ -36,6 +36,34 @@ jobs:
         env:
           CURB_NETWORK: robinhood-mainnet
 
+  store:
+    name: store · Postgres conformance
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: curb
+          POSTGRES_DB: curb
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The suite builds its tables in its own schema and drops it after; a disposable database here, never the production one.
+      - name: The Postgres store against the shared contract
+        env:
+          CURB_POSTGRES_URL: postgres://postgres:curb@localhost:5432/curb
+        run: node --test tests/store-postgres.test.ts
+
   contracts:
     name: contracts · compile, unit tests
     runs-on: ubuntu-latest
@@ -102,9 +130,17 @@ jobs:
           node -e "const fs=require('fs');const p='records/credit-desk.31337.json';const r=JSON.parse(fs.readFileSync(p,'utf8'));r.priceSource={kind:'uniswap-v2-pair',pair:process.argv[1],quote:{kind:'usd-stable'}};r.reviewedBy='rehearsal stand-in (local chain 31337, mock token) - not a review';r.reviewedAt=new Date().toISOString();fs.writeFileSync(p,JSON.stringify(r,null,2)+'\n');" "$PAIR"
           node scripts/deploy-credit-desk.ts records/credit-desk.31337.json --dry-run > /dev/null
           node scripts/deploy-credit-desk.ts records/credit-desk.31337.json > desk-env.json
+          # The series deployment tool, the same way: a record written from the rehearsal's mock components, a stand-in review, a dry run, a deployment.
+          node -e "const fs=require('fs');const r=require('./rehearsal.json')['apple-s1'];const rec={seriesId:'apple-s1',chainId:31337,rpcUrl:'http://127.0.0.1:8545',components:r.components,decimals:{A:18,B:18},q:r.q,capLots:r.capLots,operator:process.argv[1],name:'Apple Position - Series 1 (tool rehearsal)',symbol:'cAAPL-S1',reviewedBy:'rehearsal stand-in (local chain 31337, mock components) - not a review',reviewedAt:new Date().toISOString()};fs.mkdirSync('records',{recursive:true});fs.writeFileSync('records/apple-s1.31337.json',JSON.stringify(rec,null,2)+'\n');" "$TREAS"
+          node scripts/deploy-series.ts records/apple-s1.31337.json --dry-run > /dev/null
+          node scripts/deploy-series.ts records/apple-s1.31337.json > series-env.json
+          node -e "const e=require('./series-env.json');console.log('series deployed through the tool at', Object.values(e)[0].address)"
           node -e "const s=require('./safe-rehearsal.json');console.log('Safe', s.safe, 'payment executed in block', s.executedInBlock, 'refusals', JSON.stringify(s.refused))"
       - name: Read them back through the site's index, reconciliation, conditions, prepared calldata and the credit desk
         run: |
           CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" CURB_REHEARSAL_DESK_ENV="$(cat contracts/desk-env.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts tests/credits-tool-rehearsal.test.ts
       - name: The drill's record, as the test wrote it (not committed from here)
         run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'
+      # With the contracts built, the whole site suite — including the fixture-vs-artifact drift checks the site job skips for want of artifacts.
+      - name: The whole site suite, artifacts present
+        run: npm test

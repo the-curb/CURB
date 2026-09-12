@@ -9,7 +9,7 @@ import { explorerAddress, positionsNetwork } from '../chain/networks.ts';
 import type { Store } from '../store/types.ts';
 import { deploymentOf, type DeploymentStatus, type SeriesDeployment } from './deployments.ts';
 import { EVIDENCE_SOURCES, latestEvidence, versionCount, type Observation } from './evidence.ts';
-import { loadIndex, reduceLedger } from './index.ts';
+import { loadIndex, operatorLog, reduceLedger, type OperatorLog } from './index.ts';
 import { claimsOf, receiptsOf, type LedgerState } from './ledger.ts';
 import { latestReconciliation, type Reconciliation } from './reconcile.ts';
 import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.ts';
@@ -162,13 +162,14 @@ function verificationView(v: AddressVerification) {
 }
 
 /** The ledger the index implies for a configured series, or the reason there is none. */
-export async function ledgerFor(store: Store, spec: SeriesSpec): Promise<{ ledger: LedgerState | null; deployment: SeriesDeployment | null; cursor: number | null; events: number; faults: number; disagreements: readonly string[]; detail: string | null }> {
+export async function ledgerFor(store: Store, spec: SeriesSpec): Promise<{ ledger: LedgerState | null; deployment: SeriesDeployment | null; cursor: number | null; events: number; faults: number; disagreements: readonly string[]; operator: OperatorLog | null; detail: string | null }> {
   const status = deploymentOf(spec.id);
-  if (status.state !== 'CONFIGURED') return { ledger: null, deployment: null, cursor: null, events: 0, faults: 0, disagreements: [], detail: status.detail };
+  if (status.state !== 'CONFIGURED') return { ledger: null, deployment: null, cursor: null, events: 0, faults: 0, disagreements: [], operator: null, detail: status.detail };
   const loaded = await loadIndex(store, spec.id, status.deployment);
-  if (loaded.storeFault !== null) return { ledger: null, deployment: status.deployment, cursor: null, events: 0, faults: 0, disagreements: [], detail: loaded.storeFault };
+  if (loaded.storeFault !== null) return { ledger: null, deployment: status.deployment, cursor: null, events: 0, faults: 0, disagreements: [], operator: null, detail: loaded.storeFault };
   const { ledger, disagreements } = reduceLedger(loaded.state, status.deployment.q, status.deployment.capLots);
-  return { ledger, deployment: status.deployment, cursor: loaded.state.cursor, events: loaded.state.events.length, faults: loaded.state.faults.length, disagreements, detail: null };
+  const log = operatorLog(loaded.state);
+  return { ledger, deployment: status.deployment, cursor: loaded.state.cursor, events: loaded.state.events.length, faults: loaded.state.faults.length, disagreements, operator: { ...log, operator: log.operator ?? status.deployment.operator ?? null }, detail: null };
 }
 
 export async function seriesDetail(store: Store, spec: SeriesSpec) {
@@ -193,6 +194,8 @@ export async function seriesDetail(store: Store, spec: SeriesSpec) {
             mintPaused: ledger.ledger.mintPaused,
             claimPaused: ledger.ledger.claimPaused,
             disagreements: ledger.disagreements,
+            /** The operator's actions as the chain recorded them: the log the policy asks for. */
+            operator: ledger.operator,
           },
     reconciliation: reconciliation.reconciliation,
     reconciliationStoreFault: reconciliation.storeFault,

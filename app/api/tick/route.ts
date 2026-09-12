@@ -1,3 +1,4 @@
+import { checkBearer } from '@/lib/ops/bearer';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { tick } from '@/lib/agents/runtime';
 import { describeStore, getStoreAsync } from '@/lib/store';
@@ -25,13 +26,8 @@ export const maxDuration = 60;
  */
 export async function POST(request: Request): Promise<Response> {
   const startedAt = Date.now();
-  const secret = process.env.CURB_TICK_SECRET;
-  if (secret) {
-    const offered = request.headers.get('authorization');
-    if (offered !== `Bearer ${secret}`) {
-      return Response.json({ error: 'unauthorized' }, { status: 401 });
-    }
-  }
+  const bearer = checkBearer(request);
+  if (!bearer.ok) return Response.json({ error: bearer.error, detail: bearer.detail }, { status: bearer.status });
 
   const url = new URL(request.url);
   const dryRun = url.searchParams.get('dry') === '1';
@@ -113,6 +109,8 @@ export async function POST(request: Request): Promise<Response> {
       lock: result.lock,
       /** Which store answered — a deployment on the wrong one should be visible. */
       store: describeStore(),
+      /** The store's schema against this build: a migration not yet run is said here, not found in a driver's message. */
+      storeSchema: await store.schemaStatus(),
       /**
        * What became of yesterday's lede. ALREADY_DONE is the usual answer;
        * ATTEMPTED carries the outcome, including a refusal or a policy block.

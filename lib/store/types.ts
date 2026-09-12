@@ -231,6 +231,13 @@ export interface Store {
    */
   recordCounts(): Promise<Reading<RecordCounts>>;
 
+  /**
+   * Whether the store's schema is the one this build was written for.
+   * BEHIND names what is missing (a column a migration adds); a build that
+   * goes live against an older schema says so on the tick and on /api/state
+   * instead of failing writes with a driver's message.
+   */
+  schemaStatus(): Promise<{ readonly state: 'CURRENT' | 'BEHIND' | 'UNREAD'; readonly detail: string | null }>;
   /** Replace the snapshot for each key. One row per key, ever. */
   writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome>;
   /**

@@ -72,12 +72,60 @@ describe('the chain guard', () => {
     assert.deepEqual(node.calls, ['eth_chainId'], 'the block was never asked for');
   });
 
-  it('carries a transport failure on the chain id itself as the reading', async () => {
+  it('carries a transport failure on the chain id itself as the reading, naming the fallback that did not answer either', async () => {
     globalThis.fetch = (async () => new Response('down', { status: 503 })) as unknown as typeof globalThis.fetch;
 
     const head = await readBlockNumber(opts);
 
     assert.equal(head.state, 'UNREAD');
     assert.equal(head.reason, 'SOURCE_UNREACHABLE');
+    assert.match(head.detail ?? '', /HTTP 503; the fallback did not answer either \(rpc\.mainnet\.chain\.robinhood\.com: HTTP 503\)/);
+  });
+
+  it('falls back to the public node when the operator’s endpoint does not answer, and not when it answers wrongly', async () => {
+    // The operator's endpoint (the override) is down or out of quota; the profile's public node answers.
+    const calls: string[] = [];
+    let primary: 'down' | 'quota' | 'revert' | 'up' = 'down';
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+      const host = new URL(String(url)).host;
+      calls.push(`${host} ${method}`);
+      if (host === 'node.test.invalid') {
+        if (primary === 'down') return new Response('down', { status: 503 });
+        if (primary === 'quota') return new Response(JSON.stringify({ jsonrpc: '2.0', id, error: { code: -32005, message: 'daily quota exceeded for this plan' } }), { status: 429, headers: { 'content-type': 'application/json' } });
+        if (primary === 'revert') return new Response(JSON.stringify({ jsonrpc: '2.0', id, error: { code: 3, message: 'execution reverted' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      const result = method === 'eth_chainId' ? mainnet.chainIdHex : method === 'eth_blockNumber' ? '0x20' : null;
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof globalThis.fetch;
+
+    const head = await readBlockNumber(opts);
+    assert.equal(head.state, 'VERIFIED');
+    assert.equal(head.value, 32);
+    assert.match(head.source, /^rpc.mainnet.chain.robinhood.com/);
+    assert.deepEqual(calls, ['node.test.invalid eth_chainId', 'rpc.mainnet.chain.robinhood.com eth_chainId', 'rpc.mainnet.chain.robinhood.com eth_blockNumber']);
+    // Demoted: the next read goes straight to the fallback.
+    calls.length = 0;
+    const again = await readBlockNumber(opts);
+    assert.equal(again.state, 'VERIFIED');
+    assert.deepEqual(calls, ['rpc.mainnet.chain.robinhood.com eth_blockNumber']);
+    // A quota refusal on the primary is the same: the next endpoint is asked.
+    forgetChainConfirmations();
+    primary = 'quota';
+    calls.length = 0;
+    const quota = await readBlockNumber(opts);
+    assert.equal(quota.state, 'VERIFIED');
+    assert.equal(calls[0], 'node.test.invalid eth_chainId');
+    assert.equal(calls.at(-1), 'rpc.mainnet.chain.robinhood.com eth_blockNumber');
+    // An answer — a revert — is the reading; nothing is asked elsewhere.
+    forgetChainConfirmations();
+    primary = 'up';
+    await readBlockNumber(opts);
+    primary = 'revert';
+    calls.length = 0;
+    const reverted = await readBlockNumber(opts);
+    assert.equal(reverted.state, 'UNREAD');
+    assert.equal(reverted.reason, 'FIELD_ABSENT');
+    assert.deepEqual(calls, ['node.test.invalid eth_blockNumber']);
   });
 });
