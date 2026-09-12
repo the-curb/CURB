@@ -36,6 +36,12 @@ answer as the record says, and a public chain without `--reviewed`; the key
 comes from `DEPLOYER_PRIVATE_KEY` in the operator's shell and is never
 printed. Rehearsed on a local chain only.
 
+## The operator's bytes (O01)
+
+`node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator> …`
+prints `to` and `data` for one operator action, for the multisig to sign;
+a stop or a resume without a reason is refused.
+
 ## The recorded build (G02)
 
 `npm run record:build` writes the compiled runtime bytecode, where its five

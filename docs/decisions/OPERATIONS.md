@@ -19,6 +19,10 @@
 | Resume claims of a component | `setClaimPaused(component, false, reason)` | when the reason is gone, after a second review | quorum | on chain; incident record |
 | Change the operator | `transferOperator(next)` | signer rotation (below) | quorum | on chain (`OperatorChanged`) and published |
 
+## The transactions, as bytes
+
+`node scripts/operator-calldata.mjs <series> <action> …` in `contracts/` prints `to` and `data` for each action above — a permit, a stop, a resume, a rotation — with the reason string carried into the transaction where the contract records it; a stop or a resume without a reason is refused. The multisig signs what it prints. This desk sends nothing and holds no key.
+
 ## Signer rotation
 
 A signer is replaced by adding the new signer to the multisig, confirming the new signer can co-sign a harmless transaction (a permit for a test address on a local chain, or a no-op), then removing the old one. The series contract is not touched unless the multisig address itself changes, in which case `transferOperator` is executed by the old quorum to the new multisig and the change is published here before it is executed. A lost signer key is a rotation, not an incident, as long as quorum still holds; if quorum cannot be reached, the series continues to pay claims under existing permits and can neither pause nor grant — that is the designed failure mode.
