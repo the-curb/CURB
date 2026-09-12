@@ -1,4 +1,5 @@
-import { previewMint, seriesById } from '@/lib/positions/api';
+import { previewMint, seriesById, valuationFor } from '@/lib/positions/api';
+import { getStoreAsync } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ seri
   const { series } = await params;
   const spec = seriesById(series);
   if (spec === null) return Response.json({ error: 'SERIES_UNKNOWN', detail: `no series is described as ${series}` }, { status: 404 });
-  const preview = previewMint(spec, new URL(request.url).searchParams.get('lots'));
+  const store = await getStoreAsync();
+  const preview = previewMint(spec, new URL(request.url).searchParams.get('lots'), await valuationFor(store, spec));
   return Response.json(preview, { status: 'error' in preview ? 400 : 200, headers: { 'cache-control': 'no-store' } });
 }

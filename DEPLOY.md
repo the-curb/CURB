@@ -290,6 +290,14 @@ its own RPC override.
   `/api/wallets/<address>/claims`, `/api/status`. Every amount is a string of
   integer base units. A preview sends nothing and estimates nothing; a value
   it does not have is `NOT_AVAILABLE` with a reason, never zero.
+- **Indicative value.** The previews and the series page carry an indicative
+  value in the mechanism's sense (§8): component A from the wrapper's
+  conversion rate as the fork test read it (dated by block) and the Chainlink
+  AAPL / USD reading the Pillar last sampled on Robinhood Chain (dated by the
+  feed's own time and the sample time; withheld when the sample is past the
+  desk's freshness, the feed drifted or is paused), with the assumption
+  between them stated; component B `NOT_AVAILABLE` with its reason; the lot
+  `INCOMPLETE` and never totalled while a component has no price.
 - **Sign it yourself.** Once a deployment is configured, the previews also
   return `signItYourself`: the two ERC-20 approvals and the series call
   (`mint`, or `allocateExit` and the two `claimComponent` calls) as `to` and

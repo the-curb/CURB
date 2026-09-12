@@ -17,6 +17,15 @@ import { latestVerification, type AddressVerification } from './verify.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
 import { allocateExitCall, approveCall, claimCall, mintCall, type PreparedCall } from './calldata.ts';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from './dependencies.ts';
+import { indicativeValuation, toUsd2, type LotValuation } from './valuation.ts';
+
+/** The lot valuation for a series as it stands: the deployment's q at 18 decimals when configured, the illustrative units otherwise. */
+export async function valuationFor(store: Store, spec: SeriesSpec): Promise<LotValuation> {
+  const status = deploymentOf(spec.id);
+  return status.state === 'CONFIGURED'
+    ? indicativeValuation(store, spec, status.deployment.q, true)
+    : indicativeValuation(store, spec, { A: spec.components[0].perLotIllustrative, B: spec.components[1].perLotIllustrative }, false);
+}
 
 /**
  * The calls a wallet would sign, when there is a contract to sign against.
@@ -192,7 +201,27 @@ function parseLots(raw: string | null): bigint | null {
   return BigInt(raw);
 }
 
-export function previewMint(spec: SeriesSpec, lotsRaw: string | null) {
+/**
+ * The indicative value of `lots`, from a lot valuation computed by the route (see valuation.ts), or the
+ * reason there is none. Multiplied at the valuation's own scale, so no re-rounding; never totalled while
+ * a component is missing; never zero for a missing price.
+ */
+function indicativeFor(valuation: LotValuation | null | undefined, lots: bigint) {
+  if (!valuation) return { state: 'NOT_AVAILABLE' as const, reason: 'no valuation was computed for this preview; a missing price is never shown as zero' };
+  const scaled = (raw: string | null) => (raw === null ? null : toUsd2(BigInt(raw) * lots, valuation.perLotUsdRaw.scale));
+  return {
+    state: valuation.state,
+    perUnit: valuation.perUnit,
+    unitsPerLot: valuation.unitsPerLot,
+    perLotUsd: valuation.perLotUsd,
+    forLotsUsd: { A: scaled(valuation.perLotUsdRaw.A), B: scaled(valuation.perLotUsdRaw.B) },
+    forLotsTotalUsd: valuation.perLotUsdRaw.A !== null && valuation.perLotUsdRaw.B !== null ? toUsd2((BigInt(valuation.perLotUsdRaw.A) + BigInt(valuation.perLotUsdRaw.B)) * lots, valuation.perLotUsdRaw.scale) : null,
+    note: valuation.note,
+    computedAt: valuation.computedAt,
+  };
+}
+
+export function previewMint(spec: SeriesSpec, lotsRaw: string | null, valuation?: LotValuation | null) {
   const lots = parseLots(lotsRaw);
   if (lots === null) return { error: 'LOTS_INVALID' as const, detail: 'lots must be a positive whole number of at most ten digits' };
   const status = deploymentOf(spec.id);
@@ -206,7 +235,7 @@ export function previewMint(spec: SeriesSpec, lotsRaw: string | null) {
     receipts: lots.toString(),
     withinCap: lots <= cap,
     capLots: cap.toString(),
-    indicativeValue: { state: 'NOT_AVAILABLE' as const, reason: 'no dated price source is wired for these components; a missing price is never shown as zero' },
+    indicativeValue: indicativeFor(valuation, lots),
     gas: { state: 'NOT_ESTIMATED' as const, reason: status.state === 'CONFIGURED' ? 'estimation is done by the wallet against the contract at signing time' : 'there is no contract to estimate against' },
     atomic: 'both deposits and the receipt in one transaction; if either component fails to arrive, nothing is final',
     receiptTransferable: false,
@@ -226,7 +255,7 @@ function deadlineFromNow(now = Date.now()): bigint {
   return BigInt(Math.floor(now / 1000) + 15 * 60);
 }
 
-export function previewExit(spec: SeriesSpec, lotsRaw: string | null) {
+export function previewExit(spec: SeriesSpec, lotsRaw: string | null, valuation?: LotValuation | null) {
   const lots = parseLots(lotsRaw);
   if (lots === null) return { error: 'LOTS_INVALID' as const, detail: 'lots must be a positive whole number of at most ten digits' };
   const status = deploymentOf(spec.id);
@@ -238,6 +267,7 @@ export function previewExit(spec: SeriesSpec, lotsRaw: string | null) {
     burns: lots.toString(),
     reserves: { A: (lots * q.A).toString(), B: (lots * q.B).toString() },
     then: 'each component is claimed separately to the holder’s own wallet; one that cannot move leaves the other claimable',
+    indicativeValue: indicativeFor(valuation, lots),
     promisedDate: null,
     promisedRecoveryValue: null,
     sendsTransaction: false,

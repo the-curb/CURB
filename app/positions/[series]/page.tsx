@@ -5,7 +5,7 @@ import { units18 } from '@/lib/positions/fork-evidence';
 import { drillEvidence } from '@/lib/positions/drill-evidence';
 import { testRecord } from '@/lib/positions/test-record';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from '@/lib/positions/dependencies';
-import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
+import { deploymentView, ledgerFor, seriesEvidence, valuationFor } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
@@ -46,7 +46,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const [a, b] = spec.components;
   const now = new Date();
   const store = await getStoreAsync();
-  const [evidence, ledger, reconciliation, drill, tests] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence(), testRecord()]);
+  const [evidence, ledger, reconciliation, drill, tests, valuation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence(), testRecord(), valuationFor(store, spec)]);
   const deployment = deploymentView(spec.id);
   const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
   const FIELD = (f: { value: unknown; state: 'VERIFIED' | 'UNREAD'; reason: string | null }) =>
@@ -337,6 +337,39 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                 </dd>
               </dl>
               {deployment.detail ? <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">{deployment.detail}</p> : null}
+            </div>
+
+            <div className="mt-6 border-t border-(--color-rule) pt-4">
+              <div className="kicker">Indicative value · one lot · {valuation.state.toLowerCase().replace('_', ' ')}</div>
+              <dl className="tabular mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[12px]">
+                {(['A', 'B'] as const).map((id) => {
+                  const cv = valuation.perUnit[id];
+                  return (
+                    <div key={id} className="contents">
+                      <dt className="text-(--color-paper-faint)">
+                        <span className="text-(--color-accent)">{id}</span> · {valuation.unitsPerLot[id]} units
+                      </dt>
+                      <dd className="text-(--color-paper-dim)">
+                        {cv.state === 'INDICATIVE' ? (
+                          <>
+                            <span className="text-(--color-paper)">${valuation.perLotUsd[id]}</span> — {cv.perUnitUsd} per unit · {cv.price.unit} {cv.price.price}, feed updated {ageOf(cv.price.feedUpdatedAt)} ago, sampled {ageOf(cv.price.sampledAt)} ago
+                            {cv.conversion ? ` · ${cv.conversion.rawPerShare.slice(0, 1)}.${cv.conversion.rawPerShare.slice(1, 5)} raw per share at block ${cv.conversion.atBlock.toLocaleString('en-US')}` : ''}
+                          </>
+                        ) : (
+                          <span className="absent" title={cv.reason}>
+                            — not available · {cv.reason}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
+                <dt className="text-(--color-paper-faint)">Lot total</dt>
+                <dd className="text-(--color-paper-dim)">{valuation.perLotTotalUsd === null ? 'not totalled while a component has no price' : `$${valuation.perLotTotalUsd}`}</dd>
+              </dl>
+              <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">
+                {valuation.note}.{valuation.perUnit.A.state === 'INDICATIVE' ? ` ${valuation.perUnit.A.assumption}.` : ''}
+              </p>
             </div>
 
             {tests.record ? (
