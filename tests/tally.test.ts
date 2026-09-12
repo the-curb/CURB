@@ -99,6 +99,12 @@ describe('readLogWindow', () => {
   it('recognises the node’s wording for too many logs', () => {
     assert.ok(isTooManyLogs('rpc error -32000: logs matched by query exceeds limit of 10000'));
     assert.ok(isTooManyLogs('query returned more than 10000 results'));
+    // dRPC, as measured 13 September 2026: keyless and keyed wordings.
+    assert.ok(isTooManyLogs('ranges over 10000 blocks are not supported on free plan'));
+    assert.ok(isTooManyLogs('eth_getLogs range over 100000 blocks is not supported on robinhood, request a narrower fromBlock/toBlock range'));
+    assert.ok(isTooManyLogs('Under the Free tier plan, up to a 10 block range can be queried'));
+    assert.equal(isTooManyLogs('method eth_getLogs not supported'), false);
+    assert.equal(isTooManyLogs('HTTP 429: rate limited'), false);
     assert.ok(!isTooManyLogs('HTTP 429'));
     assert.ok(!isTooManyLogs(undefined));
   });

@@ -37,13 +37,16 @@ export interface LogWindow {
 /**
  * A node's refusal of a query for matching too much or spanning too wide, as
  * the nodes seen so far word it — Robinhood Chain's public node ("logs matched
- * by query exceeds limit of 10000"), dRPC ("ranges over 10000 blocks are not
- * supported on free plan", measured 13 September 2026: the keyless endpoint
- * refuses about 200 blocks), Alchemy and others ("block range", "query
- * returned more than", "response size"). Either kind is answered by halving.
+ * by query exceeds limit of 10000"); dRPC, measured 13 September 2026: keyless
+ * "ranges over 10000 blocks are not supported on free plan" (in fact about
+ * 200 blocks), keyed "eth_getLogs range over 100000 blocks is not supported on
+ * robinhood, request a narrower fromBlock/toBlock range" (100,001 blocks
+ * served, no cap on results seen: 703,091 logs in one answer); Alchemy and
+ * others ("block range", "query returned more than", "response size"). Either
+ * kind is answered by halving.
  */
 export function isTooManyLogs(detail: string | undefined): boolean {
-  return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges over \d+ blocks|range too (?:large|wide)/i.test(detail);
+  return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(detail);
 }
 
 export async function readLogWindow(
