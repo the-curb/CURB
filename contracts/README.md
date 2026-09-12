@@ -26,6 +26,16 @@ invariants after every step. The mocks in `src/mocks/` switch on each
 misbehaviour the blueprint names — an issuer halt, a transfer that returns
 false, a fee on transfer, a reentrant callback, a `balanceOf` that reverts.
 
+## Deploying a series, one day (G02)
+
+`scripts/deploy-series.ts <record.json> [--dry-run] [--reviewed]` deploys one
+series from a reviewed deployment record — see `records/apple-s1.example.json`
+for the shape, and `docs/decisions/DEPLOYMENT.md` for the plan. It refuses
+an unreviewed record, a node on the wrong chain, components that do not
+answer as the record says, and a public chain without `--reviewed`; the key
+comes from `DEPLOYER_PRIVATE_KEY` in the operator's shell and is never
+printed. Rehearsed on a local chain only.
+
 ## The recorded build (G02)
 
 `npm run record:build` writes the compiled runtime bytecode, where its five

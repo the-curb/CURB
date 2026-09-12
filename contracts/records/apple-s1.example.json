@@ -1,0 +1,18 @@
+{
+  "_": "An example of a deployment record for scripts/deploy-series.ts. Illustrative: the addresses are the candidates the issuers publish, the units and the cap are the simulation's, the operator is nobody, and reviewedBy is empty on purpose so the script refuses it. A real record is written after gate decision G01, reviewed by name, and kept beside the deployment it produced.",
+  "seriesId": "apple-s1",
+  "chainId": 1,
+  "rpcUrl": "https://ethereum-rpc.publicnode.com",
+  "components": {
+    "A": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
+    "B": "0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c"
+  },
+  "decimals": { "A": 18, "B": 18 },
+  "q": { "A": "10000000000000000000", "B": "20000000000000000000" },
+  "capLots": "1000",
+  "operator": "0x0000000000000000000000000000000000000000",
+  "name": "Apple Position - Series 1",
+  "symbol": "cAAPL-S1",
+  "reviewedBy": "",
+  "reviewedAt": ""
+}
