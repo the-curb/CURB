@@ -5,6 +5,9 @@ import { editionHash } from '@/lib/gazette/narrate';
 import { BRAND } from '@/lib/brand';
 import { ABSENT_GLYPH } from '@/lib/doctrine/reading';
 import { positionsJournal, type JournalEntry } from '@/lib/positions/journal';
+import { creditsStatus } from '@/lib/credits/config';
+import { centsText } from '@/lib/credits/prices';
+import { receiptsByDay } from '@/lib/credits/receipts';
 import { seriesById } from '@/lib/positions/series';
 
 const JOURNAL_LABEL: Record<JournalEntry['kind'], string> = {
@@ -109,6 +112,11 @@ export default async function EditionPage(props: { params: Params }) {
   // or changed, candidate addresses that moved between verification runs, and
   // reconciliation findings that moved.
   const journal = isFuture ? null : await positionsJournal(store, day);
+  // The credit desk's receipts that day, by the day they were credited — the
+  // "after" the token record promises; printed when a desk exists or a
+  // credit was ever made, so a day with none reads as none.
+  const receipts = isFuture ? null : await receiptsByDay(store, day);
+  const deskExists = creditsStatus().state === 'CONFIGURED';
 
   // The narrated lede, if one was attempted for this exact composition. A
   // narration pinned to an older hash is stale prose about a different edition
@@ -329,6 +337,36 @@ export default async function EditionPage(props: { params: Params }) {
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
             Derived from the archive&apos;s version rows and the verification&apos;s drift rows, by the day they were observed; composed again tomorrow from the same rows, the day reads the same. A change is a fact about the source, not a finding about the instrument.
+          </p>
+        </section>
+      )}
+
+      {receipts === null || (!deskExists && receipts.topUps === 0 && receipts.storeFault === null) ? null : (
+        <section className="mb-12">
+          <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
+            Services · receipts
+          </h2>
+          <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
+            {receipts.storeFault !== null ? (
+              <p className="text-sm" style={{ color: 'var(--color-state-stale)' }}>
+                The credit desk&apos;s rows could not be read ({receipts.storeFault}). Nothing is shown, and an unreadable store is not a day without receipts.
+              </p>
+            ) : receipts.topUps === 0 ? (
+              <p className="text-sm text-(--color-paper-faint)">No top-up was credited on {day}. Printed so its absence would be noticed.</p>
+            ) : (
+              <p className="text-sm text-(--color-paper)">
+                <span className="tabular">{receipts.topUps}</span> top-up{receipts.topUps === 1 ? '' : 's'} to <span className="tabular">{receipts.keys}</span> key{receipts.keys === 1 ? '' : 's'} credited{' '}
+                <span className="tabular">{centsText(BigInt(receipts.cents))}</span> for <span className="tabular">{receipts.curbBaseUnits}</span> base units of CURB
+                <span className="text-(--color-paper-faint)">
+                  {' '}
+                  — priced at their own block by state {receipts.byBasis.TOP_UP_BLOCK}, by the pool&apos;s events {receipts.byBasis.TOP_UP_BLOCK_EVENTS}, at the head when indexed {receipts.byBasis.HEAD_AT_INDEXING}
+                </span>
+                .
+              </p>
+            )}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
+            Derived from the keys&apos; rows by the day the credit was made; key hashes are not printed. The price list and the running total are on the services page.
           </p>
         </section>
       )}

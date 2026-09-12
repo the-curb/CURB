@@ -73,3 +73,38 @@ export async function receipts(store: Store): Promise<Receipts> {
     storeFault: null,
   };
 }
+
+export interface DayReceipts {
+  readonly day: string;
+  readonly topUps: number;
+  readonly keys: number;
+  readonly curbBaseUnits: string;
+  readonly cents: string;
+  readonly byBasis: { readonly TOP_UP_BLOCK: number; readonly TOP_UP_BLOCK_EVENTS: number; readonly HEAD_AT_INDEXING: number };
+  readonly storeFault: string | null;
+}
+
+/** The credits of one UTC day, by the day they were credited — what the Gazette prints under the services. Key hashes are not printed. */
+export async function receiptsByDay(store: Store, day: string): Promise<DayReceipts> {
+  const rows = await store.snapshots(TOPUPS_PREFIX);
+  const empty: DayReceipts = { day, topUps: 0, keys: 0, curbBaseUnits: '0', cents: '0', byBasis: { TOP_UP_BLOCK: 0, TOP_UP_BLOCK_EVENTS: 0, HEAD_AT_INDEXING: 0 }, storeFault: null };
+  if (rows.state === 'UNREAD') return { ...empty, storeFault: `${rows.reason}${rows.detail ? ` — ${rows.detail}` : ''}` };
+  let topUps = 0;
+  let keys = 0;
+  let curb = 0n;
+  let cents = 0n;
+  const byBasis = { TOP_UP_BLOCK: 0, TOP_UP_BLOCK_EVENTS: 0, HEAD_AT_INDEXING: 0 };
+  for (const row of rows.value) {
+    const list = Array.isArray(row.payload.topUps) ? (row.payload.topUps as TopUpCredit[]) : [];
+    const today = list.filter((t) => t.creditedAt.slice(0, 10) === day);
+    if (today.length === 0) continue;
+    keys += 1;
+    for (const t of today) {
+      topUps += 1;
+      curb += BigInt(t.amount);
+      cents += BigInt(t.cents);
+      byBasis[t.basis] += 1;
+    }
+  }
+  return { day, topUps, keys, curbBaseUnits: curb.toString(), cents: cents.toString(), byBasis, storeFault: null };
+}

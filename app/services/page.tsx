@@ -240,6 +240,36 @@ export default async function ServicesPage() {
       <section className="mt-10 cells grid-cols-1 md:grid-cols-2">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
+            <b>The order of work</b> · as the site can see it · nothing typed in
+          </div>
+          <ol className="mt-3 space-y-2 text-[13px] leading-relaxed">
+            {[
+              ['The services and the gate exist', 'done', 'this page, the paid endpoints, the indexer, the rate reader — rehearsed on a local chain'],
+              ['The credit desk contract is reviewed', 'not done', 'a self-review is filed; no independent reviewer has reported (the register\u2019s A2)'],
+              [
+                'The token exists and the desk is deployed on Robinhood Chain',
+                status.state === 'CONFIGURED' ? (code?.code?.state === 'MATCHES' ? 'done' : 'configured, code not yet verified') : 'not done',
+                status.state === 'CONFIGURED' ? `desk ${status.config.desk} on ${status.config.network.label}` : 'no token exists; nothing is configured',
+              ],
+              [
+                'The pool is recorded and the rate is read',
+                status.state !== 'CONFIGURED' ? 'not done' : rate?.state === 'READ' ? 'done' : 'configured, no rate read yet',
+                status.state !== 'CONFIGURED' ? 'no pool exists' : rate?.state === 'READ' ? `block ${rate.rate.block}, ${rate.rate.pool.kind}` : 'the pool has not answered with a price',
+              ],
+              ['The interviews run', 'not done', 'the guide is ready; nobody has been interviewed (the register\u2019s A5)'],
+            ].map(([step, state, detail], i) => (
+              <li key={step} className="flex gap-3">
+                <span className="tabular text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
+                <span>
+                  <span className="text-(--color-paper)">{step}</span> <span className={state === 'done' ? 'text-(--color-paper)' : 'text-(--color-paper-faint)'}>· {state}</span>
+                  <span className="block text-[12px] text-(--color-paper-faint)">{detail}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
             <b>What the token does not do</b>
           </div>
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-(--color-paper-dim)">
@@ -251,9 +281,9 @@ export default async function ServicesPage() {
             <li>It gives the desk no admin key over anything: the credit desk contract has no owner, no pause, no upgrade and holds no balance.</li>
           </ul>
         </div>
-        <div className="cell p-6 sm:p-8">
+        <div className="cell p-6 sm:p-8 md:col-span-2">
           <div className="kicker">
-            <b>The order of work, and what exists</b>
+            <b>The order of work, decided, and what exists</b>
           </div>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-[13px] leading-relaxed text-(--color-paper-dim)">
             <li>The services, the key store, the top-up indexer and the price reader exist first — this page, <span className="tabular">/api/credits</span>, the paid endpoints, <span className="tabular">contracts/src/CreditDesk.sol</span> with its tests — rehearsed on a local chain with a mock token and a mock pool.</li>

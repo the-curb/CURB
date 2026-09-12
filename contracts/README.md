@@ -36,6 +36,26 @@ answer as the record says, and a public chain without `--reviewed`; the key
 comes from `DEPLOYER_PRIVATE_KEY` in the operator's shell and is never
 printed. Rehearsed on a local chain only.
 
+## The multisig, planned (O01)
+
+`node scripts/plan-safe.ts <owner> <owner> <owner> [--threshold 2] [--network robinhood-mainnet] [--nonce <uint>]`
+builds the one transaction that creates a Safe (1.4.1, the L2 singleton) on
+the launch chain, unsigned: it checks Safe's canonical contracts have code
+there, encodes `setup` and `createProxyWithNonce`, predicts the address by
+CREATE2, has the node simulate the call and refuses if the two differ, and
+prints `to`, `data` and the address for any funded wallet to send. It holds
+no key and decides nothing about who the owners are.
+
+## The token, as read (§16)
+
+`node scripts/record-token.ts <token> [--network robinhood-mainnet] [--treasury 0x…] [--out records/credit-desk.4663.json]`
+reads a token as the chain has it at a stated block — name, symbol,
+decimals, supply, code hash, the EIP-1967 slots (a proxy is written down as
+one, with its admin), `owner()` and `paused()` where answered — and writes the
+credit desk's deployment record with those facts beside it and `reviewedBy`
+empty, so the deployment tool refuses it until a named person has reviewed
+what was read. Rehearsed on the local mock and, read-only, on USDG.
+
 ## The operator's bytes (O01)
 
 `node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator> …`

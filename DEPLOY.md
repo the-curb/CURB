@@ -433,6 +433,13 @@ and is reported under `credits`. No token exists; in production it is
   that cannot answer costs nothing. 503 while unconfigured; 401 without a
   key; 402 with the figures and the top-up call when the key cannot pay.
   Every public endpoint stays free.
+- **The multisig and the token's facts.** `contracts/scripts/plan-safe.ts` plans the
+  operator's Safe on Robinhood Chain, unsigned and simulated; `contracts/scripts/record-token.ts`
+  reads the token from the chain and writes the desk's record with the
+  facts beside it (refused until reviewed). Neither holds a key.
+- **Receipts by day.** The Gazette prints the day's credits under *Services ·
+  receipts* — count, keys, dollars, CURB, and how each was priced — once a
+  desk exists or a credit was ever made.
 - **Deploying the desk.** `contracts/scripts/deploy-credit-desk.ts <record> [--dry-run] [--reviewed]`
   deploys the desk from a reviewed record (`contracts/records/credit-desk.example.json`
   shows the shape and is refused on purpose): it checks the chain id, the

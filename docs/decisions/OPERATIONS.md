@@ -31,6 +31,12 @@
 
 The desk holds no balance and can move nothing; only the multisig can, and only by its own quorum. No signer may top up a key from the treasury, and no credit is ever granted by the desk outside the chain's `TopUp` event — the site has no function for it.
 
+## The multisig on the launch chain
+
+Safe's canonical 1.4.1 contracts answer at their canonical addresses on Robinhood Chain — read on 12 September 2026 at block 61,235,592: the proxy factory at `0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67`, the L2 singleton at `0x29fcB43b46531BcA003ddC8FCB67FFE91900C762`, the fallback handler at `0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99`; their code hashes were recorded by the tool, not verified against Safe's release, which a reviewer should do once. So the multisig this policy proposes can be created there.
+
+`node scripts/plan-safe.ts <owner> <owner> <owner> [--threshold 2]` in `contracts/` builds that creation, unsigned: it checks the three contracts have code, encodes `setup(owners, threshold, …)` and `createProxyWithNonce`, predicts the Safe's address by CREATE2, has the node simulate the call and refuses if the two differ, and prints `to`, `data` and the address for any funded wallet to send. Rehearsed against Robinhood Chain's node with placeholder owners on 12 September 2026 — the simulation and the prediction agreed; nothing was sent. The owners are the register's open question A4; the tool takes them as arguments and decides nothing.
+
 ## The transactions, as bytes
 
 `node scripts/operator-calldata.mjs <series> <action> …` in `contracts/` prints `to` and `data` for each action above — a permit, a stop, a resume, a rotation — with the reason string carried into the transaction where the contract records it; a stop or a resume without a reason is refused. The multisig signs what it prints. This desk sends nothing and holds no key.
@@ -51,4 +57,4 @@ Every operator transaction has a reason string on chain and an entry in the inci
 
 ## What exists today
 
-The functions and events named above, in `contracts/src/CompanySeries.sol`, with tests for the operator's limits; the conditions the desk raises (`/api/state` → `conditions`); the drill on the series page, whose sixth scenario hands the operator role to a 2-of-3 multisig (a mock, for the rehearsal) and shows that one signer's proposal does not stop minting, a second confirmation does, the former single key can no longer act, and the resume needs two again — the index carrying both with their reasons. No signers, no real multisig, no logs — because there is nothing to operate yet.
+The functions and events named above, in `contracts/src/CompanySeries.sol`, with tests for the operator's limits; the conditions the desk raises (`/api/state` → `conditions`); the drill on the series page, whose sixth scenario hands the operator role to a 2-of-3 multisig (a mock, for the rehearsal) and shows that one signer's proposal does not stop minting, a second confirmation does, the former single key can no longer act, and the resume needs two again — the index carrying both with their reasons. No signers, no real multisig, no logs — because there is nothing to operate yet; the multisig's creation is planned and rehearsed, unsigned, for the day the signers are named.
