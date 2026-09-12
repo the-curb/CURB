@@ -1,8 +1,8 @@
 {
   "seriesId": "apple-s1",
   "chainId": 1,
-  "block": 25958605,
-  "blockTimestamp": 1789183283,
+  "block": 25958643,
+  "blockTimestamp": 1789183751,
   "component": "A",
   "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
   "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
@@ -19,6 +19,14 @@
     "rawTransfersForArbitraryHolder": true,
     "rawReceivedFor1e18Sent": "999999999999999999",
     "rawBalanceSettableByStorage": false
+  },
+  "gas": {
+    "note": "execution gas by gasleft() deltas inside one call, with the real wrapper as A and a mock as B: storage already touched is warm, so a real transaction pays cold access, the 21,000 base and its calldata on top; an input to a cost comparison, not a price",
+    "wrapperTransfer": 13590,
+    "mint3Lots": 158751,
+    "allocateExit3Lots": 90696,
+    "claimA": 62081,
+    "claimB": 50962
   },
   "authority": {
     "raw": { "implementation": "0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b", "admin": "0x696C685a02A1Fc6E2AaCbe26CD6695F4f4a6a085", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },

@@ -296,6 +296,12 @@ its own RPC override.
   are for the holder's own wallet or script. The site holds no key, signs
   nothing and sends nothing; a mint prepared this way expires fifteen
   minutes after it was prepared.
+- **The drill.** `contracts/evidence/drill-local.json` is written by the
+  drill's site half (`tests/positions-drill.test.ts`, after
+  `contracts/scripts/drill.ts` staged the incidents on a local node) and
+  committed; the series page shows it dated, with every transaction hash,
+  every revert name and what the index, the reconciliation and the
+  conditions said. No file, nothing shown.
 - **Rehearsal on a local chain.** The whole path — deployment record, index,
   ledger replay, reconciliation, wallet endpoints, prepared bytes — can be
   run against a Hardhat node on this machine, with the worked example sent as

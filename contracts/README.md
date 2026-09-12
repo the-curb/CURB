@@ -75,6 +75,34 @@ addresses — accepted where the contract should accept them, reverted where
 it should not. Without the variable the test skips; nothing here touches a
 public chain or holds a key.
 
+## The drill on a local node (O02)
+
+`scripts/drill.ts` stages the incidents the blueprint names, on a fresh
+series on the same Hardhat node: the issuer freezes A (claims of A revert,
+claims of B pay, minting is refused, then A resumes and the A claim pays);
+the issuer seizes part of the A the series holds (A's whole-liability check
+halts A payments, B still pays, minting is refused); a holder claims with
+no backend involved. Every transaction hash and every revert name is kept.
+
+```bash
+node scripts/drill.ts > drill.json      # the chain half; one JSON line on stdout
+```
+
+The site half, from the repository root, reads that chain and stages the
+two incidents that are the site's own — a node that stops answering and a
+source that stops answering — then writes the whole drill, with who did
+what, to `evidence/drill-local.json`, shown on the series page:
+
+```bash
+CURB_DRILL_RECORD="$(cat contracts/drill.json)" npm test
+```
+
+It found A `SHORTFALL` by exactly what was seized and B `MATCHED`, a DARK
+condition on A alone, `HEAD_UNREAD` and `UNKNOWN` (not a shortfall) while
+the node was down with the cursor kept, and a STALE condition naming the
+lost source. Nobody was paged and nothing was recovered: the drill computes
+the conditions, it does not deliver them, and what was seized stays seized.
+
 ## What the tests cover, in the blueprint's numbering
 
 T01–T12, T17, T19, T20, T22–T25, the operator's limits, the preview

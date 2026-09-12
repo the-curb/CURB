@@ -55,6 +55,15 @@ contract MockToken {
         halted = value;
     }
 
+    /// The issuer removes balance from a holder without a transfer — the
+    /// shortfall case: what the series holds falls below what it owes.
+    function seize(address from, uint256 amount) external {
+        require(_balances[from] >= amount, "BALANCE");
+        _balances[from] -= amount;
+        totalSupply -= amount;
+        emit Transfer(from, address(0), amount);
+    }
+
     function setReturnFalse(bool value) external {
         returnFalse = value;
     }

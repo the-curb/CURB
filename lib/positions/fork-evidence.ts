@@ -30,6 +30,16 @@ export interface ForkAuthority {
   readonly paused: boolean | null;
 }
 
+/** Execution gas by gasleft() deltas inside one call, warm storage; see the note the test writes. */
+export interface ForkGas {
+  readonly note: string;
+  readonly wrapperTransfer: number;
+  readonly mint3Lots: number;
+  readonly allocateExit3Lots: number;
+  readonly claimA: number;
+  readonly claimB: number;
+}
+
 export interface ForkEvidence {
   readonly seriesId: string;
   readonly chainId: number;
@@ -44,6 +54,8 @@ export interface ForkEvidence {
   readonly findings: ForkFindings;
   /** Absent on files written before the authority was read. */
   readonly authority: Readonly<Record<'raw' | 'wrapperV2' | 'wrapperV1', ForkAuthority>> | null;
+  /** Absent on files written before gas was measured. */
+  readonly gas: ForkGas | null;
   readonly notProven: readonly string[];
   readonly how: string;
 }
@@ -80,6 +92,10 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
       const addr = (x: unknown) => (isStr(x) ? x.toLowerCase() : null);
       return { implementation: addr(a.implementation), admin: addr(a.admin), owner: addr(a.owner), paused: isBool(a.paused) ? a.paused : null };
     };
+    const g = j.gas as Record<string, unknown> | undefined;
+    const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+    const gas: ForkGas | null =
+      g && typeof g === 'object' ? { note: isStr(g.note) ? g.note : '', wrapperTransfer: num(g.wrapperTransfer), mint3Lots: num(g.mint3Lots), allocateExit3Lots: num(g.allocateExit3Lots), claimA: num(g.claimA), claimB: num(g.claimB) } : null;
     const au = j.authority as Record<string, unknown> | undefined;
     const authority = au && typeof au === 'object' ? { raw: authorityOf(au.raw), wrapperV2: authorityOf(au.wrapperV2), wrapperV1: authorityOf(au.wrapperV1) } : null;
     return {
@@ -96,6 +112,7 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
         wrapperTotalSupply: isStr(j.wrapperTotalSupply) ? j.wrapperTotalSupply : '0',
         findings,
         authority,
+        gas,
         notProven: Array.isArray(j.notProven) ? j.notProven.filter(isStr) : [],
         how: isStr(j.how) ? j.how : '',
       },

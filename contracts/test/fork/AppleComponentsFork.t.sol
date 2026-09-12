@@ -95,6 +95,42 @@ contract AppleComponentsForkTest is Test {
         return held && IERC20Like(WRAPPER_V2).balanceOf(alice) == 30e18 && IERC20Like(WRAPPER_V2).balanceOf(address(series)) == 0 && series.claimB(alice) == 60e18;
     }
 
+    /// Execution gas of each operation with the real wrapper as A, by gasleft()
+    /// deltas: a plain wrapper transfer (what holding it directly costs to
+    /// move), a mint of 3 lots, an exit allocation, a claim of A (the real
+    /// wrapper moving out) and a claim of B (a mock). Add the 21,000 base and
+    /// the calldata for a transaction; these are inputs to a cost comparison,
+    /// not a price.
+    function _gasRoundTrip() internal returns (uint256 transferGas, uint256 mintGas, uint256 exitGas, uint256 claimAGas, uint256 claimBGas) {
+        MockToken b = new MockToken("Component B (mock)", "B", 18);
+        CompanySeries series = new CompanySeries(WRAPPER_V2, address(b), 10e18, 20e18, 1_000, operator, "Apple Position - Series 1 (fork)", "cAAPL-S1");
+        vm.startPrank(operator);
+        series.setMintPermit(alice, type(uint64).max);
+        series.setClaimPermit(alice, true);
+        vm.stopPrank();
+        deal(WRAPPER_V2, alice, 40e18);
+        b.mint(alice, 60e18);
+        vm.startPrank(alice);
+        IERC20Like(WRAPPER_V2).approve(address(series), type(uint256).max);
+        b.approve(address(series), type(uint256).max);
+        uint256 g = gasleft();
+        IERC20Like(WRAPPER_V2).transfer(bob, 10e18);
+        transferGas = g - gasleft();
+        g = gasleft();
+        series.mint(3, block.timestamp + 1 hours);
+        mintGas = g - gasleft();
+        g = gasleft();
+        series.allocateExit(3);
+        exitGas = g - gasleft();
+        g = gasleft();
+        series.claimComponent(0);
+        claimAGas = g - gasleft();
+        g = gasleft();
+        series.claimComponent(1);
+        claimBGas = g - gasleft();
+        vm.stopPrank();
+    }
+
     /// Unwrap 10 wAAPLx for an arbitrary holder. Returns (succeeded, raw received, the wrapper's quote).
     function _unwrap() internal returns (bool, uint256, uint256) {
         deal(WRAPPER_V2, alice, 10e18);
@@ -259,6 +295,18 @@ contract AppleComponentsForkTest is Test {
             '    "rawTransfersForArbitraryHolder": ', rawMoved ? "true" : "false", ",\n",
             '    "rawReceivedFor1e18Sent": "', vm.toString(bobReceived), '",\n',
             '    "rawBalanceSettableByStorage": ', rawStored ? "true" : "false", "\n",
+            "  },\n"
+        );
+        (uint256 gTransfer, uint256 gMint, uint256 gExit, uint256 gClaimA, uint256 gClaimB) = _gasRoundTrip();
+        json = string.concat(
+            json,
+            '  "gas": {\n',
+            '    "note": "execution gas by gasleft() deltas inside one call, with the real wrapper as A and a mock as B: storage already touched is warm, so a real transaction pays cold access, the 21,000 base and its calldata on top; an input to a cost comparison, not a price",\n',
+            '    "wrapperTransfer": ', vm.toString(gTransfer), ",\n",
+            '    "mint3Lots": ', vm.toString(gMint), ",\n",
+            '    "allocateExit3Lots": ', vm.toString(gExit), ",\n",
+            '    "claimA": ', vm.toString(gClaimA), ",\n",
+            '    "claimB": ', vm.toString(gClaimB), "\n",
             "  },\n"
         );
         json = string.concat(

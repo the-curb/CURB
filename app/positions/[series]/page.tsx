@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { describeAge } from '@/lib/doctrine/reading';
 import { units18 } from '@/lib/positions/fork-evidence';
+import { drillEvidence } from '@/lib/positions/drill-evidence';
 import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
@@ -43,7 +44,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const [a, b] = spec.components;
   const now = new Date();
   const store = await getStoreAsync();
-  const [evidence, ledger, reconciliation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id)]);
+  const [evidence, ledger, reconciliation, drill] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence()]);
   const deployment = deploymentView(spec.id);
   const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
   const FIELD = (f: { value: unknown; state: 'VERIFIED' | 'UNREAD'; reason: string | null }) =>
@@ -357,6 +358,28 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   The wrapper held {units18(evidence.fork.wrapperRawReserve)} of the raw token and had {units18(evidence.fork.wrapperTotalSupply)} shares in all at that block. {evidence.fork.how}. Rerun:{' '}
                   <code className="text-(--color-paper-dim)">cd contracts && npm run test:fork</code>.
                 </p>
+                {evidence.fork.gas ? (
+                  <div className="mt-4">
+                    <div className="kicker">What each operation cost to execute · at that block · gas</div>
+                    <dl className="tabular mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-[11px]">
+                      {(
+                        [
+                          ['a plain transfer of the wrapper (holding it directly)', evidence.fork.gas.wrapperTransfer],
+                          ['mint 3 lots (both deposits, the receipt)', evidence.fork.gas.mint3Lots],
+                          ['allocate 3 lots for exit (no token moves)', evidence.fork.gas.allocateExit3Lots],
+                          ['claim A (the real wrapper moves out)', evidence.fork.gas.claimA],
+                          ['claim B (a mock moves out)', evidence.fork.gas.claimB],
+                        ] as const
+                      ).map(([label, gas]) => (
+                        <div key={label} className="contents">
+                          <dt className="text-(--color-paper-faint)">{label}</dt>
+                          <dd className="text-(--color-paper-dim)">{gas.toLocaleString('en-US')}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="mt-2 text-[10px] leading-relaxed text-(--color-paper-faint)">{evidence.fork.gas.note}. No gas price and no token price is applied here: a cost in money needs both, dated.</p>
+                  </div>
+                ) : null}
                 {evidence.fork.authority ? (
                   <div className="mt-4">
                     <div className="kicker">Who stands behind each address · at that block</div>
@@ -415,6 +438,63 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
           </div>
         </div>
       </section>
+
+      {/* ── the drill ───────────────────────────────────────────────────── */}
+      {drill.drill ? (
+        <section className="mt-8">
+          <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+            <span className="kicker">
+              <b>The drill</b> · incidents staged on a local chain · {drill.drill.ranAt.slice(0, 16).replace('T', ' ')} UTC
+            </span>
+            <Link href="/mechanism#11-operator-authority-and-incidents" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+              §11 of the mechanism
+            </Link>
+          </div>
+          <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+            <div className="cell p-6 sm:p-8">
+              <ol className="space-y-4">
+                {drill.drill.siteFindings.map((f) => (
+                  <li key={f.scenario} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-2">
+                    <span className="tabular text-(--color-accent)">{f.scenario.slice(0, 1)}</span>
+                    <div>
+                      <div className="text-[13px] text-(--color-paper)">{f.scenario.slice(2)}</div>
+                      <p className="mt-1 text-[12px] leading-relaxed text-(--color-paper-dim)">{f.finding}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="cell p-6 sm:p-8">
+              <div className="kicker">On chain · {drill.drill.chainSteps.length} transactions or refusals</div>
+              <ul className="tabular mt-2 space-y-1 text-[11px]">
+                {drill.drill.chainSteps
+                  .filter((s) => s.scenario !== 'setup')
+                  .map((s) => (
+                    <li key={`${s.scenario}-${s.did}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+                      <span className="text-(--color-paper-dim)">
+                        {s.who} {s.did}
+                      </span>
+                      <span className="whitespace-nowrap" style={{ color: s.outcome === 'AS_EXPECTED' ? 'var(--color-state-live)' : 'var(--color-state-dark)' }}>
+                        {s.tx ? `tx ${s.tx.slice(0, 10)}…` : `reverted ${s.revert ?? ''}`}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              <div className="mt-4 border-t border-(--color-rule) pt-3">
+                <div className="kicker">Limits</div>
+                <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-(--color-paper-faint)">
+                  {drill.drill.limits.map((l) => (
+                    <li key={l}>— {l}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">
+                  {drill.drill.chain.note}. Run by {drill.drill.by}.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* ── the ledger, by hand ─────────────────────────────────────────── */}
       <section className="mt-8">

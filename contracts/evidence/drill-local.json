@@ -1,0 +1,213 @@
+{
+  "ranAt": "2026-09-12T03:27:45.285Z",
+  "chain": {
+    "profile": "hardhat-local",
+    "chainId": 31337,
+    "note": "a Hardhat node on one machine with mock components; not a public chain"
+  },
+  "by": "contracts/scripts/drill.ts (the chain half) and tests/positions-drill.test.ts (the site half), run by hand",
+  "chainRanAt": "2026-09-12T03:26:15.234Z",
+  "series": {
+    "chainId": 31337,
+    "address": "0x95401dc811bb5740090279ba06cfa8fcf6113778",
+    "components": {
+      "A": "0x851356ae760d987e095750cceb3bc6014560891c",
+      "B": "0xf5059a5d33d5853360d16c683c16e67980206f36"
+    },
+    "fromBlock": 63,
+    "q": {
+      "A": "10000000000000000000",
+      "B": "20000000000000000000"
+    },
+    "capLots": "1000"
+  },
+  "holders": {
+    "alice": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "bob": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+    "carol": "0x90f79bf6eb2c4f870365e785982e1f101e93b906"
+  },
+  "chainSteps": [
+    {
+      "scenario": "setup",
+      "who": "alice",
+      "did": "mints 40 lots",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x4fa02af35d2822f7facb5ffaa8217ae5fcd1b13c2fea99ec1006d4bcb6ac6719",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "bob",
+      "did": "mints 30 lots",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x275c72b10b7bed268ec57fdc5e71e176037481c7c5e1ffa0a806bb6719356147",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "alice",
+      "did": "allocates 10 lots for exit",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xb9bec197096d1245dc2a16bc4d6f6570b657d25e033e06316ad5e23457e93f66",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "bob",
+      "did": "allocates 10 lots for exit",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xa58c842316db66a922a62f898aefc857af1132a1dcab4ba082a950c5e6a37589",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "the issuer of A (mock)",
+      "did": "halts every transfer of A",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x112527ae942a3da7e58f3e517ea051eef0a5ccb91aa75edaacba19207f76090d",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her A (100 units reserved)",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "TransferFailed(0)"
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her B (200 units reserved)",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x6a053e58669608e419f818634a1734aea6386739a72bfd128b2ecab9226ba02f",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "carol",
+      "did": "tries to mint 5 lots while A is frozen",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "TransferFailed(0)"
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "the issuer of A (mock)",
+      "did": "resumes transfers of A",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xff875dd7c1759b39c3afafa811919765680a191bf031b37cb79567ebb49af39d",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her A after the resume",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x6782c6eb8a441fcb5eec6814342b63605f48703f265ca392805864ffb0abe868",
+      "revert": null
+    },
+    {
+      "scenario": "3 backend down",
+      "who": "bob",
+      "did": "claims his B with no backend involved",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x6560fb369f82d84ed5e2d88a3e69f7e04ee8a30c2dc11531db96b0a71093f57f",
+      "revert": null
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "the issuer of A (mock)",
+      "did": "seizes 50000000000000000000 base units of A from the series",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xa2f50eefb07556254817d390176f3b0b12a4b1043dc8b9973ac7bfb94b02d168",
+      "revert": null
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "bob",
+      "did": "claims his A while the series is short of A",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "ShortfallHaltsPayment(0)"
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "carol",
+      "did": "mints 5 lots while the series is short of A",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "BackingShort(0)"
+    }
+  ],
+  "siteFindings": [
+    {
+      "scenario": "3 backend down",
+      "finding": "a holder claimed B with no site involved — the permit is on chain — and the index, started afterwards, caught the claim up",
+      "evidence": {
+        "transactionHash": "0x6560fb369f82d84ed5e2d88a3e69f7e04ee8a30c2dc11531db96b0a71093f57f",
+        "blockNumber": 92,
+        "eventsIndexed": 7
+      }
+    },
+    {
+      "scenario": "2 series short of A",
+      "finding": "the reconciliation found A SHORTFALL by exactly what was seized and B MATCHED; the condition is DARK on A alone; on chain, claims of A halt and claims of B pay",
+      "evidence": {
+        "owedA": "600000000000000000000",
+        "heldA": "550000000000000000000",
+        "differenceA": "-50000000000000000000",
+        "findingB": "MATCHED",
+        "asOfBlock": 93,
+        "condition": "series apple-s1 holds 550000000000000000000 units of A against 600000000000000000000 owed — payment of that component is halted until resolved"
+      }
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "finding": "while A was frozen a claim of A reverted and a claim of B paid; minting was refused; after the resume the A claim paid",
+      "evidence": {
+        "halts every transfer of A": "0x112527ae942a3da7e58f3e517ea051eef0a5ccb91aa75edaacba19207f76090d",
+        "claims her A (100 units reserved)": "reverted TransferFailed(0)",
+        "claims her B (200 units reserved)": "0x6a053e58669608e419f818634a1734aea6386739a72bfd128b2ecab9226ba02f",
+        "tries to mint 5 lots while A is frozen": "reverted TransferFailed(0)",
+        "resumes transfers of A": "0xff875dd7c1759b39c3afafa811919765680a191bf031b37cb79567ebb49af39d",
+        "claims her A after the resume": "0x6782c6eb8a441fcb5eec6814342b63605f48703f265ca392805864ffb0abe868"
+      }
+    },
+    {
+      "scenario": "4 RPC fails",
+      "finding": "with the node unreachable the index reported HEAD_UNREAD and kept its cursor and events; the reconciliation reported UNKNOWN for both components (STALE conditions), not a shortfall; when the node answered again the index continued from the same cursor with nothing to re-read",
+      "evidence": {
+        "detail": "SOURCE_UNREACHABLE — fetch failed",
+        "cursor": 93,
+        "unknownReasonA": "SOURCE_UNREACHABLE — fetch failed"
+      }
+    },
+    {
+      "scenario": "5 source lost",
+      "finding": "an issuer record that stops answering is a STALE condition naming the source; the last archived record stays on file and nothing is inferred from an example instead",
+      "evidence": {
+        "condition": "the issuer record xstocks:AAPLx could not be read as before (unreachable — fetch failed)"
+      }
+    }
+  ],
+  "limits": [
+    "the issuer of A is a mock whose freeze and seizure are switches; a real issuer’s actions have their own rules and timing",
+    "no person was paged: the conditions here are computed, not delivered; delivery is the webhook’s job and was proven separately",
+    "nothing here is a recovery: what was seized stays seized, and no rights were moved"
+  ]
+}
