@@ -44,11 +44,23 @@ export function parseOndoAssetPage(
   raw: string,
   expectedSymbol: string,
 ): { ok: true; asset: OndoAssetPage; live: OndoAssetPageLive } | { ok: false; status: 'NOT_JSON' | 'SCHEMA_CHANGED'; detail: string } {
-  const symbolAt = raw.indexOf(`\\"symbol\\":\\"${expectedSymbol}\\"`);
-  if (symbolAt < 0) return { ok: false, status: 'SCHEMA_CHANGED', detail: `the page carries no record for ${expectedSymbol}` };
-  const window = raw.slice(Math.max(0, symbolAt - 400), symbolAt + 4000);
-  const networksAt = window.indexOf('\\"supportedNetworks\\":[');
-  if (networksAt < 0) return { ok: false, status: 'SCHEMA_CHANGED', detail: 'the record carries no supportedNetworks' };
+  // The symbol may appear in other escaped structures (a list, a link) before the
+  // record; the record is the occurrence with supportedNetworks beside it.
+  const needle = `\\"symbol\\":\\"${expectedSymbol}\\"`;
+  let symbolAt = -1;
+  let window = '';
+  let networksAt = -1;
+  for (let from = raw.indexOf(needle); from >= 0; from = raw.indexOf(needle, from + 1)) {
+    const candidate = raw.slice(Math.max(0, from - 400), from + 4000);
+    const at = candidate.indexOf('\\"supportedNetworks\\":[');
+    if (at >= 0) {
+      symbolAt = from;
+      window = candidate;
+      networksAt = at;
+      break;
+    }
+  }
+  if (symbolAt < 0) return { ok: false, status: 'SCHEMA_CHANGED', detail: raw.includes(needle) ? 'the record carries no supportedNetworks' : `the page carries no record for ${expectedSymbol}` };
   const arrayStart = window.indexOf('[', networksAt);
   let depth = 0;
   let arrayEnd = -1;

@@ -166,7 +166,7 @@ export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, no
   };
 }
 
-export type DriftField = 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken' | 'implementation' | 'admin' | 'beacon';
+export type DriftField = 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken' | 'implementation' | 'admin' | 'beacon' | 'candidateSet';
 
 export interface Drift {
   readonly address: string;
@@ -177,9 +177,26 @@ export interface Drift {
   readonly to: string;
 }
 
-/** A field that moved between two runs, for every address both runs read. */
+/**
+ * A field that moved between two runs, for every address both runs read —
+ * and, per component, a candidate set that changed: an address the issuer's
+ * record named yesterday and not today, or the other way round, is the
+ * record moving under the series, which no per-address comparison sees.
+ */
 export function driftBetween(before: readonly AddressVerification[], after: readonly AddressVerification[]): Drift[] {
   const out: Drift[] = [];
+  for (const component of ['A', 'B'] as const) {
+    const set = (list: readonly AddressVerification[]) =>
+      list
+        .filter((v) => v.component === component)
+        .map((v) => `${v.role.toLowerCase()} ${v.address}`)
+        .sort();
+    const was = set(before);
+    const is = set(after);
+    if (was.length > 0 && was.join(',') !== is.join(',')) {
+      out.push({ address: is[0]?.split(' ')[1] ?? was[0]!.split(' ')[1]!, role: (after.find((v) => v.component === component) ?? before.find((v) => v.component === component))!.role, component, field: 'candidateSet', from: was.join(', '), to: is.join(', ') || 'none' });
+    }
+  }
   for (const b of before) {
     const a = after.find((x) => x.address === b.address && x.role === b.role);
     if (!a) continue;

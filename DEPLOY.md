@@ -269,8 +269,9 @@ its own RPC override.
   two days; a page that stops answering raises a STALE one.
 - **Conditions and alerts.** The position product feeds the same alerting as
   the desk: an issuer record or document that changed or stopped answering, a
-  candidate address whose code hash, symbol, decimals or `asset()` moved
-  between daily runs (T15 — DARK), a configured series held short of what it
+  candidate address whose code hash, symbol, decimals, `asset()` or EIP-1967
+  slots moved between daily runs, or a record that names a different address
+  than it did the day before (T15 — DARK), a configured series held short of what it
   owes, a balance that could not be read, and an event the ledger model
   refuses. They appear on `/api/state` under `conditions` and on Chambers,
   and are posted to the webhook once when raised and once when cleared.

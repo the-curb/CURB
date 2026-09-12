@@ -117,3 +117,20 @@ describe('the indicative value of a lot', () => {
     await store.close();
   });
 });
+
+describe('a deployment’s units per lot', () => {
+  it('are kept in base units for the arithmetic, so a lot of 10.5 units is neither rounded nor mis-scaled', async () => {
+    const { unitsText } = await import('../lib/positions/valuation.ts');
+    assert.equal(unitsText(10n * 10n ** 18n), '10');
+    assert.equal(unitsText(105n * 10n ** 17n), '10.5');
+    assert.equal(unitsText(1n), '0.000000000000000001');
+    const store = new FileSystemStore(mkdtempSync(path.join(tmpdir(), 'curb-valuation-')));
+    await store.writeSnapshots([feedSample(new Date(Date.now() - 5 * 60_000).toISOString())]);
+    const v = await indicativeValuation(store, APPLE_S1, { A: 105n * 10n ** 17n, B: 20n * 10n ** 18n }, true);
+    assert.equal(v.unitsPerLot.A, '10.5');
+    assert.equal(v.unitsPerLot.B, '20');
+    assert.equal(v.perUnit.A.state, 'INDICATIVE');
+    assert.equal(v.perLotUsd.A, '3,502.87', '10.5 units × 333.6069…, rounded once');
+    await store.close();
+  });
+});

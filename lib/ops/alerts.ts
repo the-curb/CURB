@@ -175,7 +175,7 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
         for (const d of drift) {
           out.push({
             id: `positions:${seriesId}:DRIFT:${String(d.address).slice(0, 10)}:${String(d.field)}`,
-            severity: ['answersAsToken', 'codeHash', 'asset', 'implementation', 'admin', 'beacon'].includes(String(d.field)) ? 'DARK' : 'STALE',
+            severity: ['answersAsToken', 'codeHash', 'asset', 'implementation', 'admin', 'beacon', 'candidateSet'].includes(String(d.field)) ? 'DARK' : 'STALE',
             text: `candidate ${String(d.role).toLowerCase().replace('_', ' ')} ${String(d.address)} for ${seriesId}: ${String(d.field)} moved from ${String(d.from)} to ${String(d.to)} — verification to be re-reviewed; minting would be stopped`,
           });
         }

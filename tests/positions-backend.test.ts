@@ -450,3 +450,45 @@ describe('the corporate-action evidence (T14)', () => {
     assert.equal((await corporateActionEvidenceOf('no-such-series')).evidence, null, 'no file, no finding');
   });
 });
+
+describe('a candidate set that moved', () => {
+  it('is a drift of its own, per component, and the parser finds the record past an earlier mention of the symbol', async () => {
+    const { driftBetween } = await import('../lib/positions/verify.ts');
+    const base = {
+      sourceId: 'ondo:AAPLon:page',
+      component: 'B' as const,
+      role: 'ISSUER_TOKEN' as const,
+      address: '0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c',
+      claimedAsset: null,
+      networkChainId: 1,
+      chainId: 1,
+      readAt: '2026-09-12T00:00:00.000Z',
+      source: 'node',
+      hasCode: { value: true, state: 'VERIFIED' as const, reason: null },
+      codeHash: { value: '0xaa', state: 'VERIFIED' as const, reason: null },
+      symbol: { value: 'AAPLon', state: 'VERIFIED' as const, reason: null },
+      decimals: { value: 18, state: 'VERIFIED' as const, reason: null },
+      asset: { value: null, state: 'UNREAD' as const, reason: 'not a wrapper' },
+      assetMatchesClaim: 'NOT_APPLICABLE' as const,
+      answersAsToken: true,
+      notProven: [],
+    };
+    const moved = { ...base, address: '0x000000000000000000000000000000000000dead' };
+    const drift = driftBetween([base], [moved]);
+    assert.deepEqual(
+      drift.map((d) => [d.component, d.field, d.from, d.to]),
+      [['B', 'candidateSet', 'issuer_token 0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c', 'issuer_token 0x000000000000000000000000000000000000dead']],
+      'the record named a different address: a drift the per-address comparison cannot see',
+    );
+    assert.deepEqual(driftBetween([base], []).map((d) => d.to), ['none'], 'an address that vanished from the record is a drift too');
+    assert.deepEqual(driftBetween([], [base]), [], 'a first run has nothing to compare');
+    assert.deepEqual(driftBetween([base], [base]), []);
+
+    const { parseOndoAssetPage } = await import('../lib/positions/ondo-page.ts');
+    const raw = readFileSync(new URL('./fixtures/ondo-aaplon-page.html', import.meta.url), 'utf8');
+    const decoy = raw.replace('<script>', '<script>self.__next_f.push([1,"\\"symbol\\":\\"AAPLon\\" in a list of assets with no deployments beside it"]);');
+    const parsed = parseOndoAssetPage(decoy, 'AAPLon');
+    assert.equal(parsed.ok, true, 'an earlier mention of the symbol does not hide the record');
+    if (parsed.ok) assert.equal(parsed.asset.addresses.length, 3);
+  });
+});

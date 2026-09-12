@@ -63,7 +63,7 @@ export type ComponentValue =
 export interface LotValuation {
   readonly state: 'INDICATIVE' | 'INCOMPLETE' | 'NOT_AVAILABLE';
   readonly perUnit: { readonly A: ComponentValue; readonly B: ComponentValue };
-  /** Units of each component per lot, as whole units (illustrative or from the deployment's q at 18 decimals). */
+  /** Units of each component per lot, as a decimal string of whole units (illustrative, or the deployment's q read at 18 decimals). */
   readonly unitsPerLot: { readonly A: string; readonly B: string };
   /** The value of one lot's A, when A is indicative; B likewise. */
   readonly perLotUsd: { readonly A: string | null; readonly B: string | null };
@@ -81,6 +81,13 @@ const E18 = 10n ** 18n;
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/** Base units at 18 places as a decimal string with the trailing zeros dropped: 10 for 10e18, 10.5 for 10.5e18. */
+export function unitsText(base: bigint): string {
+  const whole = base / E18;
+  const frac = (base % E18).toString().padStart(18, '0').replace(/0+$/, '');
+  return frac.length === 0 ? whole.toString() : `${whole.toString()}.${frac}`;
+}
+
 /** A number of `scale` decimals as a string with two places, rounded half up. */
 export function toUsd2(value: bigint, scale: number): string {
   const drop = scale - 2;
@@ -92,10 +99,9 @@ export function toUsd2(value: bigint, scale: number): string {
 
 export async function indicativeValuation(store: Store, spec: SeriesSpec, q: { readonly A: bigint; readonly B: bigint }, qIsBaseUnits: boolean): Promise<LotValuation> {
   const computedAt = new Date().toISOString();
-  const unitsPerLot = {
-    A: qIsBaseUnits ? (q.A / E18).toString() : q.A.toString(),
-    B: qIsBaseUnits ? (q.B / E18).toString() : q.B.toString(),
-  };
+  // Kept in base units (18 places) for the arithmetic, so a lot of 10.5 units is not rounded to 10; shown as a decimal.
+  const baseUnitsPerLot = { A: qIsBaseUnits ? q.A : q.A * E18, B: qIsBaseUnits ? q.B : q.B * E18 };
+  const unitsPerLot = { A: unitsText(baseUnitsPerLot.A), B: unitsText(baseUnitsPerLot.B) };
   const note = 'an estimate from dated sources, each named with both of its times; not a quote, not an offer, and never totalled while a component has no price';
   const unavailable = (reason: string): ComponentValue => ({ state: 'NOT_AVAILABLE', reason });
 
@@ -186,9 +192,10 @@ export async function indicativeValuation(store: Store, spec: SeriesSpec, q: { r
     };
 
   // Everything is kept at one scale so a total, when both sides exist, is a sum and not a re-rounding.
-  const scale = A.state === 'INDICATIVE' ? 18 + A.price.decimals : B.state === 'INDICATIVE' ? 18 + B.price.decimals : 26;
-  const perLotARaw = A.state === 'INDICATIVE' ? BigInt(unitsPerLot.A) * BigInt(A.conversion?.rawPerShare ?? '0') * BigInt(A.price.priceRaw) : null;
-  const perLotBRaw = B.state === 'INDICATIVE' ? BigInt(unitsPerLot.B) * BigInt(B.conversion?.rawPerShare ?? '0') * BigInt(B.price.priceRaw) : null;
+  const scale = A.state === 'INDICATIVE' ? 36 + A.price.decimals : B.state === 'INDICATIVE' ? 36 + B.price.decimals : 44;
+  // base units (18) × raw per share (18) × price (decimals): one scale for both components, rounded once at the end.
+  const perLotARaw = A.state === 'INDICATIVE' ? baseUnitsPerLot.A * BigInt(A.conversion?.rawPerShare ?? '0') * BigInt(A.price.priceRaw) : null;
+  const perLotBRaw = B.state === 'INDICATIVE' ? baseUnitsPerLot.B * BigInt(B.conversion?.rawPerShare ?? '0') * BigInt(B.price.priceRaw) : null;
   const state: LotValuation['state'] = A.state === 'INDICATIVE' && B.state === 'INDICATIVE' ? 'INDICATIVE' : A.state === 'INDICATIVE' || B.state === 'INDICATIVE' ? 'INCOMPLETE' : 'NOT_AVAILABLE';
   return {
     state,
