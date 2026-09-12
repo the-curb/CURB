@@ -1,0 +1,42 @@
+import Link from 'next/link';
+import { DECISIONS } from '@/lib/docs/decisions';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Decision records' };
+
+/**
+ * The decisions the blueprint asks to be written down before a pilot, as
+ * proposals: what is proposed, why, what the prototype already does, and
+ * what stays open. None is decided; the person who decides is named in
+ * each record's status line, and this page does not decide for them.
+ */
+export default function DecisionsIndex() {
+  return (
+    <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
+      <header className="mb-8">
+        <div className="kicker">
+          <b>The position</b> · <Link href="/mechanism" className="hover:text-(--color-paper)">Mechanism</Link> · decision records
+        </div>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">What has to be decided, written down before anyone decides it.</h1>
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
+          Eight records, all <span className="text-(--color-paper)">proposed</span> and none decided: the design choices the blueprint asks for (R03, R05, R06), the operator policy (O01) and the runbook (O03). Each says what the prototype already does and what stays open. They are files in the repository, read at request time.
+        </p>
+      </header>
+      <ol className="cells grid-cols-1 md:grid-cols-2">
+        {DECISIONS.map((d, i) => (
+          <li key={d.slug} className="cell p-6 sm:p-8">
+            <div className="kicker">
+              <span className="tabular text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span> · {d.backlog} · proposed
+            </div>
+            <h2 className="display mt-2 text-2xl text-(--color-paper)">
+              <Link href={`/mechanism/decisions/${d.slug}`} className="hover:text-(--color-accent)">
+                {d.title}
+              </Link>
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-(--color-paper-dim)">{d.asks}.</p>
+          </li>
+        ))}
+      </ol>
+    </main>
+  );
+}

@@ -285,12 +285,12 @@ Deferred: single-stablecoin deposit and automatic routing; cash redemption; dyna
 
 | Gate | Required evidence | Where it stands |
 | --- | --- | --- |
-| G1 — instrument | Two issuers, one underlying, one chain, canonical identities | Candidates appear in documentation; integration verification not done. |
-| G2 — rights and access | Review of rights, user categories, contract custody, receipt distribution, exit process | Not done. Technical ability to hold is not enough. |
-| G3 — components | Static balances, decimals, correct wrapper version, authority, real transfer and claim under test | Not done. |
-| G4 — contract | Invariants and adversarial tests pass; independent review; material findings closed | Not implemented. |
-| G5 — operations | Reconciliation, index recovery, incident drill, key management, direct claim interface | Not implemented. |
-| G6 — economics | Measured formation and exit cost, and user need against the baseline | Not validated. |
+| G1 — instrument | Two issuers, one underlying, one chain, canonical identities | A's raw token and both wrappers are read on Ethereum daily and match the issuer's record; B's address is behind an API key this desk does not hold. Related parties mapped from the documents; B's agents described but not named. Not passed. |
+| G2 — rights and access | Review of rights, user categories, contract custody, receipt distribution, exit process | Not done. The access design is written as a proposed decision record; the review is a person's. Technical ability to hold is not enough. |
+| G3 — components | Static balances, decimals, correct wrapper version, authority, real transfer and claim under test | On a fork of Ethereum: identity, transfer, unwrap, a series round trip and who stands behind each address, for A. A static balance across a recorded corporate action (T14) not shown; B not tested. Not passed. |
+| G4 — contract | Invariants and adversarial tests pass; independent review; material findings closed | A prototype passes T01–T12, T17, T19, T20, T22–T25 and a fuzz run. No independent review. Not passed. |
+| G5 — operations | Reconciliation, index recovery, incident drill, key management, direct claim interface | Reconciliation, index recovery and the drill shown on a local chain; claim calldata prepared read-only. No signers exist; key management is a proposal. Not passed. |
+| G6 — economics | Measured formation and exit cost, and user need against the baseline | Execution gas measured on a fork with the real wrapper, no price applied. User need not validated: no interviews held. Not passed. |
 
 If two eligible issuers are not available on Robinhood Chain, the thesis cannot be met by wrapping two tokens from the same issuer. Choose a chain that passes the gates or stay in simulation. There is no hidden bridge plan to cover the gap. Receipt terms may need their own structure and distribution arrangements; nontransferable or testnet status does not settle every obligation for a real-asset pilot. That is specific feasibility work, not a claim of regulatory approval.
 
@@ -381,7 +381,8 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Instrument file compiled from the archive and the chain (R01, the automatable half) | Implemented | `/api/positions/apple-s1/file` |
 | Issuer documents watched for change by the hash of their visible text (9 pages) | Implemented, running on the tick | the series page, `/api/positions/apple-s1/evidence` |
 | The map of related parties (R02): issuer, tokenizer, brokers, custodians, security agent, underlying, settlement asset, bridge and contract authority for each component, every line with its source and date; a role the documents describe without naming is left empty; no party is named under both components and no independence is claimed | Implemented from the issuers' documents as read on 12 September 2026; the pages are watched for change | the series page, `lib/positions/dependencies.ts`, `/api/positions/apple-s1/file` |
-| Rights and access review (R03), user interviews (R04), lot sizing (R05), design decisions (R06) | Not started — decisions and interviews, not code | — |
+| Decision records for the immutable series, the nontransferable receipt, on-chain access (with R03's answers on holders, revocation and lost access), per-component stops, no sweep and claims to the holder, and lots and the cap (R03, R05, R06); the operator policy (O01) and the runbook (O03) | Written as proposals, none decided; each names who decides | [/mechanism/decisions](/mechanism/decisions), `docs/decisions/` |
+| User interviews (R04), the cost model and comprehension tests (B01, B02), the gate decision (G01) | Not started — people, not code | — |
 | Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
 
 The Ondo source records `ACCESS_DENIED`: its documented endpoint requires an API key this desk does not hold. That is archived as the finding; the example address in Ondo's specification is not used.

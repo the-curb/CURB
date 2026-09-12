@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/doctrine': ['./DOCTRINE.md'],
     '/mechanism': ['./MECHANISM.md'],
+    '/mechanism/decisions/**': ['./docs/decisions/*.md'],
     '/positions/**': ['./contracts/evidence/*.json'],
     '/api/positions/**': ['./contracts/evidence/*.json'],
     '/api/status': ['./contracts/evidence/*.json'],

@@ -15,8 +15,15 @@ component withdrawn on its own.
 contract, issuer integration, transaction or deployment exists yet. What
 exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
 the ledger model that implements its accounting (`lib/positions/`, tested
-against the blueprint's cases in `tests/positions.test.ts`), and a simulation
-of it at `/positions/apple-s1` — illustrative units, no prices, no chain.
+against the blueprint's cases in `tests/positions.test.ts`), a simulation
+of it at `/positions/apple-s1` — illustrative units, no prices, no chain —
+the product's backend (an evidence archive of the issuers' records, daily
+on-chain verification of every address they name, an event index and a
+reconciliation for a series once one is deployed, a product API), a contract
+prototype with fork evidence against the real component on Ethereum, a
+rehearsal and an operational drill on a local chain, and the decision records
+the blueprint asks for (`docs/decisions/`, rendered at `/mechanism/decisions`)
+— all proposed, none decided.
 
 Beneath the product is the desk: a multi-agent intelligence desk for stock
 tokens on Robinhood Chain (chain id 4663). Nine agents read the chain and two

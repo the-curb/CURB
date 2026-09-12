@@ -174,12 +174,12 @@ export interface Gate {
 }
 
 export const GATES: readonly Gate[] = [
-  { id: 'G1', name: 'Instrument', evidence: 'Two issuers, one underlying, one chain, canonical identities', status: 'IN_RESEARCH', today: 'Candidates appear in issuer documentation; integration verification is not done.' },
+  { id: 'G1', name: 'Instrument', evidence: 'Two issuers, one underlying, one chain, canonical identities', status: 'IN_RESEARCH', today: 'A’s raw token and both wrappers are read on Ethereum daily (code, symbol, decimals, asset(), the EIP-1967 slots) and match the issuer’s record; B’s address is behind an API key this desk does not hold. The related parties are mapped from the documents; B’s broker, custodian and agents are described but not named.' },
   { id: 'G2', name: 'Rights and access', evidence: 'Review of holder rights, user categories, contract custody, receipt distribution, exit process', status: 'NOT_STARTED', today: 'Technical ability to hold a token is not enough.' },
-  { id: 'G3', name: 'Components', evidence: 'Static unit balances, decimals, correct wrapper version, authority, real transfer and claim under test', status: 'NOT_STARTED', today: 'Nothing verified yet.' },
+  { id: 'G3', name: 'Components', evidence: 'Static unit balances, decimals, correct wrapper version, authority, real transfer and claim under test', status: 'IN_RESEARCH', today: 'On a fork of Ethereum the real wrapper transfers, unwraps, and goes through a series round trip; who stands behind each address is recorded. A static balance under a corporate action across a recorded block (T14) is not shown; component B has not been tested.' },
   { id: 'G4', name: 'Contract', evidence: 'Invariants and adversarial tests pass; independent review; material findings closed', status: 'IN_RESEARCH', today: 'A prototype in contracts/ passes the blueprint’s cases T01–T12, T17, T19, T20, T22–T25 and a fuzz run. No independent review, no audit, no deployment.' },
-  { id: 'G5', name: 'Operations', evidence: 'Reconciliation, index recovery, incident drill, key management, direct claim UI', status: 'NOT_STARTED', today: 'Not implemented.' },
-  { id: 'G6', name: 'Economics', evidence: 'Measured cost to form and exit; user need against the baseline of holding both tokens', status: 'NOT_STARTED', today: 'Not validated.' },
+  { id: 'G5', name: 'Operations', evidence: 'Reconciliation, index recovery, incident drill, key management, direct claim UI', status: 'IN_RESEARCH', today: 'Reconciliation, index recovery and the incident drill are shown on a local chain with mock components; claim calldata is prepared read-only. No signers exist, so key management and the operator multisig are a written proposal only.' },
+  { id: 'G6', name: 'Economics', evidence: 'Measured cost to form and exit; user need against the baseline of holding both tokens', status: 'IN_RESEARCH', today: 'Execution gas to form and exit is measured on a fork with the real wrapper, with no price applied. User need against the baseline is not validated: no interviews have been held.' },
 ];
 
 /** The three steps, in the words the site uses. */

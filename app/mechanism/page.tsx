@@ -43,7 +43,11 @@ export default async function MechanismPage() {
           <Link href={`/positions/${APPLE_S1.id}`} className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
             simulation
           </Link>
-          .
+          . The choices it asks to be written down are{' '}
+          <Link href="/mechanism/decisions" className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
+            decision records
+          </Link>
+          , all proposed and none decided.
         </p>
       </header>
 
