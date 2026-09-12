@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { describeAge } from '@/lib/doctrine/reading';
 import { units18 } from '@/lib/positions/fork-evidence';
 import { drillEvidence } from '@/lib/positions/drill-evidence';
+import { testRecord } from '@/lib/positions/test-record';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from '@/lib/positions/dependencies';
 import { deploymentView, ledgerFor, seriesEvidence } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
@@ -45,7 +46,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const [a, b] = spec.components;
   const now = new Date();
   const store = await getStoreAsync();
-  const [evidence, ledger, reconciliation, drill] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence()]);
+  const [evidence, ledger, reconciliation, drill, tests] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence(), testRecord()]);
   const deployment = deploymentView(spec.id);
   const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
   const FIELD = (f: { value: unknown; state: 'VERIFIED' | 'UNREAD'; reason: string | null }) =>
@@ -337,6 +338,20 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               </dl>
               {deployment.detail ? <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">{deployment.detail}</p> : null}
             </div>
+
+            {tests.record ? (
+              <div className="mt-6 border-t border-(--color-rule) pt-4">
+                <div className="kicker">Contract tests · recorded run</div>
+                <p className="tabular mt-2 text-[12px] text-(--color-paper-dim)">
+                  <span style={{ color: tests.record.failing === 0 ? 'var(--color-state-live)' : 'var(--color-state-dark)' }}>
+                    {tests.record.passing} passing · {tests.record.failing} failing
+                  </span>{' '}
+                  at commit {tests.record.commit.slice(0, 10)} · {tests.record.ranAt.slice(0, 16).replace('T', ' ')} UTC · solc {tests.record.solc ?? '—'} · fuzz seed {tests.record.fuzz.seed ? `${tests.record.fuzz.seed.slice(0, 10)}…` : '—'} × {tests.record.fuzz.runs ?? '—'} runs
+                  {tests.record.workingTreeClean ? '' : ' · working tree not clean when recorded'}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-(--color-paper-faint)">{tests.record.limit}</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="cell p-6 sm:p-8">

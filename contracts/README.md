@@ -26,6 +26,14 @@ invariants after every step. The mocks in `src/mocks/` switch on each
 misbehaviour the blueprint names — an issuer halt, a transfer that returns
 false, a fee on transfer, a reentrant callback, a `balanceOf` that reverts.
 
+## The recorded run (C07)
+
+`npm run record:tests` runs the unit tests with the fuzz seed pinned in
+`hardhat.config.ts` and writes the seed, the runs, every test's result and
+the commit to `evidence/unit-tests.json`, which is committed and shown on
+the series page. Record after committing, so the record names a clean tree.
+A passing run is not a review and not an audit.
+
 ## The fork tests
 
 `test/fork/AppleComponentsFork.t.sol` runs against a fork of Ethereum at
