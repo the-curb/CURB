@@ -7,7 +7,7 @@ import { NETWORKS } from '../lib/chain/networks.ts';
 import { forgetChainConfirmations, rpcCall } from '../lib/chain/rpc.ts';
 import { allocateExitCall, approveCall, claimCall, mintCall } from '../lib/positions/calldata.ts';
 import { parseDeployments } from '../lib/positions/deployments.ts';
-import { INDEX_INTERVAL_SECONDS, reduceLedger, syncIndex } from '../lib/positions/index.ts';
+import { INDEX_INTERVAL_SECONDS, operatorLog, reduceLedger, syncIndex } from '../lib/positions/index.ts';
 import { claimsOf, receiptsOf } from '../lib/positions/ledger.ts';
 import { reconcileSeries } from '../lib/positions/reconcile.ts';
 import { previewExit, previewMint } from '../lib/positions/api.ts';
@@ -49,7 +49,12 @@ describe('the index and the reconciliation, rehearsed on a local chain', () => {
     assert.equal(first.report.state, 'SYNCED', first.report.detail ?? '');
     assert.equal(first.index.faults.length, 0, 'every log decoded');
     const names = first.index.events.map((e) => e.event.name);
-    assert.deepEqual(names, ['PositionMinted', 'PositionMinted', 'ExitAllocated', 'ComponentClaimed', 'PositionMinted'], 'the worked example, in order, as the chain emitted it');
+    // The operator's own actions come first (the rehearsal grants permits before anyone mints), then the worked example.
+    const ledgerEvents = names.filter((n) => n !== 'MintPermitSet' && n !== 'ClaimPermitSet' && n !== 'OperatorChanged');
+    assert.deepEqual(ledgerEvents, ['PositionMinted', 'PositionMinted', 'ExitAllocated', 'ComponentClaimed', 'PositionMinted'], 'the worked example, in order, as the chain emitted it');
+    assert.ok(names.includes('MintPermitSet') && names.includes('ClaimPermitSet'), 'the permits the rehearsal granted are on the record');
+    const log = operatorLog(first.index);
+    assert.ok(log.mintPermits.length >= 2 && log.claimPermits.every((p) => p.permitted), 'the permits as last set');
 
     const { ledger, disagreements } = reduceLedger(first.index, deployment.q, deployment.capLots);
     assert.deepEqual(disagreements, [], 'the contract and the model agree on every event');

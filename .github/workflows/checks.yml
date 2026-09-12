@@ -61,7 +61,8 @@ jobs:
       # The suite builds its tables in its own schema and drops it after; a disposable database here, never the production one.
       - name: The Postgres store against the shared contract
         env:
-          CURB_POSTGRES_URL: postgres://postgres:curb@localhost:5432/curb
+          # sslmode declared: the store encrypts unless the URL says otherwise, and a container's Postgres speaks plain.
+          CURB_POSTGRES_URL: postgres://postgres:curb@localhost:5432/curb?sslmode=disable
         run: node --test tests/store-postgres.test.ts
 
   contracts:
