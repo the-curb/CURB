@@ -4,9 +4,11 @@ import { describeAge } from '@/lib/doctrine/reading';
 import { units18 } from '@/lib/positions/fork-evidence';
 import { drillEvidence } from '@/lib/positions/drill-evidence';
 import { testRecord } from '@/lib/positions/test-record';
+import { corporateActionEvidenceOf, multiplier18, percentChange } from '@/lib/positions/corporate-action';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from '@/lib/positions/dependencies';
 import { deploymentView, ledgerFor, seriesEvidence, valuationFor } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
+import { NOT_PROVEN } from '@/lib/positions/verify';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
 import { PositionSimulator } from '../../components/position-simulator';
@@ -46,7 +48,15 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const [a, b] = spec.components;
   const now = new Date();
   const store = await getStoreAsync();
-  const [evidence, ledger, reconciliation, drill, tests, valuation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), drillEvidence(), testRecord(), valuationFor(store, spec)]);
+  const [evidence, ledger, reconciliation, drill, tests, valuation, action] = await Promise.all([
+    seriesEvidence(store, spec),
+    ledgerFor(store, spec),
+    latestReconciliation(store, spec.id),
+    drillEvidence(),
+    testRecord(),
+    valuationFor(store, spec),
+    corporateActionEvidenceOf(spec.id),
+  ]);
   const deployment = deploymentView(spec.id);
   const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
   const FIELD = (f: { value: unknown; state: 'VERIFIED' | 'UNREAD'; reason: string | null }) =>
@@ -134,7 +144,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         : fork === null
                         ? null
                         : label.startsWith('Transferable')
-                          ? `on a fork at block ${fork.block.toLocaleString('en-US')}: a series took it in and paid it out ${fork.findings.seriesMintExitClaimWithRealWrapper ? '— yes' : '— no'}`
+                          ? `on a fork at block ${fork.block.toLocaleString('en-US')}: a series took it in and paid it out ${fork.findings.seriesMintExitClaimWithRealWrapper ? '— yes' : '— no'}${action.evidence && action.evidence.component === c.id ? `; across the issuer’s activation at block ${action.evidence.activationBlock.toLocaleString('en-US')} the wrapper’s shares ${action.evidence.findings.wrapperSharesStatic ? 'did not move' : 'moved'}` : ''}`
                           : label.startsWith('Unwrappable')
                             ? `on a fork at block ${fork.block.toLocaleString('en-US')}: redeem for an arbitrary holder ${fork.findings.wrapperUnwrapsForArbitraryHolder ? '— yes' : '— no'}`
                             : label.startsWith('A market offer')
@@ -464,6 +474,33 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                 </table>
               </div>
             )}
+            {action.evidence ? (
+              <div className="mt-5 border-t border-(--color-rule) pt-4">
+                <div className="kicker">
+                  Across a corporate action · the issuer’s activation at block {action.evidence.activationBlock.toLocaleString('en-US')} ·{' '}
+                  {new Date(action.evidence.after.timestamp * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC · component {action.evidence.component}
+                </div>
+                <ul className="tabular mt-2 space-y-1 text-[11px]">
+                  {(
+                    [
+                      [`the raw token’s multiplier moved: ${multiplier18(action.evidence.before.multiplier)} → ${multiplier18(action.evidence.after.multiplier)} (${percentChange(action.evidence.before.multiplier, action.evidence.after.multiplier)})`, action.evidence.findings.multiplierMoved],
+                      [`the wrapper’s shares did not move: ${units18(action.evidence.before.wrapperShares)} before, ${units18(action.evidence.after.wrapperShares)} after (T14)`, action.evidence.findings.wrapperSharesStatic],
+                      [`the wrapper’s raw balance moved with it: ${units18(action.evidence.before.wrapperRawBalance)} → ${units18(action.evidence.after.wrapperRawBalance)} (${percentChange(action.evidence.before.wrapperRawBalance, action.evidence.after.wrapperRawBalance)})`, action.evidence.findings.wrapperRawBalanceMoved],
+                      ['the wrapper’s conversion rate equals the multiplier on both sides', action.evidence.findings.conversionTracksMultiplier],
+                    ] as const
+                  ).map(([line, yes]) => (
+                    <li key={line} className="flex items-baseline gap-2">
+                      <span style={{ color: yes ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>{yes ? 'yes' : 'no'}</span>
+                      <span className="text-(--color-paper-dim)">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] leading-relaxed text-(--color-paper-faint)">
+                  Read at the block before the activation and at the activation block, on archive state. {action.evidence.how}. Not shown: {action.evidence.notProven.join('; ')}.
+                </p>
+              </div>
+            ) : null}
+
             {evidence.fork ? (
               <div className="mt-5 border-t border-(--color-rule) pt-4">
                 <div className="kicker">
@@ -574,7 +611,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
             <div className="mt-5 border-t border-(--color-rule) pt-4">
               <div className="kicker">What this does not prove</div>
               <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                {(evidence.verification?.addresses[0]?.notProven ?? ['that the unit balance stays static under a corporate action', 'holder eligibility', 'anything about the issuer’s reserves']).map((line) => (
+                {NOT_PROVEN.map((line) => (
                   <li key={line}>— {line}</li>
                 ))}
               </ul>

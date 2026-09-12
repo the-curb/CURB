@@ -71,7 +71,7 @@ export interface AddressVerification extends Candidate {
 }
 
 export const NOT_PROVEN = [
-  'that the unit balance stays static under a corporate action (needs a fork test at a recorded block)',
+  'that the unit balance stays static under every corporate action: one dividend activation is on the record (T14, the series page); a split is not',
   'that a Curb series contract or its receipt holders would be eligible holders',
   'anything about the issuer’s reserves, custody, or the value of a unit',
 ] as const;

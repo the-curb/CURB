@@ -15,6 +15,7 @@ import { latestReconciliation, type Reconciliation } from './reconcile.ts';
 import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.ts';
 import { latestVerification, type AddressVerification } from './verify.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
+import { corporateActionEvidenceOf } from './corporate-action.ts';
 import { allocateExitCall, approveCall, claimCall, mintCall, type PreparedCall } from './calldata.ts';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from './dependencies.ts';
 import { indicativeValuation, toUsd2, type LotValuation } from './valuation.ts';
@@ -347,14 +348,17 @@ export type ReconciliationView = Reconciliation;
  * generated from the record every time; nothing in it is typed by hand.
  */
 export async function instrumentFile(store: Store, spec: SeriesSpec) {
-  const evidence = await seriesEvidence(store, spec);
+  const [evidence, action] = await Promise.all([seriesEvidence(store, spec), corporateActionEvidenceOf(spec.id)]);
   const bySource = new Map(evidence.sources.map((s) => [s.id, s]));
   const xstocks = bySource.get('xstocks:AAPLx')?.latest?.parsed as { symbol?: string; name?: string; isin?: string | null; underlyingSymbol?: string | null; underlyingIsin?: string | null; isTradingHalted?: boolean | null } | null | undefined;
-  const ondo = bySource.get('ondo:AAPLon')?.latest?.parsed as { symbol?: string; addresses?: { networkChainId: string; address: string; decimals: number | null }[] } | null | undefined;
+  // The issuer's product page is the record B is read from; the API stays on file with its refusal.
+  const ondoPage = bySource.get('ondo:AAPLon:page');
+  const ondo = ondoPage?.latest?.parsed as { symbol?: string; underlyingName?: string | null; ticker?: string | null; addresses?: { networkChainId: string; address: string; decimals: number | null }[] } | null | undefined;
 
   const components = spec.components.map((c) => {
     const record = c.id === 'A' ? xstocks : ondo;
-    const recordSource = c.id === 'A' ? bySource.get('xstocks:AAPLx') : bySource.get('ondo:AAPLon');
+    const recordSource = c.id === 'A' ? bySource.get('xstocks:AAPLx') : ondoPage;
+    const refusedApi = c.id === 'B' ? bySource.get('ondo:AAPLon') : undefined;
     const addresses = (evidence.verification?.addresses ?? []).filter((v) => v.component === c.id);
     const documents = evidence.sources.filter((s) => s.kind === 'page' && s.component === c.id);
     return {
@@ -365,9 +369,14 @@ export async function instrumentFile(store: Store, spec: SeriesSpec) {
       underlying:
         c.id === 'A' && xstocks
           ? { symbol: xstocks.underlyingSymbol ?? null, isin: xstocks.underlyingIsin ?? null, instrumentIsin: xstocks.isin ?? null, tradingHalted: xstocks.isTradingHalted ?? null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null }
-          : { symbol: null, isin: null, instrumentIsin: null, tradingHalted: null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null, reason: recordSource?.latest?.status === 'ACCESS_DENIED' ? 'the issuer record is behind an API key this desk does not hold' : recordSource?.latest ? recordSource.latest.status : 'not fetched yet' },
+          : c.id === 'B' && ondo
+            ? { symbol: ondo.ticker ?? null, name: ondo.underlyingName ?? null, isin: null, instrumentIsin: null, tradingHalted: null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null, reason: 'the product page names the underlying by ticker and name; no ISIN is published there' }
+            : { symbol: null, isin: null, instrumentIsin: null, tradingHalted: null, source: recordSource?.id ?? null, readAt: recordSource?.latest?.readAt ?? null, reason: recordSource?.latest ? recordSource.latest.status : 'not fetched yet' },
       issuerRecord: recordSource
         ? { id: recordSource.id, url: recordSource.url, status: recordSource.latest?.status ?? null, readAt: recordSource.latest?.readAt ?? null, hash: recordSource.latest?.hash ?? null, versions: recordSource.versions, parsed: recordSource.latest?.parse ?? null }
+        : null,
+      issuerApi: refusedApi
+        ? { id: refusedApi.id, url: refusedApi.url, status: refusedApi.latest?.status ?? null, readAt: refusedApi.latest?.readAt ?? null, note: 'the documented endpoint; answers 403 without a key, and that stays on the record' }
         : null,
       addressesOnChain: addresses.map((v) => ({
         role: v.role,
@@ -387,13 +396,14 @@ export async function instrumentFile(store: Store, spec: SeriesSpec) {
       candidateUnit:
         c.id === 'A'
           ? { role: 'WRAPPER_V2', why: 'the issuer’s current non-rebasing wrapper; the raw token’s balance behaviour under a corporate action is not assumed static', chosen: false }
-          : { role: 'ISSUER_TOKEN', why: 'the issuer’s own token, once its record answers', chosen: false },
+          : { role: 'ISSUER_TOKEN', why: 'the issuer’s own token, as its product page publishes it and the chain confirms', chosen: false },
       documents: documents.map((d) => ({ title: d.title, url: d.url, status: d.latest?.status ?? null, hash: d.latest?.hash ?? null, firstSeenAt: d.latest?.firstSeenAt ?? null, changedAt: d.latest?.changedAt ?? null, versions: d.versions })),
       notKnown: c.unknown,
       // R02: the parties behind the component as the issuer's documents name them; a role without a name is left empty on purpose.
       relatedParties: DEPENDENCIES.filter((d) => d.component === c.id).map((d) => ({ partyType: d.partyType, name: d.name, relationship: d.relationship, source: d.source, readOn: d.readOn, limit: d.limit })),
       notProven: evidence.verification?.addresses[0]?.notProven ?? [],
       onAFork: evidence.fork && evidence.fork.component === c.id ? evidence.fork : null,
+      acrossACorporateAction: action.evidence && action.evidence.component === c.id ? action.evidence : null,
       statuses: c.statuses,
       verification: c.verification,
     };

@@ -1,0 +1,22 @@
+{
+  "seriesId": "apple-s1",
+  "chainId": 1,
+  "component": "A",
+  "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
+  "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
+  "activationBlock": 25706680,
+  "before": { "block": 25706679, "timestamp": 1786148999, "multiplier": "1002664207589379700", "wrapperShares": "49867143577619818", "wrapperRawBalance": "49999999999999999", "wrapperSharesOnRaw": "49867143577619818", "convertToAssets1e18": "1002664207589379700", "rawTotalSupply": "74100021769937026649179" },
+  "after": { "block": 25706680, "timestamp": 1786149011, "multiplier": "1003269012539818700", "wrapperShares": "49867143577619818", "wrapperRawBalance": "50030159895299996", "wrapperSharesOnRaw": "49867143577619818", "convertToAssets1e18": "1003269012539818700", "rawTotalSupply": "74144718747903202410949" },
+  "findings": {
+    "multiplierMoved": true,
+    "wrapperSharesStatic": true,
+    "wrapperRawBalanceMoved": true,
+    "conversionTracksMultiplier": true
+  },
+  "notProven": [
+    "the same for a split or a reverse split: this activation was a dividend reinvestment",
+    "anything about component B across this block: its dividends are documented as reflected in price, not balance, and are not read here",
+    "that the next activation behaves the same: each is a new event on the record"
+  ],
+  "how": "contracts/test/fork/AppleCorporateActionFork.t.sol on two forks of Ethereum at the block before and at the activation block, archive state; nothing sent"
+}

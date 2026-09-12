@@ -114,6 +114,17 @@ the node was down with the cursor kept, and a STALE condition naming the
 lost source. Nobody was paged and nothing was recovered: the drill computes
 the conditions, it does not deliver them, and what was seized stays seized.
 
+## T14: across a corporate action
+
+`test/fork/AppleCorporateActionFork.t.sol` forks Ethereum twice — at the
+block before the issuer's last multiplier activation and at the activation
+block (25,706,680, 8 August 2026 00:30 UTC, found by a binary search of
+`multiplier()` over archive state) — and reads both sides: the raw
+multiplier, the wrapper's shares, the wrapper's raw balance and its
+conversion rate. It writes `evidence/apple-s1.corporate-action.json`. Two
+pinned forks need an endpoint that serves archive state; the public
+`https://eth.drpc.org` did.
+
 ## What the tests cover, in the blueprint's numbering
 
 T01–T12, T17, T19, T20, T22–T25, the operator's limits, the preview
@@ -121,9 +132,9 @@ deadline, the worked example row by row, and the fuzz. On the fork: the
 real wrapper's identity, transfer, series round trip and unwrap (T21:
 it unwraps), and the raw token's transfer and derived balance. On the local
 node: T16 and T18 in the part a local chain can show — a running index and
-reconciliation against real events. Not covered: T13 (prices — the contract
-has none), T14 (a corporate action across a recorded block), and anything
-on a public chain.
+reconciliation against real events. Across a corporate action: T14, for one
+dividend activation. Not covered: T13 (prices — the contract has none; the
+site's valuation covers it), a split, and anything on a public chain.
 
 The events the contract emits are the ones `lib/positions/events.ts`
 decodes; `tests/contract-events.test.ts` in the repository root checks the

@@ -432,3 +432,21 @@ describe('the issuer’s product page', () => {
     assert.deepEqual(candidatesFrom(56, [{ source: page, observation: { parsed: parsed.asset } }]).map((c) => c.address), ['0x390a684ef9cade28a7ad0dfa61ab1eb3842618c4'], 'the BNB deployment is a candidate only on chain 56');
   });
 });
+
+describe('the corporate-action evidence (T14)', () => {
+  it('reads the committed record and prints its figures without a float', async () => {
+    const { corporateActionEvidenceOf, multiplier18, percentChange } = await import('../lib/positions/corporate-action.ts');
+    const { evidence, fault } = await corporateActionEvidenceOf('apple-s1');
+    assert.equal(fault, null);
+    assert.ok(evidence, 'the record is committed');
+    assert.equal(evidence.after.block, evidence.activationBlock);
+    assert.equal(evidence.before.block, evidence.activationBlock - 1);
+    assert.equal(evidence.findings.wrapperSharesStatic, true, 'the wrapper’s shares did not move across the activation');
+    assert.equal(evidence.before.wrapperShares, evidence.after.wrapperShares);
+    assert.notEqual(evidence.before.multiplier, evidence.after.multiplier);
+    assert.equal(multiplier18('1003269012539818700'), '1.003269');
+    assert.equal(percentChange('1002664207589379700', '1003269012539818700'), '+0.0603%');
+    assert.equal(percentChange('100', '99'), '-1.0000%');
+    assert.equal((await corporateActionEvidenceOf('no-such-series')).evidence, null, 'no file, no finding');
+  });
+});

@@ -419,7 +419,7 @@ contract AppleComponentsForkTest is Test {
             '    "wrapperV1": ', _authorityJson(WRAPPER_V1), "\n",
             "  },\n",
             '  "notProven": [\n',
-            '    "a static balance under a corporate action (needs a fork at a recorded block across one)",\n',
+            '    "a static balance under every corporate action: one dividend activation is on the record (AppleCorporateActionFork.t.sol); a split is not",\n',
             '    "holder eligibility for a series contract or its receipt holders",\n',
             '    "anything about the issuer\'s reserves, custody, or the value of a unit",\n',
             '    "component B: eligibility of a series contract or its receipt holders under the issuer\'s rules; a transfer that works on a fork for a staged balance is not eligibility"\n',

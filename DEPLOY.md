@@ -281,9 +281,11 @@ its own RPC override.
   `positions:drift:<series>:<time>`), and a reconciliation finding that moved
   (by the rows the reconciliation writes under `positions:finding:<series>:<time>`). It is derived from those rows on every
   request and adds nothing to them; an empty day is printed as empty.
-- **Fork evidence.** `contracts/evidence/<series>.fork.json` is written by
-  `npm run test:fork` in `contracts/` and committed; the site reads it at
-  request time and shows it dated. No file, no finding shown.
+- **Fork evidence.** `contracts/evidence/<series>.fork.json` and
+  `<series>.corporate-action.json` are written by `npm run test:fork` in
+  `contracts/` (the second needs an archive endpoint in `ETH_RPC_URL`) and
+  committed; the site reads them at request time and shows them dated. No
+  file, no finding shown.
 - **Instrument file (R01).** `/api/positions/<series>/file` compiles, from the
   archive and the chain, what is known about each candidate component — the
   underlying and its ISIN as the issuer states them, the issuer record and its
