@@ -22,6 +22,12 @@ export default defineConfig({
       optimizer: { enabled: true, runs: 200 },
       // The fork test builds one JSON record from many locals; via-IR keeps that off the stack.
       viaIR: true,
+      // No metadata hash in the bytecode: the hash embeds the source's metadata,
+      // which differed between a Windows and a Linux compile of the same commit
+      // (measured 12 September 2026), and a build record must be the same
+      // bytes on every machine that compiles this source. The compiler version
+      // stays in the CBOR tail; an explorer verifies with the same setting.
+      metadata: { bytecodeHash: 'none' },
     },
   },
   paths: {
