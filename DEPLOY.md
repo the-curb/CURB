@@ -99,7 +99,7 @@ followed by the fix or a revert at once.
    | `CURB_TICK_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
    | `CURB_NETWORK` | `robinhood-mainnet` (the default; set it anyway so it is visible) |
    | `CURB_ALERT_WEBHOOK` | optional — a Discord or Slack incoming-webhook URL; see Alerting below |
-   | `CURB_RPC_URL` | optional — the operator's own Robinhood Chain endpoint, measured first with `npm run probe:rpc` (set 13 September 2026 to a keyed dRPC endpoint: full archive state, `eth_getLogs` to 100,000 blocks). Unset, the public node. Whichever is set, the public node is the fallback: an endpoint that does not answer — the transport, a timeout, a quota — is passed over for it and not asked again for a minute |
+   | `CURB_RPC_URL` | optional — the operator's own Robinhood Chain endpoint, measured first with `npm run probe:rpc` (set 13 September 2026 to a keyed dRPC endpoint: full archive state, `eth_getLogs` to 100,000 blocks). Unset, the public node. Whichever is set, the public node is the fallback: an endpoint that does not answer — the transport, a timeout on a state read, a quota — is passed over for it and not asked again for a minute; a log page that runs past its time is the reader's signal to halve, not a dead endpoint, and moves nothing |
    | `CURB_RPC_URL_ETHEREUM` | optional — the position product's Ethereum endpoint; unset, `ethereum-rpc.publicnode.com` |
    | `ANTHROPIC_API_KEY` | optional — the Gazette's narration; unset, the day is printed unnarrated |
    | `CURB_ONDO_API_KEY` | not held (register A8); the issuer's API answers ACCESS_DENIED without it and the page stays the source |
