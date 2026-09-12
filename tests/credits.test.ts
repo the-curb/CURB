@@ -11,13 +11,14 @@ import { admit, gate, settle } from '../lib/credits/guard.ts';
 import { verifyDeskCode } from '../lib/credits/code.ts';
 import { receipts } from '../lib/credits/receipts.ts';
 import { addressWord, buildRecord } from '../lib/positions/code.ts';
-import { INDEX_KEY, TOPUP_TOPIC, decodeTopUp, syncTopUps, type RateReaders } from '../lib/credits/indexer.ts';
+import { INDEX_KEY, MAX_RETRIES_PER_SYNC, TOPUP_TOPIC, decodeTopUp, syncTopUps, type RateReaders } from '../lib/credits/indexer.ts';
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
 import { latestRate, runCredits } from '../lib/credits/maintenance.ts';
 import { MINIMUM_OPEN_CENTS, SERVICES, centsText } from '../lib/credits/prices.ts';
 import { TOPICS, centsForCurb, curbForCents, curbText, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
-import { createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
-import { positionConditions, type Condition } from '../lib/ops/alerts.ts';
+import { SUB_PREFIX, createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
+import { MESSAGE_MAX_CHARS, composeMessage, positionConditions, type Condition } from '../lib/ops/alerts.ts';
+import type { SnapshotRecord, Store, WriteOutcome } from '../lib/store/types.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
 
 /**
@@ -34,6 +35,7 @@ const DESK = '0x4000000000000000000000000000000000000004';
 const FEED = '0x5000000000000000000000000000000000000005';
 const AGGREGATOR = '0x6000000000000000000000000000000000000006';
 const POOL3 = '0x7000000000000000000000000000000000000007';
+const AGGREGATOR_PHASE1 = '0x8000000000000000000000000000000000000008';
 const PAYER = '0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
 const TREASURY = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
 
@@ -92,12 +94,14 @@ interface NodeState {
   logLimit: number | null;
   /** The feed's AnswerUpdated events on its aggregator. */
   feedAnswers: { block: number; answer: bigint; roundId: bigint; updatedAt: bigint }[];
+  /** The feed proxy's earlier phase: its aggregator's answers, when the proxy has moved on (phaseId 2). */
+  feedPhase1Answers: { block: number; answer: bigint; roundId: bigint; updatedAt: bigint }[] | null;
   calls: string[];
 }
 
 /** A node that answers the chain id, heads, block hashes, logs and the pool's and token's views at a block. */
 function fakeNode(state: NodeState) {
-  const SEL = { token0: selector('token0()'), token1: selector('token1()'), getReserves: selector('getReserves()'), slot0: selector('slot0()'), liquidity: selector('liquidity()'), decimals: selector('decimals()'), totalSupply: selector('totalSupply()'), latestRoundData: selector('latestRoundData()'), aggregator: selector('aggregator()') };
+  const SEL = { token0: selector('token0()'), token1: selector('token1()'), getReserves: selector('getReserves()'), slot0: selector('slot0()'), liquidity: selector('liquidity()'), decimals: selector('decimals()'), totalSupply: selector('totalSupply()'), latestRoundData: selector('latestRoundData()'), aggregator: selector('aggregator()'), phaseId: selector('phaseId()'), phaseAggregators: selector('phaseAggregators(uint16)') };
   const logOf = (address: string, block: number, topics: string[], data: string, logIndex = 0) => ({ address, topics, data, blockNumber: `0x${block.toString(16)}`, blockHash: blockHashOf(block, block >= 42 ? state.fork : 0), transactionHash: `0x${block.toString(16).padStart(64, 'e')}`, logIndex: `0x${logIndex.toString(16)}` });
   const reservesAt = (block: number) => [...state.reserves].filter((r) => r.block <= block).sort((a, b) => a.block - b.block).at(-1) ?? null;
   const fetch = async (_url: string | URL | Request, init?: RequestInit) => {
@@ -146,6 +150,10 @@ function fakeNode(state: NodeState) {
           result = capped(state.feedAnswers.filter((e) => within(e.block)).map((e) => logOf(AGGREGATOR, e.block, [TOPICS.answerUpdated, hexWord(e.answer), hexWord(e.roundId)], hexWord(e.updatedAt))));
           break;
         }
+        if (address === AGGREGATOR_PHASE1 && topic === TOPICS.answerUpdated) {
+          result = capped((state.feedPhase1Answers ?? []).filter((e) => within(e.block)).map((e) => logOf(AGGREGATOR_PHASE1, e.block, [TOPICS.answerUpdated, hexWord(e.answer), hexWord(e.roundId)], hexWord(e.updatedAt))));
+          break;
+        }
         result = state.logs
           .filter((l) => within(l.block) && address === DESK)
           .map((l) => ({
@@ -181,6 +189,8 @@ function fakeNode(state: NodeState) {
         else if (t === POOL3 && sel === SEL.slot0) result = state.v3 === null ? '0x' : `0x${word(state.v3.sqrt)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(1n)}`;
         else if (t === POOL3 && sel === SEL.liquidity) result = state.v3 === null ? '0x' : hexWord(state.v3.liquidity ?? 1n);
         else if (t === FEED && sel === SEL.aggregator) result = hexWord(BigInt(AGGREGATOR));
+        else if (t === FEED && sel === SEL.phaseId) result = hexWord(state.feedPhase1Answers === null ? 1n : 2n);
+        else if (t === FEED && sel === SEL.phaseAggregators) result = hexWord(data.endsWith('1') && state.feedPhase1Answers !== null ? BigInt(AGGREGATOR_PHASE1) : 0n);
         else if (t === PAIR && sel === SEL.getReserves) {
           const r = reservesAt(block);
           result = r === null ? '0x' : `0x${word(r.curb)}${word(r.quote)}${word(BigInt(block))}`;
@@ -202,7 +212,7 @@ function fakeNode(state: NodeState) {
 
 function freshState(): NodeState {
   // 4,000,000 CURB against 20,000 USDC: US$0.005 a CURB; a supply of 1e9 makes the market cap US$5,000,000.
-  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, stateWindow: null, syncs: [], v3: null, feedAnswers: [], logLimit: null, calls: [] };
+  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, stateWindow: null, syncs: [], v3: null, feedAnswers: [], feedPhase1Answers: null, logLimit: null, calls: [] };
 }
 
 const profile = NETWORKS['hardhat-local'];
@@ -391,6 +401,22 @@ describe('the credit desk, site side', () => {
     if (at90.state === 'UNREAD') assert.fail(JSON.stringify(at90));
     assert.equal(at90.value.usdPerCurb18, (25n * 10n ** 18n).toString(), 'the US$5,000 answer at block 80 applies at block 90');
 
+    // The proxy moved to a new aggregator at block 80: a block before that is priced by the earlier phase's aggregator, which answered US$2,500 at block 20.
+    state.feedAnswers = [{ block: 80, answer: 5_000n * 10n ** 8n, roundId: 1n, updatedAt: 1_700_000_600n }];
+    state.feedPhase1Answers = [{ block: 20, answer: 2_500n * 10n ** 8n, roundId: 9n, updatedAt: 1_700_000_000n }];
+    const beforeSwitch = await readRateFromEvents(config, 50, opts);
+    if (beforeSwitch.state === 'UNREAD') assert.fail(JSON.stringify(beforeSwitch));
+    assert.equal(beforeSwitch.value.usdPerCurb18, (125n * 10n ** 17n).toString(), 'the earlier phase answered US$2,500 at block 20');
+    assert.equal(beforeSwitch.value.quote.kind === 'chainlink-feed' ? beforeSwitch.value.quote.eventBlock : null, 20);
+    const afterSwitch = await readRateFromEvents(config, 90, opts);
+    if (afterSwitch.state === 'UNREAD') assert.fail(JSON.stringify(afterSwitch));
+    assert.equal(afterSwitch.value.usdPerCurb18, (25n * 10n ** 18n).toString());
+    state.feedPhase1Answers = [];
+    const noPhase = await readRateFromEvents(config, 50, opts);
+    assert.equal(noPhase.state, 'UNREAD');
+    assert.match(noPhase.state === 'UNREAD' ? (noPhase.detail ?? '') : '', /aggregators 0x6000.*, 0x8000/);
+    state.feedPhase1Answers = null;
+
     // A feed that stopped: its last answer was days before the block, so it is not a price for that block.
     state.feedAnswers = [{ block: 20, answer: 2_500n * 10n ** 8n, roundId: 1n, updatedAt: 1_700_000_000n - 5n * 86_400n }];
     const stale = await readRateFromEvents(config, 50, opts);
@@ -428,7 +454,10 @@ describe('the credit desk, site side', () => {
     assert.equal(at41.value.guard.applied, false);
     const at99 = await readRateFromEvents(config, 99, opts);
     if (at99.state === 'UNREAD') assert.fail(JSON.stringify(at99));
-    assert.equal(at99.value.usdPerCurb18, (10n ** 16n).toString());
+    // Block 99's window is [59, 98]: the Sync at 60 says US$0.01, and the price standing when the window opened — the Sync at 42, US$0.008 — counts too.
+    assert.equal(at99.value.guard.atBlockUsdPerCurb18, (10n ** 16n).toString());
+    assert.equal(at99.value.usdPerCurb18, (8n * 10n ** 15n).toString(), 'the price at the opening of the window is in the guard');
+    assert.deepEqual([at99.value.guard.applied, at99.value.guard.lowestAtBlock, at99.value.guard.samples], [true, 42, 2]);
 
     state.syncs = [];
     const none = await readRateFromEvents(config, 42, opts);
@@ -555,7 +584,8 @@ describe('the credit desk, site side', () => {
     assert.equal(priceless.report.newTopUps, 1);
     assert.equal(priceless.report.credited.length, 0);
     assert.equal(priceless.report.unpriced, 1);
-    assert.match(priceless.index.unpriced[0]!.reason, /^waits: by state: .*; by events: /);
+    assert.match(priceless.index.unpriced[0]!.reason, /^waits \(tried 1\): by state: .*; by events: /);
+    assert.equal(priceless.index.unpriced[0]!.attempts, 1);
     assert.equal((await keyAccount(store, hash)).status, 'UNFUNDED');
 
     // A node that did not answer is waited out — never priced around at the head.
@@ -563,11 +593,20 @@ describe('the credit desk, site side', () => {
     const waited = await syncTopUps(store, config, opts, new Date(), transient);
     assert.equal(waited.report.unpriced, 1, 'a transport failure by events is not a reason to use the head');
     assert.equal(waited.report.credited.length, 0);
+    assert.equal(waited.index.unpriced[0]!.attempts, 2);
 
-    // The pool had no event before the block — it did not exist then — so the head when indexed is the rate, and the record says which basis it used.
-    const absent = async () => ({ state: 'UNREAD' as const, value: null, reason: 'FIELD_ABSENT' as const, source: null, observedAt: new Date().toISOString(), detail: 'no Sync from the pair in the 20,000,000 blocks before block 42' });
-    const headOnly: RateReaders = { byState: async (c, block, o, now) => (block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: absent };
-    const atHead = await syncTopUps(store, config, opts, new Date(), headOnly);
+    // A pool with no event found before the block is a quiet pool, not an absent one: the top-up waits.
+    const quiet = async () => ({ state: 'UNREAD' as const, value: null, reason: 'FIELD_ABSENT' as const, source: null, observedAt: new Date().toISOString(), detail: 'no Sync from the pair in the 20,000,000 blocks before block 42' });
+    const quietOnly: RateReaders = { byState: async (c, block, o, now) => (block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: quiet };
+    const stillWaiting = await syncTopUps(store, config, opts, new Date(), quietOnly);
+    assert.equal(stillWaiting.report.unpriced, 1, 'a pool with no event yet is waited for, not priced at the head');
+    assert.equal(stillWaiting.report.credited.length, 0);
+
+    // The top-up was mined before the pool was created — the record's priceSource.fromBlock, read from the chain — so the head when indexed is the rate, and the record says which basis it used.
+    const created = (parseCreditsConfig(JSON.stringify({ ...JSON.parse(CONFIG_JSON), priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, fromBlock: 50, quote: { kind: 'usd-stable' } } })) as { config: CreditsConfig }).config;
+    assert.equal(created.priceSource?.fromBlock, 50);
+    const headOnly: RateReaders = { byState: async (c, block, o, now) => (block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: (c, block, o, now) => readRateFromEvents(c, block, o, now) };
+    const atHead = await syncTopUps(store, created, opts, new Date(), headOnly);
     assert.equal(atHead.report.unpriced, 0);
     assert.deepEqual(atHead.report.credited.map((c) => [c.cents, c.basis]), [['2000', 'HEAD_AT_INDEXING']]);
     const account = await keyAccount(store, hash);
@@ -654,13 +693,15 @@ describe('the credit desk, site side', () => {
     assert.equal(at700.value.guard.atBlockUsdPerCurb18, (525n * 10n ** 13n).toString());
     assert.equal(at700.value.usdPerCurb18, (525n * 10n ** 13n).toString());
     assert.equal(at700.value.pool.eventBlock, 650);
-    assert.equal(at700.value.guard.samples, 0);
+    assert.equal(at700.value.guard.samples, 1, 'the window [660, 699] holds no Sync; the price standing at its opening, the Sync at 650, is the one sample');
     assert.ok(state.calls.filter((c) => c === 'eth_getLogs').length > 3, 'the refused range was halved until the node answered');
-    // And the window: a top-up at block 351 sees the Sync at 350 in its forty blocks (US$0.00375, i = 5) and none earlier; the refused query was halved to find it.
+    // And the window: a top-up at block 351 sees the Sync at 350 in its forty blocks (US$0.00375, i = 5) and the one standing at the window's opening, at 300 (US$0.0035, i = 4); the refused queries were halved to find them.
     const at351 = await readRateFromEvents(config, 351, opts);
     if (at351.state === 'UNREAD') assert.fail(JSON.stringify(at351));
-    assert.equal(at351.value.guard.samples, 1);
-    assert.equal(at351.value.usdPerCurb18, (375n * 10n ** 13n).toString());
+    assert.equal(at351.value.guard.samples, 2);
+    assert.equal(at351.value.guard.atBlockUsdPerCurb18, (375n * 10n ** 13n).toString());
+    assert.equal(at351.value.usdPerCurb18, (35n * 10n ** 14n).toString());
+    assert.equal(at351.value.guard.lowestAtBlock, 300);
   });
 
   it('prices at most fifty top-ups a run and lists the rest as next in line', async () => {
@@ -678,6 +719,133 @@ describe('the credit desk, site side', () => {
     assert.equal(second.report.credited.length, 10);
     assert.equal(second.report.unpriced, 0);
     assert.equal((await keyAccount(store, hash)).topUps.length, 60);
+  });
+
+  it('retries the waiting top-ups a few per run, the least-tried first, after the fresh ones', async () => {
+    const state = freshState();
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    // Block 42 cannot be priced by state or by events for now; block 50 can.
+    let stuck = true;
+    const readers: RateReaders = { byState: async (c, block, o, now) => (stuck && block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: UNREAD_READER };
+    for (let i = 0; i < 15; i += 1) state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: `0x${String(i).padStart(64, 'b')}`, logIndex: i });
+    const first = await syncTopUps(store, config, opts, new Date(), readers);
+    assert.equal(first.report.unpriced, 15);
+    assert.ok(first.index.unpriced.every((u) => u.attempts === 1), 'every fresh one was tried once');
+
+    // Three fresh top-ups arrive in a new block: they are priced before any waiting one is retried, and at most ten waiting ones are retried.
+    state.head = 110;
+    for (let i = 0; i < 3; i += 1) state.logs.push({ block: 105, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: `0x${String(i).padStart(64, 'c')}`, logIndex: i });
+    const second = await syncTopUps(store, config, opts, new Date(), readers);
+    assert.equal(second.report.credited.length, 3);
+    assert.equal(second.report.unpriced, 15);
+    const attemptsAfter = (run: { index: { unpriced: readonly { attempts?: number }[] } }) => run.index.unpriced.map((u) => u.attempts ?? 0).sort((a, b) => a - b).join(',');
+    assert.equal(attemptsAfter(second), [...Array(15 - MAX_RETRIES_PER_SYNC).fill(1), ...Array(MAX_RETRIES_PER_SYNC).fill(2)].join(','));
+    // The five never retried go first next run; then five of the others — nobody is left at the back for good.
+    const third = await syncTopUps(store, config, opts, new Date(), readers);
+    assert.equal(attemptsAfter(third), [...Array(10).fill(2), ...Array(5).fill(3)].join(','));
+    // Block 42 becomes readable: ten a run until none wait.
+    stuck = false;
+    const fourth = await syncTopUps(store, config, opts, new Date(), readers);
+    assert.equal(fourth.report.credited.length, MAX_RETRIES_PER_SYNC);
+    assert.equal(fourth.report.unpriced, 5);
+    const fifth = await syncTopUps(store, config, opts, new Date(), readers);
+    assert.equal(fifth.report.credited.length, 5);
+    assert.equal(fifth.report.unpriced, 0);
+    assert.equal((await keyAccount(store, hash)).topUps.length, 18);
+  });
+
+  it('stops the cursor before a tip block whose hash it could not read, and reads it again next run', async () => {
+    const state = freshState();
+    const realFetchNode = fakeNode(state);
+    let refuseTip = true;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[]; id: number };
+      // The tip's block header is refused this run: its hash cannot be kept for the reorg check.
+      if (refuseTip && body.method === 'eth_getBlockByNumber' && body.params[0] === `0x${(100).toString(16)}`) {
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32000, message: 'header not found' } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return realFetchNode(url, init);
+    }) as unknown as typeof globalThis.fetch;
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '4'.repeat(64), logIndex: 0 });
+    const partial = await syncTopUps(store, config, opts, new Date());
+    assert.equal(partial.report.state, 'PARTIAL');
+    assert.equal(partial.index.cursor, 99, 'the cursor stops before the block whose hash is not kept');
+    assert.equal(partial.report.credited.length, 1, 'the top-up in a read block is credited all the same');
+    assert.ok(!partial.index.blocks.some((b) => b.number === 100));
+    refuseTip = false;
+    const whole = await syncTopUps(store, config, opts, new Date());
+    assert.equal(whole.report.state, 'SYNCED');
+    assert.equal(whole.index.cursor, 100);
+    assert.ok(whole.index.blocks.some((b) => b.number === 100));
+    assert.equal((await keyAccount(store, hash)).topUps.length, 1, 'credited once');
+  });
+
+  it('cuts a message before the webhook’s limit and counts what was left out', () => {
+    const many: Condition[] = Array.from({ length: 120 }, (_, i) => ({ id: `c${i}`, severity: 'NOTE', text: `condition ${i} is noted with a long enough line of text to fill the message quickly` }));
+    const message = composeMessage({ raised: many, cleared: [], active: many }, new Date());
+    assert.ok(message.length <= MESSAGE_MAX_CHARS, `${message.length} chars`);
+    assert.match(message, /… and \d+ more lines; the full set is on \/api\/state/);
+    assert.match(message, /still active: c0, c1/);
+    const short = composeMessage({ raised: [many[0]!], cleared: ['z'], active: [many[0]!] }, new Date());
+    assert.doesNotMatch(short, /more line/);
+  });
+
+  it('tells a subscriber before it charges, and charges nothing when the row could not be marked told', async () => {
+    process.env[CREDITS_ENV] = CONFIG_JSON;
+    const inner = tmpStore();
+    let failSubWrites = false;
+    // A store whose subscription rows stop taking writes: the delivery stands, the charge does not follow.
+    const store: Store = new Proxy(inner, {
+      get(target, prop, receiver) {
+        if (prop === 'writeSnapshots') {
+          return async (records: readonly SnapshotRecord[]): Promise<WriteOutcome> => {
+            if (failSubWrites && records.some((r) => r.key.startsWith(SUB_PREFIX))) return { state: 'FAILED', reason: 'disk full' };
+            return target.writeSnapshots(records);
+          };
+        }
+        const v = Reflect.get(target, prop, receiver) as unknown;
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    }) as Store;
+    const hash = keyHashOf(newKey());
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2000', topUps: [{ transactionHash: '0x' + '9'.repeat(64), logIndex: 0, blockNumber: 42, payer: PAYER, amount: '1', usdPerCurb18: '1', ratedAtBlock: 42, basis: 'TOP_UP_BLOCK', cents: '2000', creditedAt: new Date().toISOString() }] } }]);
+    const sub = await createSubscription(store, hash, 'https://hooks.example.com/a', new Date());
+    assert.ok(sub.ok);
+    const post = async () => ({ state: 'SENT', status: 204 }) as const;
+    const resolve = async () => ['93.184.216.34'];
+    const x: Condition = { id: 'x', severity: 'DARK', text: 'x is dark' };
+    failSubWrites = true;
+    const run = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(run.delivered, 1);
+    assert.equal(run.charged, 0, 'delivered but the row would not say so: not charged');
+    assert.match(run.failed[0]?.reason ?? '', /could not be marked told; not charged/);
+    assert.equal((await keyAccount(store, hash)).balanceCents, '2000');
+    // The rows take writes again: the same change is told again (the row never said it was) and charged once.
+    failSubWrites = false;
+    const again = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(again.delivered, 1);
+    assert.equal(again.charged, 1);
+    assert.equal((await keyAccount(store, hash)).balanceCents, '1990');
+    const third = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(third.considered, 0, 'told, charged, done');
+  });
+
+  it('does not quote from a rate row an earlier build wrote', async () => {
+    const store = tmpStore();
+    await store.writeSnapshots([{ key: 'credits:rate', observedAt: new Date().toISOString(), payload: { state: 'READ', at: '2026-09-01T00:00:00.000Z', rate: { block: 7, usdPerCurb18: '1' } } }]);
+    const old = await latestRate(store);
+    assert.equal(old.storeFault, null);
+    assert.equal(old.rate?.state, 'UNREAD');
+    if (old.rate?.state === 'UNREAD') {
+      assert.equal(old.rate.reason, 'RATE_ROW_OLD');
+      assert.equal(old.rate.block, 7);
+    }
   });
 
   it('gates a paid endpoint: 503 unsold, 401 without a key, 402 with the figures, then charges and answers', async () => {

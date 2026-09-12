@@ -14,7 +14,7 @@ export interface Parsed {
   readonly flags: Record<string, string>;
 }
 
-export function parseArgs(argv: readonly string[], known: readonly string[], fail: (why: string) => never): Parsed {
+export function parseArgs(argv: readonly string[], known: readonly string[], fail: (why: string) => never, booleans: readonly string[] = []): Parsed {
   const positionals: string[] = [];
   const flags: Record<string, string> = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -22,7 +22,12 @@ export function parseArgs(argv: readonly string[], known: readonly string[], fai
     if (a.startsWith('--')) {
       const name = a.slice(2);
       if (name.includes('=')) fail(`write --${name.split('=')[0]} <value>, not ${a}`);
-      if (!known.includes(name)) fail(`unknown flag ${a}; the flags are ${known.map((k) => `--${k}`).join(', ')}`);
+      if (booleans.includes(name)) {
+        if (name in flags) fail(`${a} is given twice`);
+        flags[name] = 'true';
+        continue;
+      }
+      if (!known.includes(name)) fail(`unknown flag ${a}; the flags are ${[...known, ...booleans].map((k) => `--${k}`).join(', ')}`);
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) fail(`${a} needs a value`);
       if (name in flags) fail(`${a} is given twice`);

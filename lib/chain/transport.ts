@@ -12,6 +12,7 @@
  * reason about where an address came from is the point.
  */
 
+import http from 'node:http';
 import https from 'node:https';
 import type { LookupFunction } from 'node:net';
 import { dohEnabled, dohLookup } from './doh.ts';
@@ -75,11 +76,14 @@ export async function request(
 
   const target = new URL(url);
   const body = init.body ?? '';
+  // The URL's own scheme: a plain-http endpoint (a local node) is dialled plain; a pinned dial — a webhook, checked as https — is never downgraded.
+  const secure = target.protocol !== 'http:';
+  if (!secure && init.pinTo !== undefined) throw new Error(`a pinned dial is https only; ${target.origin} is not`);
   return new Promise<TransportResponse>((resolve, reject) => {
-    const outbound = https.request(
+    const outbound = (secure ? https : http).request(
       {
         hostname: target.hostname,
-        port: target.port === '' ? 443 : Number(target.port),
+        port: target.port === '' ? (secure ? 443 : 80) : Number(target.port),
         path: `${target.pathname}${target.search}`,
         method: init.method,
         headers: {

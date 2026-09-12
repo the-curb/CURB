@@ -52,9 +52,9 @@ export default async function ServicesPage() {
         <div className="kicker">
           <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · decided by {TERMS_DECISION.by}, {TERMS_DECISION.on}
         </div>
-        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined.</h1>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined — or the lowest it was in the hour before.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
-          A CURB paid to the credit desk is a prepaid unit of a service that exists today, and nothing else. The desk reads the token&rsquo;s price from a pool at a block, states the market capitalisation that price implies, and credits a key in dollars at the rate at the block its top-up was mined. Nothing here is a condition of forming, holding or claiming a position.
+          A CURB paid to the credit desk is a prepaid unit of a service that exists today, and nothing else. The desk reads the token&rsquo;s price from a pool at a block, states the market capitalisation that price implies, and credits a key in dollars at the rate at the block its top-up was mined, or the lowest the pool showed in the window before it, whichever is lower. Nothing here is a condition of forming, holding or claiming a position.
         </p>
       </header>
 
@@ -157,7 +157,7 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">The rule</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>, so CURB for a dollar figure is the figure times supply over capitalisation. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no event before that block — it did not exist yet — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing.
+                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no event before that block — it did not exist yet — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing. So CURB for a dollar figure is the figure over the credited price — the figure times supply over capitalisation when the block&rsquo;s own price is the lower, more CURB when the window&rsquo;s low is.
                 </dd>
               </div>
             </dl>
@@ -216,7 +216,14 @@ export default async function ServicesPage() {
               The receipts could not be read: {paid.storeFault}.
             </p>
           ) : paid.topUps === 0 ? (
-            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No top-up has been credited. {configured ? 'The indexer reads the desk on every tick — scheduled every five minutes, in practice every ten to twenty.' : 'There is no desk to pay.'}</p>
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">
+              No top-up has been credited.{' '}
+              {!configured
+                ? 'There is no desk to pay.'
+                : paid.waitingForRate > 0
+                  ? `${paid.waitingForRate} top-up${paid.waitingForRate === 1 ? ' is' : 's are'} read from the chain and waiting for a rate${paid.cursor !== null ? ` · indexed to block ${paid.cursor}` : ''}.`
+                  : `The indexer reads the desk on every tick — scheduled every five minutes, in practice every ten to twenty${paid.cursor !== null ? `; indexed to block ${paid.cursor}` : ''}.`}
+            </p>
           ) : (
             <dl className="mt-4 space-y-3 text-[12px]">
               <div>
@@ -260,6 +267,7 @@ export default async function ServicesPage() {
             desk={status.state === 'CONFIGURED' ? status.config.desk : null}
             network={status.state === 'CONFIGURED' ? status.config.network.label : null}
             decimals={decimals}
+            codeState={code?.code?.state ?? null}
           />
         </div>
       </section>
@@ -275,13 +283,31 @@ export default async function ServicesPage() {
               ['The credit desk contract is reviewed', 'not done', 'a self-review is filed; no independent reviewer has reported (the register\u2019s A2)'],
               [
                 'The token exists and the desk is deployed on Robinhood Chain',
-                status.state === 'CONFIGURED' ? (code?.code?.state === 'MATCHES' ? 'done' : 'configured, code not yet verified') : 'not done',
+                status.state !== 'CONFIGURED'
+                  ? 'not done'
+                  : code === null || code.storeFault !== null
+                    ? 'configured; the verification could not be read'
+                    : code.code === null
+                      ? 'configured; code not yet verified'
+                      : code.code.state === 'MATCHES'
+                        ? 'done'
+                        : `configured; the code on chain is not the build (${code.code.state})`,
                 status.state === 'CONFIGURED' ? `desk ${status.config.desk} on ${status.config.network.label}` : 'no token exists; nothing is configured',
               ],
               [
                 'The pool is recorded and the rate is read',
-                status.state !== 'CONFIGURED' ? 'not done' : rate?.state === 'READ' ? 'done' : 'configured, no rate read yet',
-                status.state !== 'CONFIGURED' ? 'no pool exists' : rate?.state === 'READ' ? `block ${rate.rate.block}, ${rate.rate.pool.kind}` : 'the pool has not answered with a price',
+                status.state !== 'CONFIGURED' ? 'not done' : status.config.priceSource === null ? 'not done' : rate?.state === 'READ' ? 'done' : 'configured; no rate read',
+                status.state !== 'CONFIGURED'
+                  ? 'no pool exists'
+                  : status.config.priceSource === null
+                    ? 'no pool is recorded; top-ups are indexed and wait, unpriced'
+                    : rateFault !== null
+                      ? `the store did not answer (${rateFault})`
+                      : rate === null
+                        ? 'no tick has read the pool yet'
+                        : rate.state === 'READ'
+                          ? `block ${rate.rate.block}, ${rate.rate.pool.kind}`
+                          : `the pool has not answered with a price: ${rate.reason}`,
               ],
               ['The interviews run', 'not done', 'the guide is ready; nobody has been interviewed (the register\u2019s A5)'],
             ].map(([step, state, detail], i) => (

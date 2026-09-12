@@ -54,7 +54,7 @@ export interface RunSummary {
   readonly configured: boolean;
 }
 
-export async function runCredits(store: Store, now: Date, conditions: readonly Condition[] | null): Promise<CreditsRun> {
+export async function runCredits(store: Store, now: Date, conditions: readonly Condition[] | null, deadline: number = now.getTime() + 50_000): Promise<CreditsRun> {
   const status = creditsStatus();
   if (status.state !== 'CONFIGURED') {
     // A run row that says so, so a condition from an earlier configuration does not outlive it.
@@ -91,7 +91,8 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
     let report: CreditsSyncReport;
     let waiting: number;
     if (code.state === 'MATCHES') {
-      const synced = await syncTopUps(store, config, opts, now);
+      // The pricing gets what is left of the run's time, less what the fan-out needs.
+      const synced = await syncTopUps(store, config, opts, now, undefined, Math.min(deadline - 12_000, Date.now() + 25_000));
       report = synced.report;
       waiting = synced.index.unpriced.length;
     } else {
@@ -100,7 +101,7 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       const why = code.state === 'MISMATCH' ? `the desk's code is not the record's (${code.detail ?? 'mismatch'})` : `the desk's code could not be verified (${code.detail ?? code.state})`;
       report = { state: 'HELD', fromBlock: null, toBlock: null, head: isRead(head) ? head.value.number : null, rolledBackFrom: null, newTopUps: 0, credited: [], unpriced: waiting, unreadRanges: [], recorded: false, detail: `${why}; nothing is credited from it` };
     }
-    const fan = await fanOut(store, now, conditions);
+    const fan = await fanOut(store, now, conditions, undefined, undefined, Math.min(deadline, Date.now() + 20_000));
 
     const summary: RunSummary = {
       at: now.toISOString(),
@@ -129,7 +130,13 @@ export async function latestRate(store: Store): Promise<{ rate: RateSnapshot | n
   const read = await store.snapshots(RATE_KEY);
   if (read.state === 'UNREAD') return { rate: null, storeFault: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
   const row = read.value.find((s) => s.key === RATE_KEY);
-  return { rate: row ? (row.payload as unknown as RateSnapshot) : null, storeFault: null };
+  if (!row) return { rate: null, storeFault: null };
+  const snapshot = row.payload as unknown as RateSnapshot;
+  // A READ row written by an earlier build lacks what this build states (the guard, the basis): it is not quoted from; the next tick writes a current one.
+  if (snapshot.state === 'READ' && (typeof snapshot.rate?.guard !== 'object' || snapshot.rate.guard === null || typeof snapshot.rate.basis !== 'string' || typeof snapshot.rate.usdPerCurb18 !== 'string')) {
+    return { rate: { state: 'UNREAD', reason: 'RATE_ROW_OLD', detail: 'the last rate was written by an earlier build of the reader and lacks fields this one states; nothing is quoted from it until the next tick reads again', at: snapshot.at, block: typeof snapshot.rate?.block === 'number' ? snapshot.rate.block : null }, storeFault: null };
+  }
+  return { rate: snapshot, storeFault: null };
 }
 
 /** How the last run ended, or null before the first. */

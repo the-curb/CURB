@@ -86,6 +86,7 @@ export type KeyStatus = 'UNFUNDED' | 'BELOW_MINIMUM' | 'OPEN';
 /** A top-up the indexer has read but not yet credited, with why — waiting for a rate, or next in line. */
 export interface PendingTopUp {
   readonly transactionHash: string;
+  readonly logIndex: number;
   readonly blockNumber: number;
   readonly amount: string;
   readonly reason: string;
@@ -117,7 +118,13 @@ function rowOf(rows: readonly SnapshotRecord[], key: string): SnapshotRecord | n
   return rows.find((r) => r.key === key) ?? null;
 }
 
-export async function keyAccount(store: Store, hash: string): Promise<KeyAccount> {
+/**
+ * The account as the API states it. `pending` (the key's top-ups read but
+ * not yet credited) comes from the index row; a charge or an admission
+ * needs the totals only and passes `{ pending: false }` so the index row
+ * — every waiting top-up on the desk — is not read on every paid call.
+ */
+export async function keyAccount(store: Store, hash: string, opts: { readonly pending?: boolean } = {}): Promise<KeyAccount> {
   const empty: KeyAccount = {
     hash,
     status: 'UNFUNDED',
@@ -132,13 +139,14 @@ export async function keyAccount(store: Store, hash: string): Promise<KeyAccount
     chargeCount: 0,
     storeFault: null,
   };
-  const [topUps, spend, index] = await Promise.all([store.snapshots(topUpsRow(hash)), store.snapshots(spendRow(hash)), store.snapshots('credits:index')]);
+  const wantPending = opts.pending !== false;
+  const [topUps, spend, index] = await Promise.all([store.snapshots(topUpsRow(hash)), store.snapshots(spendRow(hash)), wantPending ? store.snapshots('credits:index') : Promise.resolve({ state: 'UNREAD' as const, reason: 'NOT_ASKED', detail: null })]);
   if (topUps.state === 'UNREAD') return { ...empty, storeFault: `${topUps.reason}${topUps.detail ? ` — ${topUps.detail}` : ''}` };
   if (spend.state === 'UNREAD') return { ...empty, storeFault: `${spend.reason}${spend.detail ? ` — ${spend.detail}` : ''}` };
   const waiting = index.state === 'UNREAD' ? [] : ((index.value.find((r) => r.key === 'credits:index')?.payload.unpriced as PendingTopUp[] & { keyHash?: string }[] | undefined) ?? []);
   const pending: PendingTopUp[] = waiting
     .filter((u) => (u as { keyHash?: string }).keyHash === hash)
-    .map((u) => ({ transactionHash: u.transactionHash, blockNumber: u.blockNumber, amount: u.amount, reason: u.reason }));
+    .map((u) => ({ transactionHash: u.transactionHash, logIndex: typeof u.logIndex === 'number' ? u.logIndex : -1, blockNumber: u.blockNumber, amount: u.amount, reason: typeof u.reason === 'string' ? u.reason : 'waiting for a rate' }));
 
   const t = rowOf(topUps.value, topUpsRow(hash));
   const s = rowOf(spend.value, spendRow(hash));
@@ -173,7 +181,7 @@ export type ChargeOutcome =
  * charge — the call is refused rather than served for free and forgotten.
  */
 export async function charge(store: Store, hash: string, service: ServiceId, cents: number, ref: string, now: Date): Promise<ChargeOutcome> {
-  const account = await keyAccount(store, hash);
+  const account = await keyAccount(store, hash, { pending: false });
   if (account.storeFault !== null) return { ok: false, status: 'STORE_UNREADABLE', account, detail: account.storeFault };
   if (account.status === 'UNFUNDED') return { ok: false, status: 'UNFUNDED', account, detail: 'the chain has credited nothing to this key hash' };
   if (account.status === 'BELOW_MINIMUM') return { ok: false, status: 'BELOW_MINIMUM', account, detail: `the key has been credited ${account.creditedCents} cents; it opens at ${MINIMUM_OPEN_CENTS}` };

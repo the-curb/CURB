@@ -10,3 +10,4 @@ safe-rehearsal.json
 desk-env.json
 records/*.31337.json
 node.log
+*.log

@@ -33,8 +33,8 @@ interface Account {
   readonly spentCents: string;
   readonly balanceCents: string;
   readonly toOpenCents: string;
-  readonly topUps: readonly { readonly transactionHash: string; readonly blockNumber: number; readonly amount: string; readonly cents: string; readonly basis: string; readonly ratedAtBlock: number }[];
-  readonly pending: readonly { readonly transactionHash: string; readonly blockNumber: number; readonly amount: string; readonly reason: string }[];
+  readonly topUps: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly amount: string; readonly cents: string; readonly basis: string; readonly ratedAtBlock: number }[];
+  readonly pending: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly amount: string; readonly reason: string }[];
   /** Shown to the key's holder only; null for anyone else. */
   readonly charges: readonly { readonly at: string; readonly service: string; readonly cents: number; readonly ref: string }[] | null;
   readonly chargeCount: number;
@@ -48,6 +48,8 @@ interface Props {
   readonly desk: string | null;
   readonly network: string | null;
   readonly decimals: number | null;
+  /** The desk's code against the committed build, as the last tick verified it; null when not configured or not yet read. */
+  readonly codeState: string | null;
 }
 
 const cents = (v: string) => {
@@ -75,7 +77,7 @@ function topUpCalldata(keyHash: string, amount: bigint): string {
   return `${selector}${keyHash.slice(2)}${amount.toString(16).padStart(64, '0')}`;
 }
 
-export function CreditDesk({ configured, desk, network, decimals }: Props) {
+export function CreditDesk({ configured, desk, network, decimals, codeState }: Props) {
   const [key, setKey] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [usd, setUsd] = useState('20');
@@ -128,7 +130,9 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
   };
 
   // The bytes below carry the figure with the margin: the price moves between the quote and the block, and a top-up meant to open a key should not land a few cents short.
-  const amount = quote?.curbWithMargin && BigInt(quote.curbWithMargin) > 0n ? BigInt(quote.curbWithMargin) : null;
+  // They are shown only for a desk whose code the last tick verified as the build: a payment to code the site has not matched is not one this page composes.
+  const verified = configured && codeState === 'MATCHES';
+  const amount = verified && quote?.curbWithMargin && BigInt(quote.curbWithMargin) > 0n ? BigInt(quote.curbWithMargin) : null;
 
   return (
     <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -196,7 +200,11 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
           <b>The top-up</b> · one call, signed in your own wallet
         </div>
         {!configured ? (
-          <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No desk is configured: no token exists and no pool is read. The bytes below are what the call will be; there is no address to send them to yet.</p>
+          <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No desk is configured: no token exists and no pool is read. There is no address to send a top-up to, and no bytes are composed.</p>
+        ) : !verified ? (
+          <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
+            The desk at <span className="tabular">{desk}</span> on {network} is configured, but the last tick did not verify its code as the build{codeState ? ` (${codeState})` : ' (not yet read)'}. No bytes are composed for it: do not send a top-up on the strength of this page until the code block above says MATCHES.
+          </p>
         ) : (
           <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim)">
             Approve the desk at <span className="tabular text-(--color-paper)">{desk}</span> on {network} for the amount, then call <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>. The desk moves the CURB to the treasury and emits the hash and the amount; the next tick credits the hash at the rate at that block.
@@ -204,7 +212,7 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
         )}
         <dl className="mt-4 space-y-3 text-[12px]">
           <div>
-            <dt className="kicker">topUp calldata{hash && amount !== null ? '' : ' · make a key and a quote first'}</dt>
+            <dt className="kicker">topUp calldata{hash && amount !== null ? '' : !verified ? ' · not composed' : ' · make a key and a quote first'}</dt>
             <dd className="tabular mt-1 break-all text-(--color-paper-dim)">{hash && amount !== null ? topUpCalldata(hash, amount) : '—'}</dd>
           </div>
           <div>
@@ -249,7 +257,7 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
               {account.topUps.length > 0 ? (
                 <ul className="mt-3 space-y-1 text-(--color-paper-dim)">
                   {account.topUps.map((t) => (
-                    <li key={`${t.transactionHash}:${t.blockNumber}`} className="tabular break-all">
+                    <li key={`${t.transactionHash}:${t.logIndex}`} className="tabular break-all">
                       block {t.blockNumber} · {t.amount} base units · {cents(t.cents)} · rated at block {t.ratedAtBlock} ({t.basis.replace(/_/g, ' ').toLowerCase()}) · {t.transactionHash}
                     </li>
                   ))}
@@ -260,7 +268,7 @@ export function CreditDesk({ configured, desk, network, decimals }: Props) {
               {account.pending.length > 0 ? (
                 <ul className="mt-3 space-y-1 text-(--color-paper-dim)">
                   {account.pending.map((t) => (
-                    <li key={`pending:${t.transactionHash}`} className="tabular break-all">
+                    <li key={`pending:${t.transactionHash}:${t.logIndex}`} className="tabular break-all">
                       block {t.blockNumber} · {t.amount} base units · <span className="text-(--color-paper)">read, not yet credited</span> — {t.reason} · {t.transactionHash}
                     </li>
                   ))}

@@ -20,6 +20,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BaseError, ContractFunctionRevertedError, ContractFunctionZeroDataError, createPublicClient, http, keccak256, parseAbi, type Address, type Hex } from 'viem';
 import { address as checkedAddress, parseArgs } from './lib/args.ts';
 
@@ -54,7 +55,7 @@ const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name:
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
 const erc20 = parseAbi(['function name() view returns (string)', 'function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function totalSupply() view returns (uint256)', 'function owner() view returns (address)', 'function paused() view returns (bool)']);
 
-const chainId = await pub.getChainId();
+const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${network!.rpc} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`));
 if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; the ${networkName} profile expects ${network!.chainId}`);
 const block = await pub.getBlock();
 const at = { block: Number(block.number), timestamp: new Date(Number(block.timestamp) * 1000).toISOString() };
@@ -118,7 +119,7 @@ const record = {
   tokenAsRead: facts,
 };
 mkdirSync(new URL('../records/', import.meta.url), { recursive: true });
-const outPath = path.isAbsolute(out) ? out : path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', out);
+const outPath = path.isAbsolute(out) ? out : path.join(fileURLToPath(new URL('..', import.meta.url)), out);
 writeFileSync(outPath, `${JSON.stringify(record, null, 2)}\n`);
 console.error(`written ${outPath}`);
 // The only line on stdout: the facts, for the record.

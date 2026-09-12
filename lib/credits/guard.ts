@@ -24,7 +24,8 @@ const NO_STORE = { 'cache-control': 'no-store' } as const;
 export type Admission = { readonly ok: true; readonly hash: string; readonly account: KeyAccount; readonly cents: number } | { readonly ok: false; readonly response: Response };
 export type Settlement = { readonly ok: true; readonly account: KeyAccount } | { readonly ok: false; readonly response: Response };
 
-function keyFrom(request: Request): string | null {
+/** The key a request presents: `x-curb-key`, or `Authorization: Bearer`; null when neither is sent. */
+export function presentedKey(request: Request): string | null {
   const header = request.headers.get('x-curb-key');
   if (header) return header.trim();
   const auth = request.headers.get('authorization');
@@ -66,7 +67,7 @@ export async function admit(request: Request, store: Store, serviceId: ServiceId
     };
   }
 
-  const key = keyFrom(request);
+  const key = presentedKey(request);
   if (key === null) {
     return { ok: false, response: Response.json({ error: 'KEY_REQUIRED', detail: 'send the key in an x-curb-key header; make one at POST /api/keys or in the browser at /services', service: service.id, priceCents: service.cents }, { status: 401, headers: NO_STORE }) };
   }
@@ -74,7 +75,7 @@ export async function admit(request: Request, store: Store, serviceId: ServiceId
     return { ok: false, response: Response.json({ error: 'KEY_MALFORMED', detail: 'a key is curb_ followed by 43 characters of base64url', service: service.id }, { status: 401, headers: NO_STORE }) };
   }
   const hash = keyHashOf(key);
-  const account = await keyAccount(store, hash);
+  const account = await keyAccount(store, hash, { pending: false });
   if (account.storeFault !== null) return { ok: false, response: cannotPay('STORE_UNREADABLE', account.storeFault, account, service.id, service.cents) };
   if (account.status === 'UNFUNDED') return { ok: false, response: cannotPay('UNFUNDED', 'the chain has credited nothing to this key hash', account, service.id, service.cents) };
   if (account.status === 'BELOW_MINIMUM') return { ok: false, response: cannotPay('BELOW_MINIMUM', `the key has been credited ${account.creditedCents} cents; it opens at ${account.minimumOpenCents}`, account, service.id, service.cents) };

@@ -16,6 +16,7 @@
  *     "priceSource": {                     or null until a pool exists: the desk is verified and top-ups are indexed, but nothing is priced
  *       "kind": "uniswap-v2-pair",         or "uniswap-v3-pool" for a concentrated-liquidity pool (slot0 / Swap)
  *       "pair": "0x…",                     a pool holding CURB and the quote asset
+ *       "fromBlock": 61300000,             the block the pool was created in, read from the chain; a top-up before it is priced at the head when indexed
  *       "quote": { "kind": "usd-stable" }  or { "kind": "chainlink-feed", "feed": "0x…" } for a quote priced in USD by a feed
  *     }
  *   }
@@ -33,6 +34,8 @@ export interface PriceSource {
   readonly kind: PoolKind;
   /** The pool's address — a pair or a v3 pool; the field keeps its first name. */
   readonly pair: string;
+  /** The block the pool was created in, from the chain. A top-up mined before it is priced at the head when indexed; without it, a top-up the pool has no event before waits. */
+  readonly fromBlock: number | null;
   readonly quote: QuoteSource;
 }
 
@@ -87,6 +90,7 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
   if (q && q.kind === 'usd-stable') quote = { kind: 'usd-stable' };
   else if (q && q.kind === 'chainlink-feed' && isAddress(q.feed)) quote = { kind: 'chainlink-feed', feed: q.feed.toLowerCase() };
   else return { state: 'CONFIG_INVALID', detail: 'priceSource.quote must be { kind: "usd-stable" } or { kind: "chainlink-feed", feed: "0x…" }' };
+  if (ps.fromBlock !== undefined && ps.fromBlock !== null && (!Number.isInteger(ps.fromBlock) || (ps.fromBlock as number) < 0)) return { state: 'CONFIG_INVALID', detail: 'priceSource.fromBlock must be a non-negative integer, or absent' };
   return {
     state: 'CONFIGURED',
     config: {
@@ -95,7 +99,7 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
       desk: e.desk.toLowerCase(),
       treasury: treasury.toLowerCase(),
       fromBlock: e.fromBlock as number,
-      priceSource: { kind: ps.kind, pair: ps.pair.toLowerCase(), quote },
+      priceSource: { kind: ps.kind, pair: ps.pair.toLowerCase(), fromBlock: typeof ps.fromBlock === 'number' ? ps.fromBlock : null, quote },
     },
   };
 }

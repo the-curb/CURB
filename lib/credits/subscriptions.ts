@@ -22,8 +22,9 @@ import { serviceById } from './prices.ts';
 
 export const SUB_PREFIX = 'credits:sub:';
 export const subRow = (id: string) => `${SUB_PREFIX}${id}`;
-/** The most subscriptions one key may hold at once. */
+/** The most live subscriptions one key may hold at once, and the most rows — live and cancelled — it may ever make, since a row is never deleted. */
 export const MAX_PER_KEY = 5;
+export const MAX_ROWS_PER_KEY = 20;
 /** How long one fan-out may take in all, and one webhook at most, inside a tick that has sixty seconds for everything. */
 export const FAN_OUT_BUDGET_MS = 20_000;
 export const WEBHOOK_TIMEOUT_MS = 5_000;
@@ -137,6 +138,7 @@ export async function createSubscription(store: Store, keyHash: string, url: str
   const active = mine.subscriptions.filter((s) => s.cancelledAt === null);
   if (active.some((s) => s.url === url)) return { ok: false, error: 'ALREADY_SUBSCRIBED', detail: 'this key already posts to that URL', status: 409 };
   if (active.length >= MAX_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key holds at most ${MAX_PER_KEY} subscriptions`, status: 409 };
+  if (mine.subscriptions.length >= MAX_ROWS_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key makes at most ${MAX_ROWS_PER_KEY} subscriptions in all, cancelled ones counted: a cancelled row is kept as the record that it existed`, status: 409 };
   const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0 };
   const written = await store.writeSnapshots([{ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...subscription } }]);
   if (written.state !== 'WRITTEN') return { ok: false, error: 'NOT_RECORDED', detail: written.reason, status: 503 };
@@ -175,7 +177,7 @@ export async function fanOut(
   conditions: readonly Condition[] | null,
   post: (message: string, webhook: string, pinTo: readonly string[]) => Promise<Delivery> = (m, w, pin) => deliver(m, w, WEBHOOK_TIMEOUT_MS, pin),
   resolve: Resolver = resolveAll,
-  budgetMs: number = FAN_OUT_BUDGET_MS,
+  deadline: number = Date.now() + FAN_OUT_BUDGET_MS,
 ): Promise<FanOutReport> {
   const service = serviceById('alert-delivery')!;
   const empty: FanOutReport = { considered: 0, delivered: 0, charged: 0, skipped: [], failed: [], deferred: 0 };
@@ -183,32 +185,38 @@ export async function fanOut(
   const all = await subscriptionsOf(store, null);
   if (all.storeFault !== null) return { ...empty, failed: [{ id: '*', reason: all.storeFault }] };
   const currentIds = conditions.map((c) => c.id);
+  // The ones told longest ago go first, so a subscription the last run's budget did not reach is first in line, not last again.
   const live = all.subscriptions
     .filter((s) => s.cancelledAt === null)
     .map((s) => ({ sub: s, t: transition(s.lastActive, conditions) }))
-    .filter(({ t }) => t.raised.length > 0 || t.cleared.length > 0);
+    .filter(({ t }) => t.raised.length > 0 || t.cleared.length > 0)
+    .sort((a, b) => (a.sub.lastDelivery?.at ?? '').localeCompare(b.sub.lastDelivery?.at ?? '') || a.sub.createdAt.localeCompare(b.sub.createdAt));
   const skipped: { id: string; reason: string }[] = [];
   const failed: { id: string; reason: string }[] = [];
   let delivered = 0;
   let charged = 0;
   let deferred = 0;
-  const startedAt = Date.now();
   // A row is re-read before it is written, so a cancellation that landed
-  // meanwhile is kept and a cancelled subscription is not delivered to.
-  const write = async (id: string, patch: Partial<Subscription>): Promise<boolean> => {
+  // meanwhile is kept and a cancelled subscription is not delivered to. A
+  // write the store did not take is false: "told" means the row says so.
+  const liveRow = async (id: string): Promise<Subscription | null> => {
     const fresh = await subscriptionsOf(store, null);
     const current = fresh.storeFault === null ? fresh.subscriptions.find((s) => s.id === id) : undefined;
-    if (current === undefined || current.cancelledAt !== null) return false;
-    await store.writeSnapshots([{ key: subRow(id), observedAt: now.toISOString(), payload: { ...current, ...patch } }]);
-    return true;
+    return current === undefined || current.cancelledAt !== null ? null : current;
+  };
+  const write = async (id: string, patch: Partial<Subscription>): Promise<boolean> => {
+    const current = await liveRow(id);
+    if (current === null) return false;
+    const written = await store.writeSnapshots([{ key: subRow(id), observedAt: now.toISOString(), payload: { ...current, ...patch } }]);
+    return written.state === 'WRITTEN';
   };
   for (const { sub, t } of live) {
     const message = composeMessage(t, now);
-    if (Date.now() - startedAt > budgetMs) {
+    if (Date.now() > deadline) {
       deferred += 1;
       continue;
     }
-    const account = await keyAccount(store, sub.keyHash);
+    const account = await keyAccount(store, sub.keyHash, { pending: false });
     if (account.storeFault !== null) {
       // Not a fact about the key: nothing is written on the row, and the subscription is tried again next tick.
       skipped.push({ id: sub.id, reason: 'STORE_UNREADABLE' });
@@ -226,7 +234,7 @@ export async function fanOut(
       continue;
     }
     // Cancelled since the list was read? Then not delivered.
-    const stillLive = await write(sub.id, {});
+    const stillLive = (await liveRow(sub.id)) !== null;
     if (!stillLive) {
       skipped.push({ id: sub.id, reason: 'CANCELLED' });
       continue;
@@ -240,9 +248,17 @@ export async function fanOut(
       continue;
     }
     delivered += 1;
+    // Told first, charged second: a row write that fails leaves a delivery
+    // uncharged, which is the desk's loss, never a subscriber charged twice
+    // for the same change.
+    const told = await write(sub.id, { lastActive: currentIds, deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the charge follows', charged: false } });
+    if (!told) {
+      failed.push({ id: sub.id, reason: 'delivered, but the row could not be marked told; not charged' });
+      continue;
+    }
     const paid = await charge(store, sub.keyHash, service.id, service.cents, `alert delivery · ${t.raised.length} raised, ${t.cleared.length} cleared`, now);
     if (paid.ok) charged += 1;
-    await write(sub.id, { lastActive: currentIds, deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: paid.ok ? null : `delivered but not charged: ${paid.detail}`, charged: paid.ok } });
+    await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'SENT', detail: paid.ok ? null : `delivered but not charged: ${paid.detail}`, charged: paid.ok } });
   }
   return { considered: live.length, delivered, charged, skipped, failed, deferred };
 }

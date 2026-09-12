@@ -31,6 +31,7 @@ export async function GET(request: Request): Promise<Response> {
     else {
       const cents = BigInt(m[1]!) * 100n + BigInt((m[2] ?? '').padEnd(2, '0'));
       if (cents === 0n) quote = { error: 'USD_ZERO', detail: 'a quote for nothing is nothing; the desk refuses a top-up of zero' };
+      else if (status.state !== 'CONFIGURED') quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: status.state, detail: `${status.detail}; nothing is quoted` };
       else if (rateFault !== null) quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: 'STORE_UNREADABLE', detail: `the last rate could not be read from the store (${rateFault}); nothing is quoted` };
       else if (rate === null || rate.state !== 'READ') {
         quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: rate === null ? 'NO_RATE' : 'UNREAD', detail: rate === null ? 'no tick has read a rate yet; nothing is quoted' : `${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}` };

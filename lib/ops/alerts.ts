@@ -250,6 +250,9 @@ export function transition(previousIds: readonly string[], current: readonly Con
   };
 }
 
+/** Discord refuses content over 2,000 characters; a message is cut before that with what was left out counted, never refused whole. */
+export const MESSAGE_MAX_CHARS = 1_900;
+
 /** One message, dry and specific. Nothing here forecasts or advises. */
 export function composeMessage(t: Transition, now: Date): string {
   const lines: string[] = [`${BRAND.name} · ${now.toISOString()}`];
@@ -261,8 +264,22 @@ export function composeMessage(t: Transition, now: Date): string {
     lines.push('CLEARED');
     for (const id of t.cleared) lines.push(`  ○ ${id}`);
   }
-  lines.push(`still active: ${t.active.length === 0 ? 'none' : t.active.map((c) => c.id).join(', ')}`);
-  return lines.join('\n');
+  const tail = `still active: ${t.active.length === 0 ? 'none' : t.active.map((c) => c.id).join(', ')}`;
+  const budget = MESSAGE_MAX_CHARS - Math.min(tail.length, 200) - 40;
+  const kept: string[] = [];
+  let used = 0;
+  let left = 0;
+  for (const line of lines) {
+    if (used + line.length + 1 > budget) {
+      left += 1;
+      continue;
+    }
+    kept.push(line);
+    used += line.length + 1;
+  }
+  if (left > 0) kept.push(`  … and ${left} more line${left === 1 ? '' : 's'}; the full set is on /api/state`);
+  kept.push(tail.length > 200 ? `${tail.slice(0, 197)}…` : tail);
+  return kept.join('\n');
 }
 
 export type Delivery =

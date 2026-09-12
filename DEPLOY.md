@@ -422,13 +422,18 @@ and is reported under `credits`. No token exists; in production it is
   block — by state while the node serves it (`TOP_UP_BLOCK`), else from the
   pool's last `Sync` or `Swap` at or before it and, for a feed-priced quote,
   the aggregator's last `AnswerUpdated` (`TOP_UP_BLOCK_EVENTS`); at the head
-  when indexed (`HEAD_AT_INDEXING`) only for a pool that had no event before
-  that block — and never above the lowest price the pool showed in the
-  window before it (the guard, about an hour, read from events). At most
-  fifty are priced per run; the rest are next in line. One that cannot be
-  priced waits, listed, for a tick that can; a node that did not answer is
-  waited out, never priced around. Nothing is credited while the desk's
-  code is not the record's.
+  when indexed (`HEAD_AT_INDEXING`) only for a top-up mined before the pool
+  was created (the record's `priceSource.fromBlock`) — and never above the
+  lowest price the pool showed in the window before it (the guard, about an
+  hour, read from events, the price standing at the window's opening
+  included). At most fifty fresh top-ups are priced per run, then at most
+  ten waiting ones, oldest first, so a few that cannot be priced never
+  starve the rest; the remainder are next in line. One that cannot be
+  priced waits, listed with how often it was tried, for a tick that can; a
+  node that did not answer, or a pool with no event yet, is waited out,
+  never priced around. A sync reads at most 100,000 blocks and keeps to the
+  tick's remaining time; what it did not reach is next. Nothing is credited
+  while the desk's code is not the record's.
 - **Subscribers' messages.** Each subscription keeps the set of conditions it
   was last told of and is told exactly its own changes since — in the
   operator's form: raised, cleared, still active — so a subscriber's
@@ -437,7 +442,8 @@ and is reported under `credits`. No token exists; in production it is
 - **Keys.** A key is thirty-two random bytes the caller makes (`/services`
   makes one in the browser; `POST /api/keys` makes one and stores nothing);
   its SHA-256 is what the chain credits and what the desk keeps rows by. The
-  desk sees the key only in an `x-curb-key` header. Charges go to
+  desk sees the key only in an `x-curb-key` header (or `Authorization:
+  Bearer`). Charges go to
   `credits:spend:<keyHash>`, a separate row with a separate writer, so the
   indexer and a request never overwrite each other. A key opens at US$20.00
   credited, cumulatively. `GET /api/keys/<keyHash>` is the public balance.

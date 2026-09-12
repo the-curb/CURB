@@ -171,7 +171,8 @@ export class FileSystemStore implements Store {
       return { state: 'UNDETERMINED', reason: `lock unreadable: ${failureReason(cause)}` };
     }
 
-    if (new Date(held.expiresAt).getTime() > Date.now()) {
+    // A live lock under another holder is theirs. One under this holder is this tick's own — the same answer the Postgres store gives a resent acquire.
+    if (held.holder !== holder && new Date(held.expiresAt).getTime() > Date.now()) {
       return { state: 'HELD_ELSEWHERE', holder: held.holder, expiresAt: held.expiresAt };
     }
 

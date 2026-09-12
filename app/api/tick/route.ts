@@ -24,6 +24,7 @@ export const maxDuration = 60;
  * judge production is not a rehearsal.
  */
 export async function POST(request: Request): Promise<Response> {
+  const startedAt = Date.now();
   const secret = process.env.CURB_TICK_SECRET;
   if (secret) {
     const offered = request.headers.get('authorization');
@@ -64,7 +65,8 @@ export async function POST(request: Request): Promise<Response> {
       try {
         alerts = await runAlerts(store, now);
         // The desk's subscribers are each told their own changes since their own last delivery.
-        credits = await runCredits(store, now, alerts.conditions);
+        // What is left of the function's sixty seconds, less a margin to answer.
+        credits = await runCredits(store, now, alerts.conditions, startedAt + (maxDuration - 8) * 1000);
         retention = await maintainRetention(store, now);
         // The position product's backend: issuer evidence and on-chain verification
         // once a day, the series index and reconciliation every run — or

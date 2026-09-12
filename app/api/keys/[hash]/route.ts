@@ -1,3 +1,4 @@
+import { presentedKey } from '@/lib/credits/guard';
 import { isKey, isKeyHash, keyAccount, keyHashOf } from '@/lib/credits/keys';
 import { getStoreAsync } from '@/lib/store';
 
@@ -16,14 +17,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ hash
   if (!isKeyHash(h)) return Response.json({ error: 'HASH_MALFORMED', detail: 'a key hash is 0x followed by 64 hex digits — the SHA-256 of the key' }, { status: 400 });
   const store = await getStoreAsync();
   const account = await keyAccount(store, h);
-  const presented = (request.headers.get('x-curb-key') ?? '').trim();
+  const presented = presentedKey(request) ?? '';
   const holder = presented !== '' && isKey(presented) && keyHashOf(presented) === h;
   return Response.json(
     {
       observedAt: new Date().toISOString(),
       ...account,
       charges: holder ? account.charges : null,
-      chargesNote: holder ? null : 'the charges, with what they bought, are shown to the holder of the key only: send it in an x-curb-key header',
+      chargesNote: holder ? null : 'the charges, with what they bought, are shown to the holder of the key only: send it in an x-curb-key header (or Authorization: Bearer)',
     },
     { status: account.storeFault === null ? 200 : 503, headers: { 'cache-control': 'no-store' } },
   );

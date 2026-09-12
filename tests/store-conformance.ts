@@ -478,6 +478,15 @@ export function runStoreConformance(target: ConformanceTarget): void {
         assert.notEqual(second.state, 'ACQUIRED');
       });
 
+      it('is granted again to the holder that has it — an acquire whose answer was lost, resent', async () => {
+        await store.acquireRunLock('holder-a', 60);
+        const again = await store.acquireRunLock('holder-a', 60);
+        assert.equal(again.state, 'ACQUIRED');
+        const other = await store.acquireRunLock('holder-b', 60);
+        assert.notEqual(other.state, 'ACQUIRED');
+        assert.equal((await store.releaseRunLock('holder-a')).state, 'WRITTEN');
+      });
+
       it('is available again after release', async () => {
         await store.acquireRunLock('holder-a', 60);
         const released = await store.releaseRunLock('holder-a');

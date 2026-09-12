@@ -1,4 +1,5 @@
 import { creditsStatus } from '@/lib/credits/config';
+import { presentedKey } from '@/lib/credits/guard';
 import { isKey, keyHashOf } from '@/lib/credits/keys';
 import { cancelSubscription, createSubscription, subscriptionsOf } from '@/lib/credits/subscriptions';
 import { getStoreAsync } from '@/lib/store';
@@ -10,8 +11,8 @@ const NO_STORE = { 'cache-control': 'no-store' } as const;
 function keyOf(request: Request): { hash: string } | { response: Response } {
   const status = creditsStatus();
   if (status.state !== 'CONFIGURED') return { response: Response.json({ error: 'CREDITS_NOT_CONFIGURED', state: status.state, detail: status.detail }, { status: 503, headers: NO_STORE }) };
-  const key = (request.headers.get('x-curb-key') ?? '').trim();
-  if (key === '') return { response: Response.json({ error: 'KEY_REQUIRED', detail: 'send the key in an x-curb-key header' }, { status: 401, headers: NO_STORE }) };
+  const key = presentedKey(request) ?? '';
+  if (key === '') return { response: Response.json({ error: 'KEY_REQUIRED', detail: 'send the key in an x-curb-key header (or Authorization: Bearer)' }, { status: 401, headers: NO_STORE }) };
   if (!isKey(key)) return { response: Response.json({ error: 'KEY_MALFORMED', detail: 'a key is curb_ followed by 43 characters of base64url' }, { status: 401, headers: NO_STORE }) };
   return { hash: keyHashOf(key) };
 }

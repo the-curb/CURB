@@ -30,8 +30,10 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { parseArgs } from './lib/args.ts';
 
 interface DeskRecord {
   readonly network: string;
@@ -40,27 +42,29 @@ interface DeskRecord {
   readonly token: Address;
   readonly decimals: number;
   readonly treasury: Address;
-  readonly priceSource: { readonly kind: 'uniswap-v2-pair' | 'uniswap-v3-pool'; readonly pair: Address; readonly quote: { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: Address } } | null;
+  /** The pool, when it exists; `fromBlock` is the block it was created in, read from the chain — a top-up before it is priced at the head when indexed. */
+  readonly priceSource: { readonly kind: 'uniswap-v2-pair' | 'uniswap-v3-pool'; readonly pair: Address; readonly fromBlock?: number | null; readonly quote: { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: Address } } | null;
   /** Who reviewed this record and when; empty means it was not reviewed and it will not be sent. */
   readonly reviewedBy: string;
   readonly reviewedAt: string;
 }
 
-const args = process.argv.slice(2);
-const file = args.find((a) => !a.startsWith('--'));
-const dryRun = args.includes('--dry-run');
-const reviewedFlag = args.includes('--reviewed');
-if (!file) {
+const fail = (why: string): never => {
+  console.error(`refused: ${why}`);
+  process.exit(1);
+};
+// Strict: a misspelt --dry-run is a refusal, never a real deployment.
+const { positionals, flags } = parseArgs(process.argv.slice(2), [], fail, ['dry-run', 'reviewed']);
+const file = positionals[0];
+const dryRun = flags['dry-run'] === 'true';
+const reviewedFlag = flags.reviewed === 'true';
+if (!file || positionals.length !== 1) {
   console.error('usage: node scripts/deploy-credit-desk.ts <record.json> [--dry-run] [--reviewed]');
   process.exit(2);
 }
 
 const record = JSON.parse(readFileSync(file, 'utf8')) as DeskRecord;
 const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
-const fail = (why: string): never => {
-  console.error(`refused: ${why}`);
-  process.exit(1);
-};
 
 // ── the record itself ─────────────────────────────────────────────────────
 if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
@@ -77,6 +81,7 @@ if (record.priceSource !== null) {
   const ps = record.priceSource;
   if ((ps.kind !== 'uniswap-v2-pair' && ps.kind !== 'uniswap-v3-pool') || !isAddress(ps.pair)) fail('priceSource must be a uniswap-v2-pair or a uniswap-v3-pool with the pool address, or null until the pool exists');
   if (ps.quote.kind !== 'usd-stable' && !(ps.quote.kind === 'chainlink-feed' && isAddress(ps.quote.feed))) fail('priceSource.quote must be usd-stable or a chainlink-feed with a feed address');
+  if (ps.fromBlock !== undefined && ps.fromBlock !== null && (!Number.isInteger(ps.fromBlock) || ps.fromBlock < 0)) fail('priceSource.fromBlock must be the block the pool was created in (a non-negative integer), or absent');
 }
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
@@ -104,7 +109,24 @@ console.error(`treasury: ${record.treasury} · ${treasuryCode && treasuryCode !=
 if (record.priceSource !== null) {
   const pairCode = await pub.getCode({ address: record.priceSource.pair });
   if (!pairCode || pairCode === '0x') fail(`the pool at ${record.priceSource.pair} has no code on chain ${chainId}`);
-  console.error(`pool: ${record.priceSource.pair} · code present · quote ${record.priceSource.quote.kind}`);
+  // The pool must hold the token on one side, and a feed-priced quote must answer as a feed.
+  const poolAbi = parseAbi(['function token0() view returns (address)', 'function token1() view returns (address)']);
+  const [t0, t1] = await Promise.all([
+    pub.readContract({ address: record.priceSource.pair, abi: poolAbi, functionName: 'token0' }).catch(() => null),
+    pub.readContract({ address: record.priceSource.pair, abi: poolAbi, functionName: 'token1' }).catch(() => null),
+  ]);
+  if (t0 === null || t1 === null) fail(`the pool at ${record.priceSource.pair} does not answer token0() and token1()`);
+  const sides = [String(t0).toLowerCase(), String(t1).toLowerCase()];
+  if (!sides.includes(record.token.toLowerCase())) fail(`the pool at ${record.priceSource.pair} holds ${t0} and ${t1}, neither of which is the token`);
+  if (record.priceSource.quote.kind === 'chainlink-feed') {
+    const feedAbi = parseAbi(['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)']);
+    const [fd, round] = await Promise.all([
+      pub.readContract({ address: record.priceSource.quote.feed, abi: feedAbi, functionName: 'decimals' }).catch(() => null),
+      pub.readContract({ address: record.priceSource.quote.feed, abi: feedAbi, functionName: 'latestRoundData' }).catch(() => null),
+    ]);
+    if (fd === null || round === null) fail(`the feed at ${record.priceSource.quote.feed} does not answer decimals() and latestRoundData()`);
+  }
+  console.error(`pool: ${record.priceSource.pair} · code present · holds the token against ${sides.find((x) => x !== record.token.toLowerCase())} · quote ${record.priceSource.quote.kind}`);
 } else {
   console.error('pool: none in the record; the CURB_CREDITS line will need priceSource filled when the pool exists');
 }
@@ -120,7 +142,10 @@ try {
 if (build!.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase()) fail(`the compiled CreditDesk is not the committed build record (commit ${build!.commit.slice(0, 10)}); rebuild and re-record, or check out the recorded commit, before deploying`);
 console.error(`the artifact is the committed build at ${build!.commit.slice(0, 10)}`);
 const out = new URL(`../evidence/deployments/credit-desk.${record.chainId}.json`, import.meta.url);
-if (existsSync(out) && !dryRun) fail(`${out.pathname} already exists: a desk was deployed from this record before. Read it; if a second desk is really wanted, move that file aside first`);
+if (existsSync(out)) {
+  if (!dryRun) fail(`${fileURLToPath(out)} already exists: a desk was deployed from this record before. Read it; if a second desk is really wanted, move that file aside first`);
+  console.error(`note: ${fileURLToPath(out)} already exists; a real run would be refused until it is moved aside`);
+}
 const ctor = [record.token, record.treasury] as const;
 console.error('constructor arguments:', JSON.stringify(ctor));
 
@@ -150,6 +175,6 @@ console.error(`deployed the credit desk at ${address} in block ${block}`);
 const env = { network: record.network, token: record.token, desk: address, treasury: record.treasury, fromBlock: block, priceSource: record.priceSource };
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
 writeFileSync(out, `${JSON.stringify({ record, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor, env }, null, 2)}\n`);
-console.error(`written ${out.pathname}`);
+console.error(`written ${fileURLToPath(out)}`);
 // The only line on stdout: the env the site needs (priceSource null until the pool exists).
 console.log(JSON.stringify(env));

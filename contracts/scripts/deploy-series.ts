@@ -26,8 +26,10 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { parseArgs } from './lib/args.ts';
 
 interface DeploymentRecord {
   readonly seriesId: string;
@@ -46,21 +48,22 @@ interface DeploymentRecord {
   readonly reviewedAt: string;
 }
 
-const args = process.argv.slice(2);
-const file = args.find((a) => !a.startsWith('--'));
-const dryRun = args.includes('--dry-run');
-const reviewedFlag = args.includes('--reviewed');
-if (!file) {
+const fail = (why: string): never => {
+  console.error(`refused: ${why}`);
+  process.exit(1);
+};
+// Strict: a misspelt --dry-run is a refusal, never a real deployment.
+const { positionals, flags } = parseArgs(process.argv.slice(2), [], fail, ['dry-run', 'reviewed']);
+const file = positionals[0];
+const dryRun = flags['dry-run'] === 'true';
+const reviewedFlag = flags.reviewed === 'true';
+if (!file || positionals.length !== 1) {
   console.error('usage: node scripts/deploy-series.ts <record.json> [--dry-run] [--reviewed]');
   process.exit(2);
 }
 
 const record = JSON.parse(readFileSync(file, 'utf8')) as DeploymentRecord;
 const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
-const fail = (why: string): never => {
-  console.error(`refused: ${why}`);
-  process.exit(1);
-};
 
 // ── the record itself ─────────────────────────────────────────────────────
 if (!record.seriesId || !Number.isInteger(record.chainId) || !record.rpcUrl) fail('the record needs seriesId, chainId and rpcUrl');
@@ -129,6 +132,6 @@ const env = {
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
 const out = new URL(`../evidence/deployments/${record.seriesId}.${record.chainId}.json`, import.meta.url);
 writeFileSync(out, `${JSON.stringify({ record, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor.map((x) => (typeof x === 'bigint' ? x.toString() : x)), env }, null, 2)}\n`);
-console.error(`written ${out.pathname}`);
+console.error(`written ${fileURLToPath(out)}`);
 // The only line on stdout: the env the site needs.
 console.log(JSON.stringify(env));

@@ -15,6 +15,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ seri
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`)) || new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) !== day) {
     return Response.json({ error: 'DAY_MALFORMED', detail: 'pass ?day=YYYY-MM-DD (UTC)' }, { status: 400 });
   }
+  const today = new Date().toISOString().slice(0, 10);
+  if (day > today) return Response.json({ error: 'DAY_IN_FUTURE', detail: `${day} has not happened; today is ${today} (UTC). Nothing is charged` }, { status: 400 });
   const store = await getStoreAsync();
   const admitted = await admit(request, store, 'journal-day');
   if (!admitted.ok) return admitted.response;
@@ -27,5 +29,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ seri
 
   const settled = await settle(store, admitted.hash, 'journal-day', `${series} · ${day}`);
   if (!settled.ok) return settled.response;
-  return Response.json({ observedAt: new Date().toISOString(), series: spec.id, day, entries }, { headers: paidHeaders(settled.account, admitted.cents) });
+  // Today's day is still being written: the answer is what the store has so far, and says so.
+  return Response.json({ observedAt: new Date().toISOString(), series: spec.id, day, complete: day < today, entries }, { headers: paidHeaders(settled.account, admitted.cents) });
 }

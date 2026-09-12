@@ -484,7 +484,11 @@ export class PostgresStore implements Store {
   /**
    * Takes the lock by inserting the single row, or by overwriting it when the
    * existing one has expired. The `where` clause is what makes this safe: a live
-   * lock updates no rows, so nothing is returned and nothing was taken.
+   * lock updates no rows, so nothing is returned and nothing was taken. A row
+   * already under this holder is taken again: the holder is unique to one tick,
+   * so that row is this tick's own insert whose answer was lost on the wire
+   * and resent by guard() — reporting it HELD_ELSEWHERE would leave the lock
+   * under this holder, unreleased, for the whole TTL.
    */
   async acquireRunLock(holder: string, ttlSeconds: number): Promise<LockOutcome> {
     try {
@@ -494,7 +498,7 @@ export class PostgresStore implements Store {
           values (1, ${holder}, now() + make_interval(secs => ${ttlSeconds}))
           on conflict (id) do update
             set holder = excluded.holder, expires_at = excluded.expires_at
-            where run_lock.expires_at < now()
+            where run_lock.expires_at < now() or run_lock.holder = excluded.holder
           returning holder
         `;
         if (taken.length > 0) return { state: 'ACQUIRED', holder };

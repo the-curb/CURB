@@ -61,7 +61,12 @@ const SEL = {
   totalSupply: selector('totalSupply()'),
   latestRoundData: selector('latestRoundData()'),
   aggregator: selector('aggregator()'),
+  phaseId: selector('phaseId()'),
+  phaseAggregators: selector('phaseAggregators(uint16)'),
 } as const;
+
+/** How many earlier phases of a feed's proxy are looked at for a block before the current aggregator's first answer. */
+export const FEED_PHASES_BACK = 3;
 
 export const TOPICS = {
   /** Uniswap v2: emitted on every change of reserves. */
@@ -72,7 +77,15 @@ export const TOPICS = {
   answerUpdated: keccak256Hex('AnswerUpdated(int256,uint256,uint256)'),
 } as const;
 
-/** How far back the pool's last event is looked for, in widening windows, before giving up. */
+/**
+ * How far back the pool's last event is looked for, in widening windows;
+ * after the widest, one read down to the floor — the pool's creation block
+ * when the record names it, else the chain's first — so a pool quiet for
+ * longer than the widest window (24 days on a 0.1 s chain) is still found,
+ * and "no event before the block" is said only of the whole span. The node
+ * serves any width when few logs match (measured on chain 4663); a range it
+ * refuses is halved.
+ */
 export const EVENT_WINDOWS = [20_000, 200_000, 2_000_000, 20_000_000] as const;
 
 /** The guard's window before a block, in blocks, by chain — about an hour on each; the local chain's is short so a rehearsal can move the price. */
@@ -193,18 +206,19 @@ async function lastInRange(address: string, topic: string, from: number, to: num
   return lastInRange(address, topic, from, mid - 1, opts);
 }
 
-/** The last log of one topic from one address at or before `block`, looked for in widening windows. Null, VERIFIED, when there is none in the widest. */
-async function lastEventBefore(address: string, topic: string, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
+/** The last log of one topic from one address at or before `block`, looked for in widening windows and then down to `floor`. Null, VERIFIED, only when there is none in the whole span. */
+async function lastEventBefore(address: string, topic: string, block: number, opts: RpcOptions, floor = 0): Promise<Reading<LogEntry | null>> {
   let to = block;
   let source = '';
-  for (const width of EVENT_WINDOWS) {
-    const from = Math.max(0, block - width);
+  const bottom = Math.max(0, floor);
+  for (const width of [...EVENT_WINDOWS, Number.POSITIVE_INFINITY]) {
+    const from = Number.isFinite(width) ? Math.max(bottom, block - width) : bottom;
     if (from > to) break;
     const read = await lastInRange(address, topic, from, to, opts);
     if (!isRead(read)) return read;
     source = read.source;
     if (read.value !== null) return read;
-    if (from === 0) break;
+    if (from === bottom) break;
     to = from - 1;
   }
   return { state: 'VERIFIED', value: null, ageSeconds: 0, source, retrievedAt: new Date().toISOString() };
@@ -216,6 +230,19 @@ interface Sides {
   readonly curbDecimals: number;
   readonly quoteDecimals: number;
 }
+
+/**
+ * What one run may carry between reads: the pool's constants, read once,
+ * and the highest block the node was seen to refuse state for, so blocks
+ * below it are not asked by state again this run.
+ */
+export interface RateContext {
+  sides?: Sides;
+  stateUnservedBelow?: number;
+}
+
+/** The node's ways of saying a block's state is gone (Arbitrum Nitro, geth, erigon). */
+export const STATE_GONE = /metadata is not found|missing trie node|header not found|state (is )?not available|pruned|old block/i;
 
 /** Which side of the pool is CURB, and what the other side is. Constants of the pool; read at the head. */
 async function sides(config: CreditsConfig, source: PriceSource, opts: RpcOptions): Promise<Reading<Sides>> {
@@ -287,10 +314,10 @@ async function poolPriceByState(source: PriceSource, s: Sides, block: number, op
 
 async function poolPriceByEvents(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
   const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
-  const last = await lastEventBefore(source.pair, topic, block, opts);
+  const last = await lastEventBefore(source.pair, topic, block, opts, source.fromBlock ?? 0);
   if (!isRead(last)) return last;
   if (last.value === null) {
-    return unread('FIELD_ABSENT', { source: last.source, detail: `no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool'} in the ${EVENT_WINDOWS.at(-1)!.toLocaleString('en-US')} blocks before block ${block}` });
+    return unread('FIELD_ABSENT', { source: last.source, detail: `no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool'} at or before block ${block}, back to block ${source.fromBlock ?? 0}` });
   }
   const price = decodePoolEvent(source, s, last.value);
   if (price === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'the pool event is undecodable' });
@@ -310,18 +337,38 @@ async function feedByState(feed: string, block: number, opts: RpcOptions): Promi
   return { ...round, value: { answer, updatedAt, decimals: Number(decimals.value) } };
 }
 
-/** The feed's last AnswerUpdated at or before the block, from the aggregator behind the proxy. */
+/**
+ * The feed's last AnswerUpdated at or before the block, from the aggregator
+ * behind the proxy. A proxy is re-pointed at a new aggregator now and then
+ * (a new phase); a block before the current aggregator's first answer is
+ * looked for on the earlier phases' aggregators, a few steps back, so a
+ * top-up from before the switch is priced by the answer the feed gave then.
+ */
 async function feedByEvents(feed: string, block: number, opts: RpcOptions): Promise<Reading<FeedAnswer>> {
-  const [aggregator, decimals] = await Promise.all([addressAt(feed, SEL.aggregator, 'latest', 'aggregator()', opts), uintAt(feed, SEL.decimals, 'latest', 'feed decimals()', opts)]);
+  const [aggregator, decimals, phase] = await Promise.all([addressAt(feed, SEL.aggregator, 'latest', 'aggregator()', opts), uintAt(feed, SEL.decimals, 'latest', 'feed decimals()', opts), uintAt(feed, SEL.phaseId, 'latest', 'phaseId()', opts)]);
   if (!isRead(aggregator)) return aggregator;
   if (!isRead(decimals)) return decimals;
-  const last = await lastEventBefore(aggregator.value, TOPICS.answerUpdated, block, opts);
-  if (!isRead(last)) return last;
-  if (last.value === null) return unread('FIELD_ABSENT', { source: last.source, detail: `no AnswerUpdated from the feed's aggregator ${aggregator.value} in the ${EVENT_WINDOWS.at(-1)!.toLocaleString('en-US')} blocks before block ${block}` });
-  const answer = last.value.topics[1] === undefined ? null : decodeInt(last.value.topics[1]);
-  const updatedAt = words(last.value.data)[0] === undefined ? null : decodeUint(words(last.value.data)[0]!);
-  if (answer === null || updatedAt === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'AnswerUpdated undecodable' });
-  return { ...last, value: { answer, updatedAt, decimals: Number(decimals.value), eventBlock: blockOf(last.value) } };
+  let at = aggregator.value;
+  let phaseNo = isRead(phase) ? Number(phase.value) : null;
+  const seen: string[] = [];
+  for (let step = 0; step <= FEED_PHASES_BACK; step += 1) {
+    seen.push(at);
+    const last = await lastEventBefore(at, TOPICS.answerUpdated, block, opts);
+    if (!isRead(last)) return last;
+    if (last.value !== null) {
+      const answer = last.value.topics[1] === undefined ? null : decodeInt(last.value.topics[1]);
+      const updatedAt = words(last.value.data)[0] === undefined ? null : decodeUint(words(last.value.data)[0]!);
+      if (answer === null || updatedAt === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'AnswerUpdated undecodable' });
+      return { ...last, value: { answer, updatedAt, decimals: Number(decimals.value), eventBlock: blockOf(last.value) } };
+    }
+    if (phaseNo === null || phaseNo <= 1 || step === FEED_PHASES_BACK) break;
+    phaseNo -= 1;
+    const earlier = await addressAt(feed, `${SEL.phaseAggregators}${phaseNo.toString(16).padStart(64, '0')}`, 'latest', `phaseAggregators(${phaseNo})`, opts);
+    if (!isRead(earlier)) return earlier;
+    if (/^0x0{40}$/.test(earlier.value)) break;
+    at = earlier.value;
+  }
+  return unread('FIELD_ABSENT', { source: feed, detail: `no AnswerUpdated from the feed's aggregator${seen.length > 1 ? 's' : ''} ${seen.join(', ')} at or before block ${block}` });
 }
 
 /** The feed's answer for a block, checked for sign, decimals and age against the block's own time. */
@@ -343,13 +390,29 @@ function noPrice(source: PriceSource, p: PoolPrice, block: number): string {
   return p.liquidity === 0n ? `the pool has no liquidity at block ${block}; a price nobody can trade at is not a price` : `the pool's price is zero at block ${block}`;
 }
 
-async function assemble(config: CreditsConfig, block: number, basis: Rate['basis'], opts: RpcOptions, now: Date): Promise<Reading<Rate>> {
+async function assemble(config: CreditsConfig, block: number, basis: Rate['basis'], opts: RpcOptions, now: Date, ctx: RateContext = {}): Promise<Reading<Rate>> {
   const source = config.priceSource;
   if (source === null) return unread('FIELD_ABSENT', { source: null, detail: 'no pool is recorded for the token; nothing is quoted until one is' });
-  const s = await sides(config, source, opts);
-  if (!isRead(s)) return s;
+  if (basis === 'STATE' && ctx.stateUnservedBelow !== undefined && block <= ctx.stateUnservedBelow) {
+    return unread('SOURCE_MALFORMED', { source: null, detail: `the node was seen to serve no state at or below block ${ctx.stateUnservedBelow} this run; block ${block} is not asked by state` });
+  }
+  if (source.fromBlock !== null && block < source.fromBlock) {
+    return unread('FIELD_ABSENT', { source: null, detail: `the pool was created in block ${source.fromBlock}; block ${block} is before it` });
+  }
+  let sidesRead: Sides;
+  if (ctx.sides !== undefined) sidesRead = ctx.sides;
+  else {
+    const s = await sides(config, source, opts);
+    if (!isRead(s)) return s;
+    sidesRead = s.value;
+    ctx.sides = s.value;
+  }
+  const s = { value: sidesRead };
   const pool = basis === 'STATE' ? await poolPriceByState(source, s.value, block, opts) : await poolPriceByEvents(source, s.value, block, opts);
-  if (!isRead(pool)) return pool;
+  if (!isRead(pool)) {
+    if (basis === 'STATE' && STATE_GONE.test(pool.detail ?? '')) ctx.stateUnservedBelow = Math.max(ctx.stateUnservedBelow ?? 0, block);
+    return pool;
+  }
   const perCurbAtBlock = quotePerCurb18(pool.value, s.value);
   if (perCurbAtBlock === 0n) return unread('FIELD_ABSENT', { source: pool.source, detail: noPrice(source, pool.value, block) });
 
@@ -366,15 +429,21 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   const atBlock = toUsd(perCurbAtBlock);
   if (atBlock === 0n) return unread('FIELD_ABSENT', { source: pool.source, detail: `the price rounds to zero at 18 places at block ${block}` });
 
-  // The guard: the lowest price the pool showed in the window before the block, from its events.
+  // The guard: the lowest price the pool showed in the window before the
+  // block, from its events — and the price prevailing when the window
+  // opened, which is the last event before it, so a quiet pool pumped just
+  // before a top-up still shows the price it had for the hour before.
   const windowBlocks = guardWindowFor(config.network.chainId);
   const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
-  const window = await eventsInRange(source.pair, topic, Math.max(0, block - windowBlocks), block, opts);
+  const windowStart = Math.max(0, block - windowBlocks);
+  const window = await eventsInRange(source.pair, topic, windowStart, block, opts);
   if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
+  const opening = windowStart > 0 ? await lastEventBefore(source.pair, topic, windowStart - 1, opts, source.fromBlock ?? 0) : null;
+  if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
   let lowest = atBlock;
   let lowestAtBlock: number | null = null;
   let samples = 0;
-  for (const log of window.value) {
+  for (const log of [...(opening !== null && opening.value !== null ? [opening.value] : []), ...window.value]) {
     const p = decodePoolEvent(source, s.value, log);
     if (p === null) continue;
     const per = quotePerCurb18(p, s.value);
@@ -424,13 +493,13 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
 }
 
 /** The pool's price and the token's supply at one block, by state, guarded, reduced to a price and a market capitalisation. */
-export async function readRate(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date()): Promise<Reading<Rate>> {
-  return assemble(config, block, 'STATE', opts, now);
+export async function readRate(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date(), ctx: RateContext = {}): Promise<Reading<Rate>> {
+  return assemble(config, block, 'STATE', opts, now, ctx);
 }
 
 /** The same, from the pool's (and the feed's) last event at or before the block, for a block the node no longer serves by state. */
-export async function readRateFromEvents(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date()): Promise<Reading<Rate>> {
-  return assemble(config, block, 'EVENTS', opts, now);
+export async function readRateFromEvents(config: CreditsConfig, block: number, opts: RpcOptions, now: Date = new Date(), ctx: RateContext = {}): Promise<Reading<Rate>> {
+  return assemble(config, block, 'EVENTS', opts, now, ctx);
 }
 
 /** US cents an amount of CURB (base units) is worth at a rate, rounded down once. */
