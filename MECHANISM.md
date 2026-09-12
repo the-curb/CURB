@@ -110,6 +110,8 @@ The last four are never collapsed into one label such as "withdraw to cash". The
 | Claim components | Allocation and individual claims | A failed A transfer is not a precondition of claiming B. |
 | Evidence and status | Reconciliation, source status, changes | Old, partial and unavailable data are told apart. |
 
+Today the front, the company detail and the evidence screens exist as described; "My position" and "Claim components" exist in a read-only form on the series page — an address is looked up in the index and, once a series is deployed, the claim calls are shown as bytes for the holder's own wallet. "Form position" exists as the preview and, for a deployed series, the prepared approvals and mint call. No screen connects a wallet or sends anything.
+
 ## 7. The ledger: lots with fixed components
 
 This section is a **design**, not audited contract code. The main simplification: the MVP only accepts components whose unit balance is proven not to change on its own. Economic value per unit may change.
@@ -369,6 +371,7 @@ What is implemented in this repository, as of 12 September 2026, and what is not
 | Fork tests of the real component A on Ethereum (C08, G3): identity, transfer, a series round trip, unwrap (T21), the raw token's derived balance, the wrapper's size — findings written to `contracts/evidence/apple-s1.fork.json` and shown dated | Implemented; block not pinned (public node) | `contracts/test/fork/`, the series page |
 | Index, ledger replay, reconciliation and the wallet endpoints rehearsed end to end on a local chain: the prototype deployed with two mock components, the worked example sent as transactions, the five events read back in order, A and B `MATCHED` (T16, T18 in the part a local chain can show) | Implemented, repeatable; a local chain, not a public one | `contracts/scripts/rehearsal.ts`, `tests/positions-rehearsal.test.ts` |
 | The calls a wallet would sign — approvals and the series call as bytes, selectors derived from the contract's ABI — returned by the previews once a deployment is configured; the site holds no key and sends nothing | Implemented; simulated by the local node against the real contract | `lib/positions/calldata.ts`, `/api/positions/apple-s1/preview-mint` |
+| "My position" and "Claim components" (§6) in the read-only form: an address is looked up in the index — receipts, entitled units, open claims per component, claims apart from receipts — and the claim calls are shown as bytes once a series is deployed; no wallet is connected | Implemented | the series page, `/api/wallets/<address>/…` |
 | The Gazette prints the product's verified changes by day (§9): issuer bodies first archived or changed, candidate addresses that moved between verification runs — derived from the archive's version rows and the drift rows, never a second record | Implemented | `/gazette/<day>`, `lib/positions/journal.ts` |
 | Tests T13, T14 (a corporate action across a recorded block), T18 against a public chain | Not started | — |
 | Independent review and audit of the contract | Not started | — |
