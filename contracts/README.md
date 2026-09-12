@@ -32,7 +32,9 @@ false, a fee on transfer, a reentrant callback, a `balanceOf` that reverts.
 the latest block (`ETH_RPC_URL`, or the public node) and asks the candidate
 component the questions of gate G3: does the wrapper answer as the issuer
 documents, can an arbitrary address move it, can a series contract take it
-in and pay it out, does it unwrap, and what size is it. Balances are set by
+in and pay it out, does it unwrap, what size is it, and who stands behind
+each address (the EIP-1967 implementation and admin slots read from
+storage, `owner()` and `paused()` where answered). Balances are set by
 storage, so no holder is impersonated. The last test writes what it found
 to `evidence/apple-s1.fork.json`, which is committed with the block it ran
 at and shown on the series page.

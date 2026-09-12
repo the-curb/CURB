@@ -176,6 +176,52 @@ contract AppleComponentsForkTest is Test {
     }
 
     /// The record: what was found, at which block, written for the site to show as dated evidence.
+    /// keccak256("eip1967.proxy.implementation") - 1 and the admin slot beside it.
+    bytes32 constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 constant ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
+    /// Who can change what stands behind an address: the EIP-1967 slots read
+    /// from storage, and owner() / paused() if the contract answers them. A
+    /// function that reverts or is absent is recorded as null, not as false.
+    function _probeAddress(address target, bytes4 selector) internal view returns (bool ok, address value) {
+        (bool s, bytes memory ret) = target.staticcall(abi.encodeWithSelector(selector));
+        if (!s || ret.length < 32) return (false, address(0));
+        return (true, abi.decode(ret, (address)));
+    }
+
+    function _probeBool(address target, bytes4 selector) internal view returns (bool ok, bool value) {
+        (bool s, bytes memory ret) = target.staticcall(abi.encodeWithSelector(selector));
+        if (!s || ret.length < 32) return (false, false);
+        return (true, abi.decode(ret, (bool)));
+    }
+
+    function _addressOrNull(bool ok, address value) internal pure returns (string memory) {
+        return ok && value != address(0) ? string.concat('"', vm.toString(value), '"') : "null";
+    }
+
+    function _authorityJson(address target) internal view returns (string memory) {
+        address impl = address(uint160(uint256(vm.load(target, IMPLEMENTATION_SLOT))));
+        address admin = address(uint160(uint256(vm.load(target, ADMIN_SLOT))));
+        (bool ownerOk, address owner) = _probeAddress(target, bytes4(keccak256("owner()")));
+        (bool pausedOk, bool paused) = _probeBool(target, bytes4(keccak256("paused()")));
+        return string.concat(
+            '{ "implementation": ', _addressOrNull(true, impl),
+            ', "admin": ', _addressOrNull(true, admin),
+            ', "owner": ', _addressOrNull(ownerOk, owner),
+            ', "paused": ', pausedOk ? (paused ? "true" : "false") : "null",
+            " }"
+        );
+    }
+
+    function test_Fork_G_Authority() public view {
+        address impl = address(uint160(uint256(vm.load(RAW, IMPLEMENTATION_SLOT))));
+        console2.log("raw AAPLx implementation slot", impl);
+        console2.log("wrapper v2 implementation slot", address(uint160(uint256(vm.load(WRAPPER_V2, IMPLEMENTATION_SLOT)))));
+        // What is asserted is only that the read happened; who the admin is
+        // is a finding for a person, recorded by the evidence test.
+        assertTrue(RAW.code.length > 0);
+    }
+
     function test_Fork_Z_RecordEvidence() public {
         (uint256 reserve, uint256 supply) = _wrapperSize();
         bool identity = _identityAsDocumented();
@@ -213,6 +259,14 @@ contract AppleComponentsForkTest is Test {
             '    "rawTransfersForArbitraryHolder": ', rawMoved ? "true" : "false", ",\n",
             '    "rawReceivedFor1e18Sent": "', vm.toString(bobReceived), '",\n',
             '    "rawBalanceSettableByStorage": ', rawStored ? "true" : "false", "\n",
+            "  },\n"
+        );
+        json = string.concat(
+            json,
+            '  "authority": {\n',
+            '    "raw": ', _authorityJson(RAW), ",\n",
+            '    "wrapperV2": ', _authorityJson(WRAPPER_V2), ",\n",
+            '    "wrapperV1": ', _authorityJson(WRAPPER_V1), "\n",
             "  },\n",
             '  "notProven": [\n',
             '    "a static balance under a corporate action (needs a fork at a recorded block across one)",\n',

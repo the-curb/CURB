@@ -239,8 +239,10 @@ its own RPC override.
   example in a specification is ever used.
 - **Verification, after the evidence.** Every EVM address the parsed evidence
   names on the positions network is read on chain: code and its hash,
-  `symbol()`, `decimals()`, and for a wrapper `asset()` against the raw token
-  the issuer named beside it. The result is at
+  `symbol()`, `decimals()`, for a wrapper `asset()` against the raw token
+  the issuer named beside it, and the EIP-1967 implementation, admin and
+  beacon slots — a proxy's code hash sleeps through an upgrade, the
+  implementation slot does not, and a slot that moved is a DARK condition. The result is at
   `/api/positions/<series>/evidence` and on the series page. What it does not
   prove is listed with it.
 - **Index and reconciliation, every tick — when a series is deployed.**

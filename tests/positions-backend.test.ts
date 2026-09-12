@@ -332,4 +332,43 @@ describe('verification drift', () => {
     );
     assert.deepEqual(driftBetween([base], [base]), []);
   });
+
+  it('sees an upgrade the code hash cannot: the implementation slot moved behind an unchanged proxy', async () => {
+    const { driftBetween } = await import('../lib/positions/verify.ts');
+    const { addressInWord } = await import('../lib/chain/proxy.ts');
+    const proxy = { state: 'VERIFIED' as const, kind: 'EIP1967' as const, implementation: '0x1111111111111111111111111111111111111111', admin: '0x2222222222222222222222222222222222222222', beacon: null, reason: null, source: 'node' };
+    const base = {
+      sourceId: 'xstocks:AAPLx',
+      component: 'A' as const,
+      role: 'RAW_TOKEN' as const,
+      address: '0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a',
+      claimedAsset: null,
+      networkChainId: 1,
+      chainId: 1,
+      readAt: '2026-09-11T00:00:00.000Z',
+      source: 'node',
+      hasCode: { value: true, state: 'VERIFIED' as const, reason: null },
+      codeHash: { value: '0xaa', state: 'VERIFIED' as const, reason: null },
+      symbol: { value: 'AAPLx', state: 'VERIFIED' as const, reason: null },
+      decimals: { value: 18, state: 'VERIFIED' as const, reason: null },
+      asset: { value: null, state: 'UNREAD' as const, reason: 'not a wrapper' },
+      assetMatchesClaim: 'NOT_APPLICABLE' as const,
+      answersAsToken: true,
+      proxy,
+      notProven: [],
+    };
+    const upgraded = { ...base, proxy: { ...proxy, implementation: '0x3333333333333333333333333333333333333333' } };
+    assert.deepEqual(
+      driftBetween([base], [upgraded]).map((d) => `${d.field}:${d.from}->${d.to}`),
+      ['implementation:0x1111111111111111111111111111111111111111->0x3333333333333333333333333333333333333333'],
+      'the proxy code hash is unchanged; the implementation is what moved',
+    );
+    const unreadSlots = { ...base, proxy: { ...proxy, state: 'UNREAD' as const, kind: null, implementation: null, admin: null, reason: 'SOURCE_TIMEOUT' } };
+    assert.deepEqual(driftBetween([base], [unreadSlots]), [], 'slots that could not be read are not a drift');
+    const olderRecord = { ...base, proxy: undefined };
+    assert.deepEqual(driftBetween([olderRecord], [base]), [], 'a record written before the slots were read is not compared on them');
+    assert.equal(addressInWord('0x' + '0'.repeat(64)), null, 'an empty slot is no address');
+    assert.equal(addressInWord('0x' + '0'.repeat(24) + '1111111111111111111111111111111111111111'), '0x1111111111111111111111111111111111111111');
+    assert.equal(addressInWord('0x1234'), undefined, 'a short word is not a word');
+  });
 });

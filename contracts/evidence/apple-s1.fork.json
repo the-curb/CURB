@@ -1,8 +1,8 @@
 {
   "seriesId": "apple-s1",
   "chainId": 1,
-  "block": 25957626,
-  "blockTimestamp": 1789171451,
+  "block": 25958605,
+  "blockTimestamp": 1789183283,
   "component": "A",
   "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
   "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
@@ -19,6 +19,11 @@
     "rawTransfersForArbitraryHolder": true,
     "rawReceivedFor1e18Sent": "999999999999999999",
     "rawBalanceSettableByStorage": false
+  },
+  "authority": {
+    "raw": { "implementation": "0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b", "admin": "0x696C685a02A1Fc6E2AaCbe26CD6695F4f4a6a085", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV2": { "implementation": "0x76C6851ea0B2741EeDcBBED240715E8817E85583", "admin": "0x312063009E74142339Edc92BcfF6CfCfAA958BFA", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV1": { "implementation": "0x14f37168AB9eAFCD94d5b142a00E6e9B261Bad48", "admin": "0xE39FfFFfB0795c99869ba4bCFE3fD1759d2f0Cc7", "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null }
   },
   "notProven": [
     "a static balance under a corporate action (needs a fork at a recorded block across one)",

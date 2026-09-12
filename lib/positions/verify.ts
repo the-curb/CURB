@@ -5,7 +5,8 @@
  * each wrapper xStocks lists, the address Ondo lists when its endpoint
  * answers — this reads, on the position product's network: whether there is
  * code, the hash of that code, `symbol()`, `decimals()`, and for a wrapper
- * `asset()`, compared with the raw token the issuer named beside it.
+ * `asset()`, compared with the raw token the issuer named beside it — and
+ * the EIP-1967 slots, because a proxy's code hash sleeps through an upgrade.
  *
  * What this proves is narrow and stated: an address is a contract, it
  * answers as a token, and a wrapper points at the raw token it claims to
@@ -17,6 +18,7 @@
 import { decodeAddressWord, SELECTORS } from '../chain/abi.ts';
 import { keccak256, toHex } from '../chain/keccak.ts';
 import { positionsNetwork } from '../chain/networks.ts';
+import { readProxySlots, type ProxySlots } from '../chain/proxy.ts';
 import { readCode, rpcCall, type RpcOptions } from '../chain/rpc.ts';
 import { readTokenString, readTokenUint } from '../chain/token-read.ts';
 import { isRead, unread, type Reading } from '../doctrine/reading.ts';
@@ -59,6 +61,12 @@ export interface AddressVerification extends Candidate {
   readonly assetMatchesClaim: 'MATCHES' | 'DRIFT' | 'UNREAD' | 'NOT_APPLICABLE';
   /** True only when the address has code, answers symbol() and decimals(), and — for a wrapper — asset() matches. */
   readonly answersAsToken: boolean;
+  /**
+   * The EIP-1967 slots behind the address. A proxy's code hash sleeps
+   * through an upgrade; the implementation slot does not. Absent on
+   * records written before the slots were read.
+   */
+  readonly proxy?: ProxySlots;
   readonly notProven: readonly string[];
 }
 
@@ -115,12 +123,13 @@ async function readAsset(address: string, opts: RpcOptions): Promise<Reading<str
 
 export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, now: Date): Promise<AddressVerification> {
   const chainId = (opts.profile ?? positionsNetwork()).chainId;
-  const [code, codeHex, symbol, decimals, asset] = await Promise.all([
+  const [code, codeHex, symbol, decimals, asset, proxy] = await Promise.all([
     readCode(candidate.address, opts),
     rpcCall<string>('eth_getCode', [candidate.address, 'latest'], opts),
     readTokenString(candidate.address, 'symbol', opts),
     readTokenUint(candidate.address, 'decimals', opts),
     candidate.claimedAsset === null ? Promise.resolve(null) : readAsset(candidate.address, opts),
+    readProxySlots(candidate.address, opts),
   ]);
 
   const codeHash: Field<string> =
@@ -152,15 +161,18 @@ export async function verifyCandidate(candidate: Candidate, opts: RpcOptions, no
     asset: assetField,
     assetMatchesClaim,
     answersAsToken,
+    proxy,
     notProven: NOT_PROVEN,
   };
 }
+
+export type DriftField = 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken' | 'implementation' | 'admin' | 'beacon';
 
 export interface Drift {
   readonly address: string;
   readonly role: AddressRole;
   readonly component: 'A' | 'B';
-  readonly field: 'hasCode' | 'codeHash' | 'symbol' | 'decimals' | 'asset' | 'answersAsToken';
+  readonly field: DriftField;
   readonly from: string;
   readonly to: string;
 }
@@ -181,6 +193,15 @@ export function driftBetween(before: readonly AddressVerification[], after: read
     }
     if (b.answersAsToken && !a.answersAsToken) {
       out.push({ address: a.address, role: a.role, component: a.component, field: 'answersAsToken', from: 'true', to: 'false' });
+    }
+    // The slots behind a proxy: an implementation that moved is an upgrade
+    // the code hash could not see. Compared only when both runs read them.
+    if (b.proxy?.state === 'VERIFIED' && a.proxy?.state === 'VERIFIED') {
+      for (const slot of ['implementation', 'admin', 'beacon'] as const) {
+        const x = b.proxy[slot] ?? 'none';
+        const y = a.proxy[slot] ?? 'none';
+        if (x !== y) out.push({ address: a.address, role: a.role, component: a.component, field: slot, from: x, to: y });
+      }
     }
   }
   return out;

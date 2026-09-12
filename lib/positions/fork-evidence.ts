@@ -22,6 +22,14 @@ export interface ForkFindings {
   readonly rawBalanceSettableByStorage: boolean;
 }
 
+/** Who can change what stands behind an address, as read at the recorded block. null: not set, or not answered. */
+export interface ForkAuthority {
+  readonly implementation: string | null;
+  readonly admin: string | null;
+  readonly owner: string | null;
+  readonly paused: boolean | null;
+}
+
 export interface ForkEvidence {
   readonly seriesId: string;
   readonly chainId: number;
@@ -34,6 +42,8 @@ export interface ForkEvidence {
   readonly wrapperRawReserve: string;
   readonly wrapperTotalSupply: string;
   readonly findings: ForkFindings;
+  /** Absent on files written before the authority was read. */
+  readonly authority: Readonly<Record<'raw' | 'wrapperV2' | 'wrapperV1', ForkAuthority>> | null;
   readonly notProven: readonly string[];
   readonly how: string;
 }
@@ -65,6 +75,13 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
       rawReceivedFor1e18Sent: isStr(f.rawReceivedFor1e18Sent) ? f.rawReceivedFor1e18Sent : '0',
       rawBalanceSettableByStorage: isBool(f.rawBalanceSettableByStorage) && f.rawBalanceSettableByStorage,
     };
+    const authorityOf = (v: unknown): ForkAuthority => {
+      const a = (v ?? {}) as Record<string, unknown>;
+      const addr = (x: unknown) => (isStr(x) ? x.toLowerCase() : null);
+      return { implementation: addr(a.implementation), admin: addr(a.admin), owner: addr(a.owner), paused: isBool(a.paused) ? a.paused : null };
+    };
+    const au = j.authority as Record<string, unknown> | undefined;
+    const authority = au && typeof au === 'object' ? { raw: authorityOf(au.raw), wrapperV2: authorityOf(au.wrapperV2), wrapperV1: authorityOf(au.wrapperV1) } : null;
     return {
       evidence: {
         seriesId: isStr(j.seriesId) ? j.seriesId : seriesId,
@@ -78,6 +95,7 @@ export async function forkEvidenceOf(seriesId: string): Promise<{ evidence: Fork
         wrapperRawReserve: isStr(j.wrapperRawReserve) ? j.wrapperRawReserve : '0',
         wrapperTotalSupply: isStr(j.wrapperTotalSupply) ? j.wrapperTotalSupply : '0',
         findings,
+        authority,
         notProven: Array.isArray(j.notProven) ? j.notProven.filter(isStr) : [],
         how: isStr(j.how) ? j.how : '',
       },

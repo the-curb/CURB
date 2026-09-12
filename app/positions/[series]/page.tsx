@@ -272,7 +272,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               </p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="tabular w-full min-w-[40rem] border-collapse text-[12px]">
+                <table className="tabular w-full min-w-[46rem] border-collapse text-[12px]">
                   <thead>
                     <tr className="kicker text-left">
                       <th className="pb-2 pr-3 font-normal">Role</th>
@@ -281,7 +281,8 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                       <th className="pb-2 pr-3 font-normal">Symbol</th>
                       <th className="pb-2 pr-3 text-right font-normal">Dec.</th>
                       <th className="pb-2 pr-3 font-normal">asset() vs claim</th>
-                      <th className="pb-2 font-normal">Answers as token</th>
+                      <th className="pb-2 pr-3 font-normal">Answers as token</th>
+                      <th className="pb-2 font-normal">Behind it</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -305,8 +306,23 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         <td className="py-2 pr-3" style={{ color: v.assetMatchesClaim === 'MATCHES' ? 'var(--color-state-live)' : v.assetMatchesClaim === 'DRIFT' ? 'var(--color-state-dark)' : 'var(--color-paper-faint)' }}>
                           {v.assetMatchesClaim.toLowerCase().replace('_', ' ')}
                         </td>
-                        <td className="py-2" style={{ color: v.answersAsToken ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>
+                        <td className="py-2 pr-3" style={{ color: v.answersAsToken ? 'var(--color-state-live)' : 'var(--color-state-stale)' }}>
                           {v.answersAsToken ? 'yes' : 'no'}
+                        </td>
+                        <td className="py-2">
+                          {v.proxy.state !== 'VERIFIED' ? (
+                            <span className="absent" title={v.proxy.reason ?? 'unread'}>
+                              —
+                            </span>
+                          ) : v.proxy.kind === 'NONE' ? (
+                            <span className="text-(--color-paper-faint)" title="no EIP-1967 slot is set; a proxy of another kind is not ruled out">
+                              no 1967 slot
+                            </span>
+                          ) : (
+                            <span className="text-(--color-paper-dim)" title={`implementation ${v.proxy.implementation ?? '—'} · admin ${v.proxy.admin ?? '—'} · beacon ${v.proxy.beacon ?? '—'}`}>
+                              {v.proxy.kind === 'BEACON' ? 'beacon' : 'impl.'} {(v.proxy.implementation ?? v.proxy.beacon ?? '').slice(0, 10)}…
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -341,6 +357,50 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   The wrapper held {units18(evidence.fork.wrapperRawReserve)} of the raw token and had {units18(evidence.fork.wrapperTotalSupply)} shares in all at that block. {evidence.fork.how}. Rerun:{' '}
                   <code className="text-(--color-paper-dim)">cd contracts && npm run test:fork</code>.
                 </p>
+                {evidence.fork.authority ? (
+                  <div className="mt-4">
+                    <div className="kicker">Who stands behind each address · at that block</div>
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="tabular w-full min-w-[40rem] border-collapse text-[11px]">
+                        <thead>
+                          <tr className="kicker text-left">
+                            <th className="pb-2 pr-3 font-normal">Address</th>
+                            <th className="pb-2 pr-3 font-normal">EIP-1967 implementation</th>
+                            <th className="pb-2 pr-3 font-normal">Proxy admin</th>
+                            <th className="pb-2 pr-3 font-normal">owner()</th>
+                            <th className="pb-2 font-normal">paused()</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(
+                            [
+                              ['raw token', evidence.fork.raw, evidence.fork.authority.raw],
+                              ['wrapper v2', evidence.fork.wrapperV2, evidence.fork.authority.wrapperV2],
+                              ['wrapper v1', evidence.fork.wrapperV1, evidence.fork.authority.wrapperV1],
+                            ] as const
+                          ).map(([label, address, au]) => (
+                            <tr key={address} className="border-t border-(--color-rule)">
+                              <td className="py-1.5 pr-3 text-(--color-paper)">
+                                {label} <span className="text-(--color-paper-faint)">{address.slice(0, 10)}…</span>
+                              </td>
+                              <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.implementation ? `${au.implementation.slice(0, 10)}…${au.implementation.slice(-4)}` : 'no slot set'}</td>
+                              <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.admin ? `${au.admin.slice(0, 10)}…${au.admin.slice(-4)}` : 'no slot set'}</td>
+                              <td className="py-1.5 pr-3 text-(--color-paper-dim)">{au.owner ? `${au.owner.slice(0, 10)}…${au.owner.slice(-4)}` : 'not answered'}</td>
+                              <td className="py-1.5 text-(--color-paper-dim)">{au.paused === null ? 'not answered' : au.paused ? 'yes' : 'no'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="mt-2 text-[10px] leading-relaxed text-(--color-paper-faint)">
+                      {(() => {
+                        const owners = new Set([evidence.fork.authority.raw.owner, evidence.fork.authority.wrapperV2.owner, evidence.fork.authority.wrapperV1.owner].filter((o): o is string => o !== null));
+                        const shared = owners.size === 1 && evidence.fork.authority.raw.owner !== null;
+                        return `Every address with an implementation slot set can have its code replaced by whoever controls its admin; that is a fact about the instrument, not a fault. ${shared ? 'The three contracts answer owner() with one and the same address: one party stands behind the raw token and both wrappers.' : 'The owners differ or were not answered; no shared party is inferred.'} Who those addresses belong to is not read from the chain and is not asserted here.`;
+                      })()}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
