@@ -267,6 +267,14 @@ its own RPC override.
   longer serves that block's state says so, and nothing is compared across
   heights). Without it, every read of a chain for that series is skipped
   and `/api/status` says `NOT_DEPLOYED`.
+- **The series' own code, every tick — when a series is deployed.** The
+  compiled runtime bytecode is committed with its commit
+  (`contracts/evidence/CompanySeries.build.json`, written by `npm run
+  record:build` and by the weekly workflow). On every tick the site reads the
+  code at the deployment's address and compares it: equal outside the
+  immutable slots, and the slots holding exactly the record's components,
+  units per lot and cap. A mismatch is a DARK condition and the series page
+  says so; no explorer is asked.
 - **Documents watched.** The thirteen pages the issuers publish about the
   instruments are fetched on the same daily run and kept as the hash of their
   visible text — never read for meaning. A change raises a NOTE condition for

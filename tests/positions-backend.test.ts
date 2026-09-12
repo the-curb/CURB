@@ -531,3 +531,37 @@ describe('a corporate action seen by the daily read', () => {
     assert.deepEqual(driftBetween([base], [unread]), [], 'a multiplier that could not be read is not a drift');
   });
 });
+
+describe('the series code against the build', () => {
+  it('matches only when the bytes agree outside the immutable slots and the slots hold the record', async () => {
+    const { buildRecord, compareCode, expectedImmutables } = await import('../lib/positions/code.ts');
+    const { build, fault } = await buildRecord();
+    assert.equal(fault, null);
+    assert.ok(build, 'the build record is committed');
+    assert.equal(build.immutables.length, 5);
+    const record = {
+      seriesId: 'apple-s1',
+      chainId: 31337,
+      address: '0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0',
+      components: { A: '0x5fbdb2315678afecb367f032d93f642f64180aa3', B: '0xe7f1725e7734ce288f8367e1bb143e90bb3f0512' },
+      fromBlock: 1,
+      q: { A: 10n * 10n ** 18n, B: 20n * 10n ** 18n },
+      capLots: 1000n,
+    };
+    // Stamp the record's values into the build's immutable slots, as a deployment would.
+    const want = expectedImmutables(record);
+    let code = build.deployedBytecode.replace(/^0x/, '');
+    for (const im of build.immutables) for (const s of im.slots) code = code.slice(0, s.start * 2) + want[im.name] + code.slice((s.start + s.length) * 2);
+    const ok = compareCode(`0x${code}`, build, record);
+    assert.equal(ok.state, 'MATCHES', ok.detail ?? '');
+    assert.ok(ok.immutables.every((c) => c.matches));
+
+    const wrongCap = compareCode(`0x${code}`, build, { ...record, capLots: 999n });
+    assert.equal(wrongCap.state, 'MISMATCH');
+    assert.match(wrongCap.detail ?? '', /capLots/);
+
+    const tampered = `0x${code.slice(0, 200)}${code.slice(200, 202) === 'ff' ? '00' : 'ff'}${code.slice(202)}`;
+    assert.equal(compareCode(tampered, build, record).state, 'MISMATCH', 'a byte outside the slots is a different contract');
+    assert.equal(compareCode('0x6000', build, record).state, 'MISMATCH', 'a different length is a different contract');
+  });
+});

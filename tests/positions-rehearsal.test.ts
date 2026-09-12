@@ -78,6 +78,13 @@ describe('the index and the reconciliation, rehearsed on a local chain', () => {
       '850 active + 250 reserved of A; 1,700 active of B — held exactly',
     );
 
+    // The deployed series is the contract in this repository: its code equals the
+    // build outside the immutable slots, and the slots hold the record's values.
+    const { verifySeriesCode } = await import('../lib/positions/code.ts');
+    const code = await verifySeriesCode(deployment, opts, new Date());
+    assert.equal(code.state, 'MATCHES', code.detail ?? '');
+    assert.deepEqual(code.immutables.map((c) => [c.name, c.matches]), [['componentA', true], ['componentB', true], ['qA', true], ['qB', true], ['capLots', true]]);
+
     // The bytes the site would hand a wallet, simulated by the node against
     // the real contract from the holders' own addresses. Nothing is sent.
     const holderOf = (i: number) => {

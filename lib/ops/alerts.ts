@@ -185,6 +185,15 @@ export function positionConditions(snapshots: readonly SnapshotRecord[] | null, 
       }
     }
 
+    if (snap.key.startsWith('positions:code:')) {
+      const seriesId = str(p.seriesId) ?? snap.key.slice('positions:code:'.length);
+      if (p.state === 'MISMATCH') {
+        out.push({ id: `positions:${seriesId}:CODE_MISMATCH`, severity: 'DARK', text: `the series at ${str(p.address) ?? '?'} is not the contract in this repository${str(p.detail) ? ` — ${str(p.detail)}` : ''}; nothing about it is trusted until a person says why` });
+      } else if (p.state === 'UNREAD' || p.state === 'NO_BUILD') {
+        out.push({ id: `positions:${seriesId}:CODE_${String(p.state)}`, severity: 'STALE', text: `the series code at ${str(p.address) ?? '?'} could not be verified${str(p.detail) ? ` — ${str(p.detail)}` : ''}` });
+      }
+    }
+
     if (snap.key.startsWith('positions:reconcile:')) {
       const seriesId = str(p.seriesId) ?? snap.key.slice('positions:reconcile:'.length);
       const components = Array.isArray(p.components) ? (p.components as { component?: unknown; finding?: unknown; owed?: unknown; held?: unknown; reason?: unknown }[]) : [];

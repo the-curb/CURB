@@ -8,6 +8,7 @@ import { corporateActionEvidenceOf, multiplier18, percentChange } from '@/lib/po
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from '@/lib/positions/dependencies';
 import { deploymentView, ledgerFor, seriesEvidence, valuationFor } from '@/lib/positions/api';
 import { latestReconciliation } from '@/lib/positions/reconcile';
+import { latestCodeVerification } from '@/lib/positions/code';
 import { NOT_PROVEN } from '@/lib/positions/verify';
 import { GATES, PROMISES, seriesById, type ComponentStatus } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
@@ -49,7 +50,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
   const [a, b] = spec.components;
   const now = new Date();
   const store = await getStoreAsync();
-  const [evidence, ledger, reconciliation, drill, tests, valuation, action] = await Promise.all([
+  const [evidence, ledger, reconciliation, drill, tests, valuation, action, code] = await Promise.all([
     seriesEvidence(store, spec),
     ledgerFor(store, spec),
     latestReconciliation(store, spec.id),
@@ -57,6 +58,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
     testRecord(),
     valuationFor(store, spec),
     corporateActionEvidenceOf(spec.id),
+    latestCodeVerification(store, spec.id),
   ]);
   const deployment = deploymentView(spec.id);
   const ageOf = (iso: string) => describeAge(Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000)));
@@ -348,6 +350,16 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   {reconciliation.reconciliation === null
                     ? 'none'
                     : reconciliation.reconciliation.components.map((c) => `${c.component} ${c.finding.toLowerCase()}`).join(' · ')}
+                </dd>
+                <dt className="text-(--color-paper-faint)">Contract code</dt>
+                <dd className="text-(--color-paper-dim)">
+                  {deployment.state !== 'CONFIGURED'
+                    ? 'nothing to verify while no series is deployed; when one is, its code is compared with the build in this repository on every tick, immutables included'
+                    : code.code === null
+                      ? 'not verified yet — the next tick compares the code with the build in this repository'
+                      : code.code.state === 'MATCHES'
+                        ? `the contract in this repository at commit ${code.code.buildCommit?.slice(0, 10) ?? '?'} (solc ${code.code.solc ?? '?'}), immutables as the record says · read ${ageOf(code.code.readAt)} ago`
+                        : `${code.code.state.toLowerCase().replace('_', ' ')}${code.code.detail ? ` — ${code.code.detail}` : ''}`}
                 </dd>
                 <dt className="text-(--color-paper-faint)">Sign it yourself</dt>
                 <dd className="text-(--color-paper-dim)">

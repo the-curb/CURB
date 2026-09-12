@@ -26,6 +26,15 @@ invariants after every step. The mocks in `src/mocks/` switch on each
 misbehaviour the blueprint names — an issuer halt, a transfer that returns
 false, a fee on transfer, a reentrant callback, a `balanceOf` that reverts.
 
+## The recorded build (G02)
+
+`npm run record:build` writes the compiled runtime bytecode, where its five
+immutables sit in it, the compiler version and the commit to
+`evidence/CompanySeries.build.json`. The site compares a deployed series
+with it on every tick: equal outside the immutable slots, and the slots
+holding the deployment record's components, units per lot and cap. The
+rehearsal test does the same against the local deployment.
+
 ## The recorded run (C07)
 
 `npm run record:tests` runs the unit tests with the fuzz seed pinned in

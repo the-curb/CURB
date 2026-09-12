@@ -47,6 +47,9 @@ jobs:
       - name: Record the unit-test run at this commit (seed, results, commit)
         working-directory: contracts
         run: npm run record:tests
+      - name: Record the build the site verifies deployments against
+        working-directory: contracts
+        run: node scripts/record-build.mjs
       - name: Commit the record if it moved
         run: |
           set -euo pipefail

@@ -16,6 +16,7 @@ import { GATES, PROMISES, SERIES, seriesById, type SeriesSpec } from './series.t
 import { latestVerification, type AddressVerification } from './verify.ts';
 import { forkEvidenceOf } from './fork-evidence.ts';
 import { corporateActionEvidenceOf } from './corporate-action.ts';
+import { latestCodeVerification } from './code.ts';
 import { allocateExitCall, approveCall, claimCall, mintCall, type PreparedCall } from './calldata.ts';
 import { DEPENDENCIES, NOT_KNOWN_LINE, POSSIBLY_SHARED, sharedParties } from './dependencies.ts';
 import { indicativeValuation, toUsd2, type LotValuation } from './valuation.ts';
@@ -327,7 +328,7 @@ export async function positionsStatus(store: Store) {
   const profile = positionsNetwork();
   const series = [];
   for (const spec of SERIES) {
-    const [evidence, ledger, reconciliation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id)]);
+    const [evidence, ledger, reconciliation, code] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), latestCodeVerification(store, spec.id)]);
     series.push({
       id: spec.id,
       stage: spec.stage,
@@ -336,6 +337,7 @@ export async function positionsStatus(store: Store) {
       verification: evidence.verification ? { ranAt: evidence.verification.ranAt, addresses: evidence.verification.addresses.length, answering: evidence.verification.addresses.filter((a) => a.answersAsToken).length } : null,
       index: ledger.ledger === null ? { state: 'NONE', detail: ledger.detail } : { state: 'INDEXED', cursor: ledger.cursor, events: ledger.events, faults: ledger.faults, disagreements: ledger.disagreements.length },
       reconciliation: reconciliation.reconciliation ? { ranAt: reconciliation.reconciliation.ranAt, asOfBlock: reconciliation.reconciliation.asOfBlock, findings: reconciliation.reconciliation.components.map((c) => ({ component: c.component, finding: c.finding })) } : null,
+      code: code.code ? { state: code.code.state, detail: code.code.detail, buildCommit: code.code.buildCommit, solc: code.code.solc, readAt: code.code.readAt } : null,
       gatesPassed: GATES.filter((g) => g.status === 'PASSED').length,
       gates: GATES.length,
     });
