@@ -1,14 +1,18 @@
 {
-  "ranAt": "2026-09-12T03:46:18.370Z",
-  "commit": "e090891e1af50b563208b779428c1170fdce53a9",
+  "ranAt": "2026-09-12T08:31:05.835Z",
+  "commit": "1d6b3f76dc0075de81101aef4c16018e4965133c",
   "workingTreeClean": true,
   "solc": "0.8.30",
   "fuzz": {
     "seed": "0x7727ea51af0441c20da14dcd68a15dac8c9ebd589c5be8fa8c87c1d3720450bc",
     "runs": 256
   },
+  "invariant": {
+    "runs": 256,
+    "depth": 64
+  },
   "command": "hardhat test solidity --grep-exclude Fork",
-  "passing": 24,
+  "passing": 29,
   "failing": 0,
   "tests": [
     {
@@ -128,6 +132,31 @@
     },
     {
       "name": "testFuzz_SequencesKeepTheInvariants(uint8[16],uint8[16])",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_SupplyOnlyByMintAndExit()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_ShortfallHaltsPayment()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_LedgerSumsAgree()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_CapCountsReserved()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_BackingCoversLiabilityButForSeizure()",
       "passed": true,
       "fuzzRuns": 256
     }

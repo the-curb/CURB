@@ -28,6 +28,9 @@ export const DECISIONS: readonly DecisionRecord[] = [
   { slug: 'runbook', file: 'RUNBOOK.md', title: 'Runbook', asks: 'the incident order, the rehearsed incidents, lost access and keys, what is never said', backlog: 'O03' },
   { slug: 'costs', file: 'COSTS.md', title: 'Cost against the baseline', asks: 'the measured gas of a round trip with both real components, the method with its variables left as variables, and what the comparison cannot say', backlog: 'B01' },
   { slug: 'deployment', file: 'DEPLOYMENT.md', title: 'Deployment plan', asks: 'what has to be true first, the reviewed record, the steps, the two verifications, and what there is no plan for', backlog: 'G02' },
+  { slug: 'assumptions', file: 'ASSUMPTIONS.md', title: 'The assumption register', asks: 'every question that needs a person, what is assumed meanwhile and why it is the conservative assumption, and what the site says while it holds', backlog: '§19' },
+  { slug: 'review', file: 'REVIEW.md', title: 'A self-review, not a review', asks: 'the checklist a reviewer would walk, walked by the author; one open finding; what it did not do', backlog: 'C09' },
+  { slug: 'interviews', file: 'INTERVIEWS.md', title: 'The interview guide', asks: 'who to talk to, the conversation, the scoring, the comprehension test — ready to run, not run', backlog: 'R04, B02' },
 ];
 
 export function decisionBySlug(slug: string): DecisionRecord | null {
