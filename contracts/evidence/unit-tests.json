@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-09-12T08:31:05.835Z",
-  "commit": "1d6b3f76dc0075de81101aef4c16018e4965133c",
+  "ranAt": "2026-09-12T10:29:22.112Z",
+  "commit": "d4ee3ca74c0db0a7622bd8f6433b7344963efe35",
   "workingTreeClean": true,
   "solc": "0.8.30",
   "fuzz": {
@@ -12,9 +12,84 @@
     "depth": 64
   },
   "command": "hardhat test solidity --grep-exclude Fork",
-  "passing": 29,
+  "passing": 44,
   "failing": 0,
   "tests": [
+    {
+      "name": "test_ZeroTreasuryIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroTokenIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroKeyHashIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroAmountIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TwoTopUpsForOneKeyAreTwoEvents()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TopUpMovesCurbToTheTreasuryAndSaysSo()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TokenWithoutCodeIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_NoAllowanceMeansNothingMoves()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_MoreThanTheBalanceIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ImmutablesAreWhatWasGiven()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AnyoneMayTopUpAnyKey()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ATransferThatReturnsFalseIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AHaltedTokenIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AFeeOnTransferIsRefusedRatherThanCreditedShort()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "testFuzz_EventAmountEqualsTreasuryDelta(bytes32,uint128)",
+      "passed": true,
+      "fuzzRuns": 256
+    },
     {
       "name": "test_WorkedExample()",
       "passed": true,
