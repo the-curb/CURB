@@ -31,6 +31,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { parseArgs } from './lib/args.ts';
@@ -53,6 +54,32 @@ const fail = (why: string): never => {
   console.error(`refused: ${why}`);
   process.exit(1);
 };
+
+/**
+ * The block of the earliest log an address ever emitted, or null if it has
+ * none: the whole span is asked and, where the node refuses a range for
+ * matching too much, the lower half is asked again until it answers — the
+ * earliest log is in the lowest range that holds any.
+ */
+async function earliestLogBlock(address: Address, head: number): Promise<number | null> {
+  let lo = 0;
+  let hi = head;
+  for (let i = 0; i < 64 && lo <= hi; i += 1) {
+    try {
+      const logs = await pub.getLogs({ address, fromBlock: BigInt(lo), toBlock: BigInt(hi) });
+      if (logs.length > 0) return logs.map((l) => Number(l.blockNumber)).reduce((a, b) => Math.min(a, b));
+      if (hi === head) return null;
+      // Nothing in [lo, hi]: the earliest is above hi.
+      lo = hi + 1;
+      hi = head;
+    } catch (cause) {
+      // Too many for one answer: look at the lower half first.
+      if (hi - lo < 2) fail(`the node would not serve the pool's logs for blocks ${lo}–${hi}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`);
+      hi = lo + Math.floor((hi - lo) / 2);
+    }
+  }
+  return fail('the pool’s first log could not be found in 64 queries');
+}
 // Strict: a misspelt --dry-run is a refusal, never a real deployment.
 const { positionals, flags } = parseArgs(process.argv.slice(2), [], fail, ['dry-run', 'reviewed']);
 const file = positionals[0];
@@ -63,18 +90,25 @@ if (!file || positionals.length !== 1) {
   process.exit(2);
 }
 
-const record = JSON.parse(readFileSync(file, 'utf8')) as DeskRecord;
+let record: DeskRecord;
+try {
+  record = JSON.parse(readFileSync(file, 'utf8')) as DeskRecord;
+} catch (cause) {
+  record = fail(`the record at ${file} could not be read as JSON: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`);
+}
 const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v);
+const ZERO = '0x0000000000000000000000000000000000000000';
 
 // ── the record itself ─────────────────────────────────────────────────────
-if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
+// A name and a date, not whitespace: the review is a person's, written down.
+if (typeof record.reviewedBy !== 'string' || record.reviewedBy.trim() === '' || typeof record.reviewedAt !== 'string' || record.reviewedAt.trim() === '') fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
 /** The site's profiles and their chain ids (lib/chain/networks.ts); a record naming any other pair prints a line the site would refuse. */
 const PROFILES: Record<string, number> = { 'robinhood-mainnet': 4663, 'robinhood-testnet': 46630, 'ethereum-mainnet': 1, 'ethereum-sepolia': 11155111, 'hardhat-local': 31337 };
 if (!record.network || !Number.isInteger(record.chainId) || !record.rpcUrl) fail('the record needs network, chainId and rpcUrl');
 if (PROFILES[record.network] === undefined) fail(`network ${record.network} is not a profile the site knows (${Object.keys(PROFILES).join(', ')})`);
 if (PROFILES[record.network] !== record.chainId) fail(`network ${record.network} is chain ${PROFILES[record.network]} on the site; the record says ${record.chainId}`);
-if (!isAddress(record.token)) fail('the record needs the token address');
-if (!isAddress(record.treasury)) fail('the record needs the treasury address (the operator multisig)');
+if (!isAddress(record.token) || record.token.toLowerCase() === ZERO) fail('the record needs the token address');
+if (!isAddress(record.treasury) || record.treasury.toLowerCase() === ZERO) fail('the record needs the treasury address (the operator multisig); record-token.ts leaves it zero until --treasury is given');
 if (record.token.toLowerCase() === record.treasury.toLowerCase()) fail('the treasury cannot be the token');
 if (!Number.isInteger(record.decimals) || record.decimals < 0 || record.decimals > 36) fail('decimals must be an integer between 0 and 36');
 if (record.priceSource !== null) {
@@ -86,12 +120,16 @@ if (record.priceSource !== null) {
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
 
-const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [record.rpcUrl] } } } as const;
-const pub = createPublicClient({ chain, transport: http(record.rpcUrl) });
+/** The operator's own endpoint for the profile, read from the environment like every other tool and the site (lib/chain/networks.ts); the record keeps naming the public one, and a keyed URL is never printed. */
+const RPC_ENV: Record<string, string> = { 'robinhood-mainnet': 'CURB_RPC_URL', 'robinhood-testnet': 'CURB_RPC_URL_TESTNET', 'ethereum-mainnet': 'CURB_RPC_URL_ETHEREUM', 'ethereum-sepolia': 'CURB_RPC_URL_SEPOLIA', 'hardhat-local': 'CURB_RPC_URL_LOCAL' };
+const rpcUrl = process.env[RPC_ENV[record.network]!] || record.rpcUrl;
+console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ` (${RPC_ENV[record.network]} from the environment)`}`);
+const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
+const pub = createPublicClient({ chain, transport: http(rpcUrl) });
 const erc20 = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function totalSupply() view returns (uint256)']);
 
 // ── the chain ─────────────────────────────────────────────────────────────
-const chainId = await pub.getChainId();
+const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(rpcUrl).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`));
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
 const tokenCode = await pub.getCode({ address: record.token });
 if (!tokenCode || tokenCode === '0x') fail(`the token at ${record.token} has no code on chain ${chainId}`);
@@ -126,6 +164,16 @@ if (record.priceSource !== null) {
     ]);
     if (fd === null || round === null) fail(`the feed at ${record.priceSource.quote.feed} does not answer decimals() and latestRoundData()`);
   }
+  // fromBlock — the block the pool was created in — decides which top-ups are priced at the head instead of at their own block, so it is not taken on anyone's word: the pool's first log is found, and fromBlock may not be later than it.
+  if (typeof record.priceSource.fromBlock === 'number') {
+    const head = Number(await pub.getBlockNumber());
+    if (record.priceSource.fromBlock > head) fail(`priceSource.fromBlock ${record.priceSource.fromBlock} is past the head (${head})`);
+    const first = await earliestLogBlock(record.priceSource.pair, head);
+    if (first !== null && record.priceSource.fromBlock > first) fail(`priceSource.fromBlock ${record.priceSource.fromBlock} is later than the pool's first log, in block ${first}; the pool existed before that block, and a top-up between the two would be priced at the head instead of at its own block`);
+    console.error(first === null ? `pool: no log at all up to block ${head}; fromBlock ${record.priceSource.fromBlock} cannot be checked against one and is taken as written` : `pool: first log in block ${first}; fromBlock ${record.priceSource.fromBlock} is at or before it`);
+  } else {
+    console.error('note: priceSource.fromBlock is absent — a top-up the pool has no price event for waits instead of going to the head; read the creation block from the chain and add it');
+  }
   console.error(`pool: ${record.priceSource.pair} · code present · holds the token against ${sides.find((x) => x !== record.token.toLowerCase())} · quote ${record.priceSource.quote.kind}`);
 } else {
   console.error('pool: none in the record; the CURB_CREDITS line will need priceSource filled when the pool exists');
@@ -138,6 +186,14 @@ try {
   build = JSON.parse(readFileSync(new URL('../evidence/CreditDesk.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; commit: string };
 } catch {
   fail('evidence/CreditDesk.build.json is missing; run npm run record:build and commit it before deploying');
+}
+if (record.chainId !== 31337 && (build!.workingTreeClean !== true || typeof build!.sourceCommit !== 'string' || !/^[0-9a-f]{40}$/.test(build!.sourceCommit))) fail('the build record was written from a dirty tree (--allow-dirty) or names no source commit; re-record it from a clean tree and commit it before deploying to a public chain');
+if (record.chainId !== 31337) {
+  // What is sent is what the repository holds: nothing under src/, the compiler settings or the build record may be uncommitted.
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const dirty = execSync('git status --porcelain -- ../src ../hardhat.config.ts ../evidence/CreditDesk.build.json', { encoding: 'utf8', cwd: here }).trim();
+  if (dirty.length > 0) fail(`uncommitted changes under contracts/src, hardhat.config.ts or the build record:\n${dirty}\ncommit them (and re-record the build if the source moved) before deploying to a public chain`);
+  console.error(`repository at ${execSync('git rev-parse HEAD', { encoding: 'utf8', cwd: here }).trim().slice(0, 10)}; build record at ${String(build!.commit).slice(0, 10)}, source at ${String(build!.sourceCommit).slice(0, 10)}`);
 }
 if (build!.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase()) fail(`the compiled CreditDesk is not the committed build record (commit ${build!.commit.slice(0, 10)}); rebuild and re-record, or check out the recorded commit, before deploying`);
 console.error(`the artifact is the committed build at ${build!.commit.slice(0, 10)}`);
@@ -158,8 +214,11 @@ if (dryRun) {
 const key = process.env.DEPLOYER_PRIVATE_KEY;
 if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) fail('DEPLOYER_PRIVATE_KEY is not set in the environment (a 32-byte hex key with 0x); nothing was sent');
 const account = privateKeyToAccount(key as Hex);
-const wallet = createWalletClient({ chain, transport: http(record.rpcUrl), account });
-console.error(`deployer ${account.address}`);
+const wallet = createWalletClient({ chain, transport: http(rpcUrl), account });
+// An unfunded deployer is a refusal here, not a transport error from inside the send.
+const balance = await pub.getBalance({ address: account.address });
+if (balance === 0n) fail(`the deployer ${account.address} holds no ETH on chain ${chainId}; nothing was sent`);
+console.error(`deployer ${account.address} · ${balance} wei`);
 
 const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never });
 console.error(`sent ${hash}; waiting for the receipt`);

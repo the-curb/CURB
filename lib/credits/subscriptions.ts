@@ -38,6 +38,8 @@ export interface Subscription {
   /** The condition ids this subscription was last told were active; its next message is the change from these. */
   readonly lastActive: readonly string[];
   readonly lastDelivery: { readonly at: string; readonly state: Delivery['state']; readonly detail: string | null; readonly charged: boolean } | null;
+  /** The row's version as read; a write lands only on the row it read. */
+  readonly version: number;
   readonly deliveries: number;
 }
 
@@ -80,8 +82,21 @@ export function isPrivateAddress(ip: string): boolean {
 
 export type Resolver = (hostname: string) => Promise<readonly string[]>;
 
-/** Every address a hostname resolves to, or an empty list when it resolves to nothing. */
-export const resolveAll: Resolver = async (hostname) => (await lookup(hostname, { all: true, verbatim: true })).map((a) => a.address);
+/** A lookup that does not answer within this is a hostname that did not resolve; the resolver's own retries can run far longer than a tick has. */
+export const LOOKUP_TIMEOUT_MS = 3_000;
+
+/** Every address a hostname resolves to, or an empty list when it resolves to nothing; bounded in time. */
+export const resolveAll: Resolver = async (hostname) => {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer within ${LOOKUP_TIMEOUT_MS} ms`)), LOOKUP_TIMEOUT_MS);
+  });
+  try {
+    return (await Promise.race([lookup(hostname, { all: true, verbatim: true }), late])).map((a) => a.address);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 /** Why the desk will not post to a URL right now, or the public addresses it resolved to — which are the ones then dialled. */
 export async function deliveryCheck(url: string, resolve: Resolver = resolveAll): Promise<{ fault: string; addresses: null } | { fault: null; addresses: readonly string[] }> {
@@ -103,9 +118,10 @@ export async function deliveryFault(url: string, resolve: Resolver = resolveAll)
   return (await deliveryCheck(url, resolve)).fault;
 }
 
-function subOf(payload: Readonly<Record<string, unknown>>): Subscription | null {
+function subOf(payload: Readonly<Record<string, unknown>>, version: number): Subscription | null {
   if (typeof payload.id !== 'string' || typeof payload.keyHash !== 'string' || typeof payload.url !== 'string' || typeof payload.createdAt !== 'string') return null;
   return {
+    version,
     id: payload.id,
     keyHash: payload.keyHash,
     url: payload.url,
@@ -120,7 +136,7 @@ function subOf(payload: Readonly<Record<string, unknown>>): Subscription | null 
 export async function subscriptionsOf(store: Store, keyHash: string | null): Promise<{ subscriptions: Subscription[]; storeFault: string | null }> {
   const read = await store.snapshots(SUB_PREFIX);
   if (read.state === 'UNREAD') return { subscriptions: [], storeFault: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
-  const all = read.value.map((r) => subOf(r.payload)).filter((s): s is Subscription => s !== null);
+  const all = read.value.map((r) => subOf(r.payload, r.version ?? 0)).filter((s): s is Subscription => s !== null);
   return { subscriptions: keyHash === null ? all : all.filter((s) => s.keyHash === keyHash), storeFault: null };
 }
 
@@ -139,21 +155,40 @@ export async function createSubscription(store: Store, keyHash: string, url: str
   if (active.some((s) => s.url === url)) return { ok: false, error: 'ALREADY_SUBSCRIBED', detail: 'this key already posts to that URL', status: 409 };
   if (active.length >= MAX_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key holds at most ${MAX_PER_KEY} subscriptions`, status: 409 };
   if (mine.subscriptions.length >= MAX_ROWS_PER_KEY) return { ok: false, error: 'TOO_MANY', detail: `a key makes at most ${MAX_ROWS_PER_KEY} subscriptions in all, cancelled ones counted: a cancelled row is kept as the record that it existed`, status: 409 };
-  const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0 };
-  const written = await store.writeSnapshots([{ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...subscription } }]);
+  const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0, version: 0 };
+  const { version: _v, ...row } = subscription;
+  const written = await store.writeSnapshotIf({ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...row } }, null);
   if (written.state !== 'WRITTEN') return { ok: false, error: 'NOT_RECORDED', detail: written.reason, status: 503 };
   return { ok: true, subscription };
 }
 
+/** A row with its version stripped, as it is written; the version is the store's. */
+const rowOf = (sub: Subscription): Record<string, unknown> => {
+  const { version: _v, ...row } = sub;
+  return row;
+};
+
+/**
+ * Cancel: written only onto the row as read, so a fan-out writing the same
+ * row at the same time cannot overwrite the cancellation; on a conflict the
+ * row is read again and the cancellation written onto the newer one.
+ */
 export async function cancelSubscription(store: Store, keyHash: string, id: string, now: Date): Promise<{ ok: boolean; status: number; detail: string }> {
-  const mine = await subscriptionsOf(store, keyHash);
-  if (mine.storeFault !== null) return { ok: false, status: 503, detail: mine.storeFault };
-  const sub = mine.subscriptions.find((s) => s.id === id);
-  if (!sub) return { ok: false, status: 404, detail: 'no such subscription under this key' };
-  if (sub.cancelledAt !== null) return { ok: true, status: 200, detail: `already cancelled at ${sub.cancelledAt}` };
-  const written = await store.writeSnapshots([{ key: subRow(id), observedAt: now.toISOString(), payload: { ...sub, cancelledAt: now.toISOString() } }]);
-  return written.state === 'WRITTEN' ? { ok: true, status: 200, detail: 'cancelled; no further delivery, no further charge' } : { ok: false, status: 503, detail: written.reason };
+  for (let attempt = 0; attempt < WRITE_RETRIES; attempt += 1) {
+    const mine = await subscriptionsOf(store, keyHash);
+    if (mine.storeFault !== null) return { ok: false, status: 503, detail: mine.storeFault };
+    const sub = mine.subscriptions.find((s) => s.id === id);
+    if (!sub) return { ok: false, status: 404, detail: 'no such subscription under this key' };
+    if (sub.cancelledAt !== null) return { ok: true, status: 200, detail: `already cancelled at ${sub.cancelledAt}` };
+    const written = await store.writeSnapshotIf({ key: subRow(id), observedAt: now.toISOString(), payload: { ...rowOf(sub), cancelledAt: now.toISOString() } }, sub.version);
+    if (written.state === 'WRITTEN') return { ok: true, status: 200, detail: 'cancelled; no further delivery, no further charge' };
+    if (written.state === 'FAILED') return { ok: false, status: 503, detail: written.reason };
+  }
+  return { ok: false, status: 503, detail: 'the subscription row kept moving under the cancellation; try again' };
 }
+
+/** How many times a conditional write on a subscription row is retried after finding the row moved. */
+export const WRITE_RETRIES = 4;
 
 export interface FanOutReport {
   /** How many live subscriptions had a change to be told of. */
@@ -162,6 +197,10 @@ export interface FanOutReport {
   readonly charged: number;
   readonly skipped: readonly { readonly id: string; readonly reason: string }[];
   readonly failed: readonly { readonly id: string; readonly reason: string }[];
+  /** Delivered, and the row says so, but the charge did not land: the desk's loss, counted so the operator sees it. */
+  readonly uncharged: readonly { readonly id: string; readonly reason: string }[];
+  /** Delivered, but the row could not be marked told: not charged; told again next tick. Not a webhook failure. */
+  readonly untold: readonly { readonly id: string; readonly reason: string }[];
   /** Subscriptions not reached within the fan-out's time; they are next in line on the next tick. */
   readonly deferred: number;
 }
@@ -180,7 +219,7 @@ export async function fanOut(
   deadline: number = Date.now() + FAN_OUT_BUDGET_MS,
 ): Promise<FanOutReport> {
   const service = serviceById('alert-delivery')!;
-  const empty: FanOutReport = { considered: 0, delivered: 0, charged: 0, skipped: [], failed: [], deferred: 0 };
+  const empty: FanOutReport = { considered: 0, delivered: 0, charged: 0, skipped: [], failed: [], uncharged: [], untold: [], deferred: 0 };
   if (conditions === null) return empty;
   const all = await subscriptionsOf(store, null);
   if (all.storeFault !== null) return { ...empty, failed: [{ id: '*', reason: all.storeFault }] };
@@ -193,22 +232,30 @@ export async function fanOut(
     .sort((a, b) => (a.sub.lastDelivery?.at ?? '').localeCompare(b.sub.lastDelivery?.at ?? '') || a.sub.createdAt.localeCompare(b.sub.createdAt));
   const skipped: { id: string; reason: string }[] = [];
   const failed: { id: string; reason: string }[] = [];
+  const uncharged: { id: string; reason: string }[] = [];
+  const untold: { id: string; reason: string }[] = [];
   let delivered = 0;
   let charged = 0;
   let deferred = 0;
-  // A row is re-read before it is written, so a cancellation that landed
-  // meanwhile is kept and a cancelled subscription is not delivered to. A
-  // write the store did not take is false: "told" means the row says so.
-  const liveRow = async (id: string): Promise<Subscription | null> => {
+  // A row is re-read before it is written and written only onto the row as
+  // read, so a cancellation that lands meanwhile is never overwritten and a
+  // cancelled subscription is not delivered to. A write the store did not
+  // take is false: "told" means the row says so.
+  const liveRow = async (id: string): Promise<{ row: Subscription } | { cancelled: true } | { storeFault: string }> => {
     const fresh = await subscriptionsOf(store, null);
-    const current = fresh.storeFault === null ? fresh.subscriptions.find((s) => s.id === id) : undefined;
-    return current === undefined || current.cancelledAt !== null ? null : current;
+    if (fresh.storeFault !== null) return { storeFault: fresh.storeFault };
+    const current = fresh.subscriptions.find((s) => s.id === id);
+    return current === undefined || current.cancelledAt !== null ? { cancelled: true } : { row: current };
   };
   const write = async (id: string, patch: Partial<Subscription>): Promise<boolean> => {
-    const current = await liveRow(id);
-    if (current === null) return false;
-    const written = await store.writeSnapshots([{ key: subRow(id), observedAt: now.toISOString(), payload: { ...current, ...patch } }]);
-    return written.state === 'WRITTEN';
+    for (let attempt = 0; attempt < WRITE_RETRIES; attempt += 1) {
+      const current = await liveRow(id);
+      if (!('row' in current)) return false;
+      const written = await store.writeSnapshotIf({ key: subRow(id), observedAt: now.toISOString(), payload: { ...rowOf(current.row), ...patch } }, current.row.version);
+      if (written.state === 'WRITTEN') return true;
+      if (written.state === 'FAILED') return false;
+    }
+    return false;
   };
   for (const { sub, t } of live) {
     const message = composeMessage(t, now);
@@ -233,10 +280,10 @@ export async function fanOut(
       await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'NOTHING_TO_SEND', detail: `not delivered: ${checked.fault}`, charged: false } });
       continue;
     }
-    // Cancelled since the list was read? Then not delivered.
-    const stillLive = (await liveRow(sub.id)) !== null;
-    if (!stillLive) {
-      skipped.push({ id: sub.id, reason: 'CANCELLED' });
+    // Cancelled since the list was read? Then not delivered. A store that would not answer is said so, not read as a cancellation.
+    const live = await liveRow(sub.id);
+    if (!('row' in live)) {
+      skipped.push({ id: sub.id, reason: 'storeFault' in live ? 'STORE_UNREADABLE' : 'CANCELLED' });
       continue;
     }
     // Dialled at the addresses just checked, not resolved again: what was judged public is what is reached.
@@ -253,12 +300,13 @@ export async function fanOut(
     // for the same change.
     const told = await write(sub.id, { lastActive: currentIds, deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the charge follows', charged: false } });
     if (!told) {
-      failed.push({ id: sub.id, reason: 'delivered, but the row could not be marked told; not charged' });
+      untold.push({ id: sub.id, reason: 'delivered, but the row could not be marked told; not charged, told again next tick' });
       continue;
     }
     const paid = await charge(store, sub.keyHash, service.id, service.cents, `alert delivery · ${t.raised.length} raised, ${t.cleared.length} cleared`, now);
     if (paid.ok) charged += 1;
+    else uncharged.push({ id: sub.id, reason: paid.detail });
     await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'SENT', detail: paid.ok ? null : `delivered but not charged: ${paid.detail}`, charged: paid.ok } });
   }
-  return { considered: live.length, delivered, charged, skipped, failed, deferred };
+  return { considered: live.length, delivered, charged, skipped, failed, uncharged, untold, deferred };
 }

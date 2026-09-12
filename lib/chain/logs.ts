@@ -34,9 +34,16 @@ export interface LogWindow {
   readonly retrievedAt: string | null;
 }
 
-/** The node's refusal for a query that matched too much, as it words it. */
+/**
+ * A node's refusal of a query for matching too much or spanning too wide, as
+ * the nodes seen so far word it — Robinhood Chain's public node ("logs matched
+ * by query exceeds limit of 10000"), dRPC ("ranges over 10000 blocks are not
+ * supported on free plan", measured 13 September 2026: the keyless endpoint
+ * refuses about 200 blocks), Alchemy and others ("block range", "query
+ * returned more than", "response size"). Either kind is answered by halving.
+ */
 export function isTooManyLogs(detail: string | undefined): boolean {
-  return detail !== undefined && /exceeds limit|too many|query returned more than|response size/i.test(detail);
+  return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges over \d+ blocks|range too (?:large|wide)/i.test(detail);
 }
 
 export async function readLogWindow(

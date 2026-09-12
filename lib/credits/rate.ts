@@ -73,6 +73,10 @@ export const TOPICS = {
   sync: keccak256Hex('Sync(uint112,uint112)'),
   /** Uniswap v3: emitted on every swap, carrying the price and the liquidity after it. */
   swap: keccak256Hex('Swap(address,address,int256,int256,uint160,uint128,int24)'),
+  /** Uniswap v3: emitted once, when the pool is given its first price — the price a pool has before its first swap. */
+  initialize: keccak256Hex('Initialize(uint160,int24)'),
+  /** Uniswap v3: liquidity added; a pool with a price and no Mint yet has a price nobody can trade at. */
+  mint: keccak256Hex('Mint(address,address,int24,int24,uint128,uint256,uint256)'),
   /** Chainlink aggregators: every answer, with the answer indexed. */
   answerUpdated: keccak256Hex('AnswerUpdated(int256,uint256,uint256)'),
 } as const;
@@ -96,8 +100,25 @@ export const guardWindowFor = (chainId: number): number => GUARD_WINDOW_BLOCKS[c
 /** A feed answer older than this at the priced block is not a price for that block (the desk's feeds publish at least daily). */
 export const FEED_MAX_AGE_SECONDS = 26 * 3600;
 
-/** How many events the guard will weigh at most before it refuses to state a rate — a pool that busy is read another way. */
-export const GUARD_MAX_EVENTS = 20_000;
+/**
+ * How many pages of events the guard will read for one window before it
+ * refuses to state a rate. A page is what the node serves in one answer
+ * (up to its cap, 10,000 on the chain decided), so this bounds the time a
+ * window can take, not the number of trades: a pool doing 6 swaps a second
+ * for an hour is four pages.
+ */
+export const GUARD_MAX_PAGES = 64;
+
+/**
+ * The start of the detail a reading carries when the pool had no price at
+ * a block as a definite fact about that block — it was created later, it
+ * had no event at or before it back to its creation, it held no liquidity
+ * or an empty side there. Nothing that happens later changes such a fact,
+ * so the indexer does not wait for it; it prices the top-up at the head
+ * when indexed and the credit says so.
+ */
+export const NO_PRICE_AT_BLOCK = 'the pool had no price at block';
+export const poolHadNoPriceAt = (r: Reading<unknown>): boolean => r.state === 'UNREAD' && r.reason === 'FIELD_ABSENT' && (r.detail ?? '').startsWith(NO_PRICE_AT_BLOCK);
 
 export interface Rate {
   readonly block: number;
@@ -171,24 +192,26 @@ async function timestampOf(block: number, opts: RpcOptions): Promise<Reading<num
 }
 
 /**
- * Every log of one topic from one address in a range, in block order. A
- * range the node refuses for matching too much is halved until it answers
- * or is narrower than the smallest page, which is then a fault.
+ * Every log of one topic from one address in a range, folded page by page
+ * in block order and dropped once weighed, so a busy window costs pages,
+ * not memory. A range the node refuses for matching too much is halved
+ * until it answers or is narrower than the smallest page, which is then a
+ * fault; more pages than GUARD_MAX_PAGES is a fault too, stated as such.
  */
-async function eventsInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions, cap = GUARD_MAX_EVENTS): Promise<Reading<LogEntry[]>> {
+async function foldEventsInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions, fold: (log: LogEntry) => void, budget: { pages: number }): Promise<Reading<null>> {
+  if (budget.pages <= 0) return unread('SOURCE_MALFORMED', { source: null, detail: `more than ${GUARD_MAX_PAGES} pages of events in the window; the desk does not weigh a pool that busy` });
   const read = await readLogs(address, [topic], from, to, opts);
-  if (isRead(read)) return { ...read, value: [...read.value].sort(byPosition) };
+  if (isRead(read)) {
+    budget.pages -= 1;
+    for (const log of [...read.value].sort(byPosition)) fold(log);
+    return { ...read, value: null };
+  }
   const width = to - from + 1;
   if (!isTooManyLogs(read.detail) || width <= MIN_PAGE_BLOCKS) return read;
   const mid = from + Math.floor(width / 2);
-  const earlier = await eventsInRange(address, topic, from, mid - 1, opts, cap);
+  const earlier = await foldEventsInRange(address, topic, from, mid - 1, opts, fold, budget);
   if (!isRead(earlier)) return earlier;
-  if (earlier.value.length > cap) return unread('SOURCE_MALFORMED', { source: earlier.source, detail: `more than ${cap} events in ${width} blocks; the pool is too busy to weigh this way` });
-  const later = await eventsInRange(address, topic, mid, to, opts, cap);
-  if (!isRead(later)) return later;
-  const all = [...earlier.value, ...later.value];
-  if (all.length > cap) return unread('SOURCE_MALFORMED', { source: later.source, detail: `more than ${cap} events in ${width} blocks; the pool is too busy to weigh this way` });
-  return { ...later, value: all };
+  return foldEventsInRange(address, topic, mid, to, opts, fold, budget);
 }
 
 /** The last log of one topic from one address in a range; a refused range is halved, later half first, since the last event is wanted. */
@@ -287,10 +310,34 @@ function decodePoolEvent(source: PriceSource, s: Sides, log: LogEntry): PoolPric
     if (r0 === null || r1 === null) return null;
     return { kind: 'uniswap-v2-pair', reserveCurb: s.curbIs0 ? r0 : r1, reserveQuote: s.curbIs0 ? r1 : r0, eventBlock: blockOf(log) };
   }
+  if ((log.topics[0] ?? '').toLowerCase() === TOPICS.initialize) {
+    // The pool's first price, before any swap; liquidity is not in the event — a Mint at or before the block is checked by the caller.
+    const sqrt0 = w[0] === undefined ? null : decodeUint(w[0]);
+    return sqrt0 === null ? null : { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt0, liquidity: 1n, eventBlock: blockOf(log) };
+  }
   const sqrt = w[2] === undefined ? null : decodeUint(w[2]);
   const liquidity = w[3] === undefined ? null : decodeUint(w[3]);
   if (sqrt === null || liquidity === null) return null;
   return { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt, liquidity, eventBlock: blockOf(log) };
+}
+
+/**
+ * The pool's last price event at or before a block, back to its creation
+ * (`floor`): a pair's last Sync; a v3 pool's last Swap, or — before its
+ * first swap — its Initialize, provided liquidity was added by then (a
+ * Mint at or before the block). Null, VERIFIED, means the pool had no price
+ * at that block: a definite fact, since the span reaches the creation block.
+ */
+async function lastPriceEventBefore(source: PriceSource, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
+  const floor = source.fromBlock ?? 0;
+  if (source.kind === 'uniswap-v2-pair') return lastEventBefore(source.pair, TOPICS.sync, block, opts, floor);
+  const swap = await lastEventBefore(source.pair, TOPICS.swap, block, opts, floor);
+  if (!isRead(swap) || swap.value !== null) return swap;
+  const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts, floor);
+  if (!isRead(init) || init.value === null) return init;
+  const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, floor);
+  if (!isRead(mint)) return mint;
+  return mint.value === null ? { ...init, value: null } : init;
 }
 
 async function poolPriceByState(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
@@ -313,11 +360,10 @@ async function poolPriceByState(source: PriceSource, s: Sides, block: number, op
 }
 
 async function poolPriceByEvents(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
-  const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
-  const last = await lastEventBefore(source.pair, topic, block, opts, source.fromBlock ?? 0);
+  const last = await lastPriceEventBefore(source, block, opts);
   if (!isRead(last)) return last;
   if (last.value === null) {
-    return unread('FIELD_ABSENT', { source: last.source, detail: `no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool'} at or before block ${block}, back to block ${source.fromBlock ?? 0}` });
+    return unread('FIELD_ABSENT', { source: last.source, detail: `${NO_PRICE_AT_BLOCK} ${block}: no ${source.kind === 'uniswap-v2-pair' ? 'Sync from the pair' : 'Swap from the pool, nor an Initialize with liquidity,'} at or before it, back to block ${source.fromBlock ?? 0}` });
   }
   const price = decodePoolEvent(source, s, last.value);
   if (price === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'the pool event is undecodable' });
@@ -386,8 +432,8 @@ async function feedFor(feed: string, block: number, basis: Rate['basis'], opts: 
 }
 
 function noPrice(source: PriceSource, p: PoolPrice, block: number): string {
-  if (p.kind === 'uniswap-v2-pair') return `the pool has an empty side at block ${block} (CURB ${p.reserveCurb}, quote ${p.reserveQuote}); there is no price`;
-  return p.liquidity === 0n ? `the pool has no liquidity at block ${block}; a price nobody can trade at is not a price` : `the pool's price is zero at block ${block}`;
+  if (p.kind === 'uniswap-v2-pair') return `${NO_PRICE_AT_BLOCK} ${block}: an empty side (CURB ${p.reserveCurb}, quote ${p.reserveQuote})`;
+  return p.liquidity === 0n ? `${NO_PRICE_AT_BLOCK} ${block}: no liquidity — a price nobody can trade at is not a price` : `${NO_PRICE_AT_BLOCK} ${block}: the pool's price is zero`;
 }
 
 async function assemble(config: CreditsConfig, block: number, basis: Rate['basis'], opts: RpcOptions, now: Date, ctx: RateContext = {}): Promise<Reading<Rate>> {
@@ -397,7 +443,7 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
     return unread('SOURCE_MALFORMED', { source: null, detail: `the node was seen to serve no state at or below block ${ctx.stateUnservedBelow} this run; block ${block} is not asked by state` });
   }
   if (source.fromBlock !== null && block < source.fromBlock) {
-    return unread('FIELD_ABSENT', { source: null, detail: `the pool was created in block ${source.fromBlock}; block ${block} is before it` });
+    return unread('FIELD_ABSENT', { source: null, detail: `${NO_PRICE_AT_BLOCK} ${block}: it was created in block ${source.fromBlock}` });
   }
   let sidesRead: Sides;
   if (ctx.sides !== undefined) sidesRead = ctx.sides;
@@ -436,25 +482,26 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   const windowBlocks = guardWindowFor(config.network.chainId);
   const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
   const windowStart = Math.max(0, block - windowBlocks);
-  const window = await eventsInRange(source.pair, topic, windowStart, block, opts);
-  if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
-  const opening = windowStart > 0 ? await lastEventBefore(source.pair, topic, windowStart - 1, opts, source.fromBlock ?? 0) : null;
-  if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
   let lowest = atBlock;
   let lowestAtBlock: number | null = null;
   let samples = 0;
-  for (const log of [...(opening !== null && opening.value !== null ? [opening.value] : []), ...window.value]) {
+  const weigh = (log: LogEntry) => {
     const p = decodePoolEvent(source, s.value, log);
-    if (p === null) continue;
+    if (p === null) return;
     const per = quotePerCurb18(p, s.value);
-    if (per === 0n) continue;
+    if (per === 0n) return;
     samples += 1;
     const usd = toUsd(per);
     if (usd < lowest) {
       lowest = usd;
       lowestAtBlock = blockOf(log);
     }
-  }
+  };
+  const opening = windowStart > 0 ? await lastPriceEventBefore(source, windowStart - 1, opts) : null;
+  if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
+  if (opening !== null && opening.value !== null) weigh(opening.value);
+  const window = await foldEventsInRange(source.pair, topic, windowStart, block, opts, weigh, { pages: GUARD_MAX_PAGES });
+  if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
   const guard: Rate['guard'] = { windowBlocks, samples, lowestAtBlock, atBlockUsdPerCurb18: atBlock.toString(), applied: lowest < atBlock };
 
   // The supply at the block by state; at the head by events, and said so.

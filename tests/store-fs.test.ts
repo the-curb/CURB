@@ -25,6 +25,28 @@ runStoreConformance({
 });
 
 /**
+ * A crash between creating the lock file and writing it leaves an empty file.
+ * That is not a lock anyone holds; once it is older than a lock would live,
+ * the next run takes it over instead of refusing forever.
+ */
+describe('the FileSystemStore run lock', () => {
+  it('takes over an empty lock file left by a crash once it is older than the TTL, and not before', async () => {
+    const dir = path.join(tmpdir(), `curb-store-${randomUUID()}`);
+    await fs.mkdir(dir, { recursive: true });
+    const store = new FileSystemStore(dir);
+    await fs.writeFile(path.join(dir, 'run.lock'), '', 'utf8');
+    const fresh = await store.acquireRunLock('holder-a', 60);
+    assert.equal(fresh.state, 'UNDETERMINED', 'an empty file younger than the TTL may still be a lock being written');
+    const old = new Date(Date.now() - 120_000);
+    await fs.utimes(path.join(dir, 'run.lock'), old, old);
+    const taken = await store.acquireRunLock('holder-a', 60);
+    assert.equal(taken.state, 'ACQUIRED');
+    const refused = await store.acquireRunLock('holder-b', 60);
+    assert.equal(refused.state, 'HELD_ELSEWHERE');
+  });
+});
+
+/**
  * Copying `.env.local.example` must not switch the system onto a database.
  *
  * It did. The example carried a placeholder URL, the selector only checked that

@@ -106,6 +106,8 @@ export interface KeyAccount {
   readonly pending: readonly PendingTopUp[];
   readonly charges: readonly Charge[];
   readonly chargeCount: number;
+  /** The spend row's version as read, for the conditional write a charge makes; null before the first charge. */
+  readonly spendVersion: number | null;
   readonly storeFault: string | null;
 }
 
@@ -137,6 +139,7 @@ export async function keyAccount(store: Store, hash: string, opts: { readonly pe
     pending: [],
     charges: [],
     chargeCount: 0,
+    spendVersion: null,
     storeFault: null,
   };
   const wantPending = opts.pending !== false;
@@ -150,7 +153,7 @@ export async function keyAccount(store: Store, hash: string, opts: { readonly pe
 
   const t = rowOf(topUps.value, topUpsRow(hash));
   const s = rowOf(spend.value, spendRow(hash));
-  if (t === null) return { ...empty, pending };
+  if (t === null) return { ...empty, pending, spendVersion: s === null ? null : (s.version ?? 0) };
   const credited = big(t.payload.creditedCents);
   const spent = big(s?.payload.spentCents);
   const toOpen = credited >= BigInt(MINIMUM_OPEN_CENTS) ? 0n : BigInt(MINIMUM_OPEN_CENTS) - credited;
@@ -166,6 +169,7 @@ export async function keyAccount(store: Store, hash: string, opts: { readonly pe
     pending,
     charges: Array.isArray(s?.payload.charges) ? (s.payload.charges as Charge[]) : [],
     chargeCount: typeof s?.payload.count === 'number' ? s.payload.count : 0,
+    spendVersion: s === null ? null : (s.version ?? 0),
     storeFault: null,
   };
 }
@@ -180,16 +184,29 @@ export type ChargeOutcome =
  * reference, when it is not. A charge that could not be recorded is not a
  * charge — the call is refused rather than served for free and forgotten.
  */
+/** How many times a charge is retried after finding the spend row moved under it, with a short random pause between tries so concurrent callers spread out. */
+export const CHARGE_RETRIES = 8;
+
 export async function charge(store: Store, hash: string, service: ServiceId, cents: number, ref: string, now: Date): Promise<ChargeOutcome> {
-  const account = await keyAccount(store, hash, { pending: false });
-  if (account.storeFault !== null) return { ok: false, status: 'STORE_UNREADABLE', account, detail: account.storeFault };
-  if (account.status === 'UNFUNDED') return { ok: false, status: 'UNFUNDED', account, detail: 'the chain has credited nothing to this key hash' };
-  if (account.status === 'BELOW_MINIMUM') return { ok: false, status: 'BELOW_MINIMUM', account, detail: `the key has been credited ${account.creditedCents} cents; it opens at ${MINIMUM_OPEN_CENTS}` };
-  if (BigInt(account.balanceCents) < BigInt(cents)) return { ok: false, status: 'INSUFFICIENT', account, detail: `the balance is ${account.balanceCents} cents; this call is ${cents}` };
-  const charged: Charge = { at: now.toISOString(), service, cents, ref };
-  const charges = [...account.charges, charged].slice(-CHARGES_KEPT);
-  const spent = (BigInt(account.spentCents) + BigInt(cents)).toString();
-  const written = await store.writeSnapshots([{ key: spendRow(hash), observedAt: now.toISOString(), payload: { hash, spentCents: spent, count: account.chargeCount + 1, charges } }]);
-  if (written.state !== 'WRITTEN') return { ok: false, status: 'NOT_RECORDED', account, detail: written.reason };
-  return { ok: true, account: { ...account, spentCents: spent, balanceCents: (BigInt(account.balanceCents) - BigInt(cents)).toString(), charges, chargeCount: account.chargeCount + 1 }, charged };
+  // The spend row is read and written back only if nobody wrote it in
+  // between — two calls charging one key at once cannot lose each other's
+  // charge; the later one reads again and is refused if the first left too
+  // little.
+  let last: ChargeOutcome | null = null;
+  for (let attempt = 0; attempt < CHARGE_RETRIES; attempt += 1) {
+    const account = await keyAccount(store, hash, { pending: false });
+    if (account.storeFault !== null) return { ok: false, status: 'STORE_UNREADABLE', account, detail: account.storeFault };
+    if (account.status === 'UNFUNDED') return { ok: false, status: 'UNFUNDED', account, detail: 'the chain has credited nothing to this key hash' };
+    if (account.status === 'BELOW_MINIMUM') return { ok: false, status: 'BELOW_MINIMUM', account, detail: `the key has been credited ${account.creditedCents} cents; it opens at ${MINIMUM_OPEN_CENTS}` };
+    if (BigInt(account.balanceCents) < BigInt(cents)) return { ok: false, status: 'INSUFFICIENT', account, detail: `the balance is ${account.balanceCents} cents; this call is ${cents}` };
+    const charged: Charge = { at: now.toISOString(), service, cents, ref };
+    const charges = [...account.charges, charged].slice(-CHARGES_KEPT);
+    const spent = (BigInt(account.spentCents) + BigInt(cents)).toString();
+    const written = await store.writeSnapshotIf({ key: spendRow(hash), observedAt: now.toISOString(), payload: { hash, spentCents: spent, count: account.chargeCount + 1, charges } }, account.spendVersion);
+    if (written.state === 'WRITTEN') return { ok: true, account: { ...account, spentCents: spent, balanceCents: (BigInt(account.balanceCents) - BigInt(cents)).toString(), charges, chargeCount: account.chargeCount + 1 }, charged };
+    if (written.state === 'FAILED') return { ok: false, status: 'NOT_RECORDED', account, detail: written.reason };
+    last = { ok: false, status: 'NOT_RECORDED', account, detail: `the key was charged by another call at the same time (${written.reason}); tried ${attempt + 1} times` };
+    await new Promise((resolve) => setTimeout(resolve, 2 + Math.random() * 15 * (attempt + 1)));
+  }
+  return last!;
 }

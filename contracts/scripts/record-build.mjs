@@ -32,6 +32,11 @@ const allowDirty = process.argv.includes('--allow-dirty');
 const config = readFileSync(new URL('../hardhat.config.ts', import.meta.url), 'utf8');
 const solc = /version:\s*"([0-9.]+)"/.exec(config)?.[1] ?? null;
 const commit = execSync('git rev-parse HEAD', { encoding: 'utf8', cwd: here }).trim();
+// A shallow clone answers HEAD for "the last commit that touched this file": the record would name a commit that did not change the source.
+if (execSync('git rev-parse --is-shallow-repository', { encoding: 'utf8', cwd: here }).trim() === 'true') {
+  console.error('refused: this is a shallow clone, so the commit that last changed the source cannot be known; fetch the full history (fetch-depth: 0) and run again');
+  process.exit(1);
+}
 const dirty = execSync('git status --porcelain -- ../src ../hardhat.config.ts', { encoding: 'utf8', cwd: here }).trim().length > 0;
 if (dirty && !allowDirty) {
   console.error('refused: contracts/src or hardhat.config.ts has uncommitted changes; a record names the commit that compiles to its bytes, so commit first (or --allow-dirty for a local rehearsal, which the checks refuse)');

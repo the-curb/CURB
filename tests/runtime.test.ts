@@ -16,6 +16,7 @@ import type {
   SnapshotRecord,
   Store,
   WriteOutcome,
+  ConditionalWriteOutcome,
 } from '../lib/store/types.ts';
 import type { AgentId } from '../lib/agents/registry.ts';
 
@@ -168,7 +169,14 @@ class MemoryStore implements Store {
   snapshotRows = new Map<string, SnapshotRecord>();
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };
-    for (const r of records) this.snapshotRows.set(r.key, r);
+    for (const r of records) this.snapshotRows.set(r.key, { ...r, version: (this.snapshotRows.get(r.key)?.version ?? -1) + 1 });
+    return { state: 'WRITTEN' };
+  }
+  async writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome> {
+    if (this.writesFail) return { state: 'FAILED', reason: 'disk full' };
+    const row = this.snapshotRows.get(record.key);
+    if (expectedVersion === null ? row !== undefined : row === undefined || (row.version ?? 0) !== expectedVersion) return { state: 'CONFLICT', reason: 'moved' };
+    this.snapshotRows.set(record.key, { ...record, version: row === undefined ? 0 : (row.version ?? 0) + 1 });
     return { state: 'WRITTEN' };
   }
   async snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>> {

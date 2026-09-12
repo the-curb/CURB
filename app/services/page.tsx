@@ -35,7 +35,7 @@ export default async function ServicesPage() {
   const store = await getStoreAsync();
   const configured = status.state === 'CONFIGURED';
   // The tick is scheduled every five minutes; 400 readings cover a day with room for a faster schedule, and the day's filter does the rest.
-  const [rateRead, code, paid, history] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 400) : null]);
+  const [rateRead, code, paid, history] = await Promise.all([status.state === 'CONFIGURED' ? latestRate(store, status.config) : null, status.state === 'CONFIGURED' ? latestDeskCode(store, status.config) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 400) : null]);
   const rate = rateRead?.rate ?? null;
   const rateFault = rateRead?.storeFault ?? null;
   // The desk's own reads of the rate over the last day: how many, and the range — a reader can see the figure above is one of a series, not a single sample.
@@ -157,7 +157,7 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">The rule</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no event before that block — it did not exist yet — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing. So CURB for a dollar figure is the figure over the credited price — the figure times supply over capitalisation when the block&rsquo;s own price is the lower, more CURB when the window&rsquo;s low is.
+                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no price at that block — it did not exist yet, or held nothing to trade — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing. So CURB for a dollar figure is the figure over the credited price — the figure times supply over capitalisation when the block&rsquo;s own price is the lower, more CURB when the window&rsquo;s low is.
                 </dd>
               </div>
             </dl>

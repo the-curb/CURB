@@ -47,9 +47,12 @@ jobs:
       - name: Record the unit-test run at this commit (seed, results, commit)
         working-directory: contracts
         run: npm run record:tests
-      - name: Record the build the site verifies deployments against
+      # The build records (evidence/*.build.json) are not re-recorded here: they name the
+      # commit that compiles to their bytes, are re-recorded by a person from a clean full
+      # checkout, and are checked against the source by check-build-record.mjs on every push.
+      - name: The committed build records are this source's bytes
         working-directory: contracts
-        run: node scripts/record-build.mjs
+        run: node scripts/check-build-record.mjs
       - name: Commit the record if it moved
         run: |
           set -euo pipefail

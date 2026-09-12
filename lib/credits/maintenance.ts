@@ -16,7 +16,7 @@ import { isRead } from '../doctrine/reading.ts';
 import type { Condition } from '../ops/alerts.ts';
 import type { SnapshotRecord, Store } from '../store/types.ts';
 import { deskCodeSnapshot, verifyDeskCode, type DeskCodeVerification } from './code.ts';
-import { creditsStatus, type CreditsStatus } from './config.ts';
+import { creditsStatus, type CreditsConfig, type CreditsStatus } from './config.ts';
 import { CREDITS_INTERVAL_SECONDS, loadCreditsIndex, syncTopUps, type CreditsSyncReport } from './indexer.ts';
 import { readRate, type Rate } from './rate.ts';
 import { fanOut, type FanOutReport } from './subscriptions.ts';
@@ -48,6 +48,8 @@ export interface RunSummary {
   readonly indexDetail: string | null;
   readonly waitingForRate: number;
   readonly fanOutFailed: number;
+  /** Deliveries the row says were told but the charge did not land: the desk's loss, not the subscriber's. */
+  readonly fanOutUncharged: number;
   /** How far the index is behind the head, in blocks; a backlog is caught up MAX_BLOCKS_PER_SYNC a tick. */
   readonly behindBlocks: number | null;
   /** False when the row was written by a run that found nothing configured — such a row raises no condition. */
@@ -58,7 +60,7 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
   const status = creditsStatus();
   if (status.state !== 'CONFIGURED') {
     // A run row that says so, so a condition from an earlier configuration does not outlive it.
-    await store.writeSnapshots([{ key: RUN_KEY, observedAt: now.toISOString(), payload: { at: now.toISOString(), rate: 'UNREAD', rateDetail: status.detail, code: 'NO_BUILD', codeDetail: null, index: 'HELD', indexDetail: status.detail, waitingForRate: 0, fanOutFailed: 0, behindBlocks: null, configured: false } }]);
+    await store.writeSnapshots([{ key: RUN_KEY, observedAt: now.toISOString(), payload: { at: now.toISOString(), rate: 'UNREAD', rateDetail: status.detail, code: 'NO_BUILD', codeDetail: null, index: 'HELD', indexDetail: status.detail, waitingForRate: 0, fanOutFailed: 0, fanOutUncharged: 0, behindBlocks: null, configured: false } }]);
     return { state: status.state, detail: status.detail, rate: null, code: null, index: null, fanOut: null };
   }
   const config = status.config;
@@ -113,6 +115,7 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       indexDetail: report.detail,
       waitingForRate: waiting,
       fanOutFailed: fan.failed.length,
+      fanOutUncharged: fan.uncharged.length,
       behindBlocks: report.head === null || report.toBlock === null ? null : Math.max(0, report.head - report.toBlock),
       configured: true,
     };
@@ -120,13 +123,13 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
     return { state: 'CONFIGURED', detail: null, rate, code, index: report, fanOut: fan };
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : 'unknown failure';
-    await store.writeSnapshots([{ key: RUN_KEY, observedAt: now.toISOString(), payload: { at: now.toISOString(), rate: 'UNREAD', rateDetail: `the run failed: ${detail}`, code: 'UNREAD', codeDetail: null, index: 'STORE_UNREADABLE', indexDetail: `the run failed: ${detail}`, waitingForRate: 0, fanOutFailed: 0, behindBlocks: null, configured: true } }]);
+    await store.writeSnapshots([{ key: RUN_KEY, observedAt: now.toISOString(), payload: { at: now.toISOString(), rate: 'UNREAD', rateDetail: `the run failed: ${detail}`, code: 'UNREAD', codeDetail: null, index: 'STORE_UNREADABLE', indexDetail: `the run failed: ${detail}`, waitingForRate: 0, fanOutFailed: 0, fanOutUncharged: 0, behindBlocks: null, configured: true } }]);
     return { state: 'FAILED', detail, rate: null, code: null, index: null, fanOut: null };
   }
 }
 
 /** The last rate the tick recorded, as the page and the API show it — or the store's fault, which is not "no rate yet". */
-export async function latestRate(store: Store): Promise<{ rate: RateSnapshot | null; storeFault: string | null }> {
+export async function latestRate(store: Store, config: CreditsConfig | null = null): Promise<{ rate: RateSnapshot | null; storeFault: string | null }> {
   const read = await store.snapshots(RATE_KEY);
   if (read.state === 'UNREAD') return { rate: null, storeFault: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
   const row = read.value.find((s) => s.key === RATE_KEY);
@@ -135,6 +138,10 @@ export async function latestRate(store: Store): Promise<{ rate: RateSnapshot | n
   // A READ row written by an earlier build lacks what this build states (the guard, the basis): it is not quoted from; the next tick writes a current one.
   if (snapshot.state === 'READ' && (typeof snapshot.rate?.guard !== 'object' || snapshot.rate.guard === null || typeof snapshot.rate.basis !== 'string' || typeof snapshot.rate.usdPerCurb18 !== 'string')) {
     return { rate: { state: 'UNREAD', reason: 'RATE_ROW_OLD', detail: 'the last rate was written by an earlier build of the reader and lacks fields this one states; nothing is quoted from it until the next tick reads again', at: snapshot.at, block: typeof snapshot.rate?.block === 'number' ? snapshot.rate.block : null }, storeFault: null };
+  }
+  // A rate read from another pool (the configuration changed since) is not this pool's rate.
+  if (snapshot.state === 'READ' && config !== null && (config.priceSource === null || snapshot.rate.pool?.address?.toLowerCase() !== config.priceSource.pair.toLowerCase())) {
+    return { rate: { state: 'UNREAD', reason: 'RATE_ROW_OTHER_POOL', detail: `the last rate was read from ${snapshot.rate.pool?.address ?? 'another pool'}, not the pool now recorded; nothing is quoted from it until the next tick reads again`, at: snapshot.at, block: snapshot.rate.block }, storeFault: null };
   }
   return { rate: snapshot, storeFault: null };
 }

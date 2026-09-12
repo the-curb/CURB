@@ -180,7 +180,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         {quote ? (
           quote.state === 'QUOTED' && amount !== null ? (
             <p className="tabular mt-3 text-[12px] text-(--color-paper-dim)">
-              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined, not at this one, so the bytes below carry {quote.marginPct}% more — <span className="text-(--color-paper)">{quote.curbWithMarginText} CURB</span>; what lands over {quote.usd} stays on the key.
+              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined — or the lowest the pool showed in the hour before it, whichever is lower — not at this one, so the bytes below carry {quote.marginPct}% more — <span className="text-(--color-paper)">{quote.curbWithMarginText} CURB</span>; what lands over {quote.usd} stays on the key, and a pump just before the top-up does not raise the credit.
             </p>
           ) : (
             <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
@@ -207,7 +207,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
           </p>
         ) : (
           <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim)">
-            Approve the desk at <span className="tabular text-(--color-paper)">{desk}</span> on {network} for the amount, then call <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>. The desk moves the CURB to the treasury and emits the hash and the amount; the next tick credits the hash at the rate at that block.
+            Approve the desk at <span className="tabular text-(--color-paper)">{desk}</span> on {network} for the amount, then call <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>. The desk moves the CURB to the treasury and emits the hash and the amount; the next tick credits the hash at the rate at that block, or the lowest the pool showed in the hour before it, whichever is lower.
           </p>
         )}
         <dl className="mt-4 space-y-3 text-[12px]">

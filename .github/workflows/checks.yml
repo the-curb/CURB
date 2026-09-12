@@ -77,9 +77,11 @@ jobs:
             sleep 1
           done
           echo "the node did not answer"; tail -20 node.log; exit 1
-      - name: Record the build the site verifies deployments against
+      # The committed build records are what the site verifies against; the bytecode carries
+      # no metadata hash, so this compile is the same bytes, and the contracts job checks it.
+      - name: The committed build records are this source's bytes
         working-directory: contracts
-        run: node scripts/record-build.mjs
+        run: node scripts/check-build-record.mjs
       - name: Deploy the series and run the worked example and the drill as transactions
         working-directory: contracts
         run: |

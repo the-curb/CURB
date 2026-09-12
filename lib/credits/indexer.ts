@@ -21,7 +21,7 @@ import { isRead, type Reading } from '../doctrine/reading.ts';
 import type { Store } from '../store/types.ts';
 import type { CreditsConfig } from './config.ts';
 import { topUpsRow, type TopUpCredit } from './keys.ts';
-import { centsForCurb, readRate, readRateFromEvents, type Rate, type RateContext } from './rate.ts';
+import { centsForCurb, poolHadNoPriceAt, readRate, readRateFromEvents, type Rate, type RateContext } from './rate.ts';
 
 export const TOPUP_TOPIC = keccak256Hex('TopUp(bytes32,address,uint256)');
 export const INDEX_KEY = 'credits:index';
@@ -148,12 +148,14 @@ async function uncreditFrom(store: Store, keyHash: string, height: number, now: 
 }
 
 /**
- * Only a top-up mined before the pool was created — the record's
- * priceSource.fromBlock, read from the chain — goes to the head's rate.
- * A pool with no event found before the block is waited out, like a node
- * that did not answer: a quiet pool is not an absent one.
+ * Only a top-up at a block where the pool definitely had no price — it was
+ * created later (the record's priceSource.fromBlock, read from the chain),
+ * it had no price event at or before the block back to its creation, it
+ * held no liquidity or an empty side there — goes to the head's rate, and
+ * the credit says so. A node that did not answer is waited out; those facts
+ * about a block are not, because nothing later changes them.
  */
-const poolAbsentAtBlock = (r: Reading<Rate>): boolean => r.state === 'UNREAD' && r.reason === 'FIELD_ABSENT' && /^the pool was created in block/.test(r.detail ?? '');
+const poolHadNoPrice = (r: Reading<Rate>): boolean => poolHadNoPriceAt(r);
 
 export async function syncTopUps(
   store: Store,
@@ -267,39 +269,43 @@ export async function syncTopUps(
   // Fresh top-ups first, in chain order; then the ones still waiting, the
   // least-tried first and in chain order among equals, a few per run — so
   // what cannot be priced never starves what can, and one that can never be
-  // priced falls to the back of the line rather than holding the slots.
+  // priced falls to the back of the line rather than holding the slots. A
+  // top-up deferred for count or time was never tried: it keeps its place
+  // in the first queue, oldest first, and does not count as a retry.
   const order = (a: TopUpLog, b: TopUpLog) => a.blockNumber - b.blockNumber || a.logIndex - b.logIndex;
   const leastTried = (a: { attempts?: number } & TopUpLog, b: { attempts?: number } & TopUpLog) => (a.attempts ?? 0) - (b.attempts ?? 0) || order(a, b);
-  const queue: (TopUpLog & { reason?: string; attempts?: number })[] = [...fresh.sort(order), ...[...index.unpriced].sort(leastTried)];
+  const untried = [...fresh, ...index.unpriced.filter((u) => (u.attempts ?? 0) === 0)].sort(order);
+  const tried = index.unpriced.filter((u) => (u.attempts ?? 0) > 0).sort(leastTried);
+  const queue: (TopUpLog & { reason?: string; attempts?: number })[] = [...untried, ...tried];
   let priced = 0;
   let retried = 0;
   for (const t of queue) {
-    const waiting = t.reason !== undefined;
+    const waiting = (t.attempts ?? 0) > 0;
     const attempts = (t.attempts ?? 0) + 1;
-    if (priced >= MAX_TOPUPS_PER_SYNC) {
-      unpriced.push({ ...t, reason: `deferred: ${MAX_TOPUPS_PER_SYNC} top-ups were priced this run; this one is next`, attempts: t.attempts ?? 0 });
+    if (!waiting && priced >= MAX_TOPUPS_PER_SYNC) {
+      unpriced.push({ ...t, reason: `deferred: ${MAX_TOPUPS_PER_SYNC} top-ups were priced this run; this one is next`, attempts: 0 });
       continue;
     }
     if (waiting && retried >= MAX_RETRIES_PER_SYNC) {
-      unpriced.push({ ...t, reason: t.reason!, attempts: t.attempts ?? 0 });
+      unpriced.push({ ...t, reason: t.reason ?? 'waits', attempts: t.attempts ?? 0 });
       continue;
     }
     if (Date.now() > deadline) {
-      unpriced.push({ ...t, reason: 'deferred: the run\'s time for pricing was used; this one is next', attempts: t.attempts ?? 0 });
+      unpriced.push({ ...t, reason: waiting ? (t.reason ?? 'waits') : 'deferred: the run\'s time for pricing was used; this one is next', attempts: t.attempts ?? 0 });
       continue;
     }
-    priced += 1;
     if (waiting) retried += 1;
+    else priced += 1;
     let rate = await rateAt(t.blockNumber, 'STATE');
     let basis: TopUpCredit['basis'] = 'TOP_UP_BLOCK';
     const reasons: string[] = [];
-    if (!isRead(rate)) {
+    if (!isRead(rate) && !poolHadNoPrice(rate)) {
       reasons.push(`by state: ${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}`);
       rate = await rateAt(t.blockNumber, 'EVENTS');
       basis = 'TOP_UP_BLOCK_EVENTS';
     }
-    if (!isRead(rate) && poolAbsentAtBlock(rate)) {
-      reasons.push(`by events: ${rate.detail}`);
+    if (!isRead(rate) && poolHadNoPrice(rate)) {
+      reasons.push(`${basis === 'TOP_UP_BLOCK' ? 'by state' : 'by events'}: ${rate.detail}`);
       rate = await rateAt(head.value.number, 'STATE');
       basis = 'HEAD_AT_INDEXING';
     }

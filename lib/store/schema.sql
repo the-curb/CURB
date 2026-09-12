@@ -108,5 +108,8 @@ create table if not exists narrations (
 create table if not exists snapshots (
   key         text        primary key,
   observed_at timestamptz not null,
-  payload     jsonb       not null
+  payload     jsonb       not null,
+  version     bigint      not null default 0
 );
+-- Added 13 September 2026 for the conditional write; a store created before then gains it here.
+alter table snapshots add column if not exists version bigint not null default 0;

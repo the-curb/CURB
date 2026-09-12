@@ -14,6 +14,7 @@ import type {
   SnapshotRecord,
   Store,
   WriteOutcome,
+  ConditionalWriteOutcome,
 } from './types.ts';
 import type { AgentId } from '../agents/registry.ts';
 import { readNow, unread, type Reading } from '../doctrine/reading.ts';
@@ -294,10 +295,11 @@ interface SnapshotRow {
   key: string;
   observed_at: Date;
   payload: Record<string, unknown>;
+  version: string | number;
 }
 
 function toSnapshot(row: SnapshotRow): SnapshotRecord {
-  return { key: row.key, observedAt: row.observed_at.toISOString(), payload: row.payload };
+  return { key: row.key, observedAt: row.observed_at.toISOString(), payload: row.payload, version: Number(row.version) };
 }
 
 interface ObservationRow {
@@ -902,8 +904,37 @@ export class PostgresStore implements Store {
           ) as rows(key, observed_at, payload)
           on conflict (key) do update set
             observed_at = excluded.observed_at,
-            payload     = excluded.payload
+            payload     = excluded.payload,
+            version     = snapshots.version + 1
         `;
+        return { state: 'WRITTEN' };
+      });
+    } catch (cause) {
+      return { state: 'FAILED', reason: failureReason(cause) };
+    }
+  }
+
+  /** One statement either way: an insert that yields to an existing row, or an update that matches only the version read. Zero rows back is the conflict. */
+  async writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome> {
+    try {
+      return await this.guard('writeSnapshotIf', async () => {
+        // The driver's json() helper, as everywhere else here: a stringified value cast to jsonb is stored double-encoded (see the note at the top).
+        const payload = this.sql.json(asJson(record.payload));
+        const rows =
+          expectedVersion === null
+            ? await this.sql<{ version: string }[]>`
+                insert into snapshots (key, observed_at, payload, version)
+                values (${record.key}, ${record.observedAt}, ${payload}, 0)
+                on conflict (key) do nothing
+                returning version
+              `
+            : await this.sql<{ version: string }[]>`
+                update snapshots
+                set observed_at = ${record.observedAt}, payload = ${payload}, version = version + 1
+                where key = ${record.key} and version = ${expectedVersion}
+                returning version
+              `;
+        if (rows.length === 0) return { state: 'CONFLICT', reason: expectedVersion === null ? `a row already exists at ${record.key}` : `the row at ${record.key} is no longer at version ${expectedVersion}` };
         return { state: 'WRITTEN' };
       });
     } catch (cause) {
@@ -915,7 +946,7 @@ export class PostgresStore implements Store {
     try {
       return await this.guard('snapshots', async () => {
         const rows = await this.sql<SnapshotRow[]>`
-          select key, observed_at, payload
+          select key, observed_at, payload, version
           from snapshots
           where starts_with(key, ${prefix})
           order by key

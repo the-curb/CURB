@@ -89,7 +89,16 @@ export interface SnapshotRecord {
   readonly key: string;
   readonly observedAt: string;
   readonly payload: Readonly<Record<string, unknown>>;
+  /**
+   * How many times the row has been replaced, as the store counts it; read
+   * back with the row and handed to `writeSnapshotIf` so a read-modify-write
+   * lands only on the row it read. Absent on a record to be written.
+   */
+  readonly version?: number;
 }
+
+/** A conditional write that found the row moved (or present when none was expected) writes nothing and says so. */
+export type ConditionalWriteOutcome = WriteOutcome | { readonly state: 'CONFLICT'; readonly reason: string };
 
 export interface RecordCounts {
   readonly heartbeats: number;
@@ -224,6 +233,14 @@ export interface Store {
 
   /** Replace the snapshot for each key. One row per key, ever. */
   writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome>;
+  /**
+   * Replace one snapshot only if its version is still `expectedVersion` —
+   * null meaning no row exists yet. Two callers that read the same row and
+   * both write: the second finds the version moved, gets CONFLICT, and
+   * reads again. This is what a balance, a charge count or a cancellation
+   * is written through; nothing is lost to the last writer.
+   */
+  writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome>;
   /** Every snapshot whose key starts with the prefix, in key order. */
   snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>>;
 

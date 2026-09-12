@@ -19,7 +19,8 @@ export async function GET(request: Request): Promise<Response> {
   const status = creditsStatus();
   const store = await getStoreAsync();
   const configured = status.state === 'CONFIGURED';
-  const [rateRead, code, run, paid] = await Promise.all([configured ? latestRate(store) : null, configured ? latestDeskCode(store) : null, configured ? latestRun(store) : null, receipts(store)]);
+  const [rateRead, code, run, paid] = await Promise.all([status.state === 'CONFIGURED' ? latestRate(store, status.config) : null, status.state === 'CONFIGURED' ? latestDeskCode(store, status.config) : null, configured ? latestRun(store) : null, receipts(store)]);
+  const verified = code !== null && code.storeFault === null && code.code !== null && code.code.state === 'MATCHES';
   const rate = rateRead?.rate ?? null;
   const rateFault = rateRead?.storeFault ?? null;
   const usdParam = new URL(request.url).searchParams.get('usd');
@@ -33,6 +34,7 @@ export async function GET(request: Request): Promise<Response> {
       if (cents === 0n) quote = { error: 'USD_ZERO', detail: 'a quote for nothing is nothing; the desk refuses a top-up of zero' };
       else if (status.state !== 'CONFIGURED') quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: status.state, detail: status.state === 'CONFIG_INVALID' ? `the record is invalid: ${status.detail}; nothing is quoted` : status.detail };
       else if (rateFault !== null) quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: 'STORE_UNREADABLE', detail: `the last rate could not be read from the store (${rateFault}); nothing is quoted` };
+      else if (!verified) quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: 'HELD', detail: `the desk's code is not verified as the build (${code?.code?.state ?? 'not yet read'}); top-ups are not credited from it, so nothing is quoted — do not send one` };
       else if (rate === null || rate.state !== 'READ') {
         quote = { usdCents: cents.toString(), usd: centsText(cents), curb: null, state: rate === null ? 'NO_RATE' : 'UNREAD', detail: rate === null ? 'no tick has read a rate yet; nothing is quoted' : `${rate.reason}${rate.detail ? ` — ${rate.detail}` : ''}` };
       } else {

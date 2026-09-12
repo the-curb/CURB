@@ -8,17 +8,17 @@ import { forgetChainConfirmations } from '../lib/chain/rpc.ts';
 import { selector } from '../lib/chain/keccak.ts';
 import { CREDITS_ENV, parseCreditsConfig, type CreditsConfig } from '../lib/credits/config.ts';
 import { admit, gate, settle } from '../lib/credits/guard.ts';
-import { verifyDeskCode } from '../lib/credits/code.ts';
+import { latestDeskCode, verifyDeskCode } from '../lib/credits/code.ts';
 import { receipts } from '../lib/credits/receipts.ts';
 import { addressWord, buildRecord } from '../lib/positions/code.ts';
 import { INDEX_KEY, MAX_RETRIES_PER_SYNC, TOPUP_TOPIC, decodeTopUp, syncTopUps, type RateReaders } from '../lib/credits/indexer.ts';
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
 import { latestRate, runCredits } from '../lib/credits/maintenance.ts';
 import { MINIMUM_OPEN_CENTS, SERVICES, centsText } from '../lib/credits/prices.ts';
-import { TOPICS, centsForCurb, curbForCents, curbText, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
-import { SUB_PREFIX, createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
+import { TOPICS, centsForCurb, curbForCents, curbText, poolHadNoPriceAt, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
+import { SUB_PREFIX, cancelSubscription, createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
 import { MESSAGE_MAX_CHARS, composeMessage, positionConditions, type Condition } from '../lib/ops/alerts.ts';
-import type { SnapshotRecord, Store, WriteOutcome } from '../lib/store/types.ts';
+import type { ConditionalWriteOutcome, SnapshotRecord, Store, WriteOutcome } from '../lib/store/types.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
 
 /**
@@ -89,7 +89,7 @@ interface NodeState {
   /** The pair's Sync events, as the chain has them (reserves in token0/token1 order = CURB/quote). */
   syncs: { block: number; curb: bigint; quote: bigint; logIndex?: number }[];
   /** A v3 pool: CURB's side, its current square-root price, its swaps and its initialisation. */
-  v3: { curbIs0: boolean; sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint }[] } | null;
+  v3: { curbIs0: boolean; sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint }[]; initialize?: { block: number; sqrt: bigint }; mints?: number[] } | null;
   /** The node's cap on logs matched by one query; more than this is refused the way Robinhood Chain's node refuses. */
   logLimit: number | null;
   /** The feed's AnswerUpdated events on its aggregator. */
@@ -140,6 +140,15 @@ function fakeNode(state: NodeState) {
         };
         if (address === PAIR && topic === TOPICS.sync) {
           result = capped(state.syncs.filter((e) => within(e.block)).map((e) => logOf(PAIR, e.block, [TOPICS.sync], `0x${word(e.curb)}${word(e.quote)}`, e.logIndex ?? 0)));
+          break;
+        }
+        if (address === POOL3 && state.v3 !== null && topic === TOPICS.initialize) {
+          const init = state.v3.initialize;
+          result = capped(init !== undefined && within(init.block) ? [logOf(POOL3, init.block, [TOPICS.initialize], `0x${word(init.sqrt)}${word(0n)}`)] : []);
+          break;
+        }
+        if (address === POOL3 && state.v3 !== null && topic === TOPICS.mint) {
+          result = capped((state.v3.mints ?? []).filter((b) => within(b)).map((b) => logOf(POOL3, b, [TOPICS.mint, hexWord(0n), hexWord(0n), hexWord(0n)], `0x${word(0n)}${word(1n)}${word(1n)}${word(1n)}`)));
           break;
         }
         if (address === POOL3 && state.v3 !== null && topic === TOPICS.swap) {
@@ -462,7 +471,8 @@ describe('the credit desk, site side', () => {
     state.syncs = [];
     const none = await readRateFromEvents(config, 42, opts);
     assert.equal(none.state, 'UNREAD');
-    assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /no Sync/);
+    assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /^the pool had no price at block 42: no Sync/);
+    assert.equal(poolHadNoPriceAt(none), true, 'the span reached the chain’s first block: a definite fact, not a quiet wait');
   });
 
   it('reads a v3 pool by state and by events, with CURB on either side', async () => {
@@ -482,10 +492,23 @@ describe('the credit desk, site side', () => {
     assert.equal(byState.value.pool.kind, 'uniswap-v3-pool');
     assert.ok(byState.value.pool.sqrtPriceX96);
 
-    // No swap yet: by events there is no traded price. A swap at block 60 doubles the price from there; at block 70 the guard's window (40 blocks on the local chain) still holds the first swap, so the credited price is the lower one.
+    // No swap and no Initialize seen: the pool had no price at the block — a definite fact, since the span reaches the pool's creation.
     const none = await readRateFromEvents(config, 50, opts);
     assert.equal(none.state, 'UNREAD');
-    assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /no Swap/);
+    assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /^the pool had no price at block 50: no Swap from the pool, nor an Initialize with liquidity/);
+    assert.equal(poolHadNoPriceAt(none), true);
+    // Initialised at block 20 and given liquidity at block 25: the Initialize price stands from block 25 until the first swap; before the Mint it is a price nobody can trade at.
+    state.v3.initialize = { block: 20, sqrt: forCurbIs0 };
+    state.v3.mints = [25];
+    const seeded = await readRateFromEvents(config, 50, opts);
+    if (seeded.state === 'UNREAD') assert.fail(JSON.stringify(seeded));
+    near(seeded.value.usdPerCurb18, 5n * 10n ** 15n, 'v3 before its first swap, from Initialize');
+    assert.equal(seeded.value.pool.eventBlock, 20);
+    const unseeded = await readRateFromEvents(config, 22, opts);
+    assert.equal(unseeded.state, 'UNREAD');
+    assert.equal(poolHadNoPriceAt(unseeded), true, 'initialised, no liquidity yet: no price at that block');
+    delete state.v3.initialize;
+    delete state.v3.mints;
     state.v3.swaps.push({ block: 30, sqrt: forCurbIs0 });
     state.v3.swaps.push({ block: 60, sqrt: sqrtPriceX96For(10n * 10n ** 6n, 10n ** 3n * 10n ** 18n) });
     const after = await readRateFromEvents(config, 70, opts);
@@ -595,11 +618,11 @@ describe('the credit desk, site side', () => {
     assert.equal(waited.report.credited.length, 0);
     assert.equal(waited.index.unpriced[0]!.attempts, 2);
 
-    // A pool with no event found before the block is a quiet pool, not an absent one: the top-up waits.
+    // A reading that is not a definite fact about the block — a scan that did not reach the pool's creation — is waited for, not priced at the head.
     const quiet = async () => ({ state: 'UNREAD' as const, value: null, reason: 'FIELD_ABSENT' as const, source: null, observedAt: new Date().toISOString(), detail: 'no Sync from the pair in the 20,000,000 blocks before block 42' });
     const quietOnly: RateReaders = { byState: async (c, block, o, now) => (block === 42 ? UNREAD_READER() : readRate(c, block, o, now)), byEvents: quiet };
     const stillWaiting = await syncTopUps(store, config, opts, new Date(), quietOnly);
-    assert.equal(stillWaiting.report.unpriced, 1, 'a pool with no event yet is waited for, not priced at the head');
+    assert.equal(stillWaiting.report.unpriced, 1, 'an indefinite miss is waited for, not priced at the head');
     assert.equal(stillWaiting.report.credited.length, 0);
 
     // The top-up was mined before the pool was created — the record's priceSource.fromBlock, read from the chain — so the head when indexed is the rate, and the record says which basis it used.
@@ -612,6 +635,15 @@ describe('the credit desk, site side', () => {
     const account = await keyAccount(store, hash);
     assert.equal(account.topUps[0]!.ratedAtBlock, 100);
     assert.equal(account.status, 'OPEN');
+
+    // The pool had no price at the block by state — an empty side there — which is as definite: the head, and the credit says so.
+    const other = keyHashOf(newKey());
+    state.head = 120;
+    state.logs.push({ block: 110, keyHash: other, payer: PAYER, amount: 4_000n * 10n ** 18n, txHash: '0x' + '4'.repeat(64), logIndex: 0 });
+    state.reserves = [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }, { block: 105, curb: 0n, quote: 0n }, { block: 115, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }];
+    const emptied = await syncTopUps(store, config, opts, new Date());
+    assert.deepEqual(emptied.report.credited.map((c) => [c.keyHash, c.basis]), [[other, 'HEAD_AT_INDEXING']]);
+    assert.equal((await keyAccount(store, other)).topUps[0]!.ratedAtBlock, 120);
   });
 
   it('prices a top-up at its own block from the pool’s events when the node’s state window has passed, and says so', async () => {
@@ -678,6 +710,22 @@ describe('the credit desk, site side', () => {
     assert.match(unguarded.state === 'UNREAD' ? (unguarded.detail ?? '') : '', /guard window/);
   });
 
+  it('weighs a busy window page by page: fifteen thousand Syncs in the window are two pages, not a refusal', async () => {
+    const state = freshState();
+    state.logLimit = 10_000;
+    // 15,000 Syncs in the 40-block window before block 100 — more than one answer, fewer than the smallest page can hold — the lowest of them at block 75; the price at the block is higher.
+    state.syncs = Array.from({ length: 15_000 }, (_, i) => ({ block: 60 + (i % 40), curb: 4_000_000n * 10n ** 18n, quote: BigInt(20_000 + (i % 40 === 15 ? 0 : 10_000)) * 10n ** 6n, logIndex: i }));
+    state.reserves = [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 30_000n * 10n ** 6n }];
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+    const busy = await readRate(config, 100, opts);
+    if (busy.state === 'UNREAD') assert.fail(JSON.stringify(busy));
+    assert.equal(busy.value.guard.samples, 15_000);
+    assert.equal(busy.value.usdPerCurb18, (5n * 10n ** 15n).toString(), 'the lowest of fifteen thousand');
+    assert.equal(busy.value.guard.lowestAtBlock, 75);
+    assert.ok(state.calls.filter((c) => c === 'eth_getLogs').length >= 3, 'refused once, then read in two pages');
+  });
+
   it('narrows a log query the node refuses for matching too much, for the last event and for the window', async () => {
     const state = freshState();
     state.head = 1_000;
@@ -704,21 +752,32 @@ describe('the credit desk, site side', () => {
     assert.equal(at351.value.guard.lowestAtBlock, 300);
   });
 
-  it('prices at most fifty top-ups a run and lists the rest as next in line', async () => {
+  it('prices at most fifty top-ups a run and lists the rest as next in line — a burst drains at fifty a run, oldest first', async () => {
     const state = freshState();
     globalThis.fetch = fakeNode(state);
     const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
     const store = tmpStore();
     const hash = keyHashOf(newKey());
-    for (let i = 0; i < 60; i += 1) state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: `0x${String(i).padStart(64, 'a')}`, logIndex: i });
+    for (let i = 0; i < 130; i += 1) state.logs.push({ block: 42, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: `0x${String(i).padStart(64, 'a')}`, logIndex: i });
     const first = await syncTopUps(store, config, opts, new Date());
     assert.equal(first.report.credited.length, 50);
-    assert.equal(first.report.unpriced, 10);
+    assert.equal(first.report.unpriced, 80);
     assert.match(first.index.unpriced[0]!.reason, /^deferred/);
+    assert.ok(first.index.unpriced.every((u) => u.attempts === 0), 'deferred, never tried');
+    // Fifty more fresh ones arrive: the deferred ones were never tried and stay ahead of them, oldest first, at fifty a run — not ten.
+    state.head = 110;
+    for (let i = 0; i < 50; i += 1) state.logs.push({ block: 105, keyHash: hash, payer: PAYER, amount: 10n ** 18n, txHash: `0x${String(i).padStart(64, 'f')}`, logIndex: i });
     const second = await syncTopUps(store, config, opts, new Date());
-    assert.equal(second.report.credited.length, 10);
-    assert.equal(second.report.unpriced, 0);
-    assert.equal((await keyAccount(store, hash)).topUps.length, 60);
+    assert.equal(second.report.credited.length, 50);
+    assert.equal(second.report.unpriced, 80, '30 of the first burst and the 50 new ones');
+    const third = await syncTopUps(store, config, opts, new Date());
+    assert.equal(third.report.credited.length, 50);
+    const fourth = await syncTopUps(store, config, opts, new Date());
+    assert.equal(fourth.report.credited.length, 30);
+    assert.equal(fourth.report.unpriced, 0);
+    assert.equal((await keyAccount(store, hash)).topUps.length, 180);
+    const blocks = (await keyAccount(store, hash)).topUps.map((t) => t.blockNumber);
+    assert.deepEqual(blocks.slice(0, 130), Array(130).fill(42), 'the first burst was credited before anything from the second block');
   });
 
   it('retries the waiting top-ups a few per run, the least-tried first, after the fresh ones', async () => {
@@ -809,6 +868,12 @@ describe('the credit desk, site side', () => {
             return target.writeSnapshots(records);
           };
         }
+        if (prop === 'writeSnapshotIf') {
+          return async (record: SnapshotRecord, expected: number | null): Promise<ConditionalWriteOutcome> => {
+            if (failSubWrites && record.key.startsWith(SUB_PREFIX)) return { state: 'FAILED', reason: 'disk full' };
+            return target.writeSnapshotIf(record, expected);
+          };
+        }
         const v = Reflect.get(target, prop, receiver) as unknown;
         return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
       },
@@ -824,7 +889,8 @@ describe('the credit desk, site side', () => {
     const run = await fanOut(store, new Date(), [x], post, resolve);
     assert.equal(run.delivered, 1);
     assert.equal(run.charged, 0, 'delivered but the row would not say so: not charged');
-    assert.match(run.failed[0]?.reason ?? '', /could not be marked told; not charged/);
+    assert.equal(run.failed.length, 0, 'the webhook did accept it: not a webhook failure');
+    assert.match(run.untold[0]?.reason ?? '', /could not be marked told; not charged/);
     assert.equal((await keyAccount(store, hash)).balanceCents, '2000');
     // The rows take writes again: the same change is told again (the row never said it was) and charged once.
     failSubWrites = false;
@@ -834,6 +900,99 @@ describe('the credit desk, site side', () => {
     assert.equal((await keyAccount(store, hash)).balanceCents, '1990');
     const third = await fanOut(store, new Date(), [x], post, resolve);
     assert.equal(third.considered, 0, 'told, charged, done');
+  });
+
+  it('loses no charge to another charge landing at the same time, and refuses the later one when the first left too little', async () => {
+    const store = tmpStore();
+    const hash = keyHashOf(newKey());
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2015', topUps: [] } }]);
+    // Twenty charges of five cents at once: none overwrites another — every one either lands or is refused as NOT_RECORDED (not served), and the row counts exactly the ones that landed.
+    const outcomes = await Promise.all(Array.from({ length: 20 }, (_, i) => charge(store, hash, 'journal-day', 5, `ref ${i}`, new Date())));
+    const landed = outcomes.filter((o) => o.ok).length;
+    assert.ok(landed >= 2, `at least the winners of the first rounds land (${landed})`);
+    assert.ok(outcomes.every((o) => o.ok || o.status === 'NOT_RECORDED'), 'a refused charge is refused, never silently lost');
+    const after = await keyAccount(store, hash);
+    assert.equal(after.spentCents, String(5 * landed));
+    assert.equal(after.chargeCount, landed);
+    assert.equal(after.balanceCents, String(2015 - 5 * landed));
+    // Three at once — the realistic burst — all land.
+    const three = await Promise.all(Array.from({ length: 3 }, (_, i) => charge(store, hash, 'journal-day', 5, `three ${i}`, new Date())));
+    assert.equal(three.filter((o) => o.ok).length, 3, JSON.stringify(three.filter((o) => !o.ok).map((o) => (o.ok ? '' : o.detail))));
+    assert.equal((await keyAccount(store, hash)).spentCents, String(5 * landed + 15));
+    // Two calls with room for one: the second reads again after the conflict and is refused with the figures, not served for free.
+    const spentSoFar = BigInt((await keyAccount(store, hash)).spentCents);
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: (spentSoFar + 1900n).toString(), topUps: [] } }]);
+    const short = await keyAccount(store, hash);
+    assert.equal(short.balanceCents, '1900');
+    let fit = 0;
+    for (let round = 0; round < 12; round += 1) {
+      const more = await Promise.all(Array.from({ length: 3 }, (_, i) => charge(store, hash, 'evidence-versions', 100, `big ${round}.${i}`, new Date())));
+      fit += more.filter((o) => o.ok).length;
+      assert.ok(more.filter((o) => !o.ok).every((o) => !o.ok && (o.status === 'INSUFFICIENT' || o.status === 'NOT_RECORDED')));
+    }
+    assert.equal(fit, 19, 'nineteen of a hundred cents fit in 1,900; the twentieth is refused with the figures');
+    assert.equal((await keyAccount(store, hash)).balanceCents, '0');
+  });
+
+  it('keeps a cancellation that lands while the fan-out is writing the same row, and counts a delivery whose charge did not land', async () => {
+    process.env[CREDITS_ENV] = CONFIG_JSON;
+    const inner = tmpStore();
+    let cancelDuring: { keyHash: string; id: string } | null = null;
+    let starveDuring: string | null = null;
+    // Between the fan-out's read of a row and its write, a DELETE lands (cancelDuring), or another call spends the key down (starveDuring).
+    const store: Store = new Proxy(inner, {
+      get(target, prop, receiver) {
+        if (prop === 'writeSnapshotIf') {
+          return async (record: SnapshotRecord, expected: number | null): Promise<ConditionalWriteOutcome> => {
+            if (cancelDuring !== null && record.key === `${SUB_PREFIX}${cancelDuring.id}`) {
+              const c = cancelDuring;
+              cancelDuring = null;
+              const cancelled = await cancelSubscription(target, c.keyHash, c.id, new Date());
+              assert.equal(cancelled.ok, true);
+            }
+            if (starveDuring !== null && record.key.startsWith(SUB_PREFIX) && (record.payload.lastDelivery as { detail?: string } | null)?.detail === 'delivered; the charge follows') {
+              const h = starveDuring;
+              starveDuring = null;
+              await target.writeSnapshots([{ key: spendRow(h), observedAt: new Date().toISOString(), payload: { hash: h, spentCents: '1995', count: 1, charges: [] } }]);
+            }
+            return target.writeSnapshotIf(record, expected);
+          };
+        }
+        const v = Reflect.get(target, prop, receiver) as unknown;
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    }) as Store;
+    const hash = keyHashOf(newKey());
+    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2000', topUps: [] } }]);
+    const sub = await createSubscription(store, hash, 'https://hooks.example.com/a', new Date());
+    assert.ok(sub.ok);
+    const post = async () => ({ state: 'SENT', status: 204 }) as const;
+    const resolve = async () => ['93.184.216.34'];
+    const x: Condition = { id: 'x', severity: 'DARK', text: 'x is dark' };
+
+    // The cancellation lands as the fan-out writes: the write finds the row moved, reads it cancelled, and writes nothing; no charge.
+    cancelDuring = { keyHash: hash, id: sub.ok ? sub.subscription.id : '' };
+    const raced = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(raced.delivered, 1, 'the post had gone out before the cancellation landed');
+    assert.equal(raced.charged, 0);
+    assert.equal(raced.untold.length, 1);
+    const mine = await subscriptionsOf(store, hash);
+    assert.notEqual(mine.subscriptions[0]!.cancelledAt, null, 'the cancellation stands');
+    assert.equal((await keyAccount(store, hash)).balanceCents, '2000');
+    const again = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(again.considered, 0, 'a cancelled subscription is not delivered to');
+
+    // A key spent down between the admission and the charge: told, delivered, not charged — counted as the desk's loss, and a condition names it.
+    const sub2 = await createSubscription(store, hash, 'https://hooks.example.com/b', new Date());
+    assert.ok(sub2.ok);
+    starveDuring = hash;
+    const starved = await fanOut(store, new Date(), [x], post, resolve);
+    assert.equal(starved.delivered, 1);
+    assert.equal(starved.charged, 0);
+    assert.equal(starved.uncharged.length, 1);
+    assert.match(starved.uncharged[0]!.reason, /balance is 5 cents/);
+    const rows = [{ key: 'credits:run', observedAt: new Date().toISOString(), payload: { at: new Date().toISOString(), rate: 'READ', rateDetail: null, code: 'MATCHES', codeDetail: null, index: 'SYNCED', indexDetail: null, waitingForRate: 0, fanOutFailed: 0, fanOutUncharged: starved.uncharged.length, behindBlocks: 0, configured: true } }];
+    assert.deepEqual(positionConditions(rows, new Date()).map((c) => [c.id, c.severity]), [['credits:fanout:UNCHARGED', 'NOTE']]);
   });
 
   it('does not quote from a rate row an earlier build wrote', async () => {
@@ -864,6 +1023,18 @@ describe('the credit desk, site side', () => {
     const badKey = await gate(req({ 'x-curb-key': 'curb_nope' }), store, 'journal-day', 'ref');
     assert.equal(badKey.ok === false ? badKey.response.status : 0, 401);
 
+    // Before any tick has verified the desk's code, the 402 names no way to pay: a top-up to an unverified desk is not invited.
+    const unverified = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    assert.equal(unverified.ok, false);
+    if (!unverified.ok) {
+      const body = (await unverified.response.json()) as Record<string, unknown>;
+      assert.equal(body.error, 'UNFUNDED');
+      assert.equal(body.topUp, null);
+      assert.match(String(body.topUpHeld), /not verified as the build/);
+    }
+    // The last tick found the desk to be the build: the way to pay is named.
+    const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
+    await store.writeSnapshots([{ key: 'credits:code', observedAt: new Date().toISOString(), payload: { chainId: 31337, address: DESK, state: 'MATCHES', detail: null, codeHash: '0x', buildCommit: 'abc', solc: '0.8.30', immutables: [], readAt: new Date().toISOString() } }]);
     const unfunded = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
     assert.equal(unfunded.ok, false);
     if (!unfunded.ok) {
@@ -873,7 +1044,12 @@ describe('the credit desk, site side', () => {
       assert.equal(body.keyHash, hash);
       assert.equal(body.toOpenCents, '2000');
       assert.equal((body.topUp as Record<string, unknown>).desk, DESK);
+      assert.equal(body.topUpHeld, null);
     }
+    // A verification of another desk is no verification of this one.
+    await store.writeSnapshots([{ key: 'credits:code', observedAt: new Date().toISOString(), payload: { chainId: 31337, address: PAYER, state: 'MATCHES', detail: null, codeHash: '0x', buildCommit: 'abc', solc: '0.8.30', immutables: [], readAt: new Date().toISOString() } }]);
+    assert.equal((await latestDeskCode(store, config)).code, null);
+    await store.writeSnapshots([{ key: 'credits:code', observedAt: new Date().toISOString(), payload: { chainId: 31337, address: DESK, state: 'MATCHES', detail: null, codeHash: '0x', buildCommit: 'abc', solc: '0.8.30', immutables: [], readAt: new Date().toISOString() } }]);
 
     // Credited below the minimum: still refused, with what is missing.
     const credit = (cents: string, n: number) => ({ transactionHash: `0x${String(n).repeat(64).slice(0, 64)}`, logIndex: 0, blockNumber: 42, payer: PAYER, amount: '1', usdPerCurb18: '1', ratedAtBlock: 42, basis: 'TOP_UP_BLOCK', cents, creditedAt: new Date().toISOString() });

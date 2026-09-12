@@ -466,6 +466,54 @@ export function runStoreConformance(target: ConformanceTarget): void {
       });
     });
 
+    describe('the conditional snapshot write', () => {
+      it('writes a new row only when none exists, and a replacement only onto the version read', async () => {
+        const first = await store.writeSnapshotIf({ key: 'cas:a', observedAt: '2026-09-13T00:00:00.000Z', payload: { n: 1 } }, null);
+        assert.equal(first.state, 'WRITTEN');
+        const again = await store.writeSnapshotIf({ key: 'cas:a', observedAt: '2026-09-13T00:00:01.000Z', payload: { n: 2 } }, null);
+        assert.equal(again.state, 'CONFLICT', 'a row exists; "none expected" is a conflict');
+        const read = await store.snapshots('cas:a');
+        assert.equal(read.state === 'UNREAD' ? null : read.value[0]?.version, 0);
+        assert.equal(read.state === 'UNREAD' ? null : read.value[0]?.payload.n, 1);
+        const onto0 = await store.writeSnapshotIf({ key: 'cas:a', observedAt: '2026-09-13T00:00:02.000Z', payload: { n: 3 } }, 0);
+        assert.equal(onto0.state, 'WRITTEN');
+        const stale = await store.writeSnapshotIf({ key: 'cas:a', observedAt: '2026-09-13T00:00:03.000Z', payload: { n: 4 } }, 0);
+        assert.equal(stale.state, 'CONFLICT', 'the row moved to version 1');
+        const after = await store.snapshots('cas:a');
+        assert.deepEqual(after.state === 'UNREAD' ? null : [after.value[0]?.version, after.value[0]?.payload.n], [1, 3]);
+        const absent = await store.writeSnapshotIf({ key: 'cas:none', observedAt: '2026-09-13T00:00:04.000Z', payload: {} }, 0);
+        assert.equal(absent.state, 'CONFLICT', 'no row to replace at that version');
+      });
+
+      it('has the plain write move the version too, so a conditional write after it sees the move', async () => {
+        await store.writeSnapshotIf({ key: 'cas:b', observedAt: '2026-09-13T00:00:00.000Z', payload: { n: 1 } }, null);
+        await store.writeSnapshots([{ key: 'cas:b', observedAt: '2026-09-13T00:00:01.000Z', payload: { n: 2 } }]);
+        const read = await store.snapshots('cas:b');
+        assert.equal(read.state === 'UNREAD' ? null : read.value[0]?.version, 1);
+        const stale = await store.writeSnapshotIf({ key: 'cas:b', observedAt: '2026-09-13T00:00:02.000Z', payload: { n: 3 } }, 0);
+        assert.equal(stale.state, 'CONFLICT');
+        const fresh = await store.writeSnapshotIf({ key: 'cas:b', observedAt: '2026-09-13T00:00:03.000Z', payload: { n: 3 } }, 1);
+        assert.equal(fresh.state, 'WRITTEN');
+      });
+
+      it('lets many writers at once each land exactly once', async () => {
+        await store.writeSnapshotIf({ key: 'cas:c', observedAt: '2026-09-13T00:00:00.000Z', payload: { n: 0 } }, null);
+        const bump = async (): Promise<void> => {
+          for (;;) {
+            const read = await store.snapshots('cas:c');
+            if (read.state === 'UNREAD') throw new Error(read.reason);
+            const row = read.value[0]!;
+            const w = await store.writeSnapshotIf({ key: 'cas:c', observedAt: new Date().toISOString(), payload: { n: (row.payload.n as number) + 1 } }, row.version ?? 0);
+            if (w.state === 'WRITTEN') return;
+            if (w.state === 'FAILED') throw new Error(w.reason);
+          }
+        };
+        await Promise.all(Array.from({ length: 12 }, () => bump()));
+        const read = await store.snapshots('cas:c');
+        assert.deepEqual(read.state === 'UNREAD' ? null : [read.value[0]?.payload.n, read.value[0]?.version], [12, 12]);
+      });
+    });
+
     describe('the run lock', () => {
       it('is granted when free', async () => {
         const outcome = await store.acquireRunLock('holder-a', 60);

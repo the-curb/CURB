@@ -53,9 +53,24 @@ export function deskCodeSnapshot(v: DeskCodeVerification): SnapshotRecord {
   return { key: DESK_CODE_KEY, observedAt: v.readAt, payload: v as unknown as Record<string, unknown> };
 }
 
-export async function latestDeskCode(store: Store): Promise<{ code: DeskCodeVerification | null; storeFault: string | null }> {
+/**
+ * The last verification, for the desk the configuration names: a row about
+ * another address or chain (the configuration changed since the last tick)
+ * is not a verification of this desk, and is answered as none — so a new
+ * desk is never shown as MATCHES on the strength of the old one's read.
+ */
+export async function latestDeskCode(store: Store, config: CreditsConfig): Promise<{ code: DeskCodeVerification | null; storeFault: string | null }> {
   const read = await store.snapshots(DESK_CODE_KEY);
   if (read.state === 'UNREAD') return { code: null, storeFault: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
   const snap = read.value.find((s) => s.key === DESK_CODE_KEY);
-  return { code: snap ? (snap.payload as unknown as DeskCodeVerification) : null, storeFault: null };
+  if (!snap) return { code: null, storeFault: null };
+  const v = snap.payload as unknown as DeskCodeVerification;
+  if (typeof v.address !== 'string' || v.address.toLowerCase() !== config.desk.toLowerCase() || v.chainId !== config.network.chainId) return { code: null, storeFault: null };
+  return { code: v, storeFault: null };
+}
+
+/** The last verification says MATCHES for the configured desk — the only state in which a top-up is invited. */
+export async function deskVerified(store: Store, config: CreditsConfig): Promise<boolean> {
+  const { code } = await latestDeskCode(store, config);
+  return code !== null && code.state === 'MATCHES';
 }

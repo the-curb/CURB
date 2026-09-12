@@ -13,6 +13,7 @@ import type {
   SnapshotRecord,
   Store,
   WriteOutcome,
+  ConditionalWriteOutcome,
 } from './types.ts';
 import type { AgentId } from '../agents/registry.ts';
 import { readNow, unread, type Reading } from '../doctrine/reading.ts';
@@ -165,9 +166,24 @@ export class FileSystemStore implements Store {
 
     let held: LockFile;
     try {
-      held = JSON.parse(await fs.readFile(file, 'utf8')) as LockFile;
+      const text = await fs.readFile(file, 'utf8');
+      const parsed = JSON.parse(text) as Partial<LockFile>;
+      if (typeof parsed.holder !== 'string' || typeof parsed.expiresAt !== 'string') throw new Error('not a lock file');
+      held = parsed as LockFile;
     } catch (cause) {
-      // A lockfile we cannot read is not a lock we may take.
+      // A lockfile we cannot read is not a lock we may take — unless it is
+      // the husk of a crash between creating the file and writing it (an
+      // empty or half-written file) that is older than any lock would live:
+      // that is taken over, so a crash does not stop every later run.
+      try {
+        const age = Date.now() - (await fs.stat(file)).mtimeMs;
+        if (age > ttlSeconds * 1000) {
+          await fs.writeFile(file, JSON.stringify(payload), 'utf8');
+          return { state: 'ACQUIRED', holder };
+        }
+      } catch {
+        // fall through to UNDETERMINED
+      }
       return { state: 'UNDETERMINED', reason: `lock unreadable: ${failureReason(cause)}` };
     }
 
@@ -429,18 +445,45 @@ export class FileSystemStore implements Store {
     );
   }
 
+  // The snapshot log is read, versioned and appended under one in-process
+  // queue, so two writers in the same process cannot interleave between the
+  // read and the append; this store serves one process.
+  private snapshotQueue: Promise<unknown> = Promise.resolve();
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.snapshotQueue.then(work, work);
+    this.snapshotQueue = next.catch(() => undefined);
+    return next;
+  }
+
   async writeSnapshots(records: readonly SnapshotRecord[]): Promise<WriteOutcome> {
     if (records.length === 0) return { state: 'WRITTEN' };
-    return append(this.dir, FILES.snapshots, records);
+    return this.serial(async () => {
+      const current = await this.snapshots('');
+      if (current.state === 'UNREAD') return { state: 'FAILED' as const, reason: `${current.reason}${current.detail ? ` — ${current.detail}` : ''}` };
+      const versions = new Map(current.value.map((r) => [r.key, r.version ?? 0]));
+      const stamped = records.map((r) => ({ ...r, version: versions.has(r.key) ? versions.get(r.key)! + 1 : 0 }));
+      return append(this.dir, FILES.snapshots, stamped);
+    });
+  }
+
+  async writeSnapshotIf(record: SnapshotRecord, expectedVersion: number | null): Promise<ConditionalWriteOutcome> {
+    return this.serial(async () => {
+      const current = await this.snapshots(record.key);
+      if (current.state === 'UNREAD') return { state: 'FAILED' as const, reason: `${current.reason}${current.detail ? ` — ${current.detail}` : ''}` };
+      const row = current.value.find((r) => r.key === record.key) ?? null;
+      if (expectedVersion === null && row !== null) return { state: 'CONFLICT' as const, reason: `a row already exists at ${record.key}` };
+      if (expectedVersion !== null && (row === null || (row.version ?? 0) !== expectedVersion)) return { state: 'CONFLICT' as const, reason: `the row at ${record.key} is no longer at version ${expectedVersion}` };
+      return append(this.dir, FILES.snapshots, [{ ...record, version: row === null ? 0 : (row.version ?? 0) + 1 }]);
+    });
   }
 
   async snapshots(prefix: string): Promise<Reading<readonly SnapshotRecord[]>> {
     const all = await readAll<SnapshotRecord>(this.dir, FILES.snapshots);
     if (all.state === 'UNREAD') return all;
-    // Append-only log: the last row written for a key is the current snapshot.
+    // Append-only log: the last row written for a key is the current snapshot; a row written before versions is version 0.
     const latest = new Map<string, SnapshotRecord>();
     for (const record of all.value) {
-      if (record.key.startsWith(prefix)) latest.set(record.key, record);
+      if (record.key.startsWith(prefix)) latest.set(record.key, { ...record, version: record.version ?? 0 });
     }
     return {
       ...all,

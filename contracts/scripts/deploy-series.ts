@@ -75,8 +75,12 @@ if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who 
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
 
-const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [record.rpcUrl] } } } as const;
-const pub = createPublicClient({ chain, transport: http(record.rpcUrl) });
+/** The operator's own endpoint for the chain, from the environment like every other tool (lib/chain/networks.ts); the record keeps naming the public one, and a keyed URL is never printed. */
+const RPC_ENV: Record<number, string> = { 4663: 'CURB_RPC_URL', 46630: 'CURB_RPC_URL_TESTNET', 1: 'CURB_RPC_URL_ETHEREUM', 11155111: 'CURB_RPC_URL_SEPOLIA', 31337: 'CURB_RPC_URL_LOCAL' };
+const rpcUrl = (RPC_ENV[record.chainId] !== undefined && process.env[RPC_ENV[record.chainId]!]) || record.rpcUrl;
+console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ' (from the environment)'}`);
+const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
+const pub = createPublicClient({ chain, transport: http(rpcUrl) });
 const erc20 = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)']);
 
 // ── the chain ─────────────────────────────────────────────────────────────
@@ -108,7 +112,7 @@ if (dryRun) {
 const key = process.env.DEPLOYER_PRIVATE_KEY;
 if (!key || !/^0x[0-9a-fA-F]{64}$/.test(key)) fail('DEPLOYER_PRIVATE_KEY is not set in the environment (a 32-byte hex key with 0x); nothing was sent');
 const account = privateKeyToAccount(key as Hex);
-const wallet = createWalletClient({ chain, transport: http(record.rpcUrl), account });
+const wallet = createWalletClient({ chain, transport: http(rpcUrl), account });
 console.error(`deployer ${account.address}`);
 
 const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never });

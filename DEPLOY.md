@@ -422,23 +422,37 @@ and is reported under `credits`. No token exists; in production it is
   block — by state while the node serves it (`TOP_UP_BLOCK`), else from the
   pool's last `Sync` or `Swap` at or before it and, for a feed-priced quote,
   the aggregator's last `AnswerUpdated` (`TOP_UP_BLOCK_EVENTS`); at the head
-  when indexed (`HEAD_AT_INDEXING`) only for a top-up mined before the pool
-  was created (the record's `priceSource.fromBlock`) — and never above the
-  lowest price the pool showed in the window before it (the guard, about an
-  hour, read from events, the price standing at the window's opening
-  included). At most fifty fresh top-ups are priced per run, then at most
-  ten waiting ones, oldest first, so a few that cannot be priced never
-  starve the rest; the remainder are next in line. One that cannot be
-  priced waits, listed with how often it was tried, for a tick that can; a
-  node that did not answer, or a pool with no event yet, is waited out,
-  never priced around. A sync reads at most 100,000 blocks and keeps to the
-  tick's remaining time; what it did not reach is next. Nothing is credited
-  while the desk's code is not the record's.
+  when indexed (`HEAD_AT_INDEXING`) only for a top-up at a block where the
+  pool definitely had no price — created later (the record's
+  `priceSource.fromBlock`, checked by the deployment tool against the
+  pool's first log), no price event at or before it back to its creation
+  (a v3 pool's `Initialize` counts once a `Mint` has followed), no
+  liquidity or an empty side — and never above the lowest price the pool
+  showed in the window before it (the guard, about an hour, read from
+  events page by page, the price standing at the window's opening
+  included; more than sixty-four pages is a rate not stated). Two queues:
+  at most fifty never-tried top-ups per run — fresh ones and ones deferred
+  for count or time — oldest first, so a burst drains at fifty a run; then
+  at most ten tried-and-waiting ones, least-tried first, so a few that
+  cannot be priced never starve the rest. One that cannot be priced waits,
+  listed with how often it was tried, for a tick that can; a node that did
+  not answer is waited out, never priced around. A sync reads at most
+  100,000 blocks and keeps to the tick's remaining time; what it did not
+  reach is next. Nothing is credited while the desk's code is not the
+  record's.
 - **Subscribers' messages.** Each subscription keeps the set of conditions it
   was last told of and is told exactly its own changes since — in the
   operator's form: raised, cleared, still active — so a subscriber's
   deliveries do not depend on the operator's webhook being reachable, and a
-  change is charged once per subscription.
+  change is charged once per subscription. The row is marked told before
+  the charge, and both the mark and the charge are conditional writes
+  (`writeSnapshotIf`: onto the row's version as read) — a cancellation
+  landing meanwhile is never overwritten, and two charges on one key at
+  once cannot lose each other. A delivery whose charge did not land is the
+  desk's loss, counted in the run row and raised as a NOTE
+  (`credits:fanout:UNCHARGED`). The `snapshots` table gained a `version`
+  column for this on 13 September 2026: `npm run db:migrate` before
+  deploying a build that has it.
 - **Keys.** A key is thirty-two random bytes the caller makes (`/services`
   makes one in the browser; `POST /api/keys` makes one and stores nothing);
   its SHA-256 is what the chain credits and what the desk keeps rows by. The
