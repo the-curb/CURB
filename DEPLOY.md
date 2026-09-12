@@ -592,10 +592,13 @@ and is reported under `credits`. No token exists; in production it is
   page or on an API route other than the tick is recorded nowhere. A log
   drain is a platform setting the paid plan brings; until then the tick's red
   runs and `/api/state` are what there is.
-- **A probe from outside.** The desk cannot notice its own scheduler
-  stopping: `reportingLastHour` on `/api/state` falling to zero is the sign,
-  and only a monitor that is not this system — any uptime check that fetches
-  the endpoint and reads the field — sees it. None is set up.
+- **A probe from outside, half of one.** `.github/workflows/watch.yml`
+  fetches `/api/state` every half hour from a workflow of its own and turns
+  red when the store did not answer, no agent reported in the last hour, the
+  schema is behind, an agent is absent or a DARK condition stands — a stopped
+  tick is a red run within the hour. It shares GitHub's scheduler with the
+  tick, so a monitor on another platform (any uptime check that fetches the
+  endpoint and reads `warden.reportingLastHour`) is still the other half.
 - **The certificate of the store's connection.** `sslmode=require` encrypts
   the connection but does not verify the server's certificate; `verify-full`
   needs the provider's CA certificate on the deployment, which has not been
