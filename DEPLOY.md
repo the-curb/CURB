@@ -310,7 +310,9 @@ its own RPC override.
   feed's own time and the sample time; withheld when the sample is past the
   desk's freshness, the feed drifted or is paused), with the assumption
   between them stated; component B `NOT_AVAILABLE` with its reason; the lot
-  `INCOMPLETE` and never totalled while a component has no price.
+  `INCOMPLETE` and never totalled while a component has no price. The series
+  detail carries the valuation of one lot; `/api/wallets/<address>/positions`
+  carries the value of that wallet's receipts from the same sources.
 - **With the holder's wallet.** Once a deployment is configured, the series
   page shows "Form a position, claim components": the holder's own wallet
   (any EIP-1193 provider) signs and sends the prepared steps one by one —

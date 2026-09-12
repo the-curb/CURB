@@ -18,6 +18,7 @@ interface PositionRow {
   readonly detail: string | null;
   readonly receipts: string | null;
   readonly entitledUnits: { readonly A: string; readonly B: string } | null;
+  readonly indicativeValue: { readonly state: string; readonly forLotsUsd?: { readonly A: string | null; readonly B: string | null }; readonly forLotsTotalUsd?: string | null; readonly reason?: string } | null;
   readonly asOfBlock: number | null;
 }
 interface ClaimRow {
@@ -165,6 +166,12 @@ export function WalletLookup({ seriesId, labels }: Props) {
                   A {units(answer.claim?.unpaid?.A ?? null)} base units
                   {answer.claim?.claimPaused?.A ? ' (claims of A stopped by the operator)' : ''} · B {units(answer.claim?.unpaid?.B ?? null)} base units
                   {answer.claim?.claimPaused?.B ? ' (claims of B stopped by the operator)' : ''}
+                </dd>
+                <dt className="text-(--color-paper-faint)">Indicative value</dt>
+                <dd className="text-(--color-paper-dim)">
+                  {answer.position.indicativeValue === null || answer.position.indicativeValue.state === 'NOT_AVAILABLE'
+                    ? `not available — ${answer.position.indicativeValue?.reason ?? 'no valuation'}`
+                    : `A ${answer.position.indicativeValue.forLotsUsd?.A === null || answer.position.indicativeValue.forLotsUsd?.A === undefined ? 'not available' : `${answer.position.indicativeValue.forLotsUsd.A}`} · B ${answer.position.indicativeValue.forLotsUsd?.B === null || answer.position.indicativeValue.forLotsUsd?.B === undefined ? 'not available' : `${answer.position.indicativeValue.forLotsUsd.B}`} · ${answer.position.indicativeValue.forLotsTotalUsd ? `together ${answer.position.indicativeValue.forLotsTotalUsd}` : 'not totalled while a component has no price'} — an estimate from dated sources, not a quote`}
                 </dd>
                 <dt className="text-(--color-paper-faint)">As of block</dt>
                 <dd className="text-(--color-paper-dim)">{answer.position.asOfBlock ?? '—'}</dd>

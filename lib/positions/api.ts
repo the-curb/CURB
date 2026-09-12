@@ -169,9 +169,10 @@ export async function ledgerFor(store: Store, spec: SeriesSpec): Promise<{ ledge
 }
 
 export async function seriesDetail(store: Store, spec: SeriesSpec) {
-  const [evidence, ledger, reconciliation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id)]);
+  const [evidence, ledger, reconciliation, valuation] = await Promise.all([seriesEvidence(store, spec), ledgerFor(store, spec), latestReconciliation(store, spec.id), valuationFor(store, spec)]);
   return {
     ...seriesSummary(spec),
+    indicativeValue: indicativeFor(valuation, 1n),
     rules: spec.rules,
     deferred: spec.deferred,
     promises: PROMISES,
@@ -285,16 +286,20 @@ export async function walletPositions(store: Store, address: string) {
   const positions = [];
   for (const spec of SERIES) {
     const l = await ledgerFor(store, spec);
+    const receipts = l.ledger === null ? null : receiptsOf(l.ledger, holder);
+    // The indicative value of the receipts, from the same dated sources as the previews; never a zero for a missing price.
+    const valuation = receipts === null ? null : await valuationFor(store, spec);
     positions.push({
       seriesId: spec.id,
       state: l.ledger === null ? ('NOT_DEPLOYED' as const) : ('INDEXED' as const),
       detail: l.detail,
-      receipts: l.ledger === null ? null : receiptsOf(l.ledger, holder).toString(),
+      receipts: receipts === null ? null : receipts.toString(),
       entitledUnits: l.ledger === null ? null : { A: (receiptsOf(l.ledger, holder) * l.ledger.q.A).toString(), B: (receiptsOf(l.ledger, holder) * l.ledger.q.B).toString() },
+      indicativeValue: receipts === null ? null : indicativeFor(valuation, receipts),
       asOfBlock: l.cursor,
     });
   }
-  return { address: holder, positions, note: 'receipts and units as the index has them; pending claims are listed separately and never counted as active backing' };
+  return { address: holder, positions, note: 'receipts and units as the index has them; pending claims are listed separately and never counted as active backing; an indicative value is an estimate from dated sources, never a quote' };
 }
 
 export async function walletClaims(store: Store, address: string) {
