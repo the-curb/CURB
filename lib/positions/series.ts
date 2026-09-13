@@ -1,7 +1,7 @@
 /**
  * The one series the site describes, and everything the site is allowed to
- * say about it. A design, not a deployment: no contract exists, no issuer
- * integration has been made, no transaction has been sent. Every figure here
+ * say about it. A contract prototype exists with fork and local-chain tests;
+ * no public series deployment or issuer integration is approved. Every figure here
  * is illustrative and is labelled so where it is shown.
  */
 
@@ -58,7 +58,7 @@ export const APPLE_S1: SeriesSpec = {
   company: 'Apple Inc.',
   illustrativeSymbol: 'cAAPL-S1',
   stage: 'DESIGN',
-  stageLine: 'Mainnet next, behind the token and the desk on Robinhood Chain. A prototype contract exists for this series and is tested on forks of Ethereum and on a local chain; the series itself is not deployed yet, its network is still a gate, and no issuer integration exists.',
+  stageLine: 'Position prototype, tested on Ethereum forks and a local chain. No public series deployment or issuer integration is approved. The separate Robinhood Chain treasury creation is recorded; it does not establish an Ethereum series operator. Positions do not depend on CURB or the credit desk.',
   chain: 'Ethereum — the candidate network; availability of both components on it is a gate, not a given',
   receiptDecimals: 0,
   capLotsIllustrative: 1_000n,
@@ -184,7 +184,7 @@ export const GATES: readonly Gate[] = [
   { id: 'G2', name: 'Rights and access', evidence: 'Review of holder rights, user categories, contract custody, receipt distribution, exit process', status: 'NOT_STARTED', today: 'Technical ability to hold a token is not enough.' },
   { id: 'G3', name: 'Components', evidence: 'Static unit balances, decimals, correct wrapper version, authority, real transfer and claim under test', status: 'IN_RESEARCH', today: 'On a fork of Ethereum the real wrapper transfers and unwraps, real AAPLon transfers, and one series took both real components in and paid both out; who stands behind each address is recorded; across the issuer’s dividend activation of 8 August 2026 the wrapper’s shares did not move while the raw balance did (T14). A split is not on the record; eligibility is not a fork question.' },
   { id: 'G4', name: 'Contract', evidence: 'Invariants and adversarial tests pass; independent review; material findings closed', status: 'IN_RESEARCH', today: 'A prototype in contracts/ passes the blueprint’s cases T01–T12, T17, T19, T20, T22–T25 and a fuzz run. No independent review, no audit, no deployment.' },
-  { id: 'G5', name: 'Operations', evidence: 'Reconciliation, index recovery, incident drill, key management, direct claim UI', status: 'IN_RESEARCH', today: 'Reconciliation, index recovery and the incident drill are shown on a local chain with mock components; a holder’s own wallet mints and claims from the series page against a deployed series, rehearsed on that chain. No signers exist, so key management and the operator multisig are a written proposal only.' },
+  { id: 'G5', name: 'Operations', evidence: 'Reconciliation, index recovery, incident drill, key management, direct claim UI', status: 'IN_RESEARCH', today: 'Reconciliation, index recovery and the incident drill are shown on a local chain with mock components; a holder’s own wallet mints and claims from the series page against a deployed series, rehearsed on that chain. A 2-of-3 treasury Safe is recorded on Robinhood Chain. A series operator on the candidate Ethereum chain and the remaining key-management policy are not yet verified or approved.' },
   { id: 'G6', name: 'Economics', evidence: 'Measured cost to form and exit; user need against the baseline of holding both tokens', status: 'IN_RESEARCH', today: 'Execution gas to form and exit is measured on a fork with the real wrapper, with no price applied. User need against the baseline is not validated: no interviews have been held.' },
 ];
 

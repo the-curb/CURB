@@ -1,0 +1,43 @@
+{
+  "at": "2026-09-13T09:01:39.792Z",
+  "browser": "153.0.4234.32",
+  "server": "local Next production build, sanitized review copy, fake deployment config on chain31337 for wallet UI only",
+  "wallet": "injected EIP-1193 mock; no real signature/chain transaction",
+  "checks": [
+    "/ HTTP 200",
+    "/services HTTP 200",
+    "/positions/apple-s1 HTTP 200",
+    "Simulator rejects 1.9",
+    "Simulator rejects 1e3",
+    "Simulator rejects 12x",
+    "Simulator rejects 0",
+    "Simulator rejects -1",
+    "Simulator keeps BigInt precision",
+    "Simulator A halted; B claimed; A remains30 with receipt0",
+    "Wallet: receipt0, A reverts, B succeeds; exactly2 claims, no reallocation",
+    "Wallet rejects changed chain before submission",
+    "Services names historical treasury without claiming a live desk",
+    "/ mobile390 no horizontal overflow",
+    "/services mobile390 no horizontal overflow",
+    "/positions/apple-s1 mobile390 no horizontal overflow"
+  ],
+  "pageErrors": [],
+  "httpChecks": [
+    {
+      "route": "/api/credits?usd=20",
+      "status": 200,
+      "outcome": "NOT_CONFIGURED; no quote"
+    },
+    {
+      "route": "/api/positions/apple-s1/journal?day=2026-09-13",
+      "status": 503,
+      "outcome": "CREDITS_NOT_CONFIGURED; no paid service delivered"
+    },
+    {
+      "route": "/api/tick",
+      "method": "POST",
+      "status": 503,
+      "outcome": "missing production secret refused before tick"
+    }
+  ]
+}

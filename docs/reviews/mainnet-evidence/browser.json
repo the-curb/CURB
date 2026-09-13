@@ -1,0 +1,59 @@
+{
+  "at": "2026-09-13T10:51:31.219Z",
+  "environment": "Production Next local server, fresh headless Edge profile. EIP1193 test adapter; no real wallet extension or public transactions. Credit expiry/pending fixtures intercepted only within test context.",
+  "checks": [
+    {
+      "name": "desktop / HTTP200",
+      "passed": true
+    },
+    {
+      "name": "mobile / no horizontal page overflow",
+      "passed": true
+    },
+    {
+      "name": "desktop /services HTTP200",
+      "passed": true
+    },
+    {
+      "name": "mobile /services no horizontal page overflow",
+      "passed": true
+    },
+    {
+      "name": "desktop /positions/apple-s1 HTTP200",
+      "passed": true
+    },
+    {
+      "name": "mobile /positions/apple-s1 no horizontal page overflow",
+      "passed": true
+    },
+    {
+      "name": "wallet review shows actual decimals and existing allowances",
+      "passed": true
+    },
+    {
+      "name": "wallet review explains receipt outcome",
+      "passed": true
+    },
+    {
+      "name": "reconnect after pending never resumes another accounts prepared approvals",
+      "passed": true
+    },
+    {
+      "name": "quote and key compose top-up calldata",
+      "passed": true
+    },
+    {
+      "name": "expired quote removes prepared top-up calldata",
+      "passed": true
+    },
+    {
+      "name": "readable positive balance remains visible while pending is unknown",
+      "passed": true
+    },
+    {
+      "name": "browser has no page or console errors",
+      "passed": true
+    }
+  ],
+  "errors": []
+}

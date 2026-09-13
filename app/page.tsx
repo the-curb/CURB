@@ -104,8 +104,8 @@ export default async function Home() {
                 {BRAND.name} is building a way to combine stock-token exposure from multiple issuers into one disclosed position,
                 with the right to every component recorded and withdrawn <strong className="font-bold">component by component</strong>.
               </p>
-              <p className="kicker mt-5" style={{ color: launch.step === 'NOTHING' ? 'var(--color-state-stale)' : 'var(--color-state-live)' }}>
-                <b>Stage</b> · mainnet · {launch.chain}
+              <p className="kicker mt-5" style={{ color: launch.step === 'TOP_UP_RECORDED' ? 'var(--color-state-live)' : 'var(--color-paper-dim)' }}>
+                <b>Treasury &amp; credit desk</b> · mainnet track · {launch.chain} · {launch.step.replaceAll('_', ' ').toLowerCase()}
               </p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-(--color-paper-dim)" title={launch.treasury === null ? undefined : `treasury ${launch.treasury.address}`}>
                 {launch.line}

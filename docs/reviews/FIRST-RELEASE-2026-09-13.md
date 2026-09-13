@@ -1,0 +1,60 @@
+# Review first release — 13 September 2026
+
+**Status: perubahan lokal tervalidasi, siap direview; belum dipush atau dideploy.** Branch `codex/curb-first-release-hardening`, commit dasar `8f093ff9de64c8da7003ad2d2762c6b5967db573`, working tree masih dimodifikasi. Catatan ini menjelaskan perubahan yang dapat diperiksa dan batas bukti yang sudah dijalankan. Ini bukan persetujuan peluncuran, audit independen, atau bukti eligibility pengguna.
+
+## Perubahan yang telah diterapkan
+
+| Area | Perilaku dan alasan perubahan | Rujukan |
+| --- | --- | --- |
+| Claim per komponen | Wallet menyediakan `claimA` dan `claimB` sebagai tindakan mandiri. Claim tidak memerlukan input lots atau receipt tersisa setelah exit dialokasikan. Saldo receipt dan kedua pending claim dibaca dari getter series; jalur ini tidak perlu membaca kontrak kedua komponen. Pembatasan eligibility dan transfer komponen tetap berlaku. | [Wallet UI](../../app/components/wallet-sign.tsx), [operasi wallet](../../lib/positions/wallet.ts) |
+| Status transaksi wallet | Account dan chain diperiksa sebelum setiap transaksi. Langkah yang sudah mined dilewati; transaksi pending atau hasil pengiriman yang belum pasti menghalangi pengiriman ulang otomatis. Hash yang tersedia dapat diperiksa kembali. Penolakan wallet, revert, dan hasil yang belum diketahui dibedakan. | [Operasi wallet](../../lib/positions/wallet.ts) |
+| Angka dan simulator | Lots diparsing langsung sebagai `BigInt`, hanya bilangan bulat positif sampai batas `uint256`; input parsial, pecahan, dan notasi eksponen ditolak. Simulator memakai label **Mock A / Mock B** dan menjelaskan bahwa kuantitasnya bukan jumlah token saham atau definisi lot produksi. | [Parser](../../lib/positions/wallet.ts), [simulator](../../app/components/position-simulator.tsx), [halaman posisi](../../app/positions/[series]/page.tsx) |
+| Bukti fork | Probe transfer mengukur perubahan saldo penerima, dengan state bersih per skenario. Saldo Bob yang tertinggal dari fixture gas sebelumnya tidak lagi mencemari hasil. Record terbaru menyatakan transfer AAPLon berhasil pada fork yang diuji; record lama tetap disimpan dengan keterangan superseded. Hasil observasi dipisahkan dari assertion yang wajib lulus sebelum penulisan record. | [Fixture fork](../../contracts/test/fork/AppleComponentsFork.t.sol), [helper observasi](../../contracts/test/helpers/TransferObservation.sol), [record baru](../../contracts/evidence/apple-s1.fork.json), [arsip lama](../../contracts/evidence/history/apple-s1.fork.block-25959144.before-delta-fix.json) |
+| Status peluncuran | Treasury Robinhood Chain dibedakan dari prototype CompanySeries pada kandidat Ethereum. Konfigurasi desk, verifikasi kode/immutables, rate, dan top-up yang tercatat menjadi milestone terpisah. Rate saja tidak membuktikan pembayaran pernah diterima. Bukti yang hilang menjadi belum terkonfirmasi; bukti penciptaan Safe tetap merupakan observasi historis. | [Read model](../../lib/launch/status.ts), [syarat bukti](../../lib/launch/evidence.ts), [launch checklist](../decisions/LAUNCH.md) |
+| Quote credits | `/api/credits` memakai syarat freshness dan identitas yang sama dengan halaman services: kode desk serta rate harus valid untuk konfigurasi saat ini dan paling lama 30 menit. Quote ditahan ketika syarat gagal; `state` konfigurasi dan observasi mentah tetap terlihat. `quoteReadiness` membedakan kelayakan quote dari keduanya. | [Route](../../app/api/credits/route.ts), [handler yang diuji](../../lib/launch/credits-api.ts), [tes HTTP](../../tests/credits-http.test.ts) |
+| Pembayaran dan ketidakpastian | Rehearsal lokal diperluas dari top-up sampai penggunaan layanan dan habisnya kredit. Tes kehilangan acknowledgement membedakan debit yang mungkin sudah tersimpan dari debit yang pasti tidak terjadi; hasil `NOT_RECORDED` dengan `charged: UNKNOWN` tidak dicoba ulang otomatis. Generator rehearsal menolak endpoint selain HTTP loopback dan chain selain 31337. | [Rehearsal](../../tests/credits-rehearsal.test.ts), [tes credits](../../tests/credits.test.ts), [generator](../../contracts/scripts/credits-rehearsal.ts) |
+
+Harga dan fungsi CURB tetap mengikuti keputusan yang ada: pembukaan kumulatif US$20; US$0,05 per evidence-history/journal call; US$0,10 per pengiriman webhook berhasil. Buffer quote 5% tetap perkiraan, bukan batas slippage atau jaminan kredit minimum. Posisi tidak bergantung pada CURB maupun credit desk. [Keputusan token](../decisions/TOKEN.md), [daftar harga](../../lib/credits/prices.ts).
+
+## Bukti pengujian yang sudah tersedia
+
+| Pengujian | Hasil aktual | Bukti dan batas |
+| --- | --- | --- |
+| Solidity lokal, non-Fork | **49 lulus, 0 gagal**, termasuk fuzz 256 runs dan invariant 256 runs × depth 64. | [Log aktual](../../contracts/evidence/first-release-local-tests.txt), [record JSON](../../contracts/evidence/unit-tests.json). `workingTreeClean: false` dicatat dengan commit dasar dan seed; hasil tidak diklaim berasal dari checkout bersih. |
+| Fork komponen Apple | **13 lulus, 0 gagal**, Ethereum block **25.967.321**. | [Log aktual](../../contracts/evidence/first-release-apple-components-fork.txt), [provenance dan fingerprint](../../contracts/evidence/first-release-fork-verification.json). Regresi lokal TransferObservation 5 tes juga lulus; kelimanya sudah termasuk dalam 49 tes lokal, jangan dijumlahkan lagi. |
+| Acceptance credits pada Hardhat lokal | **2 lulus, 0 gagal, 0 skip**; juga berhasil diulang memakai fixture lokal yang sama. | [Log acceptance kode final](evidence/credits-acceptance.txt), [tes acceptance](../../tests/credits-rehearsal.test.ts). Dijalankan terhadap mock pada `127.0.0.1:9545`, chain 31337; node milik proses uji telah dihentikan. Ini bukti alur lokal, bukan pembayaran publik. |
+| Handler HTTP credits | **7 lulus, 0 gagal, 0 skip**. Gabungan credits + HTTP: **41 lulus, 0 gagal, 0 skip** pada verifikasi sebelum integrasi tambahan di bawah. | [Tes HTTP](../../tests/credits-http.test.ts), [tes credits](../../tests/credits.test.ts). Menguji Request → Response implementation yang dipakai route dengan store terisolasi; bukan pengujian server Next melalui jaringan. |
+| Typecheck terarah sebelum integrasi tambahan | `tsc --noEmit --incremental false` selesai dengan exit 0. | Bukan pengganti typecheck/build akhir setelah seluruh perubahan agent digabung. |
+
+Acceptance credits benar-benar membuat key baru, quote dan transaksi mock top-up US$15 lalu US$5, mengindeks event, menahan akses sebelum ambang kumulatif US$20, kemudian membuka akses. Admission tidak mendebit; settlement dan receipt diperiksa. Reindex tidak menggandakan kredit. Pengiriman webhook sukses memakai sender/resolver terinjeksi dan didebit US$0,10; pengiriman gagal tidak didebit. Total 398 call × US$0,05 dan satu delivery × US$0,10 menghabiskan US$20; call berikutnya mendapat 402 tanpa debit. Pengiriman ulang transisi yang sama tidak menagih delivery sukses dua kali. Tidak ada webhook eksternal yang dikirim.
+
+Endpoint berbayar sudah memasang admission sebelum membaca data, settlement setelah data tersedia, dan paid headers setelah settlement berhasil. Store gagal menghasilkan 503 dengan `charged: false`. Rehearsal membuktikan helper yang digunakan endpoint. Pemeriksaan HTTP server lokal di bawah menguji refusal; pembayaran HTTP yang sukses belum diuji dengan wallet nyata. [Evidence versions](../../app/api/positions/[series]/evidence/versions/route.ts), [journal](../../app/api/positions/[series]/journal/route.ts).
+
+## Hasil integrasi akhir
+
+Snapshot rate `READ` sekarang mencatat `chainId`. `latestRate` mengarantina record tanpa chain sebagai `RATE_ROW_UNSCOPED` dan chain berbeda sebagai `RATE_ROW_OTHER_CHAIN`; quote dan milestone tidak memakai record tersebut. History baru memakai key yang mengikat chain, token, jenis/alamat pool dan sumber quote. Record historis tetap tersimpan, tanpa migrasi atau penghapusan. Perhitungan kredit dan harga tidak berubah.
+
+**Saat perubahan ini diterapkan ke lingkungan lain:** snapshot lama tanpa chain menunggu tick baru yang berhasil; history pada konfigurasi aktif mulai terisi dari sampel dengan key baru. Ini bukan hilangnya credits pengguna. Batas 30 menit berlaku pada kelayakan quote/status; bukan jaminan uptime atau nilai credit saat transaksi mined.
+
+| Pemeriksaan akhir | Hasil |
+| --- | --- |
+| Seluruh suite aplikasi | `node --test "tests/*.test.ts"`: **499 tes; 493 lulus, 0 gagal, 6 skip**. [Log](evidence/app-tests.txt). Enam skip: dua tes credits rehearsal, satu tool-deployment rehearsal, satu positions rehearsal, satu incident drill, satu Postgres conformance karena fixture/URL terkait tidak dimuat. Dua tes credits rehearsal juga dijalankan terpisah dengan fixture lokal (lihat catatan acceptance). |
+| Production build dan TypeScript | `next build` **exit 0**, termasuk TypeScript dan seluruh route. [Log](evidence/build.txt). Dijalankan pada salinan source tanpa `.env*`, tanpa konfigurasi/DB produksi. Dependency yang sama dan artifact Solidity lokal tersedia. File Safe tercakup dalam tracing homepage dan Services. |
+| Browser production lokal | **16 pemeriksaan lulus**, error halaman/console **0**. [Record](evidence/browser.json). Halaman home, Services dan posisi HTTP 200; pecahan/eksponen ditolak, BigInt tetap tepat, simulator A halted/B keluar, wallet receipt nol → A revert → B sukses tanpa alokasi ulang, pergantian chain ditolak sebelum send, dan ketiga halaman tanpa overflow horizontal pada 390 px. Wallet menggunakan EIP-1193 mock, tanpa signature/transaksi nyata. |
+| HTTP server lokal | Credits belum dikonfigurasi menghasilkan HTTP 200 dengan quote `NOT_CONFIGURED`; paid journal ditahan 503; production tick tanpa secret ditolak 503. Ini bukan uji HTTP pembayaran publik yang sukses. |
+| Konsistensi source dan bukti | `git diff --check` bersih. `contracts/src` dan compiler/settings tidak berubah. [Fingerprint source yang direview](evidence/source-fingerprints.json). |
+
+Pemeriksaan browser memakai Edge headless dengan profil sementara karena koneksi Browser plugin gagal. Tabel harga Services diperbaiki agar harga/satuan terbaca. Tabel simulator dapat digeser pada mobile dan identitas panjang dibungkus; koordinat SVG homepage dibulatkan empat desimal untuk mencegah mismatch hydration Node/Edge.
+
+Tes concurrency credits juga diperbaiki: fixture mempertahankan pendanaan kumulatif 2.015 sen dan memakai debit nyata untuk menyisakan 1.900 sen. Dua jumlah contender (20 dan 2) memastikan key tetap OPEN, saldo cocok dan refusal tetap hanya kondisi yang diharapkan; assertion tidak dilonggarkan untuk membiarkan key terkunci di bawah minimum.
+
+## Batas dan pekerjaan yang tetap terbuka
+
+- CompanySeries tetap prototype. Eligibility pemegang/kontrak/receipt, perolehan komponen yang sah, akses deposit/mint wrapper saat ini, dan batas issuance belum dibuktikan oleh fork dengan saldo yang diatur melalui storage. Inventory wrapper bukan batas kapasitas issuance yang sudah terbukti.
+- Review independen dan penyelesaian temuan material masih diperlukan. Catatan tes ini bukan audit. Bukti corporate action historis yang terpisah tidak dijalankan ulang dalam verifikasi 13 tes fork di atas; split belum dibuktikan.
+- Safe 2-of-3 yang tercatat berada pada Robinhood Chain. Safe/operator CompanySeries pada kandidat Ethereum dan kebijakan operasional yang tersisa masih belum diverifikasi/disetujui.
+- Wawancara pengguna eksternal belum dijalankan. Ketertarikan dan kebutuhan pengguna terhadap posisi satu perusahaan lintas issuer belum tervalidasi lewat tes teknis ini.
+- Pending wallet bertahan saat reload pada tab yang sama. Hash transaksi pengganti belum dideteksi otomatis; pemeriksaan pending memakai hash tersimpan.
+- Tidak ada deployment publik, transaksi publik untuk release ini, commit atau push yang dilakukan dalam paket pekerjaan ini. Perubahan lokal belum merupakan peluncuran token, aktivasi paid beta, atau persetujuan integrasi issuer.
+
+Rujukan keputusan lanjutan: [deployment](../decisions/DEPLOYMENT.md), [operasi](../decisions/OPERATIONS.md), [asumsi](../decisions/ASSUMPTIONS.md), [gate posisi](../../lib/positions/series.ts).

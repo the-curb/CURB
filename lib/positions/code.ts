@@ -128,12 +128,23 @@ export async function verifySeriesCode(deployment: SeriesDeployment, opts: RpcOp
   const base = { seriesId: deployment.seriesId, chainId: deployment.chainId, address: deployment.address, readAt: now.toISOString() };
   const { build, fault } = await buildRecord();
   if (build === null) return { ...base, state: 'NO_BUILD', detail: fault, codeHash: null, buildCommit: null, solc: null, immutables: [] };
+  const provenance = seriesBuildProvenance(build, deployment.chainId);
+  if (!provenance.allowed) return { ...base, state: 'NO_BUILD', detail: provenance.detail, codeHash: null, buildCommit: null, solc: build.solc, immutables: [] };
   const code = await rpcCall<string>('eth_getCode', [deployment.address, 'latest'], opts);
-  if (code.state === 'UNREAD') return { ...base, state: 'UNREAD', detail: `${code.reason}${code.detail ? ` — ${code.detail}` : ''}`, codeHash: null, buildCommit: build.sourceCommit ?? build.commit, solc: build.solc, immutables: [] };
-  if (code.value === '0x' || code.value.length <= 2) return { ...base, state: 'MISMATCH', detail: 'no code at the address', codeHash: null, buildCommit: build.sourceCommit ?? build.commit, solc: build.solc, immutables: [] };
+  if (code.state === 'UNREAD') return { ...base, state: 'UNREAD', detail: `${code.reason}${code.detail ? ` — ${code.detail}` : ''}`, codeHash: null, buildCommit: provenance.sourceCommit, solc: build.solc, immutables: [] };
+  if (code.value === '0x' || code.value.length <= 2) return { ...base, state: 'MISMATCH', detail: 'no code at the address', codeHash: null, buildCommit: provenance.sourceCommit, solc: build.solc, immutables: [] };
   const codeHash = toHex(keccak256(Buffer.from(code.value.slice(2), 'hex')));
   const compared = compareCode(code.value, build, deployment);
-  return { ...base, state: compared.state, detail: compared.detail, codeHash, buildCommit: build.sourceCommit ?? build.commit, solc: build.solc, immutables: compared.immutables };
+  return { ...base, state: compared.state, detail: compared.detail ?? provenance.detail, codeHash, buildCommit: provenance.sourceCommit, solc: build.solc, immutables: compared.immutables };
+}
+
+/** Local bytes may be rehearsed without attributing them to a commit that never contained them. */
+export function seriesBuildProvenance(build: Pick<BuildRecord, 'sourceCommit' | 'workingTreeClean'>, chainId: number): { allowed: boolean; sourceCommit: string | null; detail: string | null } {
+  const recorded = build.workingTreeClean && typeof build.sourceCommit === 'string' && /^[0-9a-f]{40}$/.test(build.sourceCommit);
+  if (recorded) return { allowed: true, sourceCommit: build.sourceCommit, detail: null };
+  return chainId === 31337
+    ? { allowed: true, sourceCommit: null, detail: 'local rehearsal build; these bytes are not attributed to a committed source release' }
+    : { allowed: false, sourceCommit: null, detail: 'public series verification requires a build recorded from clean committed source; local rehearsal evidence is insufficient' };
 }
 
 export function codeSnapshot(v: CodeVerification): SnapshotRecord {

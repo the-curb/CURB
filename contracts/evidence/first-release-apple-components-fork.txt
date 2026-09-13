@@ -1,0 +1,50 @@
+No contracts to compile
+
+Running Solidity tests
+
+2026-09-13T08:29:44.420766Z  WARN ThreadId(15) C:\Users\runneradmin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\foundry-fork-db-0.27.0\src\cache.rs:409: Failed to read cache file err=Os { code: 2, kind: NotFound, message: "The system cannot find the file specified." } path="D:\\BARONG\\the-curb\\contracts\\cache\\edr\\mainnet\\25967321"
+  test/fork/AppleComponentsFork.t.sol:AppleComponentsForkTest
+fork block 25967321
+    ✔ test_Fork_Z_RecordEvidence()
+fork block 25967321
+raw AAPLx implementation slot 0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b
+wrapper v2 implementation slot 0x76C6851ea0B2741EeDcBBED240715E8817E85583
+    ✔ test_Fork_Observation_G_Authority()
+fork block 25967321
+wrapper raw reserve 10161550335118726589
+wrapper total supply 10128440336649414114
+    ✔ test_Fork_Observation_F07_WrapperSizeIsOnTheRecord()
+fork block 25967321
+raw balance stageable by this fixture false
+    ✔ test_Fork_Observation_F06_RawBalanceStorageStaging()
+fork block 25967321
+raw transfer moved true
+bob received 999999999999999999
+    ✔ test_Fork_Observation_F05_RawTransferAfterUnwrap()
+fork block 25967321
+unwrap ok true
+raw received 10032690125398187000
+quoted 10032690125398187000
+    ✔ test_Fork_Observation_F04_UnwrapForAStagedHolder()
+fork block 25967321
+    ✔ test_Fork_F03_ASeriesCanTakeTheWrapperInAndPayItOut()
+fork block 25967321
+    ✔ test_Fork_F02_AnArbitraryHolderCanTransferTheWrapper()
+fork block 25967321
+    ✔ test_Fork_F01_WrapperAnswersAsTheIssuerDocuments()
+fork block 25967321
+    ✔ test_Fork_B04_PreviousGasProbeDoesNotContaminateTransfers()
+fork block 25967321
+staged true
+both-real round trip true
+    ✔ test_Fork_B03_BothComponentsRealRoundTrip()
+fork block 25967321
+AAPLon balance stageable by storage true
+AAPLon moved for an arbitrary holder true
+    ✔ test_Fork_B02_AStagedHolderCanTransferAAPLon()
+fork block 25967321
+    ✔ test_Fork_B01_AAPLonAnswersAsTheIssuerPublishes()
+
+
+  13 passing
+

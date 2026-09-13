@@ -18,6 +18,8 @@ const dirty = execSync('git status --porcelain -- src test hardhat.config.ts', {
 
 const run = spawnSync('npx', ['hardhat', 'test', 'solidity', '--grep-exclude', 'Fork'], { encoding: 'utf8', shell: true });
 const out = `${run.stdout}\n${run.stderr}`;
+// Keep the raw evidence from this same execution available to a release log.
+process.stdout.write(out);
 const tests = [...out.matchAll(/^\s+(✔|✖|\d+\))\s+((?:test|invariant)[A-Za-z0-9_]*\([^)]*\))(?:\s+\(runs:\s*(\d+)\))?/gm)].map((m) => ({
   name: m[2],
   passed: m[1] === '✔',
@@ -37,7 +39,7 @@ const record = {
   passing,
   failing,
   tests,
-  limit: 'a passing run is not a review and not an audit; it says these cases held at this commit with this seed',
+  limit: `a passing run is not a review and not an audit; it says these cases held ${dirty ? 'in the modified contract working tree based on this commit' : 'at this commit'} with this seed`,
 };
 writeFileSync(new URL('../evidence/unit-tests.json', import.meta.url), `${JSON.stringify(record, null, 2)}\n`);
 console.error(`recorded ${passing} passing, ${failing} failing at ${commit.slice(0, 10)} (seed ${seed?.slice(0, 10)}…, ${runs} runs)`);

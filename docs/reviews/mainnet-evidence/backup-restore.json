@@ -1,0 +1,30 @@
+{
+  "at": "2026-09-13T10:36:53.579Z",
+  "environment": "PostgreSQL16.15 loopback54391, synthetic local credits; not a production backup",
+  "source": {
+    "heartbeats": 0,
+    "publications": 0,
+    "blocks": 0,
+    "observations": 2,
+    "narrations": 0,
+    "snapshots": 8
+  },
+  "firstRestore": {
+    "heartbeats": 0,
+    "publications": 0,
+    "blocks": 0,
+    "observations": 2,
+    "narrations": 0,
+    "snapshots": 8
+  },
+  "secondRestore": {
+    "heartbeats": 0,
+    "publications": 0,
+    "blocks": 0,
+    "observations": 2,
+    "narrations": 0,
+    "snapshots": 8
+  },
+  "snapshotDifferences": 0,
+  "passed": true
+}

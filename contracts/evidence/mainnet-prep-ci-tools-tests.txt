@@ -1,0 +1,29 @@
+▶ two-step operator calldata
+  ✔ distinguishes nomination from acceptance and cancellation with the correct sender (2169.7344ms)
+  ✔ refuses a zero nominee and trailing arguments that could mislead a signer (2387.1936ms)
+✔ two-step operator calldata (4558.363ms)
+▶ public series operator Safe preflight
+  ✔ requires explicit reviewed chain, unique owners, quorum and runtime identity before reading a node (1.8935ms)
+  ✔ verifies the same block, owner set regardless of order, quorum, proxy and singleton (4.1782ms)
+  ✔ refuses an EOA, wrong chain, duplicate or different owners and quorum mismatch (3.2569ms)
+  ✔ refuses an altered proxy, a different singleton and changed singleton code even if owners match (2.0985ms)
+✔ public series operator Safe preflight (12.9822ms)
+▶ local rehearsal endpoints
+  ✔ accepts only uncredentialed loopback URLs before any network or transaction (1.1251ms)
+✔ local rehearsal endpoints (1.4408ms)
+▶ series deployment source provenance
+  ✔ refuses a clean-looking build from an older source/compiler commit (1.7066ms)
+✔ series deployment source provenance (2.8587ms)
+▶ series deployment journal
+  ✔ writes the nonce and intended address before send and the hash before receipt polling (15.7385ms)
+  ✔ retains uncertain send intent and forbids another send using the same deployment record (4.6983ms)
+  ✔ retains the known hash if receipt polling fails (6.8794ms)
+✔ series deployment journal (27.7754ms)
+ℹ tests 11
+ℹ suites 5
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4766.3206

@@ -1,0 +1,330 @@
+{
+  "ranAt": "2026-09-12T08:37:21.128Z",
+  "chain": {
+    "profile": "hardhat-local",
+    "chainId": 31337,
+    "note": "a Hardhat node on one machine with mock components; not a public chain"
+  },
+  "by": "contracts/scripts/drill.ts (the chain half) and tests/positions-drill.test.ts (the site half), run by hand",
+  "chainRanAt": "2026-09-12T08:36:58.745Z",
+  "series": {
+    "chainId": 31337,
+    "address": "0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1",
+    "components": {
+      "A": "0xc6e7df5e7b4f2a278906862b61205850344d4e7d",
+      "B": "0x59b670e9fa9d0a427751af201d676719a970857b"
+    },
+    "fromBlock": 40,
+    "q": {
+      "A": "10000000000000000000",
+      "B": "20000000000000000000"
+    },
+    "capLots": "1000"
+  },
+  "holders": {
+    "alice": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "bob": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+    "carol": "0x90f79bf6eb2c4f870365e785982e1f101e93b906"
+  },
+  "chainSteps": [
+    {
+      "scenario": "setup",
+      "who": "alice",
+      "did": "mints 40 lots",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xafedfcca6ab4f76647bf253e41fec40cb44ae5845d31e4658e29df9e7f9672a4",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "bob",
+      "did": "mints 30 lots",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x10d663f86046d906beef3c4103e16e0355205ae3d76cacb4880120b1a56999f7",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "alice",
+      "did": "allocates 10 lots for exit",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x7ea129473a58379f952c2612abd9c75e438c766513cf6ab504c21c6fe531a917",
+      "revert": null
+    },
+    {
+      "scenario": "setup",
+      "who": "bob",
+      "did": "allocates 10 lots for exit",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x2de8aa828ab8cffe204706531ebf7ae4c5dd6f266173db840c4c01c4a803674c",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "the issuer of A (mock)",
+      "did": "halts every transfer of A",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xbfc226fc4ba69bde62897dd217e44bcef72f8661ebf3ca2f838112e6d4118d1f",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her A (100 units reserved)",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "TransferFailed(0)"
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her B (200 units reserved)",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x0794d3813c453361d59433726be028284641b39f02ec04aa6ba2b64eb27a9b4c",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "carol",
+      "did": "tries to mint 5 lots while A is frozen",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "TransferFailed(0)"
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "the issuer of A (mock)",
+      "did": "resumes transfers of A",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x992cc90123122a8fdb4247fa907d1e8644cc19cf96e0008bcb6b773451390d09",
+      "revert": null
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "who": "alice",
+      "did": "claims her A after the resume",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x3206eb05f192399d17539e30d8e7b50baf13864591be21a0f58d16f9ff493cde",
+      "revert": null
+    },
+    {
+      "scenario": "3 backend down",
+      "who": "bob",
+      "did": "claims his B with no backend involved",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xb3a8442ee9f97715c51c230896538d7bd4277c143300ae51cb0bb62a8cefc925",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "the operator (single key)",
+      "did": "hands the operator role to a 2-of-3 multisig",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x3f2e4c877be32d011be1673d76eb698e220362afe111d931c7dedf244f52353c",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "the former operator",
+      "did": "tries to stop minting alone after the handover",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "NotOperator()"
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "signer 1",
+      "did": "proposes a stop of minting (1 of 2 confirmations)",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x5b829127bdc7b9515572486e6cc4cfa9f4cd5fe669c52e0d9413d0c0740664c6",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "carol",
+      "did": "mints 1 lot while the stop is still one signature short",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xc5a6a4561ca39208ab8b2638cc9851607a92e0d77131b044bd7a78114a1e138f",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "signer 2",
+      "did": "confirms the stop (2 of 2): the multisig executes it",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0xd104f1dcd1861fe73cde747479836164e42859d707ae1bbd49d7e4eef4b2c9d9",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "carol",
+      "did": "tries to mint 1 lot while minting is stopped",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "MintPaused()"
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "signer 3",
+      "did": "proposes the resume (1 of 2)",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x5927616feb13a19a99cb708f96b9bdbc2122fc11a7989abad75982fb660b4ecb",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "carol",
+      "did": "tries to mint 1 lot while the resume is one signature short",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "MintPaused()"
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "signer 1",
+      "did": "confirms the resume (2 of 2)",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x7a83430b9b3fe24540a91ab4f38dced020e05b4ad4114458c20a2164077fe183",
+      "revert": null
+    },
+    {
+      "scenario": "6 operator quorum",
+      "who": "carol",
+      "did": "mints 1 lot after the resume",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x4e53776318a18ee00180adaae409cd1f942fae173b1e6e3473271620f6956264",
+      "revert": null
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "the issuer of A (mock)",
+      "did": "seizes 50000000000000000000 base units of A from the series",
+      "expected": "the transaction succeeds",
+      "outcome": "AS_EXPECTED",
+      "tx": "0x04b8372b25b356711c1c64d25cc8c1f7f6831ce1003dbc217f81845d5b449864",
+      "revert": null
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "bob",
+      "did": "claims his A while the series is short of A",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "ShortfallHaltsPayment(0)"
+    },
+    {
+      "scenario": "2 series short of A",
+      "who": "carol",
+      "did": "mints 5 lots while the series is short of A",
+      "expected": "the transaction reverts",
+      "outcome": "AS_EXPECTED",
+      "tx": null,
+      "revert": "BackingShort(0)"
+    }
+  ],
+  "siteFindings": [
+    {
+      "scenario": "3 backend down",
+      "finding": "a holder claimed B with no site involved — the permit is on chain — and the index, started afterwards, caught the claim up",
+      "evidence": {
+        "transactionHash": "0xb3a8442ee9f97715c51c230896538d7bd4277c143300ae51cb0bb62a8cefc925",
+        "blockNumber": 69,
+        "eventsIndexed": 11
+      }
+    },
+    {
+      "scenario": "2 series short of A",
+      "finding": "the reconciliation found A SHORTFALL by exactly what was seized and B MATCHED; the condition is DARK on A alone; on chain, claims of A halt and claims of B pay",
+      "evidence": {
+        "owedA": "620000000000000000000",
+        "heldA": "570000000000000000000",
+        "differenceA": "-50000000000000000000",
+        "findingB": "MATCHED",
+        "asOfBlock": 78,
+        "condition": "series apple-s1 holds 570000000000000000000 units of A against 620000000000000000000 owed — payment of that component is halted until resolved"
+      }
+    },
+    {
+      "scenario": "6 operator quorum",
+      "finding": "the operator role was handed to a 2-of-3 multisig; the former single key could no longer stop minting; one signer’s proposal did not stop it and a second confirmation did; the resume needed two again; the index recorded both with their reasons",
+      "evidence": {
+        "multisig": {
+          "address": "0xf5059a5d33d5853360d16c683c16e67980206f36",
+          "signers": [
+            "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+            "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+            "0x976ea74026e726554db657fa54763abd0c3a0aa9"
+          ],
+          "threshold": 2
+        },
+        "steps": {
+          "the operator (single key): hands the operator role to a 2-of-3 multisig": "0x3f2e4c877be32d011be1673d76eb698e220362afe111d931c7dedf244f52353c",
+          "the former operator: tries to stop minting alone after the handover": "reverted NotOperator()",
+          "signer 1: proposes a stop of minting (1 of 2 confirmations)": "0x5b829127bdc7b9515572486e6cc4cfa9f4cd5fe669c52e0d9413d0c0740664c6",
+          "carol: mints 1 lot while the stop is still one signature short": "0xc5a6a4561ca39208ab8b2638cc9851607a92e0d77131b044bd7a78114a1e138f",
+          "signer 2: confirms the stop (2 of 2): the multisig executes it": "0xd104f1dcd1861fe73cde747479836164e42859d707ae1bbd49d7e4eef4b2c9d9",
+          "carol: tries to mint 1 lot while minting is stopped": "reverted MintPaused()",
+          "signer 3: proposes the resume (1 of 2)": "0x5927616feb13a19a99cb708f96b9bdbc2122fc11a7989abad75982fb660b4ecb",
+          "carol: tries to mint 1 lot while the resume is one signature short": "reverted MintPaused()",
+          "signer 1: confirms the resume (2 of 2)": "0x7a83430b9b3fe24540a91ab4f38dced020e05b4ad4114458c20a2164077fe183",
+          "carol: mints 1 lot after the resume": "0x4e53776318a18ee00180adaae409cd1f942fae173b1e6e3473271620f6956264"
+        }
+      }
+    },
+    {
+      "scenario": "1 issuer freezes A",
+      "finding": "while A was frozen a claim of A reverted and a claim of B paid; minting was refused; after the resume the A claim paid",
+      "evidence": {
+        "halts every transfer of A": "0xbfc226fc4ba69bde62897dd217e44bcef72f8661ebf3ca2f838112e6d4118d1f",
+        "claims her A (100 units reserved)": "reverted TransferFailed(0)",
+        "claims her B (200 units reserved)": "0x0794d3813c453361d59433726be028284641b39f02ec04aa6ba2b64eb27a9b4c",
+        "tries to mint 5 lots while A is frozen": "reverted TransferFailed(0)",
+        "resumes transfers of A": "0x992cc90123122a8fdb4247fa907d1e8644cc19cf96e0008bcb6b773451390d09",
+        "claims her A after the resume": "0x3206eb05f192399d17539e30d8e7b50baf13864591be21a0f58d16f9ff493cde"
+      }
+    },
+    {
+      "scenario": "4 RPC fails",
+      "finding": "with the node unreachable the index reported HEAD_UNREAD and kept its cursor and events; the reconciliation reported UNKNOWN for both components (STALE conditions), not a shortfall; when the node answered again the index continued from the same cursor with nothing to re-read",
+      "evidence": {
+        "detail": "SOURCE_UNREACHABLE — fetch failed",
+        "cursor": 78,
+        "unknownReasonA": "SOURCE_UNREACHABLE — fetch failed"
+      }
+    },
+    {
+      "scenario": "5 source lost",
+      "finding": "an issuer record that stops answering is a STALE condition naming the source; the last archived record stays on file and nothing is inferred from an example instead",
+      "evidence": {
+        "condition": "the issuer record xstocks:AAPLx could not be read as before (unreachable — fetch failed)"
+      }
+    }
+  ],
+  "limits": [
+    "the issuer of A is a mock whose freeze and seizure are switches; a real issuer’s actions have their own rules and timing",
+    "no person was paged: the conditions here are computed, not delivered; delivery is the webhook’s job and was proven separately",
+    "nothing here is a recovery: what was seized stays seized, and no rights were moved"
+  ]
+}

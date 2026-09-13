@@ -1,0 +1,11 @@
+▶ the index and the reconciliation, rehearsed on a local chain
+  ✔ replays the worked example from the chain and finds every component matched (340.5021ms)
+✔ the index and the reconciliation, rehearsed on a local chain (341.5506ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 592.9439

@@ -176,8 +176,8 @@ export const AGENTS: readonly AgentSpec[] = [
     id: 'tally',
     name: 'THE TALLY',
     district: 'THE VAULT',
-    role: 'On-chain flow & concentration',
-    line: 'Everyone shows you the price. I show you who is holding it.',
+    role: 'Sampled on-chain transfers',
+    line: 'Transfers, senders and receivers over a stated block sample.',
     posture: 'MEASURES',
     // Hourly, because each run is a rate sample of about a minute of chain
     // time; a series of samples is what shows the day. Sources: each settlement
@@ -186,10 +186,10 @@ export const AGENTS: readonly AgentSpec[] = [
     sourcesExpected: 3,
     minimumSources: 1,
     refusal:
-      'Reports holder distribution, transfers and depth as measured. Never says a concentration figure is good or bad.',
+      'Reports transfer counts and distinct addresses within the stated sample. Does not measure holder concentration, market depth or total hourly flow.',
     reads: [
       'Transfer logs for the settlement assets and every stock token, over a sample of about a minute of chain time — a rate, never a total',
-      'Transfers against distinct sending and receiving addresses — the pair that separates distribution from churn',
+      'Transfers beside distinct sending and receiving addresses within the sample; addresses do not identify individual holders',
       'Units entering and leaving supply through the zero address',
     ],
   },

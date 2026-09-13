@@ -25,11 +25,17 @@
  *   DEPLOYER_PRIVATE_KEY=… node scripts/deploy-series.ts records/apple-s1.json [--reviewed]
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, getContractAddress, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { parseArgs } from './lib/args.ts';
+import { safeAbi } from './lib/safe.ts';
+import { validateOperatorSafeExpectation, verifyOperatorSafe, type OperatorSafeExpectation } from './lib/operator-safe.ts';
+import { assertLoopbackRpc } from './lib/local-chain.ts';
+import { assertRecordedSourceCommit, buildCurrentContracts, currentSourceCommit } from './lib/build-provenance.mjs';
+import { journaledDeployment } from './lib/journaled-deployment.mjs';
 
 interface DeploymentRecord {
   readonly seriesId: string;
@@ -41,6 +47,8 @@ interface DeploymentRecord {
   readonly q: { readonly A: string; readonly B: string };
   readonly capLots: string;
   readonly operator: Address;
+  /** Mandatory on public chains. These explicit reviewed expectations are checked at one block. */
+  readonly operatorSafe?: OperatorSafeExpectation;
   readonly name: string;
   readonly symbol: string;
   /** Who reviewed this record and when; empty means it was not reviewed and it will not be sent. */
@@ -48,10 +56,10 @@ interface DeploymentRecord {
   readonly reviewedAt: string;
 }
 
-const fail = (why: string): never => {
+function fail(why: string): never {
   console.error(`refused: ${why}`);
   process.exit(1);
-};
+}
 // Strict: a misspelt --dry-run is a refusal, never a real deployment.
 const { positionals, flags } = parseArgs(process.argv.slice(2), [], fail, ['dry-run', 'reviewed']);
 const file = positionals[0];
@@ -69,15 +77,22 @@ const isAddress = (v: unknown): v is Address => typeof v === 'string' && /^0x[0-
 if (!record.seriesId || !Number.isInteger(record.chainId) || !record.rpcUrl) fail('the record needs seriesId, chainId and rpcUrl');
 if (!isAddress(record.components?.A) || !isAddress(record.components?.B)) fail('the record needs two component addresses');
 if (record.components.A.toLowerCase() === record.components.B.toLowerCase()) fail('the two components are the same address');
-if (!isAddress(record.operator)) fail('the record needs an operator address (the multisig)');
+if (!isAddress(record.operator) || /^0x0{40}$/i.test(record.operator)) fail('the record needs a nonzero operator address (the multisig)');
 if (!/^[1-9][0-9]*$/.test(record.q?.A ?? '') || !/^[1-9][0-9]*$/.test(record.q?.B ?? '') || !/^[1-9][0-9]*$/.test(record.capLots ?? '')) fail('q.A, q.B and capLots must be positive integers as strings');
 if (!record.reviewedBy || !record.reviewedAt) fail('the record names nobody who reviewed it; a deployment record is reviewed or it is not sent');
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
+if (record.chainId !== 31337 || record.operatorSafe !== undefined) {
+  try { validateOperatorSafeExpectation(record.operatorSafe, record.chainId); } catch (cause) { fail(cause instanceof Error ? cause.message : 'operator Safe expectation is invalid'); }
+}
+const uint256Max = (1n << 256n) - 1n;
+if (BigInt(record.q.A) * BigInt(record.capLots) > uint256Max || BigInt(record.q.B) * BigInt(record.capLots) > uint256Max) fail('capLots multiplied by each component amount must fit uint256');
+if (!record.name?.trim() || !record.symbol?.trim()) fail('the receipt name and symbol are required');
 
 /** The operator's own endpoint for the chain, from the environment like every other tool (lib/chain/networks.ts); the record keeps naming the public one, and a keyed URL is never printed. */
 const RPC_ENV: Record<number, string> = { 4663: 'CURB_RPC_URL', 46630: 'CURB_RPC_URL_TESTNET', 1: 'CURB_RPC_URL_ETHEREUM', 11155111: 'CURB_RPC_URL_SEPOLIA', 31337: 'CURB_RPC_URL_LOCAL' };
 const rpcUrl = (RPC_ENV[record.chainId] !== undefined && process.env[RPC_ENV[record.chainId]!]) || record.rpcUrl;
+if (record.chainId === 31337) assertLoopbackRpc(rpcUrl);
 console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ' (from the environment)'}`);
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
 const pub = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -86,6 +101,21 @@ const erc20 = parseAbi(['function symbol() view returns (string)', 'function dec
 // ── the chain ─────────────────────────────────────────────────────────────
 const chainId = await pub.getChainId();
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
+let operatorAsRead = null;
+if (record.operatorSafe !== undefined) {
+  try {
+    operatorAsRead = await verifyOperatorSafe(record.operator, record.operatorSafe, record.chainId, {
+      chainId: () => pub.getChainId(), blockNumber: () => pub.getBlockNumber(),
+      code: (address, blockNumber) => pub.getCode({ address, blockNumber }),
+      owners: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getOwners', blockNumber }),
+      threshold: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getThreshold', blockNumber }),
+      singleton: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'masterCopy', blockNumber }),
+    });
+  } catch (cause) { fail(cause instanceof Error ? cause.message : 'the operator Safe could not be verified'); }
+  console.error(`operator Safe: ${record.operator} · ${operatorAsRead.threshold}-of-${operatorAsRead.owners.length} · code and singleton match · block ${operatorAsRead.blockNumber}`);
+} else {
+  console.error('local rehearsal only: no public operator Safe verification was requested');
+}
 for (const id of ['A', 'B'] as const) {
   const address = record.components[id];
   const code = await pub.getCode({ address });
@@ -99,7 +129,23 @@ for (const id of ['A', 'B'] as const) {
   console.error(`component ${id}: ${address} · ${symbol} · ${decimals} decimals · code present`);
 }
 
-const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CompanySeries.sol/CompanySeries.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex };
+buildCurrentContracts();
+const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CompanySeries.sol/CompanySeries.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex; deployedBytecode: Hex };
+const build = JSON.parse(readFileSync(new URL('../evidence/CompanySeries.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; creationBytecode?: string; workingTreeClean: boolean; sourceCommit: string | null };
+if (build.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase() || build.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) fail('the compiled series does not match both creation and runtime bytecode in its build record; rebuild and record this source before deploying');
+if (record.chainId !== 31337) {
+  if (!build.workingTreeClean || !build.sourceCommit || !/^[0-9a-f]{40}$/i.test(build.sourceCommit)) fail('the build is not recorded from clean committed source; local rehearsal evidence cannot authorize a public deployment');
+  try { assertRecordedSourceCommit(build, currentSourceCommit()); } catch (cause) { fail(cause instanceof Error ? cause.message : 'the build source provenance is stale'); }
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const dirty = execFileSync('git', ['status', '--porcelain', '--', '../src', '../hardhat.config.ts', '../evidence/CompanySeries.build.json', './deploy-series.ts', './lib', '../../lib/chain/keccak.ts'], { cwd: here, encoding: 'utf8' }).trim();
+  if (dirty) fail('contract source, compiler settings, build record or deployment tooling has uncommitted changes; pin and review the release before public deployment');
+}
+const out = new URL(`../evidence/deployments/${record.seriesId}.${record.chainId}.json`, import.meta.url);
+if (!/^[a-z0-9][a-z0-9-]*$/.test(record.seriesId)) fail('seriesId must contain only lowercase letters, digits and hyphens');
+if (existsSync(out)) {
+  if (!dryRun) fail('a deployment record for this series and chain already exists; review it before any additional deployment');
+  console.error('note: an existing deployment record would prevent a real deployment');
+}
 const ctor = [record.components.A, record.components.B, BigInt(record.q.A), BigInt(record.q.B), BigInt(record.capLots), record.operator, record.name, record.symbol] as const;
 console.error('constructor arguments:', JSON.stringify(ctor.map((x) => (typeof x === 'bigint' ? x.toString() : x))));
 
@@ -115,10 +161,16 @@ const account = privateKeyToAccount(key as Hex);
 const wallet = createWalletClient({ chain, transport: http(rpcUrl), account });
 console.error(`deployer ${account.address}`);
 
-const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never });
-console.error(`sent ${hash}; waiting for the receipt`);
-const receipt = await pub.waitForTransactionReceipt({ hash });
+const nonce = await pub.getTransactionCount({ address: account.address, blockTag: 'pending' });
+const expectedAddress = getContractAddress({ from: account.address, nonce: BigInt(nonce) });
+mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
+const { hash, receipt } = await journaledDeployment(out, { record, operatorAsRead, pending: { deployer: account.address, nonce, expectedAddress, preparedAt: new Date().toISOString() } }, async () => {
+  const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never, nonce });
+  console.error(`sent ${hash}; recording the hash before waiting for the receipt`);
+  return hash;
+}, (hash: Hex) => pub.waitForTransactionReceipt({ hash }));
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
+if (receipt.contractAddress.toLowerCase() !== expectedAddress.toLowerCase()) fail('the receipt address differs from the prepared deployer nonce; the pending journal is retained for investigation');
 const address = receipt.contractAddress!;
 const block = Number(receipt.blockNumber);
 console.error(`deployed ${record.seriesId} at ${address} in block ${block}`);
@@ -135,8 +187,7 @@ const env = {
   },
 };
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
-const out = new URL(`../evidence/deployments/${record.seriesId}.${record.chainId}.json`, import.meta.url);
-writeFileSync(out, `${JSON.stringify({ record, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor.map((x) => (typeof x === 'bigint' ? x.toString() : x)), env }, null, 2)}\n`);
+writeFileSync(out, `${JSON.stringify({ record, operatorAsRead, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor.map((x) => (typeof x === 'bigint' ? x.toString() : x)), env }, null, 2)}\n`);
 console.error(`written ${fileURLToPath(out)}`);
 // The only line on stdout: the env the site needs.
 console.log(JSON.stringify(env));

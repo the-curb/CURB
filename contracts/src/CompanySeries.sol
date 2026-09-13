@@ -58,6 +58,8 @@ contract CompanySeries {
     error ShortfallHaltsPayment(uint8 component);
     error ReceiptNotTransferable();
     error NotOperator();
+    error NotPendingOperator();
+    error NoPendingOperator();
     error Reentrancy();
 
     /* ── events — as the mechanism proposes them ─────────────────────────── */
@@ -69,6 +71,8 @@ contract CompanySeries {
     event MintPermitSet(address indexed holder, uint64 until);
     event ClaimPermitSet(address indexed holder, bool permitted);
     event OperatorChanged(address indexed previous, address indexed next);
+    event OperatorTransferProposed(address indexed current, address indexed proposed);
+    event OperatorTransferCancelled(address indexed current, address indexed cancelled);
     /// ERC-20 shape for wallets that display balances; the receipt still cannot be transferred.
     event Transfer(address indexed from, address indexed to, uint256 value);
 
@@ -93,6 +97,8 @@ contract CompanySeries {
 
     /* ── the operator, and what it may touch ─────────────────────────────── */
     address public operator;
+    /// A nomination grants no authority. The nominee must accept from its own address.
+    address public pendingOperator;
     bool public mintPaused;
     bool public claimPausedA;
     bool public claimPausedB;
@@ -303,10 +309,27 @@ contract CompanySeries {
         emit ClaimPermitSet(holder, permitted);
     }
 
+    /// Nominate or replace a successor; the current operator retains every power until acceptance.
     function transferOperator(address next) external onlyOperator {
         if (next == address(0)) revert ZeroAddress();
-        emit OperatorChanged(operator, next);
-        operator = next;
+        pendingOperator = next;
+        emit OperatorTransferProposed(operator, next);
+    }
+
+    function cancelOperatorTransfer() external onlyOperator {
+        address cancelled = pendingOperator;
+        if (cancelled == address(0)) revert NoPendingOperator();
+        pendingOperator = address(0);
+        emit OperatorTransferCancelled(operator, cancelled);
+    }
+
+    /// For a Safe nominee, acceptance must be executed by that Safe's quorum.
+    function acceptOperator() external {
+        if (msg.sender != pendingOperator || pendingOperator == address(0)) revert NotPendingOperator();
+        address previous = operator;
+        operator = msg.sender;
+        pendingOperator = address(0);
+        emit OperatorChanged(previous, msg.sender);
     }
 
     /* ── token calls, with their answers checked ─────────────────────────── */

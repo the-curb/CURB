@@ -7,9 +7,10 @@ token, a claim per component that never reads the other, on-chain mint and
 claim permits, per-operation and per-component stops, and nothing that
 sweeps, mints without a deposit, swaps a component, or transfers a receipt.
 
-**A design under test.** Unaudited. Undeployed. No address exists for it
-anywhere, and the site says NOT_DEPLOYED until a reviewed deployment record
-is configured. Passing tests are not a claim that it is safe.
+**A design under test.** Unaudited. Local deployments and fork rehearsals
+exist; no approved public CompanySeries deployment is established by their
+records. The site says NOT_DEPLOYED until a deployment record is configured.
+Passing tests do not replace independent review or a pilot gate decision.
 
 ## Run
 
@@ -32,9 +33,18 @@ false, a fee on transfer, a reentrant callback, a `balanceOf` that reverts.
 series from a reviewed deployment record — see `records/apple-s1.example.json`
 for the shape, and `docs/decisions/DEPLOYMENT.md` for the plan. It refuses
 an unreviewed record, a node on the wrong chain, components that do not
-answer as the record says, and a public chain without `--reviewed`; the key
+answer as the record says, a public operator that fails its reviewed
+`operatorSafe` expectation, and a public chain without `--reviewed`; the key
 comes from `DEPLOYER_PRIVATE_KEY` in the operator's shell and is never
 printed. Rehearsed on a local chain only.
+
+The public-chain Safe check reads one block and compares proxy runtime,
+singleton address/runtime, exact owners and quorum (at least two) with the
+reviewed record. The Robinhood treasury record does not establish an
+Ethereum series operator. The reviewer also examines Safe modules, guards,
+fallback configuration and actual signer control; a hash match alone is
+not full governance approval. See `docs/mainnet/PREPARATION.md` from the
+repository root for the review brief and evidence slots.
 
 ## The multisig, planned (O01)
 
@@ -74,9 +84,16 @@ what was read. Rehearsed on the local mock and, read-only, on USDG.
 
 ## The operator's bytes (O01)
 
-`node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator> …`
+`node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator|accept-operator|cancel-operator-transfer> …`
 prints `to` and `data` for one operator action, for the multisig to sign;
 a stop or a resume without a reason is refused.
+
+Operator rotation is two-step in the mainnet preparation source:
+`transferOperator(next)` nominates without removing current authority;
+only the nominee calls `acceptOperator()` to take the role. The current
+operator can replace a nomination or call `cancelOperatorTransfer()`.
+Safe-to-Safe rotation therefore requires transactions executed by both
+quorums. Local implementation is not an audited or deployed release.
 
 ## The operator's Safe
 
@@ -97,6 +114,12 @@ immutables sit in it, the compiler version and the commit to
 compares a deployed contract with its build on every tick: equal outside
 the immutable slots, and the slots holding the reviewed record's values.
 The rehearsal tests do the same against the local deployments.
+
+The mainnet preparation recorder also records creation bytecode and accepts
+`--contract CompanySeries` to update that contract without changing the
+CreditDesk record. The public series deployment tool compares creation and
+runtime bytecode against the clean recorded source and refuses dirty
+deployment-tooling paths. `--allow-dirty` is for local rehearsals only.
 
 A record is written from a clean `src/` and `hardhat.config.ts` only, and
 names `sourceCommit` — the last commit that changed them — as the commit
@@ -257,6 +280,13 @@ multiplier, the wrapper's shares, the wrapper's raw balance and its
 conversion rate. It writes `evidence/apple-s1.corporate-action.json`. Two
 pinned forks need an endpoint that serves archive state; the public
 `https://eth.drpc.org` did.
+
+The 13 September mainnet-preparation rerun passed 14 fork tests: 13 component
+tests at block 25,967,875 and this one historical dividend test across
+25,706,679/25,706,680. Raw output is
+`evidence/mainnet-prep-apple-components-fork.txt`. A split, future corporate
+actions, holder eligibility and eligible acquisition/issuance remain
+unproven. These tests sent no public transaction.
 
 ## What the tests cover, in the blueprint's numbering
 

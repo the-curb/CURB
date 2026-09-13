@@ -19,15 +19,19 @@
  * `--allow-dirty` writes one anyway, with `sourceCommit` null, for a local
  * rehearsal, and the checks refuse such a record.
  *
- *   npm run build && node scripts/record-build.mjs [--allow-dirty]
+ *   npm run build && node scripts/record-build.mjs [--allow-dirty] [--contract CompanySeries|CreditDesk]
  */
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { buildCurrentContracts } from './lib/build-provenance.mjs';
 
 // Everything is resolved from this file, the git checks included: the record must not depend on where the script was run from.
 const here = fileURLToPath(new URL('.', import.meta.url));
-const allowDirty = process.argv.includes('--allow-dirty');
+const { values } = parseArgs({ options: { 'allow-dirty': { type: 'boolean', default: false }, contract: { type: 'string' } }, allowPositionals: false });
+const allowDirty = values['allow-dirty'];
+if (values.contract !== undefined && !['CompanySeries', 'CreditDesk'].includes(values.contract)) throw new Error('--contract must be CompanySeries or CreditDesk');
 
 const config = readFileSync(new URL('../hardhat.config.ts', import.meta.url), 'utf8');
 const solc = /version:\s*"([0-9.]+)"/.exec(config)?.[1] ?? null;
@@ -42,6 +46,8 @@ if (dirty && !allowDirty) {
   console.error('refused: contracts/src or hardhat.config.ts has uncommitted changes; a record names the commit that compiles to its bytes, so commit first (or --allow-dirty for a local rehearsal, which the checks refuse)');
   process.exit(1);
 }
+// A clean git tree is insufficient if the artifact was built before its last source/config change.
+buildCurrentContracts();
 
 const CONTRACTS = [
   { artifact: '../artifacts/src/CompanySeries.sol/CompanySeries.json', source: '../src/CompanySeries.sol', names: ['componentA', 'componentB', 'qA', 'qB', 'capLots'], out: '../evidence/CompanySeries.build.json' },
@@ -66,6 +72,7 @@ function immutableNames(buildInfoId, inputSourceName) {
 }
 
 for (const c of CONTRACTS) {
+  if (values.contract !== undefined && !c.source.endsWith(`/${values.contract}.sol`)) continue;
   const artifact = JSON.parse(readFileSync(new URL(c.artifact, import.meta.url), 'utf8'));
   const byId = immutableNames(artifact.buildInfoId, artifact.inputSourceName);
   const refs = Object.entries(artifact.immutableReferences).sort(([a], [b]) => Number(a) - Number(b));
@@ -89,6 +96,7 @@ for (const c of CONTRACTS) {
     workingTreeClean: !dirty,
     recordedAt: new Date().toISOString(),
     deployedBytecode: artifact.deployedBytecode,
+    creationBytecode: artifact.bytecode,
     immutables,
     note: 'runtime bytecode as compiled; a deployment matches when its code equals this outside the immutable slots and the slots hold the reviewed record’s values',
   };

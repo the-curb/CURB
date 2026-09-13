@@ -1,0 +1,62 @@
+{
+  "at": "2026-09-13T10:49:39.717Z",
+  "environment": "Production Next server loopback3113; PostgreSQL16.15 loopback54391; mock contracts Hardhat31337 loopback9546. No public payment or external webhook.",
+  "checks": [
+    {
+      "name": "actual indexed local top-up opens account",
+      "passed": true
+    },
+    {
+      "name": "paid HTTP without key refuses401",
+      "passed": true
+    },
+    {
+      "name": "invalid request refuses400 before charging",
+      "passed": true
+    },
+    {
+      "name": "refusals do not debit",
+      "passed": true
+    },
+    {
+      "name": "paid HTTP journal answers200",
+      "passed": true
+    },
+    {
+      "name": "success headers report5cent charge",
+      "passed": true
+    },
+    {
+      "name": "Postgres ledger records exact debit",
+      "passed": true
+    },
+    {
+      "name": "key holder can inspect own receipt",
+      "passed": true
+    },
+    {
+      "name": "public hash hides charge references",
+      "passed": true
+    },
+    {
+      "name": "two concurrent funded HTTP requests succeed",
+      "passed": true
+    },
+    {
+      "name": "two concurrent requests debit exactly10more cents",
+      "passed": true
+    },
+    {
+      "name": "new key API returns bound payment readiness",
+      "passed": true
+    },
+    {
+      "name": "unfunded key refuses402",
+      "passed": true
+    },
+    {
+      "name": "live local code and rate produce a quote",
+      "passed": true
+    }
+  ]
+}

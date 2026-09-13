@@ -11,6 +11,15 @@
   "q": { "A": "10000000000000000000", "B": "20000000000000000000" },
   "capLots": "1000",
   "operator": "0x0000000000000000000000000000000000000000",
+  "operatorSafe": {
+    "chainId": 1,
+    "owners": [],
+    "threshold": 2,
+    "runtimeCodeHash": "",
+    "singleton": { "address": "", "runtimeCodeHash": "" },
+    "reviewedBy": "",
+    "reviewedAt": ""
+  },
   "name": "Apple Position - Series 1",
   "symbol": "cAAPL-S1",
   "reviewedBy": "",

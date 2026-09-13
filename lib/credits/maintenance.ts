@@ -22,6 +22,13 @@ import { checkPoolCreation, readRate, type Rate } from './rate.ts';
 import { fanOut, type FanOutReport } from './subscriptions.ts';
 
 export const RATE_KEY = 'credits:rate';
+/** A price history belongs to one chain and pricing source, independent of desk redeployments. */
+export function creditRateHistoryKey(config: CreditsConfig): string | null {
+  const pool = config.priceSource;
+  if (pool === null) return null;
+  const quote = pool.quote.kind === 'chainlink-feed' ? `${pool.quote.kind}:${pool.quote.feed.toLowerCase()}` : pool.quote.kind;
+  return `credits:rate:usd-per-curb:${config.network.chainId}:${config.token.toLowerCase()}:${pool.kind}:${pool.pair.toLowerCase()}:${quote}`;
+}
 /** The pool-creation check's result, kept per pool and fromBlock so it is made once. */
 export const POOL_KEY = 'credits:pool';
 
@@ -62,7 +69,8 @@ async function poolCheck(store: Store, config: CreditsConfig, opts: RpcOptions, 
 export const RUN_KEY = 'credits:run';
 
 export type RateSnapshot =
-  | { readonly state: 'READ'; readonly rate: Rate; readonly at: string }
+  // Older stored rows lack chainId; they remain inspectable but cannot authorize a current quote.
+  | { readonly state: 'READ'; readonly chainId?: number; readonly rate: Rate; readonly at: string }
   | { readonly state: 'UNREAD'; readonly reason: string; readonly detail: string | null; readonly at: string; readonly block: number | null };
 
 export interface CreditsRun {
@@ -115,15 +123,16 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
       rate = { state: 'UNREAD', reason: 'FIELD_ABSENT', detail: 'no pool is recorded for the token; nothing is quoted until one is', at: now.toISOString(), block: head.value.number };
     } else {
       const r = await readRate(config, head.value.number, opts, now);
-      rate = isRead(r) ? { state: 'READ', rate: r.value, at: now.toISOString() } : { state: 'UNREAD', reason: r.reason, detail: r.detail ?? null, at: now.toISOString(), block: head.value.number };
+      rate = isRead(r) ? { state: 'READ', chainId: config.network.chainId, rate: r.value, at: now.toISOString() } : { state: 'UNREAD', reason: r.reason, detail: r.detail ?? null, at: now.toISOString(), block: head.value.number };
     }
     const code = await verifyDeskCode(config, opts, now);
     const records: SnapshotRecord[] = [{ key: RATE_KEY, observedAt: now.toISOString(), payload: { ...rate } }, deskCodeSnapshot(code)];
     await store.writeSnapshots(records);
-    if (rate.state === 'READ') {
+    const historyKey = creditRateHistoryKey(config);
+    if (rate.state === 'READ' && historyKey !== null) {
       await store.writeObservations([
-        { key: 'credits:rate:usd-per-curb', observedAt: now.toISOString(), value: Number(BigInt(rate.rate.usdPerCurb18)) / 1e18, raw: rate.rate.usdPerCurb18, decimals: 18, source: rate.rate.source },
-        { key: 'credits:rate:market-cap-usd', observedAt: now.toISOString(), value: Number(BigInt(rate.rate.marketCapUsd18)) / 1e18, raw: rate.rate.marketCapUsd18, decimals: 18, source: rate.rate.source },
+        { key: historyKey, observedAt: now.toISOString(), value: Number(BigInt(rate.rate.usdPerCurb18)) / 1e18, raw: rate.rate.usdPerCurb18, decimals: 18, source: rate.rate.source },
+        { key: historyKey.replace('credits:rate:usd-per-curb:', 'credits:rate:market-cap-usd:'), observedAt: now.toISOString(), value: Number(BigInt(rate.rate.marketCapUsd18)) / 1e18, raw: rate.rate.marketCapUsd18, decimals: 18, source: rate.rate.source },
       ]);
     }
 
@@ -192,6 +201,12 @@ export async function latestRate(store: Store, config: CreditsConfig | null = nu
   // A READ row written by an earlier build lacks what this build states (the guard, the basis): it is not quoted from; the next tick writes a current one.
   if (snapshot.state === 'READ' && (typeof snapshot.rate?.guard !== 'object' || snapshot.rate.guard === null || typeof snapshot.rate.basis !== 'string' || typeof snapshot.rate.usdPerCurb18 !== 'string')) {
     return { rate: { state: 'UNREAD', reason: 'RATE_ROW_OLD', detail: 'the last rate was written by an earlier build of the reader and lacks fields this one states; nothing is quoted from it until the next tick reads again', at: snapshot.at, block: typeof snapshot.rate?.block === 'number' ? snapshot.rate.block : null }, storeFault: null };
+  }
+  // Keep the stored row intact, but never label an unscoped or other-chain
+  // observation with the network now configured by the page or API.
+  if (snapshot.state === 'READ' && config !== null && snapshot.chainId !== config.network.chainId) {
+    const unscoped = snapshot.chainId === undefined;
+    return { rate: { state: 'UNREAD', reason: unscoped ? 'RATE_ROW_UNSCOPED' : 'RATE_ROW_OTHER_CHAIN', detail: unscoped ? 'the stored rate has no chain provenance; a new tick must read the configured chain before this rate can be shown or quoted' : `the stored rate identifies chain ${snapshot.chainId}, not configured chain ${config.network.chainId}; a new tick must read the configured chain`, at: snapshot.at, block: typeof snapshot.rate.block === 'number' ? snapshot.rate.block : null }, storeFault: null };
   }
   // A rate read from another pool (the configuration changed since) is not this pool's rate.
   if (snapshot.state === 'READ' && config !== null && (config.priceSource === null || snapshot.rate.pool?.address?.toLowerCase() !== config.priceSource.pair.toLowerCase())) {

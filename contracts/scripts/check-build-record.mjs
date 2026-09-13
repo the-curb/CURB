@@ -13,6 +13,9 @@
  *   npm run build && node scripts/check-build-record.mjs
  */
 import { readFileSync } from 'node:fs';
+import { assertRecordedSourceCommit, buildCurrentContracts, currentSourceCommit } from './lib/build-provenance.mjs';
+
+buildCurrentContracts();
 
 const CONTRACTS = [
   { artifact: '../artifacts/src/CompanySeries.sol/CompanySeries.json', record: '../evidence/CompanySeries.build.json', names: ['componentA', 'componentB', 'qA', 'qB', 'capLots'] },
@@ -35,6 +38,10 @@ for (const c of CONTRACTS) {
     refuse(artifact.contractName, `the committed record (commit ${String(record.commit).slice(0, 10)}) is NOT this source's bytecode: lengths ${(now.length - 2) / 2} vs ${(then.length - 2) / 2} bytes, first difference at byte ${Math.floor((at - 2) / 2)}`);
     continue;
   }
+  if ((artifact.contractName === 'CompanySeries' || record.creationBytecode !== undefined) && record.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) {
+    refuse(artifact.contractName, 'the recorded creation bytecode differs from the compiled artifact or is missing');
+    continue;
+  }
   // The slots, by the names the site reads: the artifact's references keyed by AST id must map, in order, to the record's named slots.
   const slotsNow = Object.entries(artifact.immutableReferences)
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -54,6 +61,8 @@ for (const c of CONTRACTS) {
     refuse(artifact.contractName, 'the record was written from a dirty tree or names no source commit');
     continue;
   }
+  try { assertRecordedSourceCommit(record, currentSourceCommit(`../src/${artifact.contractName}.sol`)); }
+  catch (cause) { refuse(artifact.contractName, cause.message); continue; }
   console.error(`${artifact.contractName}: the committed record (source at ${record.sourceCommit.slice(0, 10)}, recorded at ${String(record.commit).slice(0, 10)}) is this source's bytecode, slots ${c.names.join(', ')}`);
 }
 process.exit(failed ? 1 : 0);

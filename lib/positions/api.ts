@@ -45,17 +45,19 @@ export interface DeploymentView {
   readonly chainId: number | null;
   readonly address: string | null;
   readonly explorer: string | null;
+  readonly components: { readonly A: string; readonly B: string } | null;
 }
 
 export function deploymentView(seriesId: string): DeploymentView {
   const status = deploymentOf(seriesId);
-  if (status.state !== 'CONFIGURED') return { state: status.state, detail: status.detail, chainId: null, address: null, explorer: null };
+  if (status.state !== 'CONFIGURED') return { state: status.state, detail: status.detail, chainId: null, address: null, explorer: null, components: null };
   const profile = positionsNetwork();
   return {
     state: 'CONFIGURED',
     detail: null,
     chainId: status.deployment.chainId,
     address: status.deployment.address,
+    components: status.deployment.components,
     explorer: status.deployment.chainId === profile.chainId ? explorerAddress(profile, status.deployment.address) : null,
   };
 }

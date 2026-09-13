@@ -137,6 +137,8 @@ export function reduceLedger(state: IndexState, q: Units, capLots: bigint): { le
       case 'MintPermitSet':
       case 'ClaimPermitSet':
       case 'OperatorChanged':
+      case 'OperatorTransferProposed':
+      case 'OperatorTransferCancelled':
         // The operator's actions: not ledger movements; read out by operatorLog().
         break;
     }
@@ -147,6 +149,9 @@ export function reduceLedger(state: IndexState, q: Units, capLots: bigint): { le
 export interface OperatorLog {
   /** The operator as the chain last said (the latest OperatorChanged), or null when no change was seen. */
   readonly operator: string | null;
+  /** A proposal grants no operator authority until OperatorChanged records acceptance. */
+  readonly pendingOperator: string | null;
+  readonly nominations: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly current: string; readonly nominee: string; readonly action: 'PROPOSED' | 'CANCELLED' }[];
   readonly changes: readonly { readonly blockNumber: number; readonly transactionHash: string; readonly previous: string; readonly next: string }[];
   /** Mint permits by holder, as last set: the unix time they run until (0 means revoked), and whether that is still ahead of now. */
   readonly mintPermits: readonly { readonly holder: string; readonly until: string; readonly live: boolean; readonly blockNumber: number; readonly transactionHash: string }[];
@@ -163,6 +168,8 @@ export interface OperatorLog {
  */
 export function operatorLog(state: IndexState, now: Date = new Date()): OperatorLog {
   const changes: OperatorLog['changes'][number][] = [];
+  const nominations: OperatorLog['nominations'][number][] = [];
+  let pendingOperator: string | null = null;
   const mint = new Map<string, OperatorLog['mintPermits'][number]>();
   const claim = new Map<string, OperatorLog['claimPermits'][number]>();
   const stops: OperatorLog['stops'][number][] = [];
@@ -171,6 +178,15 @@ export function operatorLog(state: IndexState, now: Date = new Date()): Operator
     switch (e.event.name) {
       case 'OperatorChanged':
         changes.push({ ...at, previous: e.event.previous, next: e.event.next });
+        pendingOperator = null;
+        break;
+      case 'OperatorTransferProposed':
+        pendingOperator = e.event.proposed;
+        nominations.push({ ...at, current: e.event.current, nominee: e.event.proposed, action: 'PROPOSED' });
+        break;
+      case 'OperatorTransferCancelled':
+        pendingOperator = null;
+        nominations.push({ ...at, current: e.event.current, nominee: e.event.cancelled, action: 'CANCELLED' });
         break;
       case 'MintPermitSet':
         mint.set(e.event.holder, { ...at, holder: e.event.holder, until: e.event.until.toString(), live: e.event.until > BigInt(Math.floor(now.getTime() / 1000)) });
@@ -188,7 +204,7 @@ export function operatorLog(state: IndexState, now: Date = new Date()): Operator
         break;
     }
   }
-  return { operator: changes.at(-1)?.next ?? null, changes, mintPermits: [...mint.values()], claimPermits: [...claim.values()], stops };
+  return { operator: changes.at(-1)?.next ?? null, pendingOperator, nominations, changes, mintPermits: [...mint.values()], claimPermits: [...claim.values()], stops };
 }
 
 const INDEX_KEY = (seriesId: string) => `positions:index:${seriesId}`;
@@ -206,7 +222,7 @@ const BIGINT_FIELDS = new Set(['lots', 'unitsA', 'unitsB', 'units', 'until']);
  * they are in, so it is not carried forward: it is read again from the
  * deployment's first block, which costs one sync and loses nothing.
  */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 
 function revive(payload: Record<string, unknown>): IndexState {
   // Only the fields that are amounts are revived; a reason string that happens to look like one stays a string.

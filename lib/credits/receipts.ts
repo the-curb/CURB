@@ -7,10 +7,12 @@
  */
 
 import type { Store } from '../store/types.ts';
-import { INDEX_KEY, type CreditsIndexState } from './indexer.ts';
+import { INDEX_KEY } from './indexer.ts';
 import { TOPUPS_PREFIX, type TopUpCredit } from './keys.ts';
+import { pendingIndex, type PendingState } from './pending.ts';
 
 export interface Receipts {
+  readonly receiptsState: 'READ' | 'UNREAD';
   readonly topUps: number;
   readonly keys: number;
   /** CURB base units received by the treasury, as credited. */
@@ -25,13 +27,18 @@ export interface Receipts {
   readonly lastCreditedAt: string | null;
   /** The indexer's position: the last block read, and top-ups still waiting for a rate. */
   readonly cursor: number | null;
-  readonly waitingForRate: number;
+  readonly waitingForRate: number | null;
+  readonly pendingState: PendingState;
+  readonly pendingFault: string | null;
+  /** Failure reading credited receipts only; the pending index has its own status. */
   readonly storeFault: string | null;
 }
 
 export async function receipts(store: Store): Promise<Receipts> {
   const [rows, index] = await Promise.all([store.snapshots(TOPUPS_PREFIX), store.snapshots(INDEX_KEY)]);
-  const empty: Receipts = { topUps: 0, keys: 0, curbBaseUnits: '0', cents: '0', desks: [], pricedAtOwnBlock: 0, pricedAtHead: 0, lastBlock: null, lastCreditedAt: null, cursor: null, waitingForRate: 0, storeFault: null };
+  const pending = pendingIndex(index);
+  const pendingFields = { cursor: pending.index?.cursor ?? null, waitingForRate: pending.index?.unpriced.length ?? null, pendingState: pending.state, pendingFault: pending.fault };
+  const empty: Receipts = { receiptsState: 'UNREAD', topUps: 0, keys: 0, curbBaseUnits: '0', cents: '0', desks: [], pricedAtOwnBlock: 0, pricedAtHead: 0, lastBlock: null, lastCreditedAt: null, ...pendingFields, storeFault: null };
   if (rows.state === 'UNREAD') return { ...empty, storeFault: `${rows.reason}${rows.detail ? ` — ${rows.detail}` : ''}` };
   let topUps = 0;
   let curb = 0n;
@@ -57,8 +64,8 @@ export async function receipts(store: Store): Promise<Receipts> {
       if (lastCreditedAt === null || t.creditedAt > lastCreditedAt) lastCreditedAt = t.creditedAt;
     }
   }
-  const state = index.state === 'UNREAD' ? null : ((index.value.find((s) => s.key === INDEX_KEY)?.payload as unknown as CreditsIndexState | undefined) ?? null);
   return {
+    receiptsState: 'READ',
     topUps,
     keys,
     curbBaseUnits: curb.toString(),
@@ -68,8 +75,7 @@ export async function receipts(store: Store): Promise<Receipts> {
     pricedAtHead: head,
     lastBlock,
     lastCreditedAt,
-    cursor: state?.cursor ?? null,
-    waitingForRate: state?.unpriced.length ?? 0,
+    ...pendingFields,
     storeFault: null,
   };
 }

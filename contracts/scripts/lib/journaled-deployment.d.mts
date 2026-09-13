@@ -1,0 +1,1 @@
+export function journaledDeployment<T, H extends string>(file: string | URL, intent: { pending: Record<string, unknown>; [key: string]: unknown }, send: () => Promise<H>, wait: (hash: H) => Promise<T>): Promise<{ hash: H; receipt: T }>;

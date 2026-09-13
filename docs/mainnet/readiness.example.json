@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "note": "Preparation template. No approval is granted. Replace only with actual reviewed evidence for the sourceDigest printed by mainnet:preflight.",
+  "approvals": [
+    {
+      "id": "independent-review",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "token-terms",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "launchpad-and-funding",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "treasury",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "release-validation",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "production-operations",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "service-economics",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "token-and-desk",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "pool-and-rate",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "paid-http-acceptance",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "instrument-identity",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "issuer-eligibility",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "component-acquisition",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "series-operator",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    },
+    {
+      "id": "lots-and-user-economics",
+      "status": "PENDING",
+      "sourceDigest": null,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "evidence": null
+    }
+  ]
+}

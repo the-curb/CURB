@@ -18,8 +18,10 @@
 
 import { readFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
+import { assertLoopbackRpc } from './lib/local-chain.ts';
 
 const RPC = process.env.REHEARSAL_RPC_URL ?? 'http://127.0.0.1:8545';
+assertLoopbackRpc(RPC);
 const QA = 10n * 10n ** 18n;
 const QB = 20n * 10n ** 18n;
 const CAP = 1_000n;
@@ -34,7 +36,8 @@ const chain = { id: 31337, name: 'Hardhat (local)', nativeCurrency: { name: 'Eth
 
 async function main() {
   const pub = createPublicClient({ chain, transport: http(RPC) });
-  const accounts = (await pub.request({ method: 'eth_accounts' })) as Address[];
+  if (await pub.getChainId() !== 31337) throw new Error('rehearsal refused: the node must answer chain id 31337');
+  const accounts = await createWalletClient({ chain, transport: http(RPC) }).getAddresses();
   const [operator, alice, others, bob] = accounts;
   if (!operator || !alice || !others || !bob) throw new Error('the node exposes fewer than four unlocked accounts');
   const wallet = (account: Address) => createWalletClient({ chain, transport: http(RPC), account });

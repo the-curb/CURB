@@ -1,0 +1,38 @@
+{
+  "recordedAt": "2026-09-13T10:54:14.250Z",
+  "githubExecuted": false,
+  "workflowStructure": [
+    {
+      "path": ".github/workflows/checks.yml",
+      "checkouts": 4,
+      "fullHistory": 4,
+      "sha256": "ae48d9ab2ed8150bc9edc2ae57fe618f32377d6a98990311add4ea4d412716fa"
+    },
+    {
+      "path": ".github/workflows/fork-evidence.yml",
+      "checkouts": 1,
+      "fullHistory": 1,
+      "sha256": "1bae5baea09339c4cc34f16ed99304aeeeeddea975362b1104bd3d743446441a"
+    }
+  ],
+  "focusedToolTests": {
+    "passing": 11,
+    "failing": 0,
+    "raw": "mainnet-prep-ci-tools-tests.txt"
+  },
+  "strictDeploymentScriptTypecheck": "PASSED",
+  "rootOnlyTypecheck": {
+    "state": "PASSED",
+    "routeTypeGeneration": "PASSED",
+    "copy": "D:/BARONG/.curb-root-only-typecheck-u_kqkm5s",
+    "contractDependenciesPresent": false,
+    "rootViemPresent": false,
+    "envFilesCopied": false
+  },
+  "freshCheckoutLocalJournalCollision": false,
+  "operatorHelperSha256": "aceb5806244a2119959c7ffd0b3c952eee1531b07c7ddf0de28c64554ead3be0",
+  "limits": [
+    "GitHub Actions itself was not dispatched; checkout history and dependency order were checked locally",
+    "earlier Safe integration evidence remains historical; its source hashes are not overwritten by this helper dependency cleanup"
+  ]
+}

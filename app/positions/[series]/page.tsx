@@ -72,7 +72,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
     );
 
   return (
-    <main className="px-3 py-8 sm:px-4 sm:py-10">
+    <main className="px-3 py-8 wrap-anywhere sm:px-4 sm:py-10">
       <header className="mb-8 px-1">
         <div className="kicker">
           <b>The position</b> · {spec.company} · <Link href="/positions" className="hover:text-(--color-paper)">all positions</Link>
@@ -352,7 +352,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     : ledger.deployment === null
                       ? deployment.state === 'CONFIG_INVALID'
                         ? `the deployment record is invalid: ${deployment.detail ?? ''}`
-                        : 'nobody — no series is deployed and no operator is named (the register’s A4)'
+                        : 'no deployed series operator is recorded; the Robinhood treasury record does not verify an Ethereum operator'
                       : ledger.operator === null
                         ? 'not readable'
                         : `${ledger.operator.operator ?? 'as deployed'} · ${ledger.operator.mintPermits.filter((x) => x.live).length} mint permit${ledger.operator.mintPermits.filter((x) => x.live).length === 1 ? '' : 's'} live, ${ledger.operator.claimPermits.filter((x) => x.permitted).length} claim permit${ledger.operator.claimPermits.filter((x) => x.permitted).length === 1 ? '' : 's'} · ${ledger.operator.stops.length} stop${ledger.operator.stops.length === 1 ? '' : 's'} or resume${ledger.operator.stops.length === 1 ? '' : 's'} on chain${ledger.operator.changes.length > 0 ? ` · operator changed ${ledger.operator.changes.length} time${ledger.operator.changes.length === 1 ? '' : 's'}` : ''} — every one an event the chain recorded, the log the policy asks for`}
@@ -729,7 +729,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
           seriesName={spec.name}
           q={{ A: a.perLotIllustrative.toString(), B: b.perLotIllustrative.toString() }}
           capLots={spec.capLotsIllustrative.toString()}
-          labels={{ A: a.instrument.split(',')[0] ?? 'A', B: b.instrument.split(',')[0] ?? 'B' }}
+          labels={{ A: 'Mock A', B: 'Mock B' }}
         />
       </section>
 
@@ -743,11 +743,11 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
             §6 of the mechanism
           </Link>
         </div>
-        <WalletLookup seriesId={spec.id} labels={{ A: a.instrument.split(',')[0] ?? 'A', B: b.instrument.split(',')[0] ?? 'B' }} />
+        <WalletLookup seriesId={spec.id} labels={{ A: a.instrument, B: b.instrument }} />
       </section>
 
       {/* ── with your own wallet, only for a deployed series ────────────── */}
-      {deployment.state === 'CONFIGURED' && deployment.address && deployment.chainId !== null ? (
+      {deployment.state === 'CONFIGURED' && deployment.address && deployment.chainId !== null && deployment.components ? (
         <section className="mt-8">
           <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
             <span className="kicker">
@@ -757,7 +757,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               a permit on chain, ADR-003
             </Link>
           </div>
-          <WalletSign seriesId={spec.id} seriesAddress={deployment.address} chainId={deployment.chainId} />
+          <WalletSign seriesId={spec.id} seriesAddress={deployment.address} chainId={deployment.chainId} labels={{ A: a.instrument, B: b.instrument }} components={deployment.components} />
         </section>
       ) : null}
 

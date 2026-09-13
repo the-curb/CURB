@@ -7,7 +7,7 @@ import { NETWORKS, type NetworkProfile } from '../lib/chain/networks.ts';
 import { forgetChainConfirmations } from '../lib/chain/rpc.ts';
 import { positionConditions } from '../lib/ops/alerts.ts';
 import { parseDeployments } from '../lib/positions/deployments.ts';
-import { INDEX_INTERVAL_SECONDS, reduceLedger, syncIndex } from '../lib/positions/index.ts';
+import { INDEX_INTERVAL_SECONDS, operatorLog, reduceLedger, syncIndex } from '../lib/positions/index.ts';
 import { claimsOf } from '../lib/positions/ledger.ts';
 import { reconcileSeries } from '../lib/positions/reconcile.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
@@ -107,13 +107,17 @@ describe('the operational drill, on a local chain', () => {
       evidence: { owedA: a.owed, heldA: a.held, differenceA: a.difference, findingB: b.finding, asOfBlock: reconciliation.asOfBlock, condition: conditions[0]!.text },
     });
     const quorum = record.steps.filter((s) => s.scenario.startsWith('6 '));
-    assert.equal(quorum.length, 10, 'the quorum scenario ran all its steps');
+    assert.equal(quorum.length, 12, 'the quorum scenario ran nomination, two acceptance steps and all stop/resume steps');
     assert.ok(quorum.every((s) => s.outcome === 'AS_EXPECTED'));
+    const operator = operatorLog(synced.index);
+    assert.equal(operator.nominations.length, 1, 'the nomination is indexed separately from acceptance');
+    assert.equal(operator.pendingOperator, null, 'the multisig accepted');
+    assert.equal(operator.changes.length, 1, 'acceptance is the one actual authority change');
     const stopped = synced.index.events.filter((e) => e.event.name === 'MintStatusChanged');
     assert.deepEqual(stopped.map((e) => (e.event.name === 'MintStatusChanged' ? [e.event.paused, e.event.reason] : null)), [[true, 'drill: quorum stop'], [false, 'drill: quorum resume after review']], 'the index carries the stop and the resume with the reasons the multisig sent');
     findings.push({
       scenario: '6 operator quorum',
-      finding: 'the operator role was handed to a 2-of-3 multisig; the former single key could no longer stop minting; one signer’s proposal did not stop it and a second confirmation did; the resume needed two again; the index recorded both with their reasons',
+      finding: 'the operator nominated a 2-of-3 multisig; one signature could not accept authority, two accepted; the former single key then could no longer stop minting; a stop and a resume each needed two signatures; the index recorded the nomination, accepted handover and both reasons',
       evidence: { multisig: (record as unknown as { operatorMultisig?: unknown }).operatorMultisig ?? null, steps: Object.fromEntries(quorum.map((s) => [`${s.who}: ${s.did}`, s.tx ?? `reverted ${s.revert}`])) },
     });
 

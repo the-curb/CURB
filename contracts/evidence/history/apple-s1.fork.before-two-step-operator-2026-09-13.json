@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "seriesId": "apple-s1",
+  "chainId": 1,
+  "block": 25967321,
+  "blockTimestamp": 1789288175,
+  "component": "A",
+  "raw": "0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a",
+  "wrapperV2": "0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",
+  "wrapperV1": "0x5AA7649fdbDa47De64A07aC81D64B682AF9C0724",
+  "wrapperRawReserve": "10161550335118726589",
+  "wrapperTotalSupply": "10128440336649414114",
+  "findings": {
+    "identityAsDocumented": true,
+    "wrapperTransfersForArbitraryHolder": true,
+    "seriesMintExitClaimWithRealWrapper": true,
+    "wrapperUnwrapsForArbitraryHolder": true,
+    "unwrapRawReceivedFor10e18": "10032690125398187000",
+    "unwrapQuotedFor10e18": "10032690125398187000",
+    "rawTransfersForArbitraryHolder": true,
+    "rawTransferAttempted": true,
+    "rawReceivedFor1e18Sent": "999999999999999999",
+    "rawBalanceSettableByStorage": false
+  },
+  "componentB": {
+    "token": "0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c",
+    "source": "the issuer's product page, app.ondo.finance/assets/aaplon, as archived by the desk",
+    "identityAsPublished": true,
+    "totalSupply": "16573412028457408777154",
+    "balanceStageableByStorage": true,
+    "transfersForArbitraryHolder": true,
+    "seriesMintExitClaimWithBothReal": true,
+    "authority": { "implementation": null, "admin": null, "beacon": "0x985462C9aA4D6c3Ad59Ae6e1e9c0C11347ED1598", "owner": null, "paused": null }
+  },
+  "gas": {
+    "note": "execution gas by gasleft() deltas inside one call, with the real wrapper as A and real AAPLon as B: storage already touched is warm, so a real transaction pays cold access, the 21,000 base and its calldata on top; an input to a cost comparison, not a price",
+    "wrapperTransfer": 43882,
+    "aaplonTransfer": 66578,
+    "mint3Lots": 168784,
+    "allocateExit3Lots": 90696,
+    "claimA": 62081,
+    "claimB": 65102
+  },
+  "authority": {
+    "raw": { "implementation": "0x65c40D624Af3B18C109fBF87B7DEff34CdC5f19b", "admin": "0x696C685a02A1Fc6E2AaCbe26CD6695F4f4a6a085", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV2": { "implementation": "0x76C6851ea0B2741EeDcBBED240715E8817E85583", "admin": "0x312063009E74142339Edc92BcfF6CfCfAA958BFA", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null },
+    "wrapperV1": { "implementation": "0x14f37168AB9eAFCD94d5b142a00E6e9B261Bad48", "admin": "0xE39FfFFfB0795c99869ba4bCFE3fD1759d2f0Cc7", "beacon": null, "owner": "0x49754062E35f7591B93cc4F9915965be89643a65", "paused": null }
+  },
+  "requiredAssertionsPassed": true,
+  "observationalOnly": ["unwrap availability", "raw transfer availability after unwrap", "storage staging", "wrapper inventory", "authority slots"],
+  "notProven": [
+    "a static balance under every corporate action: one dividend activation is on the record (AppleCorporateActionFork.t.sol); a split is not",
+    "holder eligibility for a series contract or its receipt holders",
+    "eligible acquisition of raw tokens, current-wrapper deposit/mint access and limits, or available issuance capacity",
+    "anything about the issuer's reserves, custody, or the value of a unit",
+    "component B: eligibility of a series contract or its receipt holders under the issuer's rules; a transfer that works on a fork for a staged balance is not eligibility"
+  ],
+  "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated; each recorded scenario restores clean fork state and transfer results use recipient balance deltas"
+}

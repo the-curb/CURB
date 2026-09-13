@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "typegen": "next typegen",
     "test": "node --test \"tests/*.test.ts\"",
+    "mainnet:preflight": "node scripts/mainnet-preflight.ts",
+    "monitor:health": "node scripts/check-health.ts",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.ts",
     "verify:store": "node --env-file-if-exists=.env.local --test \"tests/store-*.test.ts\"",
     "db:prune": "node --env-file-if-exists=.env.local scripts/prune.ts",

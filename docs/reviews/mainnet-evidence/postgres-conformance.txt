@@ -1,0 +1,117 @@
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42701',
+  message: 'column "version" of relation "snapshots" already exists, skipping',
+  file: 'tablecmds.c',
+  line: '7352',
+  routine: 'check_for_column_name_collision'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42701',
+  message: 'column "write_token" of relation "snapshots" already exists, skipping',
+  file: 'tablecmds.c',
+  line: '7352',
+  routine: 'check_for_column_name_collision'
+}
+▶ store conformance · PostgresStore (schema curb_conformance)
+  ▶ an empty store answers, rather than failing
+    ✔ reads no heartbeats as an empty list, not as unread (143.8546ms)
+    ✔ reads a missing agent as null rather than unread (133.8927ms)
+    ✔ carries a source on every reading (108.9436ms)
+  ✔ an empty store answers, rather than failing (389.3494ms)
+  ▶ heartbeats
+    ✔ keeps only the most recent per agent (98.505ms)
+    ✔ returns the latest for one agent (94.3743ms)
+  ✔ heartbeats (193.4758ms)
+  ▶ publishing
+    ✔ writes the publication and its heartbeat together (103.2298ms)
+    ✔ states whether it was atomic rather than implying it (114.1294ms)
+    ✔ returns publications newest first (127.9119ms)
+    ✔ round-trips the declared figures (151.9519ms)
+  ✔ publishing (498.6269ms)
+  ▶ observations
+    ✔ returns a series oldest first, so it is ready to compute over (129.6679ms)
+    ✔ keeps series apart by key (114.2816ms)
+    ✔ keeps the raw integer when one was given (114.5535ms)
+    ✔ accepts an empty write without complaint (121.9734ms)
+    ✔ writes a large batch in one go and keeps every row (139.6648ms)
+  ✔ observations (621.1128ms)
+  ▶ counts
+    ✔ counts every row, not the length of a bounded read (131.8416ms)
+  ✔ counts (132.1806ms)
+  ▶ snapshots
+    ✔ reads none as an empty list, not as unread (100.9639ms)
+    ✔ keeps one row per key, the latest write replacing the earlier one (130.3514ms)
+    ✔ selects by prefix and returns nothing from other prefixes (100.6578ms)
+    ✔ round-trips a nested payload as structure, not as a string (95.8196ms)
+    ✔ accepts an empty write without complaint (88.4832ms)
+  ✔ snapshots (517.0403ms)
+  ▶ retention
+    ✔ removes only what is older than the cutoff (88.0796ms)
+    ✔ reports a count, and reports zero as a real zero (91.7862ms)
+    ✔ prunes across every key, not just one (74.9319ms)
+    ✔ leaves other records untouched (85.4288ms)
+  ✔ retention (340.6743ms)
+  ▶ the day record
+    ✔ returns everything on one UTC day and nothing from the next (149.5344ms)
+    ✔ is an empty record for a day with nothing, not an unread one (82.6989ms)
+    ✔ lists publication days newest first (104.9602ms)
+  ✔ the day record (337.6538ms)
+  ▶ one agent’s history
+    ✔ returns that agent’s filings newest first, and nobody else’s (99.2178ms)
+    ✔ returns every outcome for that agent, not only the published ones (89.7783ms)
+  ✔ one agent’s history (189.356ms)
+  ▶ narrations
+    ✔ reads no narration as null, not as unread (88.3484ms)
+    ✔ keeps one row per day, the latest attempt winning (113.7037ms)
+    ✔ keeps a refusal as a refusal (117.8435ms)
+  ✔ narrations (320.6574ms)
+  ▶ blocked outputs
+    ✔ keeps the text and the breaches in full (86.1604ms)
+  ✔ blocked outputs (86.4254ms)
+  ▶ the schema
+    ✔ is current for this build (110.9625ms)
+  ✔ the schema (111.201ms)
+  ▶ the conditional snapshot write
+    ✔ writes a new row only when none exists, and a replacement only onto the version read (94.4462ms)
+    ✔ has the plain write move the version too, so a conditional write after it sees the move (85.0267ms)
+    ✔ lets many writers at once each land exactly once (152.68ms)
+  ✔ the conditional snapshot write (332.5823ms)
+  ▶ the run lock
+    ✔ is granted when free (100.5844ms)
+    ✔ is refused to a second holder (83.7122ms)
+    ✔ is granted again to the holder that has it — an acquire whose answer was lost, resent (93.9126ms)
+    ✔ is available again after release (97.1965ms)
+    ✔ cannot be released by somebody who does not hold it (106.6873ms)
+    ✔ can be renewed by its holder (106.0545ms)
+    ✔ refuses to renew a lock held by somebody else (91.9402ms)
+    ✔ lets a lapsed lock be taken, and then refuses the old holder (1297.9488ms)
+  ✔ the run lock (1978.9943ms)
+✔ store conformance · PostgresStore (schema curb_conformance) (6051.7274ms)
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '00000',
+  message: 'drop cascades to 7 other objects',
+  detail: 'drop cascades to table heartbeats\n' +
+    'drop cascades to table publications\n' +
+    'drop cascades to table blocks\n' +
+    'drop cascades to table observations\n' +
+    'drop cascades to table run_lock\n' +
+    'drop cascades to table narrations\n' +
+    'drop cascades to table snapshots',
+  file: 'dependency.c',
+  line: '1227',
+  routine: 'reportDependentObjects'
+}
+ℹ tests 45
+ℹ suites 15
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6674.6183

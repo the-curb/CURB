@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import { Test } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
 import { CompanySeries } from "../../src/CompanySeries.sol";
 import { MockToken } from "../../src/mocks/MockToken.sol";
+import { TransferObservation } from "../helpers/TransferObservation.sol";
 
 /**
  * The candidate components of Apple Position - Series 1, on a fork of
@@ -43,7 +43,7 @@ interface IERC4626Like {
     function maxRedeem(address owner) external view returns (uint256);
 }
 
-contract AppleComponentsForkTest is Test {
+contract AppleComponentsForkTest is TransferObservation {
     /// AAPLx as the issuer's record lists it for Ethereum, read on chain: symbol AAPLx, 18 decimals.
     address constant RAW = 0x9d275685dC284C8eB1C79f6ABA7a63Dc75ec890a;
     /// The current non-rebasing wrapper the issuer lists (wrapperAddressV2): symbol wAAPLx, asset() == RAW.
@@ -70,9 +70,8 @@ contract AppleComponentsForkTest is Test {
 
     function _wrapperTransfers() internal returns (bool) {
         deal(WRAPPER_V2, alice, 10e18);
-        vm.prank(alice);
-        (bool ok, bytes memory data) = WRAPPER_V2.call(abi.encodeCall(IERC20Like.transfer, (bob, 4e18)));
-        return ok && (data.length == 0 || abi.decode(data, (bool))) && IERC20Like(WRAPPER_V2).balanceOf(bob) == 4e18;
+        (bool accepted, uint256 received) = _observeTransfer(WRAPPER_V2, alice, bob, 4e18);
+        return accepted && received == 4e18;
     }
 
     /// Mint 3 lots into a fresh series with the real wrapper as A, exit, claim A. Returns whether the wrapper came back whole.
@@ -113,12 +112,17 @@ contract AppleComponentsForkTest is Test {
         vm.startPrank(alice);
         IERC20Like(WRAPPER_V2).approve(address(series), type(uint256).max);
         IERC20Like(AAPLON).approve(address(series), type(uint256).max);
+        uint256 bobBeforeA = IERC20Like(WRAPPER_V2).balanceOf(bob);
+        uint256 bobBeforeB = IERC20Like(AAPLON).balanceOf(bob);
         uint256 g = gasleft();
-        IERC20Like(WRAPPER_V2).transfer(bob, 10e18);
+        bool transferredA = IERC20Like(WRAPPER_V2).transfer(bob, 10e18);
         transferGas = g - gasleft();
         g = gasleft();
-        IERC20Like(AAPLON).transfer(bob, 10e18);
+        bool transferredB = IERC20Like(AAPLON).transfer(bob, 10e18);
         transferBGas = g - gasleft();
+        assertTrue(transferredA && transferredB, "gas observations require successful transfers");
+        assertEq(IERC20Like(WRAPPER_V2).balanceOf(bob) - bobBeforeA, 10e18, "gas probe A delivered exactly");
+        assertEq(IERC20Like(AAPLON).balanceOf(bob) - bobBeforeB, 10e18, "gas probe B delivered exactly");
         g = gasleft();
         series.mint(3, block.timestamp + 1 hours);
         mintGas = g - gasleft();
@@ -148,17 +152,15 @@ contract AppleComponentsForkTest is Test {
     /// The raw token moved by an arbitrary holder who got it by unwrapping (call _unwrap first). Returns (succeeded, received by bob for 1e18 sent).
     function _rawTransfer() internal returns (bool, uint256) {
         require(IERC20Like(RAW).balanceOf(alice) >= 1e18, "unwrap first");
-        vm.prank(alice);
-        (bool ok, bytes memory data) = RAW.call(abi.encodeCall(IERC20Like.transfer, (bob, 1e18)));
-        bool moved = ok && (data.length == 0 || abi.decode(data, (bool)));
-        return (moved, IERC20Like(RAW).balanceOf(bob));
+        return _observeTransfer(RAW, alice, bob, 1e18);
     }
 
     function tryDealRaw() external {
         deal(RAW, alice, 5e18);
     }
 
-    /// Whether a raw AAPLx balance can be set by storage at all. It cannot: balanceOf is derived, not stored.
+    /// Whether this fixture can stage a raw AAPLx balance with deal() at the fork block.
+    /// Failure is a fixture observation, not proof of a particular storage implementation.
     function _rawBalanceIsStored() internal returns (bool) {
         (bool ok, ) = address(this).call(abi.encodeCall(this.tryDealRaw, ()));
         return ok;
@@ -190,9 +192,8 @@ contract AppleComponentsForkTest is Test {
     function _bTransfers() internal returns (bool staged, bool moved) {
         staged = _bBalanceIsStored();
         if (!staged) return (false, false);
-        vm.prank(alice);
-        (bool ok, bytes memory data) = AAPLON.call(abi.encodeCall(IERC20Like.transfer, (bob, 4e18)));
-        moved = ok && (data.length == 0 || abi.decode(data, (bool))) && IERC20Like(AAPLON).balanceOf(bob) == 4e18;
+        (bool accepted, uint256 received) = _observeTransfer(AAPLON, alice, bob, 4e18);
+        moved = accepted && received == 4e18;
     }
 
     /// Both components real: the wrapper as A, AAPLon as B, one lot of 10 wAAPLx and 20 AAPLon;
@@ -242,7 +243,7 @@ contract AppleComponentsForkTest is Test {
         assertTrue(_seriesRoundTrip(), "mint, exit and claim with the real wrapper");
     }
 
-    function test_Fork_F04_UnwrapForAnArbitraryHolder() public {
+    function test_Fork_Observation_F04_UnwrapForAStagedHolder() public {
         (bool ok, uint256 received, uint256 quoted) = _unwrap();
         console2.log("unwrap ok", ok);
         console2.log("raw received", received);
@@ -251,8 +252,12 @@ contract AppleComponentsForkTest is Test {
         else assertEq(received, 0, "nothing moved on a reverted unwrap (T21: transfers, does not unwrap)");
     }
 
-    function test_Fork_F05_RawTokenTransferForAnArbitraryHolder() public {
-        _unwrap();
+    function test_Fork_Observation_F05_RawTransferAfterUnwrap() public {
+        (bool unwrapped, , ) = _unwrap();
+        if (!unwrapped) {
+            console2.log("raw transfer not attempted: unwrap did not succeed");
+            return;
+        }
         (bool moved, uint256 received) = _rawTransfer();
         console2.log("raw transfer moved", moved);
         console2.log("bob received", received);
@@ -260,17 +265,18 @@ contract AppleComponentsForkTest is Test {
         else assertEq(received, 0);
     }
 
-    function test_Fork_F06_RawBalanceIsComputedNotStored() public {
-        assertFalse(_rawBalanceIsStored(), "deal() cannot set a raw AAPLx balance by storage: balanceOf is derived");
+    function test_Fork_Observation_F06_RawBalanceStorageStaging() public {
+        console2.log("raw balance stageable by this fixture", _rawBalanceIsStored());
     }
 
     /// The wrapper's own size: what it holds of the raw token, and how many shares exist. Small numbers here
-    /// are a finding about adoption and unwrap capacity, and they are read before any balance is set by storage.
+    /// are a dated inventory observation, not a hard ceiling on new wrapper issuance.
+    /// Eligible raw acquisition, deposit/mint, and issuer limits are not tested here.
     function _wrapperSize() internal view returns (uint256 reserve, uint256 supply) {
         return (IERC20Like(RAW).balanceOf(WRAPPER_V2), IERC20Like(WRAPPER_V2).totalSupply());
     }
 
-    function test_Fork_F07_WrapperSizeIsOnTheRecord() public view {
+    function test_Fork_Observation_F07_WrapperSizeIsOnTheRecord() public view {
         (uint256 reserve, uint256 supply) = _wrapperSize();
         console2.log("wrapper raw reserve", reserve);
         console2.log("wrapper total supply", supply);
@@ -324,22 +330,31 @@ contract AppleComponentsForkTest is Test {
         assertGt(IERC20Like(AAPLON).totalSupply(), 0, "AAPLon has supply");
     }
 
-    function test_Fork_B02_AnArbitraryHolderAndAAPLon() public {
+    function test_Fork_B02_AStagedHolderCanTransferAAPLon() public {
         (bool staged, bool moved) = _bTransfers();
         console2.log("AAPLon balance stageable by storage", staged);
         console2.log("AAPLon moved for an arbitrary holder", moved);
-        // Either answer is a finding; what is asserted is that the question was asked at this block.
-        assertTrue(AAPLON.code.length > 0);
+        assertTrue(staged, "the fixture must stage AAPLon before transfer support is tested");
+        assertTrue(moved, "the staged holder must deliver the exact AAPLon units");
     }
 
     function test_Fork_B03_BothComponentsRealRoundTrip() public {
         (bool staged, bool roundTrip) = _bothRealRoundTrip();
         console2.log("staged", staged);
         console2.log("both-real round trip", roundTrip);
-        assertTrue(AAPLON.code.length > 0);
+        assertTrue(staged, "the fixture must stage both real components");
+        assertTrue(roundTrip, "both real components must complete mint, exit and claims");
     }
 
-    function test_Fork_G_Authority() public view {
+    function test_Fork_B04_PreviousGasProbeDoesNotContaminateTransfers() public {
+        _gasRoundTrip();
+        assertGe(IERC20Like(AAPLON).balanceOf(bob), 10e18, "the earlier probe funded Bob");
+        (bool staged, bool moved) = _bTransfers();
+        assertTrue(staged && moved, "existing Bob funds must not turn a successful transfer into false");
+        assertTrue(_wrapperTransfers(), "the wrapper probe must also measure a delta");
+    }
+
+    function test_Fork_Observation_G_Authority() public view {
         address impl = address(uint160(uint256(vm.load(RAW, IMPLEMENTATION_SLOT))));
         console2.log("raw AAPLx implementation slot", impl);
         console2.log("wrapper v2 implementation slot", address(uint160(uint256(vm.load(WRAPPER_V2, IMPLEMENTATION_SLOT)))));
@@ -351,14 +366,22 @@ contract AppleComponentsForkTest is Test {
     function test_Fork_Z_RecordEvidence() public {
         (uint256 reserve, uint256 supply) = _wrapperSize();
         bool identity = _identityAsDocumented();
+        uint256 cleanState = vm.snapshotState();
         bool transfers = _wrapperTransfers();
+        assertTrue(vm.revertToState(cleanState), "restore before wrapper round trip");
         bool roundTrip = _seriesRoundTrip();
+        assertTrue(vm.revertToState(cleanState), "restore before unwrap observation");
         (bool unwrapOk, uint256 rawReceived, uint256 quoted) = _unwrap();
         (bool rawMoved, uint256 bobReceived) = unwrapOk ? _rawTransfer() : (false, 0);
+        if (unwrapOk) assertEq(rawReceived, quoted, "successful unwrap delivers its quote");
+        if (rawMoved) assertApproxEqAbs(bobReceived, 1e18, 1e9, "successful raw transfer delivers within rounding tolerance");
+        assertTrue(vm.revertToState(cleanState), "restore before storage observation");
         bool rawStored = _rawBalanceIsStored();
+        assertTrue(vm.revertToState(cleanState), "restore before gas measurement");
 
         string memory json = string.concat(
             "{\n",
+            '  "schemaVersion": 2,\n',
             '  "seriesId": "apple-s1",\n',
             '  "chainId": 1,\n',
             '  "block": ', vm.toString(block.number), ",\n",
@@ -383,19 +406,28 @@ contract AppleComponentsForkTest is Test {
         json = string.concat(
             json,
             '    "rawTransfersForArbitraryHolder": ', rawMoved ? "true" : "false", ",\n",
+            '    "rawTransferAttempted": ', unwrapOk ? "true" : "false", ",\n",
             '    "rawReceivedFor1e18Sent": "', vm.toString(bobReceived), '",\n',
             '    "rawBalanceSettableByStorage": ', rawStored ? "true" : "false", "\n",
             "  },\n"
         );
         (uint256 gTransfer, uint256 gTransferB, uint256 gMint, uint256 gExit, uint256 gClaimA, uint256 gClaimB) = _gasRoundTrip();
+        assertTrue(vm.revertToState(cleanState), "restore before AAPLon transfer");
         (bool bStaged, bool bMoved) = _bTransfers();
-        (, bool bothReal) = _bothRealRoundTrip();
+        assertTrue(vm.revertToState(cleanState), "restore before both-real round trip");
+        (bool bothStaged, bool bothReal) = _bothRealRoundTrip();
+        assertTrue(vm.revertToState(cleanState), "restore before authority reads");
+        bool bIdentity = _bIdentity();
+        // Do not publish a new record if any behavior advertised as supported failed.
+        // Unwrap, raw staging/transfer, inventory, and authority remain dated observations.
+        assertTrue(identity && transfers && roundTrip, "required wrapper behavior held");
+        assertTrue(bIdentity && bStaged && bMoved && bothStaged && bothReal, "required AAPLon and both-real behavior held");
         json = string.concat(
             json,
             '  "componentB": {\n',
             '    "token": "', vm.toString(AAPLON), '",\n',
             '    "source": "the issuer\'s product page, app.ondo.finance/assets/aaplon, as archived by the desk",\n',
-            '    "identityAsPublished": ', _bIdentity() ? "true" : "false", ",\n",
+            '    "identityAsPublished": ', bIdentity ? "true" : "false", ",\n",
             '    "totalSupply": "', vm.toString(IERC20Like(AAPLON).totalSupply()), '",\n',
             '    "balanceStageableByStorage": ', bStaged ? "true" : "false", ",\n",
             '    "transfersForArbitraryHolder": ', bMoved ? "true" : "false", ",\n",
@@ -422,16 +454,18 @@ contract AppleComponentsForkTest is Test {
             '    "wrapperV2": ', _authorityJson(WRAPPER_V2), ",\n",
             '    "wrapperV1": ', _authorityJson(WRAPPER_V1), "\n",
             "  },\n",
+            '  "requiredAssertionsPassed": true,\n',
+            '  "observationalOnly": ["unwrap availability", "raw transfer availability after unwrap", "storage staging", "wrapper inventory", "authority slots"],\n',
             '  "notProven": [\n',
             '    "a static balance under every corporate action: one dividend activation is on the record (AppleCorporateActionFork.t.sol); a split is not",\n',
             '    "holder eligibility for a series contract or its receipt holders",\n',
+            '    "eligible acquisition of raw tokens, current-wrapper deposit/mint access and limits, or available issuance capacity",\n',
             '    "anything about the issuer\'s reserves, custody, or the value of a unit",\n',
             '    "component B: eligibility of a series contract or its receipt holders under the issuer\'s rules; a transfer that works on a fork for a staged balance is not eligibility"\n',
             "  ],\n",
-            '  "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated"\n',
+            '  "how": "contracts/test/fork/AppleComponentsFork.t.sol on a fork of Ethereum; balances set by storage, no holder impersonated; each recorded scenario restores clean fork state and transfer results use recipient balance deltas"\n',
             "}\n"
         );
         vm.writeFile("evidence/apple-s1.fork.json", json);
-        assertTrue(identity && transfers && roundTrip, "the findings the site relies on held");
     }
 }

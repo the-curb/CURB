@@ -110,6 +110,8 @@ describe('the event codec', () => {
       { name: 'MintPermitSet', holder: HOLDER, until: 1_800_000_000n },
       { name: 'ClaimPermitSet', holder: OTHER, permitted: true },
       { name: 'OperatorChanged', previous: HOLDER, next: OTHER },
+      { name: 'OperatorTransferProposed', current: HOLDER, proposed: OTHER },
+      { name: 'OperatorTransferCancelled', current: HOLDER, cancelled: OTHER },
     ] as const;
     for (const e of events) {
       const decoded = decodeSeriesEvent(encodeSeriesEvent(e));
@@ -126,6 +128,22 @@ describe('the event codec', () => {
 });
 
 describe('the chain index', () => {
+  it('keeps nominations separate from accepted authority and reconstructs them after a reorg', () => {
+    const proposed = applyLogs(emptyIndex(deployment), [
+      log(100, 0, { name: 'OperatorTransferProposed', current: HOLDER, proposed: OTHER }),
+    ], NOW);
+    assert.equal(operatorLog(proposed).operator, null, 'the deployment operator still applies; a proposal is not a change');
+    assert.equal(operatorLog(proposed).pendingOperator, OTHER);
+    const cancelled = applyLogs(proposed, [log(101, 0, { name: 'OperatorTransferCancelled', current: HOLDER, cancelled: OTHER })], NOW);
+    assert.equal(operatorLog(cancelled).pendingOperator, null);
+    assert.deepEqual(operatorLog(cancelled).nominations.map((n) => n.action), ['PROPOSED', 'CANCELLED']);
+    const restored = rollbackFrom(cancelled, 101);
+    assert.equal(operatorLog(restored).pendingOperator, OTHER);
+    const accepted = applyLogs(restored, [log(102, 0, { name: 'OperatorChanged', previous: HOLDER, next: OTHER })], NOW);
+    assert.equal(operatorLog(accepted).operator, OTHER);
+    assert.equal(operatorLog(accepted).pendingOperator, null);
+    assert.deepEqual(reduceLedger(accepted, deployment.q, deployment.capLots).disagreements, []);
+  });
   it('applies a log once however many times it is seen, and orders by block then index', () => {
     const logs = [
       log(102, 1, { name: 'ExitAllocated', holder: HOLDER, lots: 1n, unitsA: 10n, unitsB: 20n }),
@@ -598,6 +616,15 @@ describe('a corporate action seen by the daily read', () => {
 });
 
 describe('the series code against the build', () => {
+  it('refuses uncommitted build provenance on public chains while identifying local rehearsal bytes honestly', async () => {
+    const { seriesBuildProvenance } = await import('../lib/positions/code.ts');
+    for (const build of [{ workingTreeClean: false, sourceCommit: 'a'.repeat(40) }, { workingTreeClean: true, sourceCommit: null }]) {
+      assert.equal(seriesBuildProvenance(build, 1).allowed, false);
+      assert.equal(seriesBuildProvenance(build, 4663).allowed, false);
+      assert.deepEqual(seriesBuildProvenance(build, 31337), { allowed: true, sourceCommit: null, detail: 'local rehearsal build; these bytes are not attributed to a committed source release' });
+    }
+    assert.equal(seriesBuildProvenance({ workingTreeClean: true, sourceCommit: 'a'.repeat(40) }, 1).sourceCommit, 'a'.repeat(40));
+  });
   it('matches only when the bytes agree outside the immutable slots and the slots hold the record', async () => {
     const { buildRecord, compareCode, expectedImmutables } = await import('../lib/positions/code.ts');
     const { build, fault } = await buildRecord();

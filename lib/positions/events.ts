@@ -24,6 +24,8 @@ export const EVENT_SIGNATURES = {
   MintPermitSet: 'MintPermitSet(address,uint64)',
   ClaimPermitSet: 'ClaimPermitSet(address,bool)',
   OperatorChanged: 'OperatorChanged(address,address)',
+  OperatorTransferProposed: 'OperatorTransferProposed(address,address)',
+  OperatorTransferCancelled: 'OperatorTransferCancelled(address,address)',
 } as const;
 
 export type EventName = keyof typeof EVENT_SIGNATURES;
@@ -43,7 +45,9 @@ export type SeriesEvent =
   /** A mint permit set for a holder, until a unix time; zero revokes it. */
   | { readonly name: 'MintPermitSet'; readonly holder: string; readonly until: bigint }
   | { readonly name: 'ClaimPermitSet'; readonly holder: string; readonly permitted: boolean }
-  | { readonly name: 'OperatorChanged'; readonly previous: string; readonly next: string };
+  | { readonly name: 'OperatorChanged'; readonly previous: string; readonly next: string }
+  | { readonly name: 'OperatorTransferProposed'; readonly current: string; readonly proposed: string }
+  | { readonly name: 'OperatorTransferCancelled'; readonly current: string; readonly cancelled: string };
 
 export interface IndexedEvent {
   readonly chainId: number;
@@ -135,6 +139,15 @@ export function decodeSeriesEvent(log: Pick<LogEntry, 'topics' | 'data'>): Decod
       if (previous === null || next === null) return { ok: false, detail: 'previous or next undecodable' };
       return { ok: true, event: { name: 'OperatorChanged', previous: previous.toLowerCase(), next: next.toLowerCase() } };
     }
+    case EVENT_TOPICS.OperatorTransferProposed:
+    case EVENT_TOPICS.OperatorTransferCancelled: {
+      const current = log.topics[1] ? decodeAddressWord(log.topics[1]) : null;
+      const next = log.topics[2] ? decodeAddressWord(log.topics[2]) : null;
+      if (current === null || next === null) return { ok: false, detail: 'current or nominated operator undecodable' };
+      return topic0 === EVENT_TOPICS.OperatorTransferProposed
+        ? { ok: true, event: { name: 'OperatorTransferProposed', current: current.toLowerCase(), proposed: next.toLowerCase() } }
+        : { ok: true, event: { name: 'OperatorTransferCancelled', current: current.toLowerCase(), cancelled: next.toLowerCase() } };
+    }
     default:
       return { ok: 'IGNORED' };
   }
@@ -175,5 +188,9 @@ export function encodeSeriesEvent(event: SeriesEvent): { topics: string[]; data:
       return { topics: [EVENT_TOPICS.ClaimPermitSet, addressWord(event.holder)], data: word(event.permitted ? 1n : 0n) };
     case 'OperatorChanged':
       return { topics: [EVENT_TOPICS.OperatorChanged, addressWord(event.previous), addressWord(event.next)], data: '0x' };
+    case 'OperatorTransferProposed':
+      return { topics: [EVENT_TOPICS.OperatorTransferProposed, addressWord(event.current), addressWord(event.proposed)], data: '0x' };
+    case 'OperatorTransferCancelled':
+      return { topics: [EVENT_TOPICS.OperatorTransferCancelled, addressWord(event.current), addressWord(event.cancelled)], data: '0x' };
   }
 }

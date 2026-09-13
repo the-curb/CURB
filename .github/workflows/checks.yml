@@ -14,9 +14,17 @@
 name: checks
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   site:
@@ -24,11 +32,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The complete test suite exercises operator tools and the generated contract ABI.
+      - run: npm ci
+        working-directory: contracts
+      - run: npm run build
+        working-directory: contracts
       - run: npx next typegen
       - run: npx tsc --noEmit -p .
       - run: npm test
@@ -53,6 +68,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -73,6 +90,9 @@ jobs:
         working-directory: contracts
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Build provenance names the last source/compiler commit, not the checkout tip.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -89,6 +109,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -140,11 +162,32 @@ jobs:
           node scripts/deploy-series.ts records/apple-s1.31337.json > series-env.json
           node -e "const e=require('./series-env.json');console.log('series deployed through the tool at', Object.values(e)[0].address)"
           node -e "const s=require('./safe-rehearsal.json');console.log('Safe', s.safe, 'payment executed in block', s.executedInBlock, 'refusals', JSON.stringify(s.refused))"
+      - name: Safe operator verification, two-step acceptance and deployment journal
+        working-directory: contracts
+        env:
+          REHEARSAL_RPC_URL: http://127.0.0.1:8545
+        run: node scripts/series-preflight-rehearsal.ts > series-preflight-rehearsal.json
       - name: Read them back through the site's index, reconciliation, conditions, prepared calldata and the credit desk
         run: |
           CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" CURB_REHEARSAL_DESK_ENV="$(cat contracts/desk-env.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts tests/credits-tool-rehearsal.test.ts
       - name: The drill's record, as the test wrote it (not committed from here)
         run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'
-      # With the contracts built, the whole site suite — including the fixture-vs-artifact drift checks the site job skips for want of artifacts.
+      # Repeat the complete suite after the shared-node rehearsals, with generated artifacts present.
       - name: The whole site suite, artifacts present
         run: npm test
+
+  release-checks:
+    name: release checks
+    if: always()
+    needs: [site, store, contracts, rehearsal]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job passed for this commit
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          if [ "$RESULTS" != "success,success,success,success" ]; then
+            echo "Required release checks did not all pass: $RESULTS"
+            exit 1
+          fi
+          echo "All four checks passed. This does not approve a token launch or asset pilot."

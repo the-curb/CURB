@@ -1,0 +1,75 @@
+THE CURB first release: local Solidity unit and invariant tests
+Command: node scripts/record-tests.mjs
+Scope: hardhat test solidity --grep-exclude Fork; no fork or rehearsal in this run
+Started UTC: 2026-09-13T08:36:46.4461449Z
+Base commit: 8f093ff9de64c8da7003ad2d2762c6b5967db573
+Working tree: modified; JSON record carries workingTreeClean false
+
+No contracts to compile
+
+Running Solidity tests
+
+  test/TransferObservation.t.sol:TransferObservationTest
+    ✔ test_TransferObservation_RevertDoesNotCountExistingFunds()
+    ✔ test_TransferObservation_RepeatedProbesMeasureEachTransfer()
+    ✔ test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()
+    ✔ test_TransferObservation_FeeIsVisibleInReceivedUnits()
+    ✔ test_TransferObservation_FalseReturnDoesNotCountExistingFunds()
+
+  test/CreditDesk.t.sol:CreditDeskTest
+    ✔ test_ZeroTreasuryIsRefused()
+    ✔ test_ZeroTokenIsRefused()
+    ✔ test_ZeroKeyHashIsRefused()
+    ✔ test_ZeroAmountIsRefused()
+    ✔ test_TwoTopUpsForOneKeyAreTwoEvents()
+    ✔ test_TopUpMovesCurbToTheTreasuryAndSaysSo()
+    ✔ test_TokenWithoutCodeIsRefused()
+    ✔ test_NoAllowanceMeansNothingMoves()
+    ✔ test_MoreThanTheBalanceIsRefused()
+    ✔ test_ImmutablesAreWhatWasGiven()
+    ✔ test_AnyoneMayTopUpAnyKey()
+    ✔ test_ATransferThatReturnsFalseIsRefused()
+    ✔ test_AHaltedTokenIsRefused()
+    ✔ test_AFeeOnTransferIsRefusedRatherThanCreditedShort()
+    ✔ testFuzz_EventAmountEqualsTreasuryDelta(bytes32,uint128) (runs: 256)
+
+  test/CompanySeries.t.sol:CompanySeriesTest
+    ✔ test_WorkedExample()
+    ✔ test_T25_PermitsLiveOnChainAndAreSeparate()
+    ✔ test_T24_SupplyChangesOnlyThroughDepositOrExit()
+    ✔ test_T23_ExactDepositDoesNotCoverAnOlderShortfall()
+    ✔ test_T22_BurnAndRemintCannotPassACapThatCountsReserved()
+    ✔ test_T20_ARevertingBalanceOfOnADoesNotTouchExitOrBClaims()
+    ✔ test_T19_TwoComponentsWithOneAddressAreRefused()
+    ✔ test_T17_ReceiptTransferIsAlwaysRefused()
+    ✔ test_T12_LargeIntegersDoNotOverflowOrLosePrecision()
+    ✔ test_T11_ZeroSupplyWithReservesDoesNotLetANewMintAdoptThem()
+    ✔ test_T10_FeeOnTransferIsRejectedByTheDelta()
+    ✔ test_T09_ReentrantClaimIsRefusedAndAFalseReturnReverts()
+    ✔ test_T08_ShortfallHaltsNominalPaymentForEveryone()
+    ✔ test_T07_DonationChangesNoLotReceiptOrClaim()
+    ✔ test_T06_LaterDepositorGetsNoPartOfTheReserve()
+    ✔ test_T05_ClaimPaysOnceAndOnlyToItsHolder()
+    ✔ test_T04_HaltedAKeepsTheClaimAndLetsBBeClaimedWithoutTouchingA()
+    ✔ test_T03_ExitMovesActiveToReservedAndChangesNoLiability()
+    ✔ test_T02_SecondComponentFailingRevertsTheWholeMint()
+    ✔ test_T01_MintIsExact()
+    ✔ test_PreviewDeadlineIsHonoured()
+    ✔ test_OperatorStopsArePerOperationAndPerComponent()
+    ✔ test_ConstructionRefusesZeroUnitsAndNonContracts()
+    ✔ testFuzz_SequencesKeepTheInvariants(uint8[16],uint8[16]) (runs: 256)
+
+  test/CompanySeries.invariant.t.sol:CompanySeriesInvariantTest
+    ✔ invariant_SupplyOnlyByMintAndExit() (runs: 256)
+    ✔ invariant_ShortfallHaltsPayment() (runs: 256)
+    ✔ invariant_LedgerSumsAgree() (runs: 256)
+    ✔ invariant_CapCountsReserved() (runs: 256)
+    ✔ invariant_BackingCoversLiabilityButForSeizure() (runs: 256)
+
+
+  49 passing
+
+
+recorded 49 passing, 0 failing at 8f093ff9de (seed 0x7727ea51…, 256 runs)
+Exit code: 0
+Finished UTC: 2026-09-13T08:36:55.5102293Z

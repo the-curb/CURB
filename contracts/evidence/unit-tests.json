@@ -1,7 +1,7 @@
 {
-  "ranAt": "2026-09-12T17:46:24.586Z",
-  "commit": "06623ed42997140ae176c9f571eedeb0da8445ef",
-  "workingTreeClean": true,
+  "ranAt": "2026-09-13T10:23:25.077Z",
+  "commit": "8f093ff9de64c8da7003ad2d2762c6b5967db573",
+  "workingTreeClean": false,
   "solc": "0.8.30",
   "fuzz": {
     "seed": "0x7727ea51af0441c20da14dcd68a15dac8c9ebd589c5be8fa8c87c1d3720450bc",
@@ -12,9 +12,59 @@
     "depth": 64
   },
   "command": "hardhat test solidity --grep-exclude Fork",
-  "passing": 44,
+  "passing": 54,
   "failing": 0,
   "tests": [
+    {
+      "name": "test_ZeroAndUnauthorizedNominationOrCancellationAreRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_OnlyNomineeCanAcceptAndOldAuthorityIsRemoved()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_NominationDoesNotGrantAuthorityOrRemoveCurrentOperator()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_MultisigAcceptanceRequiresQuorumAndKeepsExistingPermits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_CancelledOrReplacedNomineeCannotAccept()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_RevertDoesNotCountExistingFunds()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_RepeatedProbesMeasureEachTransfer()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FeeIsVisibleInReceivedUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FalseReturnDoesNotCountExistingFunds()",
+      "passed": true,
+      "fuzzRuns": null
+    },
     {
       "name": "test_ZeroTreasuryIsRefused()",
       "passed": true,
@@ -236,5 +286,5 @@
       "fuzzRuns": 256
     }
   ],
-  "limit": "a passing run is not a review and not an audit; it says these cases held at this commit with this seed"
+  "limit": "a passing run is not a review and not an audit; it says these cases held in the modified contract working tree based on this commit with this seed"
 }

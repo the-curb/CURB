@@ -17,7 +17,7 @@ Not: people who hold none and would like to; the interview is about behaviour, n
 3. **The last time you tried to leave one.** Sold on a venue, unwrapped, redeemed with the issuer, or gave up — and why that route.
 4. **A halt.** Has an issuer or a venue ever stopped a token you held? What did you do; what did you want to do.
 5. **The baseline.** Show two tokens in a wallet: wAAPLx and AAPLon. Ask them to describe what they hold and what they could do with each. Note every word they use for it.
-6. **The position.** Show the series page's simulation: one lot of ten wAAPLx and twenty AAPLon, the receipt, the exit into two claims. No pitch: read the rules aloud, as written.
+6. **The position.** Show the series page's simulation labelled **Mock A / Mock B**: one illustrative lot of ten Mock A and twenty Mock B, the receipt, and the exit into two claims. These are example units, not production quantities of wAAPLx or AAPLon. The named candidates in the baseline are under research; no pilot lot/cap or holder eligibility has been approved. No pitch: read the rules aloud, as written, and keep the same labels in screenshots and written questions.
 7. **The questions that decide it.** (a) What is the receipt, in your words? (b) If A is frozen, what happens to your B? (c) Can you sell the receipt? (d) What does one lot cost you to form and to leave, beside the gas table shown? (e) Would you form one; if so with what; if not, what would have to change.
 8. **Cost.** What they pay today per month for holding as they do — fees, spreads, their own time.
 
@@ -41,3 +41,5 @@ After the interview, without the interviewer's help, five written questions on t
 ## What the result would replace
 
 Assumption A5 in [the register](ASSUMPTIONS.md), and the *user need* half of gate G6. Nothing on the site changes until then.
+
+Use the [preparation dossier's scorecards](../mainnet/PREPARATION.md#interview-scorecards) to record original answers, comprehension, costs and the separate service-integrator experiment. No interview result is supplied by this guide.

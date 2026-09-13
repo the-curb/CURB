@@ -289,10 +289,11 @@ export function PositionFigure({ p }: { p: number }) {
         </g>
       ))}
       {unitsA.map((u, j) => (
-        <circle key={`a-${j}`} cx={u.x} cy={u.y} r={5.5} fill="currentColor" opacity={0.95} />
+        // Serialize computed coordinates consistently across server and browser math engines.
+        <circle key={`a-${j}`} cx={u.x.toFixed(4)} cy={u.y.toFixed(4)} r={5.5} fill="currentColor" opacity={0.95} />
       ))}
       {unitsB.map((u, j) => (
-        <rect key={`b-${j}`} x={u.x - 5} y={u.y - 5} width={10} height={10} fill="var(--color-accent)" opacity={0.9} />
+        <rect key={`b-${j}`} x={(u.x - 5).toFixed(4)} y={(u.y - 5).toFixed(4)} width={10} height={10} fill="var(--color-accent)" opacity={0.9} />
       ))}
     </svg>
   );

@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     // The front page's stage line is derived from the treasury's evidence file.
     '/': ['./contracts/evidence/safes/safe.4663.json'],
+    '/services': ['./contracts/evidence/safes/safe.4663.json'],
     '/doctrine': ['./DOCTRINE.md'],
     '/mechanism': ['./MECHANISM.md'],
     '/mechanism/decisions/**': ['./docs/decisions/*.md'],

@@ -1,0 +1,13 @@
+Compiled 3 Solidity files with solc 0.8.30 (evm target: prague)
+
+Running Solidity tests
+
+  test/TransferObservation.t.sol:TransferObservationTest
+    ✔ test_TransferObservation_RevertDoesNotCountExistingFunds()
+    ✔ test_TransferObservation_RepeatedProbesMeasureEachTransfer()
+    ✔ test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()
+    ✔ test_TransferObservation_FeeIsVisibleInReceivedUnits()
+    ✔ test_TransferObservation_FalseReturnDoesNotCountExistingFunds()
+
+
+  5 passing

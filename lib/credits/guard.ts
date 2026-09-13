@@ -17,7 +17,7 @@
 import type { Store } from '../store/types.ts';
 import { creditsStatus } from './config.ts';
 import { charge, isKey, keyAccount, keyHashOf, type KeyAccount } from './keys.ts';
-import { latestDeskCode } from './code.ts';
+import { topUpReadiness } from './top-up.ts';
 import { serviceById, type ServiceId } from './prices.ts';
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
@@ -34,17 +34,9 @@ export function presentedKey(request: Request): string | null {
   return null;
 }
 
-async function cannotPay(store: Store, status: string, detail: string, account: KeyAccount, serviceId: ServiceId, cents: number, charged: false | 'UNKNOWN' = false): Promise<Response> {
+async function cannotPay(store: Store, status: string, detail: string, account: KeyAccount, serviceId: ServiceId, cents: number, charged: false | 'UNKNOWN' = false, now = new Date()): Promise<Response> {
   const cfg = creditsStatus();
-  // The way to pay is named only for a desk whose code the last tick verified: a top-up to an unverified desk is not credited, and is not invited. A verification the store could not read is said so, not read as a failed one.
-  const code = cfg.state === 'CONFIGURED' ? await latestDeskCode(store, cfg.config) : null;
-  const verified = code !== null && code.storeFault === null && code.code !== null && code.code.state === 'MATCHES';
-  const held =
-    cfg.state !== 'CONFIGURED' || verified
-      ? null
-      : code !== null && code.storeFault !== null
-        ? `the desk’s verification could not be read from the store (${code.storeFault}); ask /api/credits before sending a top-up`
-        : `the desk’s code is not verified as the build by the last tick (${code?.code?.state ?? 'not yet read'}); top-ups are not credited from it — do not send one`;
+  const readiness = await topUpReadiness(store, cfg, now);
   const body = {
     error: status,
     detail,
@@ -53,19 +45,21 @@ async function cannotPay(store: Store, status: string, detail: string, account: 
     service: serviceId,
     priceCents: cents,
     keyHash: account.hash,
-    creditedCents: account.creditedCents,
-    spentCents: account.spentCents,
-    balanceCents: account.balanceCents,
-    toOpenCents: account.toOpenCents,
-    topUp: cfg.state === 'CONFIGURED' && verified ? { desk: cfg.config.desk, network: cfg.config.network.id, call: 'topUp(bytes32 keyHash, uint256 amount)', quote: '/api/credits?usd=20' } : null,
-    topUpHeld: held,
+    balanceState: account.balanceState,
+    creditedCents: account.balanceState === 'READ' ? account.creditedCents : null,
+    spentCents: account.balanceState === 'READ' ? account.spentCents : null,
+    balanceCents: account.balanceState === 'READ' ? account.balanceCents : null,
+    toOpenCents: account.balanceState === 'READ' ? account.toOpenCents : null,
+    quoteReadiness: readiness.quoteReadiness,
+    topUp: readiness.topUp,
+    topUpHeld: readiness.topUpHeld,
   };
   const httpStatus = status === 'STORE_UNREADABLE' || status === 'NOT_RECORDED' ? 503 : 402;
   return Response.json(body, { status: httpStatus, headers: NO_STORE });
 }
 
 /** Configured, keyed, and able to pay — without charging yet. */
-export async function admit(request: Request, store: Store, serviceId: ServiceId): Promise<Admission> {
+export async function admit(request: Request, store: Store, serviceId: ServiceId, now = new Date()): Promise<Admission> {
   const service = serviceById(serviceId);
   if (service === null) return { ok: false, response: Response.json({ error: 'SERVICE_UNKNOWN' }, { status: 500, headers: NO_STORE }) };
 
@@ -89,10 +83,10 @@ export async function admit(request: Request, store: Store, serviceId: ServiceId
   }
   const hash = keyHashOf(key);
   const account = await keyAccount(store, hash, { pending: false });
-  if (account.storeFault !== null) return { ok: false, response: await cannotPay(store, 'STORE_UNREADABLE', account.storeFault, account, service.id, service.cents) };
-  if (account.status === 'UNFUNDED') return { ok: false, response: await cannotPay(store, 'UNFUNDED', 'the chain has credited nothing to this key hash', account, service.id, service.cents) };
-  if (account.status === 'BELOW_MINIMUM') return { ok: false, response: await cannotPay(store, 'BELOW_MINIMUM', `the key has been credited ${account.creditedCents} cents; it opens at ${account.minimumOpenCents}`, account, service.id, service.cents) };
-  if (BigInt(account.balanceCents) < BigInt(service.cents)) return { ok: false, response: await cannotPay(store, 'INSUFFICIENT', `the balance is ${account.balanceCents} cents; this call is ${service.cents}`, account, service.id, service.cents) };
+  if (account.storeFault !== null) return { ok: false, response: await cannotPay(store, 'STORE_UNREADABLE', account.storeFault, account, service.id, service.cents, false, now) };
+  if (account.status === 'UNFUNDED') return { ok: false, response: await cannotPay(store, 'UNFUNDED', 'the chain has credited nothing to this key hash', account, service.id, service.cents, false, now) };
+  if (account.status === 'BELOW_MINIMUM') return { ok: false, response: await cannotPay(store, 'BELOW_MINIMUM', `the key has been credited ${account.creditedCents} cents; it opens at ${account.minimumOpenCents}`, account, service.id, service.cents, false, now) };
+  if (BigInt(account.balanceCents) < BigInt(service.cents)) return { ok: false, response: await cannotPay(store, 'INSUFFICIENT', `the balance is ${account.balanceCents} cents; this call is ${service.cents}`, account, service.id, service.cents, false, now) };
   return { ok: true, hash, account, cents: service.cents };
 }
 
@@ -101,12 +95,12 @@ export async function settle(store: Store, hash: string, serviceId: ServiceId, r
   const service = serviceById(serviceId)!;
   const outcome = await charge(store, hash, service.id, service.cents, ref, now);
   if (outcome.ok) return { ok: true, account: outcome.account };
-  return { ok: false, response: await cannotPay(store, outcome.status, outcome.detail, outcome.account, service.id, service.cents, outcome.charged ?? false) };
+  return { ok: false, response: await cannotPay(store, outcome.status, outcome.detail, outcome.account, service.id, service.cents, outcome.charged ?? false, now) };
 }
 
 /** Admit and settle in one step, for a call whose answer needs nothing from the store. */
 export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<Settlement & { readonly hash?: string }> {
-  const a = await admit(request, store, serviceId);
+  const a = await admit(request, store, serviceId, now);
   if (!a.ok) return a;
   const s = await settle(store, a.hash, serviceId, ref, now);
   return s.ok ? { ...s, hash: a.hash } : s;

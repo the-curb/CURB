@@ -1,0 +1,2 @@
+CompanySeries: the record was written from a dirty tree or names no source commit; run npm run record:build from a clean tree and commit the record
+CreditDesk: the committed record (source at 06623ed429, recorded at 8e0acd9f3b) is this source's bytecode, slots curb, treasury

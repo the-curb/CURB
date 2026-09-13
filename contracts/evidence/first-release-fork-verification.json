@@ -1,0 +1,51 @@
+{
+  "recordedAt": "2026-09-13T08:31:29.7085224Z",
+  "baseCommit": "8f093ff9de64c8da7003ad2d2762c6b5967db573",
+  "workingTreeClean": false,
+  "note": "Executed against the uncommitted first-release hardening changes; SHA-256 fingerprints identify the exact tested files. No live transaction, public deployment, or issuer eligibility was tested.",
+  "fingerprints": {
+    "src/CompanySeries.sol": "473405204f09ba7070f53d97890dd20556155855471722c0525ea0e13c8b0653",
+    "src/CreditDesk.sol": "930bbc701f304bafbf6af6494c35e5d63c72cb4f1da23def2dc216915765a43a",
+    "hardhat.config.ts": "da603caa5b82cf17c03ddcc0fdfd78d24453e0d5005790232f5d2fdfd290e663",
+    "test/helpers/TransferObservation.sol": "b122e202df6317d3084a7fa7eed7037a7bed42d8812f9479a861bff269bc38eb",
+    "test/TransferObservation.t.sol": "69fd704adf681cbd6fc36b76f3e293c8ed61f824ebbaf7f3b247587adc7f5b56",
+    "test/fork/AppleComponentsFork.t.sol": "5378be0969d3cfba7af580ae37ba8d33b502f9eb24bf635aee333e1f0fb30a33"
+  },
+  "localRegression": {
+    "command": "npm exec -- hardhat test solidity --grep TransferObservation",
+    "exitCode": 0,
+    "passing": 5,
+    "failing": 0,
+    "log": "first-release-transfer-observation.txt"
+  },
+  "ethereumFork": {
+    "command": "node node_modules/hardhat/dist/src/cli.js test solidity --grep 'test_Fork_(F|B|Observation|Z)'",
+    "rpc": "https://eth.drpc.org",
+    "exitCode": 0,
+    "passing": 13,
+    "failing": 0,
+    "block": 25967321,
+    "blockTimestamp": 1789288175,
+    "schemaVersion": 2,
+    "log": "first-release-apple-components-fork.txt",
+    "findings": "apple-s1.fork.json",
+    "observationTestsAreNotAdmissionProof": true
+  },
+  "buildRecordCheck": {
+    "command": "node scripts/check-build-record.mjs",
+    "exitCode": 0,
+    "companySeriesMatchesCommittedBytecode": true,
+    "creditDeskMatchesCommittedBytecode": true
+  },
+  "historicalEvidence": {
+    "path": "history/apple-s1.fork.block-25959144.before-delta-fix.json",
+    "status": "superseded",
+    "caveat": "The historical AAPLon transfersForArbitraryHolder=false was contaminated by Bob balances left by the gas fixture. Retained unchanged as history; use the corrected fresh record for this observation."
+  },
+  "limits": [
+    "Storage-staged balances do not prove acquisition, holder eligibility, or issuer integration.",
+    "Unwrap, raw transfer, inventory, and authority fields are observations; the writer asserts the required wrapper/AAPLon/series behaviors before writing.",
+    "Current wrapper inventory is not treated as an issuance-capacity ceiling; eligible raw acquisition, deposit/mint access and limits remain unproven.",
+    "The separate historical corporate-action evidence was not rerun or overwritten."
+  ]
+}

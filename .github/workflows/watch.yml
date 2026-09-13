@@ -1,16 +1,6 @@
-# The probe from outside. The desk cannot notice its own scheduler stopping:
-# every figure it shows carries its age, but nothing inside it rings. This
-# job fetches /api/state every half hour from a workflow of its own and turns
-# red when the store did not answer, when no agent has reported in the last
-# hour, when the schema is behind the build, or when a DARK condition stands
-# — so a stopped tick, a dead store or a wrong desk is a red run in the
-# Actions tab within the hour, whether or not the webhook is read.
-#
-# It shares one failure mode with the tick: both are GitHub's scheduler. A
-# public repository with no commit for sixty days has its schedules
-# disabled; the weekly fork-evidence commit keeps them alive, and a person
-# who sees neither this nor the tick running knows what happened.
-
+# Uses the same read-only probe that an operator can run outside GitHub.
+# Tick and watch still share GitHub's scheduler; this does not establish that
+# any monitor on a separate platform has been installed or is active.
 name: watch
 
 on:
@@ -26,27 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fetch /api/state and judge it
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read and assess /api/state
         env:
-          URL: ${{ secrets.CURB_TICK_URL }}
-        run: |
-          set -euo pipefail
-          BASE="${URL%/api/tick}"
-          if [ -z "$URL" ]; then echo "CURB_TICK_URL is not set as a repository secret" >&2; exit 1; fi
-          curl --fail-with-body --silent --show-error --max-time 60 "${BASE}/api/state" > state.json
-          node -e '
-            const s = JSON.parse(require("fs").readFileSync("state.json", "utf8"));
-            const red = (why) => { console.log("RED:", why); process.exitCode = 1; };
-            console.log("state:", s.state, "| observed", s.observedAt);
-            if (s.state !== "READ") red("the store did not answer: " + JSON.stringify(s).slice(0, 300));
-            const w = s.warden || {};
-            console.log("warden:", JSON.stringify(w));
-            if (typeof w.reportingLastHour === "number" && w.reportingLastHour === 0) red("no agent reported in the last hour — the scheduler or the tick has stopped");
-            if (s.storeSchema) console.log("schema:", s.storeSchema.state, s.storeSchema.detail || "");
-            if (s.storeSchema && s.storeSchema.state !== "CURRENT") red("store schema " + s.storeSchema.state);
-            const conditions = s.conditions || [];
-            console.log("conditions:", conditions.length ? conditions.map((c) => c.id + ":" + c.severity).join(", ") : "none");
-            if (conditions.some((c) => c.severity === "DARK")) red("a DARK condition stands: " + conditions.filter((c) => c.severity === "DARK").map((c) => c.id + " — " + c.text).join("; "));
-            const dead = (s.agents || []).filter((a) => a.health === "ABSENT");
-            if (dead.length) red("agents absent: " + dead.map((a) => a.id).join(", "));
-          '
+          # Converts the existing /api/tick path to /api/state. Never interpolate
+          # the URL into shell source or print it.
+          CURB_HEALTH_URL: ${{ secrets.CURB_TICK_URL }}
+        run: node scripts/check-health.ts

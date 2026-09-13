@@ -2,6 +2,8 @@
 
 **Status:** Filed 12 September 2026 by the author of the code, against commit `1d6b3f7` of `contracts/src/CompanySeries.sol`. This is what an author can do before a reviewer arrives: walk the checklist a reviewer would walk, say what was looked at and what was found, and leave the findings where they can be checked. It does not satisfy C09, and the site does not say *reviewed* because of it.
 
+**13 September mainnet preparation addendum:** the table below preserves the earlier self-review and its source scope. The local source now uses two-step operator nomination/acceptance/cancellation and the public series deployment tool checks a reviewed Safe expectation on the target chain. These changes must be included in a new pinned release and independent review; the historical findings are not automatically a report on the changed source. Scope, open findings and acceptance fields are prepared in [the mainnet dossier](../mainnet/PREPARATION.md#independent-review-brief).
+
 ## Method
 
 Read the contract and its tests line by line against the blueprint's cases; run the unit tests, the fuzz sequence and the invariant handler (256 sequences, depth 64) with the recorded seed; run the fork tests against both real components; check each item below by hand.
@@ -25,7 +27,7 @@ Read the contract and its tests line by line against the blueprint's cases; run 
 | Events | Every state change emits; the site's indexer decodes exactly these signatures, checked against the ABI fixture | Held. |
 | Time | `deadline` compared to `block.timestamp` for a mint preview; a validator can move it by seconds | Acceptable for a fifteen-minute preview; noted. |
 | Low-level calls to a component with no code | `call` to an address without code returns success with no data | Covered twice: the constructor refuses a non-contract, and every transfer is followed by a balance-delta check that a no-op cannot pass. A component that self-destructs after construction would fail the delta check on the next mint or claim — every operation would then revert, which is the right failure. |
-| `transferOperator` | One step, no acceptance by the new operator | **Finding, open:** a typo hands the role to nobody; the series would keep paying claims under existing permits and could neither pause nor grant — the designed failure mode, but avoidable with a two-step transfer. Recorded in [ADR-001](ADR-001-immutable-series.md) as open. |
+| `transferOperator` | Historical source: one step, no acceptance by the new operator | **Finding in the reviewed source:** a typo immediately hands away authority. **Local remediation prepared 13 September:** nomination with current authority retained, nominee-only acceptance and cancellation; see ADR-001. Independent verification and release signoff remain open. |
 | Reason strings | Stops carry a reason on chain; nothing enforces its length | The operator tool refuses a reason under eight characters; the contract does not. Acceptable: the reason is for people. |
 | Front-running | `allocateExit` and `claimComponent` act only on the caller's own receipts and claims; a mint's cap check can be raced by another mint, which then fails cleanly | No holder can act on another's rights. |
 | Gas griefing | A component's transfer that consumes all gas makes the call fail closed | The claim stays whole; the drill's frozen-A scenario shows the shape. |

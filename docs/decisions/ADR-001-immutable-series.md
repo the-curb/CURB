@@ -21,7 +21,9 @@ A series contract fixes, at construction and forever: component A's address, com
 
 `contracts/src/CompanySeries.sol` declares `componentA`, `componentB`, `qA`, `qB` and `capLots` immutable and has no upgrade path. `contracts/test/CompanySeries.t.sol` T01 checks the constructor refuses a zero address, equal components, non-positive units and an overflowing cap. Unaudited, unreviewed, undeployed.
 
+**13 September mainnet preparation:** operator rotation uses nomination and acceptance. `transferOperator(next)` records a pending nominee; the current operator keeps authority. Only the nominee can execute `acceptOperator()`; the current operator can replace or cancel the nomination. This addresses the self-review's immediate-loss-by-typo finding in local source. It does not change backing, components, quantities, receipt transferability or pause quorum, and it has not received independent review or been deployed publicly.
+
 ## Open
 
 - Whether a time-boxed "sunset" — the operator stopping mints permanently and announcing an exit window — should be a named state rather than an operator convention.
-- Whether the operator role itself should be transferable (it is today, by `transferOperator`) or fixed with the series.
+- Independent review and final signoff of two-step operator rotation, including cancellation, pending nomination replacement and Safe-to-Safe acceptance. Decide whether this local implementation is the policy for the selected pilot before recording a public build.

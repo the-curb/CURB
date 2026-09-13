@@ -2,6 +2,12 @@
 
 **One company. Multiple issuers. One position.**
 
+Mainnet preparation: [dossier and decision templates](docs/mainnet/PREPARATION.md),
+[release evidence](docs/reviews/MAINNET-PREPARATION-2026-09-13.md).
+`npm run mainnet:preflight` reports missing evidence for token launch, paid beta
+and the position pilot. The preparation template remains HELD until actual
+reviews and deployment evidence are recorded; it does not authorize a launch.
+
 Live at **https://the-curb.vercel.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
 
 A stock-token holder chooses a company and, in the same act, a particular way
@@ -11,9 +17,13 @@ open — one position on one company, formed from several issuers, with the
 composition inspectable, the right to every component recorded, and every
 component withdrawn on its own.
 
-**Stage: building.** The product is a design under test. No Curb series
-contract, issuer integration, transaction or deployment exists yet. What
-exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
+**Stage: position prototype; treasury mainnet record.** The CompanySeries
+contract exists and has been exercised on local chains and Ethereum forks.
+No public series deployment or issuer integration is approved. A 2-of-3
+treasury Safe creation on Robinhood Chain is recorded separately in
+`contracts/evidence/safes/safe.4663.json`; it does not establish an Ethereum
+series operator or a working credit desk. `/services` reports the configured
+desk, code verification, rates and receipts. What exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
 the ledger model that implements its accounting (`lib/positions/`, tested
 against the blueprint's cases in `tests/positions.test.ts`), a simulation
 of it at `/positions/apple-s1` — illustrative units, no prices, no chain —
@@ -24,7 +34,8 @@ prototype with fork evidence against both real components on Ethereum
 (including a corporate action across a recorded block), a
 rehearsal and an operational drill on a local chain, the decision records
 the blueprint asks for (`docs/decisions/`, rendered at `/mechanism/decisions`)
-— all proposed, none decided — and the token's one function, decided by
+— the series ADRs and remaining operations policy are proposals; the
+treasury signers are recorded — and the token's one function, decided by
 the product owner: a credit desk at `/services`, prices in dollars for the
 history and the fan-out the site keeps, paid in CURB at a rate read from a
 pool at a block, `NOT_CONFIGURED` until a token exists.
@@ -32,8 +43,9 @@ pool at a block, `NOT_CONFIGURED` until a token exists.
 Beneath the product is the desk: a multi-agent intelligence desk for stock
 tokens on Robinhood Chain (chain id 4663). Nine agents read the chain and two
 published registries on a schedule, publish what they measured with a source
-and a time on every figure, and refuse — in code, not in a prompt — to
-forecast, advise, rate, or print a number they did not read. A daily paper,
+and a time on every figure, and apply code-based policy checks for forecast, advice, rating language
+and undeclared figures. These pattern and provenance checks do not prove
+the semantic truth of every sentence. A daily paper,
 *The Curb Gazette*, is composed from the record. The desk is the evidence
 layer a position would stand on; for a new chain it needs new sources and new
 tests, and says so.

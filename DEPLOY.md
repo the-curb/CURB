@@ -247,15 +247,14 @@ verify every entry on chain refuses to write.
 
 Both ride on the tick, and both are reported in its response.
 
-- **Who reads it.** A webhook is not an on-call rota: the person who reads
-  the channel, and how soon, is named in the operator policy when the
-  operator is (register A4); until then the operator of record is whoever
-  holds the Vercel project and the repository, and the tick's red runs are
-  the second channel. The scheduler itself is GitHub's: a public repository
+- **Who reads it.** Treasury signers are recorded in the operator policy;
+  the on-call reader, response time and escalation rota still need assignment.
+  The tick's red runs are a second channel. The scheduler itself is GitHub's: a public repository
   with no commit for sixty days has its scheduled workflows disabled — the
   weekly fork-evidence commit keeps it alive, and `reportingLastHour` on
-  `/api/state` falling to zero is the sign from outside (an uptime monitor
-  that fetches it is the probe this system does not carry). Once a week:
+  `/api/state` falling to zero is a signal for monitoring. `watch.yml` already
+  probes it on GitHub; a monitor on another platform is still required to
+  detect a shared scheduler outage. Once a week:
   `npm run db:dump` to a directory off the provider.
 - **Alerting.** Set `CURB_ALERT_WEBHOOK` to a Discord or Slack incoming-webhook
   URL. After each tick the active conditions — an agent absent, degraded or
@@ -609,5 +608,36 @@ and is reported under `credits`. No token exists; in production it is
   policy has the treasury pay them monthly against the published figures; the
   tiers and quotas of Vercel, Supabase and the RPC provider, and their monthly
   cost, are not on a page yet — they go into the token record's proceeds table
-  when the operator is named and the plans are decided (register A4, LAUNCH
-  row 8).
+  after the actual plans, quotas, service volumes and budgets are measured
+  and decided (LAUNCH row 8). Naming treasury signers did not measure these costs.
+
+## Mainnet preparation and release records
+
+The preparation dossier is [docs/mainnet/PREPARATION.md](docs/mainnet/PREPARATION.md).
+`npm run mainnet:preflight` is an offline, read-only check of source identity,
+evidence hashes and release-record completeness. Its default template deliberately
+returns `HELD` (exit 2). It reads no `.env` files, signs nothing and does not
+grant approval. Populate a copy of `docs/mainnet/readiness.example.json` only
+from actual evidence and named reviews; pass its path as the command argument.
+The output keeps token launch, paid beta and position pilot separate. Public
+series gates and a dirty working tree also hold release status.
+
+The checks workflow now supports manual runs and `codex/**` branches and exposes
+one aggregate `release checks` status. Configure repository rules and the hosting
+deployment path to require that status for the exact commit. Adding the workflow
+does not change the live Vercel integration or branch rules by itself. Confirm
+those account settings before promoting a release; retain a rollback deployment.
+
+Before changing production, run Postgres conformance against a disposable database,
+not a URL loaded from `.env.local`. Use an explicit isolated `CURB_POSTGRES_URL`
+with `node --test tests/store-postgres.test.ts`. The mainnet preparation report
+records the actual test environment. Production certificate verification, provider
+limits, off-provider backups and independent monitoring still require evidence
+from the chosen deployment environment.
+
+The reusable monitor command is `npm run monitor:health -- https://host/api/state`
+or `node scripts/check-health.ts` with `CURB_HEALTH_URL`. GitHub watch uses that
+same implementation. It performs one read-only request and fails for unread,
+malformed or stale state, missing roster, absent agents, schema drift and DARK
+conditions. Running it on an independently scheduled platform and assigning its
+alerts remain operator setup tasks; committing the script does not install a monitor.

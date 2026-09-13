@@ -1,0 +1,24 @@
+Disposable local database; source public schema contains mock credits only.
+heartbeats: 0 rows
+publications: 0 rows
+blocks: 0 rows
+observations: 2 rows
+narrations: 0 rows
+snapshots: 8 rows
+written D:\BARONG\the-curb\.scratch\mainnet-prep\backup
+restoring the dump of 2026-09-13T10:36:52.858Z from D:\BARONG\the-curb\.scratch\mainnet-prep\backup; existing rows are left as they are
+heartbeats: 0 rows in the dump, 0 inserted, 0 already present
+publications: 0 rows in the dump, 0 inserted, 0 already present
+blocks: 0 rows in the dump, 0 inserted, 0 already present
+observations: 2 rows in the dump, 2 inserted, 0 already present
+observations: the id sequence moved past 2
+narrations: 0 rows in the dump, 0 inserted, 0 already present
+snapshots: 8 rows in the dump, 8 inserted, 0 already present
+restoring the dump of 2026-09-13T10:36:52.858Z from D:\BARONG\the-curb\.scratch\mainnet-prep\backup; existing rows are left as they are
+heartbeats: 0 rows in the dump, 0 inserted, 0 already present
+publications: 0 rows in the dump, 0 inserted, 0 already present
+blocks: 0 rows in the dump, 0 inserted, 0 already present
+observations: 2 rows in the dump, 0 inserted, 2 already present (by key — a store that ticked since the dump may hold other rows under those ids; read the count)
+observations: the id sequence moved past 2
+narrations: 0 rows in the dump, 0 inserted, 0 already present
+snapshots: 8 rows in the dump, 0 inserted, 8 already present

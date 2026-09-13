@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { parsePositionLots } from '@/lib/positions/wallet';
 import {
   active,
   allocateExit,
@@ -50,10 +51,7 @@ export function PositionSimulator({ seriesName, q, capLots, labels }: Props) {
   const [log, setLog] = useState<readonly { ok: boolean; text: string }[]>([]);
   const [lotsText, setLotsText] = useState('3');
 
-  const lots = (() => {
-    const n = Number.parseInt(lotsText, 10);
-    return Number.isInteger(n) && n > 0 ? BigInt(n) : null;
-  })();
+  const lots = parsePositionLots(lotsText);
 
   const record = (entry: { ok: boolean; text: string }) => setLog((prev) => [entry, ...prev].slice(0, 14));
 
@@ -114,22 +112,23 @@ export function PositionSimulator({ seriesName, q, capLots, labels }: Props) {
         </div>
         <h2 className="display mt-3 text-3xl text-(--color-paper)">{seriesName}</h2>
         <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim)">
-          One lot holds <span className="tabular text-(--color-paper)">{fmt(qb.A)}</span> units of A ({labels.A}) and{' '}
-          <span className="tabular text-(--color-paper)">{fmt(qb.B)}</span> units of B ({labels.B}). Cap:{' '}
+          One lot holds <span className="tabular text-(--color-paper)">{fmt(qb.A)}</span> units of {labels.A} and{' '}
+          <span className="tabular text-(--color-paper)">{fmt(qb.B)}</span> units of {labels.B}. Cap:{' '}
           <span className="tabular text-(--color-paper)">{fmt(cap)}</span> lots of liability, reserved included.
         </p>
+        <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-faint)">These mock quantities demonstrate bookkeeping. They are not stock-token amounts, wrapper share amounts or a production lot definition.</p>
 
         <label className="mt-6 block">
           <span className="kicker">Lots</span>
           <input
-            type="number"
-            min={1}
-            step={1}
+            type="text"
+            inputMode="numeric"
             value={lotsText}
             onChange={(e) => setLotsText(e.target.value)}
             className="tabular mt-2 w-full border border-(--color-rule) bg-(--color-ink) px-3 py-2 text-base text-(--color-paper) outline-none focus:border-(--color-accent)"
           />
         </label>
+        {lots === null ? <p role="alert" className="mt-2 text-[12px] text-(--color-state-stale)">Enter a positive whole number using digits only.</p> : null}
 
         <div className="mt-4 border-t border-(--color-rule) pt-4">
           <div className="kicker">Preview · before anything is signed</div>
@@ -214,23 +213,25 @@ export function PositionSimulator({ seriesName, q, capLots, labels }: Props) {
           </div>
         </div>
 
-        <table className="tabular mt-4 w-full border-collapse text-[12px]">
-          <thead>
-            <tr className="kicker text-left">
-              <th className="pb-2 pr-4 font-normal">Component</th>
-              <th className="pb-2 pr-4 text-right font-normal">Active</th>
-              <th className="pb-2 pr-4 text-right font-normal">Reserved</th>
-              <th className="pb-2 pr-4 text-right font-normal">Owed</th>
-              <th className="pb-2 pr-4 text-right font-normal">Held</th>
-              <th className="pb-2 text-right font-normal">Surplus / short</th>
-            </tr>
-          </thead>
-          <tbody>
-            {COMPONENTS.map((i) => (
-              <Row key={i} state={state} i={i} />
-            ))}
-          </tbody>
-        </table>
+        <div className="mt-4 overflow-x-auto" role="region" aria-label="Simulation ledger, scroll horizontally if needed" tabIndex={0}>
+          <table className="tabular w-full border-collapse text-[12px]">
+            <thead>
+              <tr className="kicker text-left">
+                <th className="pb-2 pr-4 font-normal">Component</th>
+                <th className="pb-2 pr-4 text-right font-normal">Active</th>
+                <th className="pb-2 pr-4 text-right font-normal">Reserved</th>
+                <th className="pb-2 pr-4 text-right font-normal">Owed</th>
+                <th className="pb-2 pr-4 text-right font-normal">Held</th>
+                <th className="pb-2 text-right font-normal">Surplus / short</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPONENTS.map((i) => (
+                <Row key={i} state={state} i={i} />
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         <dl className="tabular mt-5 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-(--color-rule) pt-4 text-[12px] sm:grid-cols-4">
           <dt className="text-(--color-paper-faint)">Receipts outstanding</dt>
@@ -277,7 +278,7 @@ export function PositionSimulator({ seriesName, q, capLots, labels }: Props) {
           <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
             <li>— No price, no value, no gas: the ledger counts units and nothing else.</li>
             <li>— No wallet, no eligibility, no issuer contract: a halt here is a switch, not a reason.</li>
-            <li>— No reorg, no reentrancy, no chain: those are tests for a contract that does not exist yet.</li>
+            <li>— No reorg, no reentrancy, no chain: those require contract and chain tests, beyond this model.</li>
             <li>— The same functions run in the repository’s tests; the worked example is reproduced there row by row.</li>
           </ul>
         </div>

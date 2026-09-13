@@ -22,7 +22,7 @@ The reason a two-issuer position exists is that one issuer can fail while the ot
 
 ## What exists today
 
-`mintPaused`, `claimPausedA`, `claimPausedB`, the setters with events, `BackingShort`, `ShortfallHaltsPayment`; tests T05, T06, T09, T10 and the operator-limit cases; the drill's "issuer freezes A" and "series short of A" scenarios. No signers, so no operator exists yet.
+`mintPaused`, `claimPausedA`, `claimPausedB`, the setters with events, `BackingShort`, `ShortfallHaltsPayment`; tests T05, T06, T09, T10 and the operator-limit cases; the drill's "issuer freezes A" and "series short of A" scenarios. The Robinhood Chain treasury signers are recorded; an operator Safe on the candidate Ethereum series chain remains unverified.
 
 ## Open
 

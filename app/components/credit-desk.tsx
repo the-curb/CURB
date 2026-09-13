@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { PendingState } from '@/lib/credits/pending';
 
 /**
  * The credit desk, in the browser: a key made here — thirty-two random
@@ -34,7 +35,10 @@ interface Account {
   readonly balanceCents: string;
   readonly toOpenCents: string;
   readonly topUps: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly amount: string; readonly cents: string; readonly basis: string; readonly ratedAtBlock: number }[];
-  readonly pending: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly amount: string; readonly reason: string }[];
+  readonly balanceState: 'READ' | 'UNREAD';
+  readonly pending: readonly { readonly transactionHash: string; readonly logIndex: number; readonly blockNumber: number; readonly amount: string; readonly reason: string }[] | null;
+  readonly pendingState: PendingState;
+  readonly pendingFault: string | null;
   /** Shown to the key's holder only; null for anyone else. */
   readonly charges: readonly { readonly at: string; readonly service: string; readonly cents: number; readonly ref: string }[] | null;
   readonly chargeCount: number;
@@ -48,8 +52,15 @@ interface Props {
   readonly desk: string | null;
   readonly network: string | null;
   readonly decimals: number | null;
-  /** The desk's code against the committed build, as the last tick verified it; null when not configured or not yet read. */
-  readonly codeState: string | null;
+  readonly topUpHeld: string | null;
+}
+
+interface TopUpHint {
+  readonly desk: string;
+  readonly network: string;
+  readonly token: string;
+  readonly tokenDecimals: number | null;
+  readonly validUntil: string | null;
 }
 
 const cents = (v: string) => {
@@ -77,15 +88,27 @@ function topUpCalldata(keyHash: string, amount: bigint): string {
   return `${selector}${keyHash.slice(2)}${amount.toString(16).padStart(64, '0')}`;
 }
 
-export function CreditDesk({ configured, desk, network, decimals, codeState }: Props) {
+export function CreditDesk({ configured, desk, network, decimals, topUpHeld }: Props) {
   const [key, setKey] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [usd, setUsd] = useState('20');
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [topUp, setTopUp] = useState<TopUpHint | null>(null);
+  const [held, setHeld] = useState<string | null>(topUpHeld);
+  const [clock, setClock] = useState(0);
   const [lookup, setLookup] = useState('');
   const [account, setAccount] = useState<Account | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [fault, setFault] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (topUp === null) return;
+    const update = () => setClock(Date.now());
+    const timer = window.setInterval(update, 1_000);
+    window.addEventListener('focus', update);
+    document.addEventListener('visibilitychange', update);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', update); };
+  }, [topUp]);
 
   const makeKey = async () => {
     const bytes = new Uint8Array(32);
@@ -100,10 +123,16 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
   const ask = async () => {
     setBusy('quote');
     setFault(null);
+    setQuote(null);
+    setTopUp(null);
     try {
       const r = await fetch(`/api/credits?usd=${encodeURIComponent(usd.trim())}`, { cache: 'no-store' });
-      const body = (await r.json()) as { quote: Quote | null };
-      setQuote(body.quote);
+      const body = (await r.json()) as { quote: Quote | null; topUp: TopUpHint | null; topUpHeld: string | null };
+      if (!r.ok) throw new Error('the quote endpoint could not answer; no payment bytes are composed');
+      setQuote(body.quote ?? null);
+      setTopUp(body.quote?.state === 'QUOTED' ? body.topUp ?? null : null);
+      setHeld(body.topUpHeld ?? null);
+      setClock(Date.now());
     } catch (cause) {
       setFault(cause instanceof Error ? cause.message : 'the API could not be reached');
     } finally {
@@ -129,10 +158,10 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
     }
   };
 
-  // The bytes below carry the figure with the margin: the price moves between the quote and the block, and a top-up meant to open a key should not land a few cents short.
-  // They are shown only for a desk whose code the last tick verified as the build: a payment to code the site has not matched is not one this page composes.
-  const verified = configured && codeState === 'MATCHES';
-  const amount = verified && quote?.curbWithMargin && BigInt(quote.curbWithMargin) > 0n ? BigInt(quote.curbWithMargin) : null;
+  // Destination and amount belong to the same fresh API response. Page props
+  // may predate a configuration change; they never authorize payment bytes.
+  const verified = topUp !== null && topUp.validUntil !== null && clock <= Date.parse(topUp.validUntil);
+  const amount = verified && quote?.state === 'QUOTED' && quote.curbWithMargin && /^[1-9]\d*$/.test(quote.curbWithMargin) ? BigInt(quote.curbWithMargin) : null;
 
   return (
     <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -143,7 +172,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim)">
           Thirty-two random bytes from this browser, hashed with SHA-256. The desk stores neither; it learns of the hash when the chain credits it. Copy the key now — it is not shown again, and a lost key is a lost balance.
         </p>
-        <button type="button" onClick={() => void makeKey()} className="kicker mt-5 underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">
+        <button type="button" disabled={busy !== null} onClick={() => void makeKey()} className="kicker mt-5 underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper) disabled:text-(--color-paper-faint)">
           {key ? 'Make another key' : 'Make a key'}
         </button>
         {key && hash ? (
@@ -171,7 +200,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         >
           <label className="block">
             <span className="kicker">US dollars</span>
-            <input type="text" inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} className="tabular mt-2 w-full border border-(--color-rule) bg-(--color-ink) px-3 py-2 text-base text-(--color-paper) outline-none focus:border-(--color-accent)" />
+            <input type="text" inputMode="decimal" disabled={busy === 'quote'} value={usd} onChange={(e) => { setUsd(e.target.value); setQuote(null); setTopUp(null); }} className="tabular mt-2 w-full border border-(--color-rule) bg-(--color-ink) px-3 py-2 text-base text-(--color-paper) outline-none focus:border-(--color-accent)" />
           </label>
           <button type="submit" disabled={busy !== null} className="kicker mt-4 underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper) disabled:text-(--color-paper-faint)">
             {busy === 'quote' ? 'reading…' : 'Quote'}
@@ -180,11 +209,11 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         {quote ? (
           quote.state === 'QUOTED' && amount !== null ? (
             <p className="tabular mt-3 text-[12px] text-(--color-paper-dim)">
-              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined — or the lowest the pool showed in the hour before it, whichever is lower — not at this one, so the bytes below carry {quote.marginPct}% more — <span className="text-(--color-paper)">{quote.curbWithMarginText} CURB</span>; what lands over {quote.usd} stays on the key, and a pump just before the top-up does not raise the credit.
+              {quote.usd} = <span className="text-(--color-paper)">{quote.curbText} CURB</span> at block {quote.atBlock}, read {quote.readAt}. The credit is at the rate at the block the top-up is mined — or the lowest the pool showed in the hour before it, whichever is lower — not at this one, so the bytes below carry {quote.marginPct}% more — <span className="text-(--color-paper)">{quote.curbWithMarginText} CURB</span>; what lands over {quote.usd} stays on the key. This buffer is an estimate, not a slippage limit or a guaranteed minimum credit: a lower mined rate can still leave the key below the requested amount. The lookback limits short spikes; it does not make a thin pool manipulation-proof.
             </p>
           ) : (
             <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
-              {quote.error ?? quote.state}: {quote.detail ?? 'no CURB amount is quoted'}
+              {quote.error ?? quote.state}: {quote.detail ?? (quote.state === 'QUOTED' ? 'the payment evidence has expired; request a new quote' : 'no CURB amount is quoted')}
             </p>
           )
         ) : null}
@@ -199,15 +228,13 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         <div className="kicker">
           <b>The top-up</b> · one call, signed in your own wallet
         </div>
-        {!configured ? (
-          <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No desk is configured: no token exists and no pool is read. There is no address to send a top-up to, and no bytes are composed.</p>
-        ) : !verified ? (
-          <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-            The desk at <span className="tabular">{desk}</span> on {network} is configured, but the last tick did not verify its code as the build{codeState ? ` (${codeState})` : ' (not yet read)'}. No bytes are composed for it: do not send a top-up on the strength of this page until the code block above says MATCHES.
+        {!verified ? (
+          <p className="mt-3 text-sm leading-relaxed wrap-anywhere" style={{ color: 'var(--color-state-stale)' }}>
+            {held ?? (topUp !== null ? 'The payment evidence has expired.' : configured ? `Desk ${desk} on ${network} is recorded here. Request a quote to check current code and rate evidence before paying.` : 'No desk is configured on this page; request a quote to check its current status.')} No payment bytes are composed until a quote confirms current code and rate evidence for its destination.
           </p>
         ) : (
-          <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim)">
-            Approve the desk at <span className="tabular text-(--color-paper)">{desk}</span> on {network} for the amount, then call <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>. The desk moves the CURB to the treasury and emits the hash and the amount; the next tick credits the hash at the rate at that block, or the lowest the pool showed in the hour before it, whichever is lower.
+          <p className="mt-3 text-sm leading-relaxed text-(--color-paper-dim) wrap-anywhere">
+            Approve token <span className="tabular break-all">{topUp!.token}</span> for the desk at <span className="tabular break-all text-(--color-paper)">{topUp!.desk}</span> on {topUp!.network} for the amount, then call <span className="tabular">topUp(bytes32 keyHash, uint256 amount)</span>. Evidence is current until {topUp!.validUntil}; request a fresh quote before signing if that time passes. The desk moves CURB to the treasury. Credit is determined at the mined block, or the lowest rate in the lookback window, whichever is lower.
           </p>
         )}
         <dl className="mt-4 space-y-3 text-[12px]">
@@ -216,7 +243,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
             <dd className="tabular mt-1 break-all text-(--color-paper-dim)">{hash && amount !== null ? topUpCalldata(hash, amount) : '—'}</dd>
           </div>
           <div>
-            <dt className="kicker">amount · CURB base units{decimals !== null ? ` (${decimals} decimals)` : ''}</dt>
+            <dt className="kicker">amount · CURB base units{(topUp?.tokenDecimals ?? decimals) !== null ? ` (${topUp?.tokenDecimals ?? decimals} decimals)` : ''}</dt>
             <dd className="tabular mt-1 break-all text-(--color-paper-dim)">{amount !== null ? amount.toString() : '—'}</dd>
           </div>
         </dl>
@@ -233,7 +260,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
         >
           <label className="block">
             <span className="kicker">Key hash</span>
-            <input type="text" autoComplete="off" spellCheck={false} placeholder="0x…" value={lookup} onChange={(e) => setLookup(e.target.value)} className="tabular mt-2 w-full border border-(--color-rule) bg-(--color-ink) px-3 py-2 text-base text-(--color-paper) outline-none focus:border-(--color-accent)" />
+            <input type="text" autoComplete="off" spellCheck={false} placeholder="0x…" disabled={busy === 'lookup'} value={lookup} onChange={(e) => { setLookup(e.target.value); setAccount(null); }} className="tabular mt-2 w-full border border-(--color-rule) bg-(--color-ink) px-3 py-2 text-base text-(--color-paper) outline-none focus:border-(--color-accent)" />
           </label>
           <button type="submit" disabled={busy !== null} className="kicker mt-4 underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper) disabled:text-(--color-paper-faint)">
             {busy === 'lookup' ? 'reading…' : 'Read the balance'}
@@ -262,10 +289,14 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
                     </li>
                   ))}
                 </ul>
-              ) : account.pending.length === 0 ? (
-                <p className="mt-2 text-(--color-paper-faint)">The chain has credited nothing to this hash.</p>
-              ) : null}
-              {account.pending.length > 0 ? (
+              ) : (
+                <p className="mt-2 text-(--color-paper-faint)">No credited top-up is recorded for this hash.</p>
+              )}
+              {account.pendingState !== 'READ' ? (
+                <p className="mt-3" style={{ color: 'var(--color-state-stale)' }}>
+                  {account.pendingState === 'UNREAD' ? `Pending top-ups could not be read (${account.pendingFault}).` : account.pendingState === 'NOT_REQUESTED' ? 'Pending top-ups were not requested.' : 'No pending top-up index has been recorded yet.'} The credited balance above was read separately. Pending payments are unknown, so check the transaction and wait for reconciliation before sending again.
+                </p>
+              ) : account.pending !== null && account.pending.length > 0 ? (
                 <ul className="mt-3 space-y-1 text-(--color-paper-dim)">
                   {account.pending.map((t) => (
                     <li key={`pending:${t.transactionHash}:${t.logIndex}`} className="tabular break-all">
@@ -273,7 +304,7 @@ export function CreditDesk({ configured, desk, network, decimals, codeState }: P
                     </li>
                   ))}
                 </ul>
-              ) : null}
+              ) : <p className="mt-2 text-(--color-paper-faint)">No pending top-up for this hash is recorded in the index just read.</p>}
               {account.charges !== null && account.charges.length > 0 ? (
                 <p className="mt-3 text-(--color-paper-faint)">
                   {account.chargeCount} charge{account.chargeCount === 1 ? '' : 's'}; the last: {account.charges[account.charges.length - 1]!.service} · {account.charges[account.charges.length - 1]!.ref} · {account.charges[account.charges.length - 1]!.at}

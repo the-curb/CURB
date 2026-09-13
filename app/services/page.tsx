@@ -1,12 +1,14 @@
 import Link from 'next/link';
-import { latestDeskCode } from '@/lib/credits/code';
 import { creditsStatus } from '@/lib/credits/config';
-import { latestRate } from '@/lib/credits/maintenance';
+import { creditRateHistoryKey } from '@/lib/credits/maintenance';
+import { topUpReadiness } from '@/lib/credits/top-up';
 import { receipts } from '@/lib/credits/receipts';
 import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, TERMS_DECISION, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { explorerAddress } from '@/lib/chain/networks';
 import { getStoreAsync } from '@/lib/store';
+import { launchStatus } from '@/lib/launch/status';
+import { rateHistory } from '@/lib/launch/evidence';
 import { CreditDesk } from '../components/credit-desk';
 
 /** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
@@ -34,14 +36,16 @@ export default async function ServicesPage() {
   const status = creditsStatus();
   const store = await getStoreAsync();
   const configured = status.state === 'CONFIGURED';
+  const now = new Date();
+  const historyKey = status.state === 'CONFIGURED' ? creditRateHistoryKey(status.config) : null;
   // The tick is scheduled every five minutes; 400 readings cover a day with room for a faster schedule, and the day's filter does the rest.
-  const [rateRead, code, paid, history] = await Promise.all([status.state === 'CONFIGURED' ? latestRate(store, status.config) : null, status.state === 'CONFIGURED' ? latestDeskCode(store, status.config) : null, receipts(store), configured ? store.observations('credits:rate:usd-per-curb', 400) : null]);
+  const [readiness, paid, history, launch] = await Promise.all([topUpReadiness(store, status, now), receipts(store), historyKey === null ? null : store.observations(historyKey, 400), launchStatus(store, process.cwd(), now)]);
+  const { rateRead, code } = readiness;
   const rate = rateRead?.rate ?? null;
   const rateFault = rateRead?.storeFault ?? null;
   // The desk's own reads of the rate over the last day: how many, and the range — a reader can see the figure above is one of a series, not a single sample.
-  const dayAgo = Date.now() - 24 * 3600 * 1000;
-  const recent = history !== null && history.state !== 'UNREAD' ? history.value.filter((o) => typeof o.raw === 'string' && new Date(o.observedAt).getTime() >= dayAgo).map((o) => BigInt(o.raw as string)) : [];
-  const range = recent.length === 0 ? null : { count: recent.length, low: recent.reduce((a, b) => (b < a ? b : a)), high: recent.reduce((a, b) => (b > a ? b : a)) };
+  const range = rateHistory(history, now, historyKey);
+  const { codeCurrent, rateCurrent } = readiness.quoteReadiness;
   const minimumCurb = rate?.state === 'READ' ? curbForCents(rate.rate, BigInt(MINIMUM_OPEN_CENTS)) : null;
   const decimals = rate?.state === 'READ' ? rate.rate.token.decimals : null;
   const link = (address: string) => (status.state === 'CONFIGURED' ? explorerAddress(status.config.network, address) : null);
@@ -63,7 +67,8 @@ export default async function ServicesPage() {
           <div className="kicker">
             <b>The price list</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · {NOTICE_DAYS} days&rsquo; notice of any change
           </div>
-          <table className="mt-4 w-full text-[13px]">
+          <table className="mt-4 w-full table-fixed text-[13px] wrap-anywhere">
+            <colgroup><col className="w-[22%]" /><col className="w-[53%]" /><col className="w-[25%]" /></colgroup>
             <tbody>
               <tr className="border-t border-(--color-rule) align-top">
                 <td className="py-3 pr-4 text-(--color-paper)">Opening a key</td>
@@ -78,8 +83,8 @@ export default async function ServicesPage() {
                   <td className="py-3 pr-4 text-(--color-paper-dim)">
                     {s.what}. <span className="tabular text-(--color-paper-faint)">{s.path}</span>
                   </td>
-                  <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">
-                    {centsText(s.cents)} <span className="text-(--color-paper-faint)">/ {s.unit}</span>
+                  <td className="tabular py-3 text-right text-(--color-paper)">
+                    <span className="whitespace-nowrap">{centsText(s.cents)}</span> <span className="block text-(--color-paper-faint)">/ {s.unit}</span>
                   </td>
                 </tr>
               ))}
@@ -96,7 +101,7 @@ export default async function ServicesPage() {
           </div>
           {status.state !== 'CONFIGURED' ? (
             <>
-              <p className="mt-3 text-sm leading-relaxed text-(--color-paper)">No rate. {status.state === 'CONFIG_INVALID' ? `The record is invalid: ${status.detail}` : 'No token exists, no desk is deployed and no pool is read.'}</p>
+              <p className="mt-3 text-sm leading-relaxed text-(--color-paper)">No rate. {status.state === 'CONFIG_INVALID' ? `The record is invalid: ${status.detail}` : 'No token, desk or pool is configured here.'}</p>
               <p className="mt-3 text-[12px] leading-relaxed text-(--color-paper-faint)">
                 The price list stays in dollars and no CURB amount is quoted until the token trades in a pool the desk&rsquo;s chain profile can read. The desk will not type a price in by hand: a rate that was not read from the chain is not a rate the desk states.
               </p>
@@ -118,7 +123,7 @@ export default async function ServicesPage() {
           ) : (
             <dl className="mt-4 space-y-3 text-[13px]">
               <div>
-                <dt className="kicker">One CURB · the rate a top-up now is credited at</dt>
+                <dt className="kicker">One CURB · last sampled rate {rateCurrent ? '' : '· not a current read'}</dt>
                 <dd className="tabular mt-1 text-(--color-paper)">
                   {usd18Text(rate.rate.usdPerCurb18, 8)}
                   {rate.rate.guard.applied ? (
@@ -140,7 +145,7 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">Readings in the last 24 hours</dt>
                 <dd className="tabular mt-1 text-[12px] text-(--color-paper-dim)">
-                  {range === null ? 'this one only' : `${range.count} · lowest ${usd18Text(range.low, 8)} · highest ${usd18Text(range.high, 8)}`}
+                  {range.state === 'UNREAD' ? `UNREAD — ${range.detail}` : range.count === 0 ? 'No stored observations in this window' : `${range.count} · lowest ${usd18Text(range.low!, 8)} · highest ${usd18Text(range.high!, 8)}`}
                 </dd>
               </div>
               <div>
@@ -157,7 +162,7 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">The rule</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">
-                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no price at that block — it did not exist yet, or held nothing to trade — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower: a pump before a top-up buys nothing. So CURB for a dollar figure is the figure over the credited price — the figure times supply over capitalisation when the block&rsquo;s own price is the lower, more CURB when the window&rsquo;s low is.
+                  The price is the pool&rsquo;s own at the block — the ratio of a pair&rsquo;s reserves, or a v3 pool&rsquo;s square-root price; the capitalisation is that price times <span className="tabular">totalSupply()</span>. A top-up is credited at the rate at the block it was mined: by state while the node still serves that block, else from the pool&rsquo;s own last event at or before it; only if the pool had no price at that block — it did not exist yet, or held nothing to trade — is the head when indexed used, and the credit says which. The price a top-up is credited at is that block&rsquo;s or the lowest the pool showed in the window before it (about an hour), whichever is lower. This limits credit from a short spike; it does not guarantee resistance to sustained manipulation or a thin pool. So CURB for a dollar figure is the figure over the credited price — the figure times supply over capitalisation when the block&rsquo;s own price is the lower, more CURB when the window&rsquo;s low is.
                 </dd>
               </div>
             </dl>
@@ -168,10 +173,12 @@ export default async function ServicesPage() {
       <section className="mt-10 cells grid-cols-1 md:grid-cols-2">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>The desk and the treasury</b> · code verified every tick
+            <b>The desk and the treasury</b> · verification attempted every tick
           </div>
           {status.state !== 'CONFIGURED' ? (
-            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">No desk is deployed and no treasury is named. When one is, this block shows the desk&rsquo;s address, the treasury every top-up goes to, and whether the code on chain is the contract in this repository paying to that treasury.</p>
+            <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">
+              No credit desk is configured here. {launch.treasury === null ? 'No valid treasury creation record is available here.' : <>The Robinhood Chain treasury has a creation record: {launch.treasury.threshold}-of-{launch.treasury.owners} Safe <span className="tabular break-all">{launch.treasury.address}</span>, block {launch.treasury.block.toLocaleString('en-US')}. This records its creation and read-back; it does not verify a deployed credit desk or an Ethereum series operator.</>}
+            </p>
           ) : (
             <dl className="mt-4 space-y-3 text-[12px]">
               <div>
@@ -193,10 +200,12 @@ export default async function ServicesPage() {
                     <span style={{ color: 'var(--color-state-stale)' }}>not readable{code?.storeFault ? ` — ${code.storeFault}` : ''}</span>
                   ) : code.code === null ? (
                     'not yet verified — no tick has read the desk'
-                  ) : code.code.state === 'MATCHES' ? (
+                  ) : codeCurrent ? (
                     <>
                       <span className="text-(--color-paper)">MATCHES</span> the build at commit <span className="tabular">{code.code.buildCommit?.slice(0, 10)}</span>; the immutables hold the token and the treasury above · read {code.code.readAt}
                     </>
+                  ) : code.code.state === 'MATCHES' ? (
+                    <span style={{ color: 'var(--color-state-stale)' }}>A previous read matched at {code.code.readAt}; it is older than 30 minutes or does not establish the token and treasury now configured. Wait for a new verification.</span>
                   ) : (
                     <span style={{ color: code.code.state === 'MISMATCH' ? 'var(--color-state-dark)' : 'var(--color-state-stale)' }}>
                       {code.code.state}{code.code.detail ? ` — ${code.code.detail}` : ''} · read {code.code.readAt}
@@ -219,10 +228,10 @@ export default async function ServicesPage() {
             <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">
               No top-up has been credited.{' '}
               {!configured
-                ? 'There is no desk to pay.'
-                : paid.waitingForRate > 0
+                ? 'There is no desk configured here to pay.'
+                : paid.waitingForRate !== null && paid.waitingForRate > 0
                   ? `${paid.waitingForRate} top-up${paid.waitingForRate === 1 ? ' is' : 's are'} read from the chain and waiting for a rate${paid.cursor !== null ? ` · indexed to block ${paid.cursor}` : ''}.`
-                  : `The indexer reads the desk on every tick — scheduled every five minutes, in practice every ten to twenty${paid.cursor !== null ? `; indexed to block ${paid.cursor}` : ''}.`}
+                  : paid.pendingState === 'READ' ? `No top-up is waiting for a rate in the index read to block ${paid.cursor}.` : ''}
             </p>
           ) : (
             <dl className="mt-4 space-y-3 text-[12px]">
@@ -247,11 +256,16 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">Last top-up block · indexed to · waiting for a rate</dt>
                 <dd className="tabular mt-1 text-(--color-paper-dim)">
-                  {paid.lastBlock ?? '—'} · {paid.cursor ?? '—'} · {paid.waitingForRate}
+                  {paid.lastBlock ?? '—'} · {paid.cursor ?? '—'} · {paid.waitingForRate ?? 'not read'}
                 </dd>
               </div>
             </dl>
           )}
+          {paid.pendingState !== 'READ' ? (
+            <p className="mt-3 text-[12px]" style={{ color: 'var(--color-state-stale)' }}>
+              {paid.pendingState === 'UNREAD' ? `The pending top-up index could not be read (${paid.pendingFault}).` : 'No pending top-up index has been recorded yet.'} The number waiting for a rate is unknown; credited receipts above are a separate reading.
+            </p>
+          ) : null}
           <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">Derived from the keys&rsquo; rows on every request; never a second record. The budget for what is received is in the token record, and the spending of it is logged under the operator policy.</p>
         </div>
       </section>
@@ -267,7 +281,7 @@ export default async function ServicesPage() {
             desk={status.state === 'CONFIGURED' ? status.config.desk : null}
             network={status.state === 'CONFIGURED' ? status.config.network.label : null}
             decimals={decimals}
-            codeState={code?.code?.state ?? null}
+            topUpHeld={readiness.topUpHeld}
           />
         </div>
       </section>
@@ -282,23 +296,25 @@ export default async function ServicesPage() {
               ['The services and the gate exist', 'done', 'this page, the paid endpoints, the indexer, the rate reader — rehearsed on a local chain'],
               ['The credit desk contract is reviewed', 'not done', 'a self-review is filed; no independent reviewer has reported (the register\u2019s A2)'],
               [
-                'The token exists and the desk is deployed on Robinhood Chain',
+                'The token exists and the desk is deployed on its recorded chain',
                 status.state !== 'CONFIGURED'
                   ? 'not done'
                   : code === null || code.storeFault !== null
                     ? 'configured; the verification could not be read'
                     : code.code === null
                       ? 'configured; code not yet verified'
-                      : code.code.state === 'MATCHES'
-                        ? 'done'
+                      : codeCurrent
+                        ? 'recent code verified'
+                        : code.code.state === 'MATCHES'
+                          ? 'configured; a new verification is needed'
                         : `configured; the code on chain is not the build (${code.code.state})`,
-                status.state === 'CONFIGURED' ? `desk ${status.config.desk} on ${status.config.network.label}` : 'no token exists; nothing is configured',
+                status.state === 'CONFIGURED' ? `desk ${status.config.desk} on ${status.config.network.label}` : 'no token or desk is configured here',
               ],
               [
                 'The pool is recorded and the rate is read',
-                status.state !== 'CONFIGURED' ? 'not done' : status.config.priceSource === null ? 'not done' : rate?.state === 'READ' ? 'done' : 'configured; no rate read',
+                status.state !== 'CONFIGURED' ? 'not done' : status.config.priceSource === null ? 'not done' : rateCurrent ? 'recent rate read' : 'configured; no current rate confirmed',
                 status.state !== 'CONFIGURED'
-                  ? 'no pool exists'
+                  ? 'no pool is configured here'
                   : status.config.priceSource === null
                     ? 'no pool is recorded; top-ups are indexed and wait, unpriced'
                     : rateFault !== null
@@ -313,7 +329,7 @@ export default async function ServicesPage() {
             ].map(([step, state, detail], i) => (
               <li key={step} className="flex gap-3">
                 <span className="tabular text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
-                <span>
+                <span className="min-w-0 wrap-anywhere">
                   <span className="text-(--color-paper)">{step}</span> <span className={state === 'done' ? 'text-(--color-paper)' : 'text-(--color-paper-faint)'}>· {state}</span>
                   <span className="block text-[12px] text-(--color-paper-faint)">{detail}</span>
                 </span>
@@ -346,7 +362,7 @@ export default async function ServicesPage() {
           </ol>
           <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
             {status.state !== 'CONFIGURED'
-              ? 'No token exists. No pool exists. Nothing is configured. '
+              ? 'No token, credit desk or pool is configured here. '
               : status.config.priceSource === null
                 ? `A desk is configured on ${status.config.network.label} and no pool is recorded yet: top-ups are indexed and wait, unpriced, for one. `
                 : `A desk and a pool are configured on ${status.config.network.label}; what the sections above show is what was read from them. `}

@@ -1,0 +1,265 @@
+{
+  "ranAt": "2026-09-13T08:36:55.329Z",
+  "commit": "8f093ff9de64c8da7003ad2d2762c6b5967db573",
+  "workingTreeClean": false,
+  "solc": "0.8.30",
+  "fuzz": {
+    "seed": "0x7727ea51af0441c20da14dcd68a15dac8c9ebd589c5be8fa8c87c1d3720450bc",
+    "runs": 256
+  },
+  "invariant": {
+    "runs": 256,
+    "depth": 64
+  },
+  "command": "hardhat test solidity --grep-exclude Fork",
+  "passing": 49,
+  "failing": 0,
+  "tests": [
+    {
+      "name": "test_TransferObservation_RevertDoesNotCountExistingFunds()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_RepeatedProbesMeasureEachTransfer()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FeeIsVisibleInReceivedUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FalseReturnDoesNotCountExistingFunds()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroTreasuryIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroTokenIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroKeyHashIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ZeroAmountIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TwoTopUpsForOneKeyAreTwoEvents()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TopUpMovesCurbToTheTreasuryAndSaysSo()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TokenWithoutCodeIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_NoAllowanceMeansNothingMoves()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_MoreThanTheBalanceIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ImmutablesAreWhatWasGiven()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AnyoneMayTopUpAnyKey()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ATransferThatReturnsFalseIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AHaltedTokenIsRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_AFeeOnTransferIsRefusedRatherThanCreditedShort()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "testFuzz_EventAmountEqualsTreasuryDelta(bytes32,uint128)",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "test_WorkedExample()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T25_PermitsLiveOnChainAndAreSeparate()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T24_SupplyChangesOnlyThroughDepositOrExit()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T23_ExactDepositDoesNotCoverAnOlderShortfall()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T22_BurnAndRemintCannotPassACapThatCountsReserved()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T20_ARevertingBalanceOfOnADoesNotTouchExitOrBClaims()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T19_TwoComponentsWithOneAddressAreRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T17_ReceiptTransferIsAlwaysRefused()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T12_LargeIntegersDoNotOverflowOrLosePrecision()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T11_ZeroSupplyWithReservesDoesNotLetANewMintAdoptThem()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T10_FeeOnTransferIsRejectedByTheDelta()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T09_ReentrantClaimIsRefusedAndAFalseReturnReverts()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T08_ShortfallHaltsNominalPaymentForEveryone()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T07_DonationChangesNoLotReceiptOrClaim()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T06_LaterDepositorGetsNoPartOfTheReserve()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T05_ClaimPaysOnceAndOnlyToItsHolder()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T04_HaltedAKeepsTheClaimAndLetsBBeClaimedWithoutTouchingA()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T03_ExitMovesActiveToReservedAndChangesNoLiability()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T02_SecondComponentFailingRevertsTheWholeMint()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_T01_MintIsExact()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_PreviewDeadlineIsHonoured()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_OperatorStopsArePerOperationAndPerComponent()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_ConstructionRefusesZeroUnitsAndNonContracts()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "testFuzz_SequencesKeepTheInvariants(uint8[16],uint8[16])",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_SupplyOnlyByMintAndExit()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_ShortfallHaltsPayment()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_LedgerSumsAgree()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_CapCountsReserved()",
+      "passed": true,
+      "fuzzRuns": 256
+    },
+    {
+      "name": "invariant_BackingCoversLiabilityButForSeizure()",
+      "passed": true,
+      "fuzzRuns": 256
+    }
+  ],
+  "limit": "a passing run is not a review and not an audit; it says these cases held in the modified contract working tree based on this commit with this seed"
+}

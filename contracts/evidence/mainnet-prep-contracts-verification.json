@@ -1,0 +1,139 @@
+{
+  "recordedAt": "2026-09-13T10:34:58.401Z",
+  "baseCommit": "8f093ff9de64c8da7003ad2d2762c6b5967db573",
+  "workingTreeClean": false,
+  "sourceCommit": null,
+  "publicDeploymentAuthorized": false,
+  "unitTests": {
+    "passing": 54,
+    "failing": 0,
+    "raw": "mainnet-prep-solidity-local.txt"
+  },
+  "forkTests": {
+    "passing": 14,
+    "componentsBlock": 25967875,
+    "requiredAssertionsPassed": true,
+    "corporateActionBlocks": [
+      25706679,
+      25706680
+    ],
+    "raw": "mainnet-prep-apple-components-fork.txt"
+  },
+  "localSafeChecks": [
+    {
+      "name": "reviewed local Safe and build accepted by deployment dry-run",
+      "passed": true
+    },
+    {
+      "name": "EOA operator refused",
+      "passed": true
+    },
+    {
+      "name": "different owners refused",
+      "passed": true
+    },
+    {
+      "name": "wrong quorum refused",
+      "passed": true
+    },
+    {
+      "name": "wrong singleton refused",
+      "passed": true
+    },
+    {
+      "name": "deployment CLI sends locally, finalizes the journal and refuses a duplicate run",
+      "passed": true
+    },
+    {
+      "name": "one real Safe owner cannot accept authority",
+      "passed": true
+    },
+    {
+      "name": "two real Safe owners accept; former operator loses authority",
+      "passed": true
+    }
+  ],
+  "localDrill": {
+    "steps": 26,
+    "unexpected": 0,
+    "siteTestsPassed": 1
+  },
+  "positionsRehearsalSiteTestsPassed": 1,
+  "releaseBuildGate": "HELD: CompanySeries source is uncommitted; creation/runtime bytes match the local artifact but public release requires clean recorded source",
+  "sourceFiles": [
+    {
+      "path": "contracts/src/CompanySeries.sol",
+      "sha256": "ccd3596efd9099a86e63413828c9578f34992b994be5f9455737ffd900d37674"
+    },
+    {
+      "path": "contracts/hardhat.config.ts",
+      "sha256": "da603caa5b82cf17c03ddcc0fdfd78d24453e0d5005790232f5d2fdfd290e663"
+    },
+    {
+      "path": "contracts/evidence/CompanySeries.build.json",
+      "sha256": "399c7fb69a1b23cd9f911b0daaeb21dfce24b840f357a49b6f50db34493edb48"
+    },
+    {
+      "path": "contracts/scripts/deploy-series.ts",
+      "sha256": "a8ea69e301509ae33d86f8ba2ba96c4bbbb2ea564bf3b1dce3b840af014b9ee0"
+    },
+    {
+      "path": "contracts/scripts/lib/operator-safe.ts",
+      "sha256": "633c085b341454e088959d5ce452f333141f9fcfd8bec1c4611cf8ede7c7dd9f"
+    },
+    {
+      "path": "contracts/scripts/operator-calldata.mjs",
+      "sha256": "149d5aed65427ef3f4e770effb23a8cebbef117086c6db076a06856170004839"
+    },
+    {
+      "path": "lib/positions/events.ts",
+      "sha256": "197465fef43dff281a68aa9bdcd9b3060d65e6191e9df40b03befeaad0e33df2"
+    },
+    {
+      "path": "lib/positions/index.ts",
+      "sha256": "6afdecd3a435639943af38cb59c6c60c1098ac4d45712e58f2a772bedce264f3"
+    },
+    {
+      "path": "lib/positions/code.ts",
+      "sha256": "1b5267d070cc05326e62f4e8c4f2cf9f9ffd9e39a43d05b399087700cae63fc4"
+    },
+    {
+      "path": "contracts/scripts/lib/build-provenance.mjs",
+      "sha256": "a15da204d8619984ef814d6fc8a312f9df59dc0b48b8db6f1f85aa945d726961"
+    },
+    {
+      "path": "contracts/scripts/lib/journaled-deployment.mjs",
+      "sha256": "26c2da1bd939a6981a8ff0df1772794ad22d4856b5021de446ebaec65d8844c3"
+    },
+    {
+      "path": "contracts/scripts/record-build.mjs",
+      "sha256": "402231bf26be87f6bb25cd6a87251bc94303c834061431103b98bebe9fd79b20"
+    },
+    {
+      "path": "contracts/scripts/check-build-record.mjs",
+      "sha256": "97fb27d70f6178fc8ed9f91c5521e80962c0f34d0392b83adab59ab63b53990d"
+    },
+    {
+      "path": "contracts/scripts/series-preflight-rehearsal.ts",
+      "sha256": "71b4e1d25b0652f95c003051ea3a08d5fbc3c97ea4f7de799bbb02bf955706be"
+    }
+  ],
+  "limits": [
+    "mock local components in rehearsals",
+    "fork balances staged; acquisition, eligibility and stock split not proven",
+    "Safe bytecode cached and exercised locally; target Ethereum operator not approved",
+    "independent review and clean committed release still required"
+  ],
+  "toolAndBackendTests": {
+    "passing": 44,
+    "failing": 0,
+    "raw": "mainnet-prep-contract-tools-tests.txt"
+  },
+  "localDeploymentTool": {
+    "passed": true,
+    "address": "0x812bcaca5d75cddde025d358dac60fbfc1c91f1d",
+    "transactionHash": "0xa221567901aad7373c081b7478cab960bce43e2bad7e953e049d36a827eb3180",
+    "duplicateRunRefused": true,
+    "chainId": 31337
+  }
+}

@@ -1,0 +1,94 @@
+▶ the series contract’s events
+  ✔ carry exactly the signatures the indexer decodes, with the same topics (8.1459ms)
+  ✔ match the built artifact when one exists (3.7896ms)
+✔ the series contract’s events (14.7006ms)
+▶ two-step operator calldata
+  ✔ distinguishes nomination from acceptance and cancellation with the correct sender (3332.9087ms)
+  ✔ refuses a zero nominee and trailing arguments that could mislead a signer (3579.0599ms)
+✔ two-step operator calldata (6916.3325ms)
+▶ public series operator Safe preflight
+  ✔ requires explicit reviewed chain, unique owners, quorum and runtime identity before reading a node (1.8924ms)
+  ✔ verifies the same block, owner set regardless of order, quorum, proxy and singleton (4.6069ms)
+  ✔ refuses an EOA, wrong chain, duplicate or different owners and quorum mismatch (2.4471ms)
+  ✔ refuses an altered proxy, a different singleton and changed singleton code even if owners match (1.1365ms)
+✔ public series operator Safe preflight (11.8775ms)
+▶ local rehearsal endpoints
+  ✔ accepts only uncredentialed loopback URLs before any network or transaction (0.7236ms)
+✔ local rehearsal endpoints (1.2386ms)
+▶ issuer parsers
+  ✔ parses the xStocks asset record as received, keeping only what the series needs (4.1231ms)
+  ✔ reports a moved shape as SCHEMA_CHANGED and a non-JSON body as NOT_JSON (2.3374ms)
+  ✔ parses Ondo addresses with the chain id taken from the network label, and refuses a bad entry (1.1402ms)
+  ✔ draws candidates only from parsed evidence on the requested chain (1.8053ms)
+✔ issuer parsers (11.8537ms)
+▶ the event codec
+  ✔ computes topics from signatures and round-trips every event (4.0906ms)
+  ✔ sets aside a topic it does not know and faults a body it cannot decode (1.2032ms)
+✔ the event codec (6.2373ms)
+▶ the chain index
+  ✔ keeps nominations separate from accepted authority and reconstructs them after a reorg (4.8293ms)
+  ✔ applies a log once however many times it is seen, and orders by block then index (0.6178ms)
+  ✔ rolls back everything at and after a reorganised height, and moves the cursor back (0.4776ms)
+  ✔ keeps an undecodable log as a fault rather than dropping it (0.2963ms)
+  ✔ reduces to the ledger through the same functions the tests use, and reports a disagreement (1.0269ms)
+  ✔ reads the operator’s actions out of the events: permits as last set, every stop with its reason, the operator as the chain last said (0.8985ms)
+  ✔ keeps a permit’s until as a number through the store, and reads an index a previous build wrote from the start (33.2322ms)
+✔ the chain index (42.6876ms)
+▶ reconciliation
+  ✔ names the four findings and never calls a unit finding an audit (0.5278ms)
+  ✔ encodes balanceOf(holder) with the selector and a padded address (0.1924ms)
+✔ reconciliation (0.9192ms)
+▶ deployment configuration
+  ✔ refuses an operator that is not an address, and keeps one that is (0.8233ms)
+  ✔ is empty when unset, refuses a shared component address, and requires integer strings (0.3022ms)
+✔ deployment configuration (1.2919ms)
+▶ previews
+  ✔ quote units as strings, no value and no gas, and refuse a bad lot count (0.7436ms)
+✔ previews (0.8442ms)
+▶ the networks
+  ✔ give each profile its own RPC override so one variable cannot point both networks at one node (0.367ms)
+✔ the networks (0.461ms)
+▶ the position conditions
+  ✔ raise a changed document for two days, and never a refusal for want of a key (23.2282ms)
+  ✔ name a drifted candidate darkly, and a shortfall or a disagreement on a series (0.6252ms)
+✔ the position conditions (24.0965ms)
+▶ verification drift
+  ✔ names a field that moved between two runs, and an address that stopped answering (0.8878ms)
+  ✔ sees an upgrade the code hash cannot: the implementation slot moved behind an unchanged proxy (1.363ms)
+✔ verification drift (2.435ms)
+▶ the map of related parties (R02)
+  ✔ names every source, leaves unnamed roles empty, and finds no party named under both components (1.1692ms)
+✔ the map of related parties (R02) (1.2988ms)
+▶ the issuer’s product page
+  ✔ yields the record the page publishes — deployments per network, decimals, the live multiplier apart (18.8528ms)
+  ✔ is a candidate source for component B on Ethereum, and the refused API is not (1.3086ms)
+✔ the issuer’s product page (20.5382ms)
+▶ the corporate-action evidence (T14)
+  ✔ reads the committed record and prints its figures without a float (12.3607ms)
+✔ the corporate-action evidence (T14) (12.7026ms)
+▶ a candidate set that moved
+  ✔ is a drift of its own, per component, and the parser finds the record past an earlier mention of the symbol (1.3ms)
+✔ a candidate set that moved (1.4774ms)
+▶ a corporate action seen by the daily read
+  ✔ is a multiplier drift, reported as a NOTE that says what it is, never as a fault (0.7485ms)
+✔ a corporate action seen by the daily read (0.8976ms)
+▶ the series code against the build
+  ✔ refuses uncommitted build provenance on public chains while identifying local rehearsal bytes honestly (1.1665ms)
+  ✔ matches only when the bytes agree outside the immutable slots and the slots hold the record (6.8012ms)
+✔ the series code against the build (8.4214ms)
+▶ series deployment source provenance
+  ✔ refuses a clean-looking build from an older source/compiler commit (3.3719ms)
+✔ series deployment source provenance (5.974ms)
+▶ series deployment journal
+  ✔ writes the nonce and intended address before send and the hash before receipt polling (14.6929ms)
+  ✔ retains uncertain send intent and forbids another send using the same deployment record (6.6739ms)
+  ✔ retains the known hash if receipt polling fails (23.5294ms)
+✔ series deployment journal (45.8568ms)
+ℹ tests 44
+ℹ suites 21
+ℹ pass 44
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7172.3881

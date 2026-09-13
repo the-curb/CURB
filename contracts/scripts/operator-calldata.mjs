@@ -10,13 +10,15 @@
  *   node scripts/operator-calldata.mjs <series address> pause-mint   <true|false> "<reason>"
  *   node scripts/operator-calldata.mjs <series address> pause-claims <A|B> <true|false> "<reason>"
  *   node scripts/operator-calldata.mjs <series address> transfer-operator <next operator>
+ *   node scripts/operator-calldata.mjs <series address> cancel-operator-transfer
+ *   node scripts/operator-calldata.mjs <series address> accept-operator
  */
 import { readFileSync } from 'node:fs';
 import { encodeFunctionData } from 'viem';
 
 const [series, action, ...rest] = process.argv.slice(2);
 const usage = () => {
-  console.error('usage: node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator> …');
+  console.error('usage: node scripts/operator-calldata.mjs <series> <mint-permit|claim-permit|pause-mint|pause-claims|transfer-operator|cancel-operator-transfer|accept-operator> …');
   process.exit(2);
 };
 if (!series || !/^0x[0-9a-fA-F]{40}$/.test(series) || !action) usage();
@@ -69,10 +71,24 @@ switch (action) {
   }
   case 'transfer-operator': {
     const [next] = rest;
-    if (!isAddress(next)) usage();
+    if (rest.length !== 1 || !isAddress(next) || /^0x0{40}$/i.test(next)) usage();
     functionName = 'transferOperator';
     args = [next];
-    says = `hand the operator role to ${next}; publish it first`;
+    says = `nominate ${next}; the current operator keeps authority until the nominee executes acceptOperator()`;
+    break;
+  }
+  case 'cancel-operator-transfer': {
+    if (rest.length !== 0) usage();
+    functionName = 'cancelOperatorTransfer';
+    args = [];
+    says = 'cancel the pending nomination; the current operator keeps authority';
+    break;
+  }
+  case 'accept-operator': {
+    if (rest.length !== 0) usage();
+    functionName = 'acceptOperator';
+    args = [];
+    says = 'the pending operator accepts from its own address (through its Safe quorum); the former operator then loses authority';
     break;
   }
   default:
@@ -80,4 +96,4 @@ switch (action) {
 }
 
 const data = encodeFunctionData({ abi, functionName, args });
-console.log(JSON.stringify({ to: series.toLowerCase(), data, functionName, args: args.map((a) => (typeof a === 'bigint' ? a.toString() : a)), says, note: 'for the operator multisig to sign; this desk sends nothing and holds no key' }, null, 2));
+console.log(JSON.stringify({ to: series.toLowerCase(), data, functionName, args: args.map((a) => (typeof a === 'bigint' ? a.toString() : a)), says, requiredSender: action === 'accept-operator' ? 'pending operator' : 'current operator', note: 'verify the current and pending addresses on chain before signing; this desk sends nothing and holds no key' }, null, 2));

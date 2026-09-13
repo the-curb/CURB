@@ -33,7 +33,12 @@ function artifact(path: string): { abi: unknown[]; bytecode: Hex } {
 const chain = { id: 31337, name: 'Hardhat (local)', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [RPC] } } } as const;
 
 async function main() {
+  const url = new URL(RPC);
+  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || url.username || url.password) {
+    throw new Error('the credits rehearsal only accepts an uncredentialed HTTP loopback endpoint');
+  }
   const pub = createPublicClient({ chain, transport: http(RPC) });
+  if ((await pub.getChainId()) !== 31337) throw new Error('the credits rehearsal refuses any chain except local chain 31337');
   const accounts = (await pub.request({ method: 'eth_accounts' })) as Address[];
   const [deployer, treasury, payer] = accounts;
   if (!deployer || !treasury || !payer) throw new Error('the node exposes fewer than three unlocked accounts');

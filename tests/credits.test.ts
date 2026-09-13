@@ -8,8 +8,9 @@ import { forgetChainConfirmations } from '../lib/chain/rpc.ts';
 import { selector } from '../lib/chain/keccak.ts';
 import { CREDITS_ENV, parseCreditsConfig, type CreditsConfig } from '../lib/credits/config.ts';
 import { admit, gate, settle } from '../lib/credits/guard.ts';
-import { latestDeskCode, verifyDeskCode } from '../lib/credits/code.ts';
+import { latestDeskCode, verifyDeskCode, expectedDeskImmutables } from '../lib/credits/code.ts';
 import { receipts } from '../lib/credits/receipts.ts';
+import { creditsResponse } from '../lib/launch/credits-api.ts';
 import { addressWord, buildRecord } from '../lib/positions/code.ts';
 import { INDEX_KEY, MAX_RETRIES_PER_SYNC, TOPUP_TOPIC, decodeTopUp, syncTopUps, type RateReaders } from '../lib/credits/indexer.ts';
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
@@ -951,12 +952,12 @@ describe('the credit desk, site side', () => {
     assert.equal(third.considered, 0, 'told, charged, done');
   });
 
-  it('loses no charge to another charge landing at the same time, and refuses the later one when the first left too little', async () => {
+  for (const contenders of [20, 2]) it(`loses no charge to another charge landing at the same time, and refuses the later one when the first left too little (${contenders} initial contenders)`, async () => {
     const store = tmpStore();
     const hash = keyHashOf(newKey());
     await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2015', topUps: [] } }]);
-    // Twenty charges of five cents at once: none overwrites another — every one either lands or is refused as NOT_RECORDED (not served), and the row counts exactly the ones that landed.
-    const outcomes = await Promise.all(Array.from({ length: 20 }, (_, i) => charge(store, hash, 'journal-day', 5, `ref ${i}`, new Date())));
+    // No concurrent charge overwrites another: each lands or is refused as NOT_RECORDED (not served). Two contenders also exercise the setup below with few initial winners, independent of scheduling.
+    const outcomes = await Promise.all(Array.from({ length: contenders }, (_, i) => charge(store, hash, 'journal-day', 5, `ref ${i}`, new Date())));
     const landed = outcomes.filter((o) => o.ok).length;
     assert.ok(landed >= 2, `at least the winners of the first rounds land (${landed})`);
     assert.ok(outcomes.every((o) => o.ok || o.status === 'NOT_RECORDED'), 'a refused charge is refused, never silently lost');
@@ -968,10 +969,20 @@ describe('the credit desk, site side', () => {
     const three = await Promise.all(Array.from({ length: 3 }, (_, i) => charge(store, hash, 'journal-day', 5, `three ${i}`, new Date())));
     assert.equal(three.filter((o) => o.ok).length, 3, JSON.stringify(three.filter((o) => !o.ok).map((o) => (o.ok ? '' : o.detail))));
     assert.equal((await keyAccount(store, hash)).spentCents, String(5 * landed + 15));
-    // Two calls with room for one: the second reads again after the conflict and is refused with the figures, not served for free.
-    const spentSoFar = BigInt((await keyAccount(store, hash)).spentCents);
-    await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: (spentSoFar + 1900n).toString(), topUps: [] } }]);
+    // Spend down to 1,900 cents without lowering cumulative funding. Rewriting
+    // funding as spent + 1,900 could put a key below the 2,000-cent opening
+    // minimum when few contenders won, testing eligibility instead of shortage.
+    const beforeBurst = await keyAccount(store, hash);
+    const setupSpend = BigInt(beforeBurst.balanceCents) - 1900n;
+    assert.ok(setupSpend >= 0n && setupSpend <= 115n);
+    if (contenders === 2) assert.ok(BigInt(beforeBurst.spentCents) < 100n, 'the few-winners fixture must exercise the old below-minimum setup');
+    if (setupSpend > 0n) {
+      const prepared = await charge(store, hash, 'journal-day', Number(setupSpend), 'prepare the shortage burst', new Date());
+      assert.equal(prepared.ok, true);
+    }
     const short = await keyAccount(store, hash);
+    assert.equal(short.creditedCents, '2015', 'cumulative funding must stay above the opening minimum');
+    assert.equal(short.status, 'OPEN');
     assert.equal(short.balanceCents, '1900');
     let fit = 0;
     for (let round = 0; round < 12; round += 1) {
@@ -980,7 +991,10 @@ describe('the credit desk, site side', () => {
       assert.ok(more.filter((o) => !o.ok).every((o) => !o.ok && (o.status === 'INSUFFICIENT' || o.status === 'NOT_RECORDED')));
     }
     assert.equal(fit, 19, 'nineteen of a hundred cents fit in 1,900; the twentieth is refused with the figures');
-    assert.equal((await keyAccount(store, hash)).balanceCents, '0');
+    const exhausted = await keyAccount(store, hash);
+    assert.equal(exhausted.creditedCents, '2015');
+    assert.equal(exhausted.status, 'OPEN');
+    assert.equal(exhausted.balanceCents, '0');
   });
 
   it('keeps a cancellation that lands while the fan-out is writing the same row, and counts a delivery whose charge did not land', async () => {
@@ -1114,6 +1128,45 @@ describe('the credit desk, site side', () => {
     }
   });
 
+  it('reports an uncertain settlement without retrying or claiming that no debit landed', async () => {
+    process.env[CREDITS_ENV] = CONFIG_JSON;
+    // Both realities are possible after a lost store acknowledgement. The API
+    // must preserve uncertainty until the caller reads its balance, not retry.
+    for (const landed of [false, true]) {
+      const inner = tmpStore();
+      const key = newKey();
+      const hash = keyHashOf(key);
+      await inner.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2000', topUps: [] } }]);
+      let writes = 0;
+      const store = new Proxy(inner, {
+        get(target, prop, receiver) {
+          if (prop === 'writeSnapshotIf') {
+            return async (record: SnapshotRecord, expected: number | null): Promise<ConditionalWriteOutcome> => {
+              writes += 1;
+              if (landed) assert.equal((await target.writeSnapshotIf(record, expected)).state, 'WRITTEN');
+              return { state: 'FAILED', reason: 'the write acknowledgement was lost and the row could not be read either' };
+            };
+          }
+          const value = Reflect.get(target, prop, receiver) as unknown;
+          return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+        },
+      }) as Store;
+      const result = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': key } }), store, 'journal-day', 'uncertain response');
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.response.status, 503);
+        const body = await result.response.json();
+        assert.equal(body.error, 'NOT_RECORDED');
+        assert.equal(body.charged, 'UNKNOWN');
+      }
+      assert.equal(writes, 1, 'an uncertain debit is never retried automatically');
+      const recovered = await keyAccount(inner, hash);
+      assert.equal(recovered.spentCents, landed ? '5' : '0');
+      assert.equal(recovered.chargeCount, landed ? 1 : 0);
+      assert.equal(recovered.balanceCents, landed ? '1995' : '2000');
+    }
+  });
+
   it('gates a paid endpoint: 503 unsold, 401 without a key, 402 with the figures, then charges and answers', async () => {
     const store = tmpStore();
     const key = newKey();
@@ -1139,9 +1192,19 @@ describe('the credit desk, site side', () => {
       assert.equal(body.topUp, null);
       assert.match(String(body.topUpHeld), /not verified as the build/);
     }
-    // The last tick found the desk to be the build: the way to pay is named.
+    // Both code identity/immutables and the rate must be current before a way to pay is named.
     const config = (parseCreditsConfig(CONFIG_JSON) as { config: CreditsConfig }).config;
-    await store.writeSnapshots([{ key: 'credits:code', observedAt: new Date().toISOString(), payload: { chainId: 31337, address: DESK, state: 'MATCHES', detail: null, codeHash: '0x', buildCommit: 'abc', solc: '0.8.30', immutables: [], readAt: new Date().toISOString() } }]);
+    const at = new Date().toISOString();
+    const immutables = Object.entries(expectedDeskImmutables(config)).map(([name, expected]) => ({ name, expected: `0x${expected}`, onChain: `0x${expected}`, matches: true }));
+    await store.writeSnapshots([
+      { key: 'credits:code', observedAt: at, payload: { chainId: 31337, address: DESK, state: 'MATCHES', detail: null, codeHash: '0x', buildCommit: 'abc', solc: '0.8.30', immutables, readAt: at } },
+      { key: 'credits:rate', observedAt: at, payload: { state: 'READ', chainId: 31337, at, rate: {
+        block: 100, basis: 'STATE', readAt: at, token: { address: CURB, decimals: 18, supply: '1000000000000000000000000', supplyAt: 'BLOCK' },
+        pool: { kind: 'uniswap-v2-pair', address: PAIR, quoteAddress: USDC, quoteDecimals: 6 }, quote: { kind: 'usd-stable' },
+        usdPerCurb18: '1000000000000000000', marketCapUsd18: '1000000000000000000000000', source: 'synthetic local test',
+        guard: { windowBlocks: 40, samples: 1, lowestAtBlock: 90, atBlockUsdPerCurb18: '1000000000000000000', applied: false },
+      } } },
+    ]);
     const unfunded = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
     assert.equal(unfunded.ok, false);
     if (!unfunded.ok) {
@@ -1317,6 +1380,12 @@ describe('the credit desk, site side', () => {
     const on = await runCredits(store, new Date(), []);
     assert.equal(on.state, 'CONFIGURED');
     assert.equal(on.code?.state, 'MATCHES', on.code?.detail ?? '');
+    // Exercise the real verification -> recorded snapshot -> HTTP quote path.
+    // Handwritten unprefixed immutable fixtures previously hid an integration bug.
+    const quoted = await (await creditsResponse(new Request('http://127.0.0.1/api/credits?usd=20'), parseCreditsConfig(CONFIG_JSON), store)).json();
+    assert.equal(quoted.quoteReadiness.codeCurrent, true);
+    assert.equal(quoted.quote.state, 'QUOTED');
+    assert.equal(quoted.topUp.desk, DESK);
     assert.equal(on.rate?.state, 'READ');
     if (on.rate?.state === 'READ') {
       assert.equal(on.rate.rate.block, 100);

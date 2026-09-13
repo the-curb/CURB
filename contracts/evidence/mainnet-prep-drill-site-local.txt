@@ -1,0 +1,11 @@
+▶ the operational drill, on a local chain
+  ✔ finds the shortfall, keeps the record through a failed RPC, and names a lost source (532.7159ms)
+✔ the operational drill, on a local chain (534.6864ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 901.3964

@@ -27,9 +27,11 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, toFunctionSelector, type Address, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, toFunctionSelector, type Abi, type Address, type Hex } from 'viem';
+import { assertLoopbackRpc } from './lib/local-chain.ts';
 
 const RPC = process.env.REHEARSAL_RPC_URL ?? 'http://127.0.0.1:8545';
+assertLoopbackRpc(RPC);
 const QA = 10n * 10n ** 18n;
 const QB = 20n * 10n ** 18n;
 const CAP = 1_000n;
@@ -53,7 +55,8 @@ interface Step {
 
 async function main() {
   const pub = createPublicClient({ chain, transport: http(RPC) });
-  const accounts = (await pub.request({ method: 'eth_accounts' })) as Address[];
+  if (await pub.getChainId() !== 31337) throw new Error('rehearsal refused: the node must answer chain id 31337');
+  const accounts = await createWalletClient({ chain, transport: http(RPC) }).getAddresses();
   const [operator, alice, bob, carol] = accounts;
   if (!operator || !alice || !bob || !carol) throw new Error('the node exposes fewer than four unlocked accounts');
   const wallet = (account: Address) => createWalletClient({ chain, transport: http(RPC), account });
@@ -139,15 +142,20 @@ async function main() {
   const multisigArtifact = artifact('MockMultisig');
   const msig = await deploy(multisigArtifact.abi, multisigArtifact.bytecode, [[s1, s2, s3], 2n]);
   const msigAbi = parseAbi(['function propose(address,bytes) returns (uint256)', 'function confirm(uint256)', 'function proposalCount() view returns (uint256)']);
-  await attempt('6 operator quorum', 'the operator (single key)', operator, 'hands the operator role to a 2-of-3 multisig', 'SUCCEEDS', s.address, seriesAbi, 'transferOperator', [msig.address]);
+  await attempt('6 operator quorum', 'the operator (single key)', operator, 'nominates a 2-of-3 multisig without transferring authority', 'SUCCEEDS', s.address, seriesAbi, 'transferOperator', [msig.address]);
+  const acceptData = encodeFunctionData({ abi: seriesAbi as Abi, functionName: 'acceptOperator', args: [] });
+  await attempt('6 operator quorum', 'signer 1', s1, 'proposes acceptance from the nominated multisig (1 of 2)', 'SUCCEEDS', msig.address, msigAbi, 'propose', [s.address, acceptData]);
+  if ((await read('operator')).toString().toLowerCase() !== operator.toLowerCase()) throw new Error('one signer unexpectedly transferred authority');
+  const acceptId = (await pub.readContract({ address: msig.address, abi: msigAbi, functionName: 'proposalCount' })) - 1n;
+  await attempt('6 operator quorum', 'signer 2', s2, 'confirms acceptance (2 of 2): the nominated multisig becomes operator', 'SUCCEEDS', msig.address, msigAbi, 'confirm', [acceptId]);
   await attempt('6 operator quorum', 'the former operator', operator, 'tries to stop minting alone after the handover', 'REVERTS', s.address, seriesAbi, 'setMintPaused', [true, 'no longer the operator']);
-  const stopData = encodeFunctionData({ abi: seriesAbi as never, functionName: 'setMintPaused' as never, args: [true, 'drill: quorum stop'] as never });
+  const stopData = encodeFunctionData({ abi: seriesAbi as Abi, functionName: 'setMintPaused', args: [true, 'drill: quorum stop'] });
   await attempt('6 operator quorum', 'signer 1', s1, 'proposes a stop of minting (1 of 2 confirmations)', 'SUCCEEDS', msig.address, msigAbi, 'propose', [s.address, stopData]);
   await attempt('6 operator quorum', 'carol', carol, 'mints 1 lot while the stop is still one signature short', 'SUCCEEDS', s.address, seriesAbi, 'mint', [1n, deadline]);
   const stopId = (await pub.readContract({ address: msig.address, abi: msigAbi, functionName: 'proposalCount' })) - 1n;
   await attempt('6 operator quorum', 'signer 2', s2, 'confirms the stop (2 of 2): the multisig executes it', 'SUCCEEDS', msig.address, msigAbi, 'confirm', [stopId]);
   await attempt('6 operator quorum', 'carol', carol, 'tries to mint 1 lot while minting is stopped', 'REVERTS', s.address, seriesAbi, 'mint', [1n, deadline]);
-  const resumeData = encodeFunctionData({ abi: seriesAbi as never, functionName: 'setMintPaused' as never, args: [false, 'drill: quorum resume after review'] as never });
+  const resumeData = encodeFunctionData({ abi: seriesAbi as Abi, functionName: 'setMintPaused', args: [false, 'drill: quorum resume after review'] });
   await attempt('6 operator quorum', 'signer 3', s3, 'proposes the resume (1 of 2)', 'SUCCEEDS', msig.address, msigAbi, 'propose', [s.address, resumeData]);
   await attempt('6 operator quorum', 'carol', carol, 'tries to mint 1 lot while the resume is one signature short', 'REVERTS', s.address, seriesAbi, 'mint', [1n, deadline]);
   const resumeId = (await pub.readContract({ address: msig.address, abi: msigAbi, functionName: 'proposalCount' })) - 1n;
