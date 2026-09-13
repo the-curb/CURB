@@ -12,3 +12,5 @@ desk-env.json
 records/*.31337.json
 node.log
 *.log
+evidence/safes/safe.31337.json
+safe-created.json

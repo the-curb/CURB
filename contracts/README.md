@@ -78,6 +78,16 @@ what was read. Rehearsed on the local mock and, read-only, on USDG.
 prints `to` and `data` for one operator action, for the multisig to sign;
 a stop or a resume without a reason is refused.
 
+## The operator's Safe
+
+`node scripts/plan-safe.ts <owner> <owner> <owner> --threshold 2` plans the
+2-of-3 Safe (1.4.1, L2 singleton) on the launch chain and prints the
+creation transaction unsigned; with `--send --reviewed` and
+`DEPLOYER_PRIVATE_KEY` in the shell it sends it, reads the owners and the
+threshold back from the new Safe, refuses if they are not what was asked,
+and writes `evidence/safes/safe.<chainId>.json`. Rehearsed in CI on the
+local chain after `safe-rehearsal.ts` has put Safe's code there.
+
 ## The recorded build (G02)
 
 `npm run record:build` writes the compiled runtime bytecode, where its
