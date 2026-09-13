@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-13T10:51:31.219Z",
+  "at": "2026-09-13T10:57:38.665Z",
   "environment": "Production Next local server, fresh headless Edge profile. EIP1193 test adapter; no real wallet extension or public transactions. Credit expiry/pending fixtures intercepted only within test context.",
   "checks": [
     {

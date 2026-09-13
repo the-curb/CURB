@@ -1,6 +1,6 @@
 # The Curb — laporan persiapan mainnet, 13 September 2026
 
-**Status: persiapan lokal, browser dan pengujian utama selesai; penguncian release/build serta checks setelah perubahan terakhir masih PENDING pada revisi laporan ini. Semua fase eksternal tetap HELD.** Pekerjaan dilakukan di `D:/BARONG/the-curb`, branch `codex/curb-first-release-hardening`, dari commit dasar `8f093ff9de64c8da7003ad2d2762c6b5967db573` beserta perubahan paket pertama yang sudah ada. Tidak ada push, deployment aplikasi publik, transaksi mainnet, pengiriman pesan ke pihak luar atau pemeriksaan database/env produksi dalam paket ini.
+**Status: persiapan lokal teruji dan source dipin pada commit `64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf`; clean CompanySeries build record telah dibuat dan kedua contract build check lulus. Semua fase eksternal tetap HELD.** Pekerjaan dilakukan di `D:/BARONG/the-curb`, branch `codex/curb-first-release-hardening`, dari commit dasar `8f093ff9de64c8da7003ad2d2762c6b5967db573` beserta perubahan paket pertama yang sudah ada. Source commit sudah tercatat lokal; pencatatan akhir evidence/preflight dilanjutkan sesudahnya. Tidak ada push, deployment aplikasi publik, transaksi mainnet, pengiriman pesan ke pihak luar atau pemeriksaan database/env produksi dalam paket ini.
 
 Laporan ini melanjutkan [paket pertama](FIRST-RELEASE-2026-09-13.md) dan [audit 28 pekerjaan tersisa](REMAINING-WORK-2026-09-13.md). Hasil historis keduanya tetap berlaku untuk cakupan dan waktunya; laporan ini tidak mengganti angka atau menulis ulang apa yang dahulu sudah/belum diuji. [Dossier mainnet](../mainnet/PREPARATION.md) berisi bahan keputusan, pertanyaan issuer, brief reviewer, scorecard wawancara, perhitungan ekonomi dan formulir operasi yang sekarang siap digunakan.
 
@@ -31,7 +31,7 @@ CompanySeries berubah bytecode dan ABI/event karena operator transfer dua langka
 
 Index posisi sekarang **version 3**, mencakup `OperatorTransferProposed` dan `OperatorTransferCancelled` beserta acceptance melalui `OperatorChanged`. Snapshot versi lama di-replay dari block awal deployment sehingga event yang sebelumnya dilewati dapat masuk; pergantian chain/alamat menggunakan index baru. Pada rollout, siapkan waktu/RPC untuk catch-up dan verifikasi hasil replay/reconciliation. Replay off-chain ini tidak mengubah receipts, permits atau claim di chain. Jangan menyatakan data sudah mutakhir sebelum sync selesai.
 
-Record sebelumnya dipertahankan di `contracts/evidence/history/`, termasuk build, unit tests, drill dan fork sebelum operator dua langkah. [Ringkasan contract](../../contracts/evidence/mainnet-prep-contracts-verification.json) mencatat fingerprint, lingkungan dan batas hasil lokal.
+Record sebelumnya dipertahankan di `contracts/evidence/history/`, termasuk build, unit tests, drill dan fork sebelum operator dua langkah. [Ringkasan contract sebelum source pin](../../contracts/evidence/mainnet-prep-contracts-verification.json) mencatat fingerprint, lingkungan dan batas hasil lokal pada waktu itu; field dirty/null di dalamnya merupakan sejarah rehearsal. [Clean build record check](mainnet-evidence/clean-build-record.json) kemudian membuktikan CompanySeries direkam dari commit `64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf`, `workingTreeClean: true`, runtime **6.693 bytes**, dan check CompanySeries/CreditDesk lulus. Record CreditDesk tetap menunjuk source asalnya yang tidak berubah.
 
 ### Klaim produk, dokumen dan kesiapan operasi
 
@@ -42,6 +42,7 @@ Record sebelumnya dipertahankan di `contracts/evidence/history/`, termasuk build
 - Urutan token/desk/pool/top-up dijadikan executable dan konsisten. Quote buffer 5% tetap bukan slippage cap atau minimum credit guarantee. Review sebelum launch tetap membutuhkan sumber pendanaan yang benar-benar tersedia.
 - `mainnet:preflight` memeriksa **15 requirement records** dengan source digest, attribution/date, evidence path/hash dan status fase. Record contoh tetap PENDING; missing evidence, source berbeda, gate posisi belum passed atau release belum bersih membuat hasil HELD. `RECORDS_COMPLETE_REQUIRES_VERIFICATION` pun bukan otorisasi transaksi atau bukti reviewer independen.
 - Health probe yang dapat dijalankan operator tersedia dan diuji. Tool ini belum berarti monitor di luar GitHub sudah dipasang atau on-call sudah menerima alert production. Dossier menyediakan owner, target response/recovery, backup dan drill fields yang belum diisi dengan orang/hasil fiktif.
+- Dependency helper deployment diperbaiki agar typecheck aplikasi dari instalasi dependencies root saja tidak bergantung diam-diam pada `contracts/node_modules` atau root `viem`. Workflow checks/fork-evidence mengambil full git history sehingga pencarian commit source/compiler tidak rusak pada shallow checkout. Typecheck terisolasi, strict deployment-script typecheck dan 11 focused checks lulus lokal; workflow GitHub sendiri belum dijalankan di remote.
 
 ## Bukti validasi
 
@@ -53,13 +54,16 @@ Angka antarkategori dapat mencakup pengujian yang saling terkait; jangan menjuml
 | Postgres conformance | **45 lulus** | [postgres-conformance.txt](mainnet-evidence/postgres-conformance.txt); PostgreSQL 16.15 lokal |
 | Solidity lokal | **54 lulus / 0 gagal** | [mainnet-prep-solidity-local.txt](../../contracts/evidence/mainnet-prep-solidity-local.txt) |
 | Fork Ethereum | **14 lulus** | [raw output](../../contracts/evidence/mainnet-prep-apple-components-fork.txt): 13 component tests pada block **25.967.875** dan satu dividend test pada block **25.706.679/25.706.680** |
-| Safe/deployment integration lokal | **8 pemeriksaan lulus** | [series-preflight-local.json](../../contracts/evidence/mainnet-prep-series-preflight-local.json); Safe runtime lokal, quorum acceptance, konfigurasi salah ditolak, deployment CLI lokal dan duplicate-run refusal |
+| Safe/deployment integration lokal | **8 pemeriksaan lulus; diulang sesudah source pin** | [operator-release-local.json](mainnet-evidence/operator-release-local.json); Safe runtime lokal, quorum acceptance, konfigurasi salah ditolak, deployment CLI lokal dan duplicate-run refusal terhadap clean build record. [Rehearsal awal](../../contracts/evidence/mainnet-prep-series-preflight-local.json) tetap disimpan |
 | Incident drill posisi | **26 langkah, 0 unexpected; 1 site test lulus** | [chain record](../../contracts/evidence/mainnet-prep-drill-chain-local.json), [site output](../../contracts/evidence/mainnet-prep-drill-site-local.txt) |
 | Positions rehearsal | **1 site test lulus** | [rehearsal record](../../contracts/evidence/mainnet-prep-positions-rehearsal-local.json), [site output](../../contracts/evidence/mainnet-prep-positions-rehearsal-site-local.txt) |
 | Contract/tool/backend checks terfokus | **44 lulus** | [tool tests](../../contracts/evidence/mainnet-prep-contract-tools-tests.txt); mencakup interrupted journal, stale source pin dan penolakan public dirty build |
+| Backend/operator/provenance sesudah source pin | **42 lulus / 0 gagal / 0 skip** | [pinned-source-tests.txt](mainnet-evidence/pinned-source-tests.txt); tambahan pemeriksaan terhadap source/build yang sudah dipin |
+| CI dependency/history preparation | **Root-only typecheck dan strict script typecheck lulus; 11 focused checks lulus** | [ci-verification.json](../../contracts/evidence/mainnet-prep-ci-verification.json); copy terisolasi tanpa contract dependencies atau env files, checkout history dicek lokal. GitHub Actions tidak didispatch |
 | HTTP acceptance pada production Next server lokal | **14 pemeriksaan lulus** | [http-acceptance.json](mainnet-evidence/http-acceptance.json); top-up mock lokal, auth/validation refusal tanpa debit, pembayaran endpoint 5 cent, concurrent debit tepat, privacy receipt, readiness/quote |
 | Backup/restore lokal | **Lulus; dua restore idempotent** | [backup-restore.json](mainnet-evidence/backup-restore.json), [output](mainnet-evidence/backup-restore.txt): 2 observations dan 8 snapshots; payload/version/write token cocok, snapshot differences 0 |
 | Production build dan TypeScript | **Lulus** | [build.txt](mainnet-evidence/build.txt); keberhasilan build lokal tidak membuktikan konfigurasi production |
+| Clean contract build records | **CompanySeries dan CreditDesk lulus** | [clean-build-record.json](mainnet-evidence/clean-build-record.json); fresh compile, creation/runtime/provenance checks; CompanySeries source pin `64870f116a…` |
 | Browser | **13 pemeriksaan lulus / 0 page atau console error** | [browser.json](mainnet-evidence/browser.json); tiga route desktop dan mobile 390 px, wallet units/allowance/receipt outcome, reconnect, quote expiry dan saldo terbaca saat pending UNREAD |
 
 HTTP acceptance memakai production-mode Next di loopback, PostgreSQL 16.15 loopback dan Hardhat chain 31337. Ia membuktikan interaksi HTTP nyata dengan ledger lokal, bukan pembayaran CURB publik. Hasil tersebut belum membuktikan alur lengkap extension wallet nyata, pool publik dan delivery webhook ke integrator eksternal. Browser memakai EIP-1193 test adapter, RPC read-only lokal dan fixture untuk quote-expiry/pending tertentu; tidak memakai extension wallet asli atau mengirim transaksi publik.
@@ -78,10 +82,10 @@ Backup kecil ini menguji data dan idempotency restore release lokal. Ia tidak me
 | R02 — UNREAD receipt/pending | Perbaikan source dan regresi lokal selesai | Verifikasi setelah rollout pada konfigurasi yang dipilih |
 | R03 — kesiapan semua petunjuk top-up | Helper/endpoint diselaraskan dan diuji | Token/desk/pool publik serta evidence readiness aktual |
 | R04 — operator dua langkah | Implementasi dan tests lokal selesai | Independent review dan penerimaan sebagai release/policy pilot |
-| R05 — operator deployment checker | Safe/preflight/journal/provenance diperkuat dan diuji | Reviewed Ethereum operator record; source/build pin final |
+| R05 — operator deployment checker | Safe/preflight/journal/provenance diperkuat; source dipin, clean build direkam dan 8 integration checks diulang | Reviewed Ethereum operator record dan public deployment signoff |
 | R06 — review wallet/replacement | Implementasi, regresi dan 13 pemeriksaan browser lokal lulus | Rehearsal peserta dengan extension wallet nyata |
-| R07 — fixture/testing final | Suite 584 tanpa skip, PG, rehearsal/drill, HTTP, restore dan browser lokal lulus | Checks pada source pin final; bukti production/staging aktual sesuai scope rilis |
-| R08 — release yang dapat dilacak | Build, evidence dan offline gate siap | Commit/source pin/build record final PENDING; belum push/deploy |
+| R07 — fixture/testing final | Suite 584 tanpa skip, PG, rehearsal/drill, HTTP, restore dan browser lokal lulus; 42 post-pin checks dan 8 Safe integration checks lulus | Bukti production/staging aktual sesuai scope rilis dan retest bila source kembali berubah |
+| R08 — release yang dapat dilacak | Source commit dipin, clean CompanySeries build direkam, production build dan offline gate tersedia | Pencatatan akhir evidence/preflight; remote CI, push dan deployment belum dijalankan |
 | R09 — wawancara pengguna posisi | Guide dan scorecard siap | Respons asli 10–15 peserta dan keputusan berdasarkan hasil |
 | R10 — validasi integrator layanan | Task-based scorecard dan target rekrutmen usulan siap | Integrasi/usage/pay-interest nyata; tidak disimpulkan dari token holder |
 | R11 — rights/eligibility issuer | Brief struktur dan questionnaire per issuer siap | Jawaban tertulis/review yang relevan; G2 belum lulus |
@@ -109,18 +113,19 @@ Backup kecil ini menguji data dan idempotency restore release lokal. Ia tidak me
 
 Keputusan eksternal berikut masih diperlukan: platform/terms launchpad yang benar, dana review sebelum launch, interpretasi proceeds yang disetujui, review independen dan terms, eligibility/acquisition issuer, konfigurasi lot/cap, Safe Ethereum, on-call/monitor/backup production, ekonomi layanan dan hasil pengguna. Dossier membuat kebutuhan tersebut konkret untuk dikerjakan; ia tidak memberi jawaban atas nama pihak yang belum dihubungi.
 
-## Finalisasi release yang masih pending pada revisi ini
+## Source pin dan pencatatan akhir
 
-1. Selesaikan pemeriksaan suite setelah perubahan akhir CI/tooling dan perbarui evidence bila jumlah atau scope berubah. Browser sudah lulus setelah perbaikan mobile/favicon.
-2. Tentukan commit release bersih, rekam ulang CompanySeries build dari source itu, verifikasi provenance/creation/runtime serta checks yang relevan. Record rehearsal dengan `sourceCommit: null` bukan artifact publik yang boleh dipakai begitu saja.
-3. Jalankan `npm run mainnet:preflight` terhadap record yang sesuai; hasil HELD akibat external evidence tetap dipertahankan. Pencatatan sebuah commit tidak otomatis mengubah approval/gate.
-4. Isi tanggal/commit/digest/evidence final di bawah setelah benar-benar tersedia. Tidak ada push/deploy/public send dalam laporan ini.
+Source sudah dipin pada `64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf`. CompanySeries build telah direkam ulang dari source bersih tersebut dan kedua contract build check lulus; production build serta 42 backend/operator/provenance checks dan 8 actual local Safe/deployment checks sesudah pin juga lulus. Ini menggantikan keterbatasan source pin pada rehearsal sebelumnya tanpa menghapus evidence historisnya.
+
+`npm run mainnet:preflight` menghasilkan digest dan status fase berdasarkan file yang benar-benar ada. Output final akan dicatat dalam `docs/reviews/mainnet-evidence/preflight.json`; laporan ini tidak menuliskan digest atau hasil command yang belum tersedia. Seluruh requirement eksternal masih PENDING sehingga phase decisions tetap HELD. Commit evidence/build sesudah source pin tidak otomatis mengubah approval/gate. Remote GitHub Actions dan Vercel belum dijalankan; tidak ada push/deploy/public send dalam paket ini.
 
 ```text
-Release/source commit: PENDING
-Recorded CompanySeries sourceCommit/build: PENDING clean release record
+Release/source commit: 64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf
+Recorded CompanySeries sourceCommit: 64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf
+Recorded CompanySeries build: workingTreeClean true; 6693 runtime bytes; both contract checks PASS
+Post-pin checks: 42 backend/operator/provenance PASS; 8 local Safe/deployment checks PASS
 Final browser result: 13 checks PASS, 0 errors; EIP-1193 adapter, local environment
-Final sourceDigest and preflight evidence: PENDING
+Final sourceDigest and preflight evidence: use generated mainnet-evidence/preflight.json when recorded
 External phase decisions: token-launch HELD / paid-beta HELD / position-pilot HELD
 Public deployment/payment evidence from this preparation: NONE
 ```

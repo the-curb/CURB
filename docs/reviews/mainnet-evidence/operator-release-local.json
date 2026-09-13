@@ -1,0 +1,68 @@
+{
+  "ranAt": "2026-09-13T10:57:06.172Z",
+  "chainId": 31337,
+  "checks": [
+    {
+      "name": "reviewed local Safe and build accepted by deployment dry-run",
+      "passed": true
+    },
+    {
+      "name": "EOA operator refused",
+      "passed": true
+    },
+    {
+      "name": "different owners refused",
+      "passed": true
+    },
+    {
+      "name": "wrong quorum refused",
+      "passed": true
+    },
+    {
+      "name": "wrong singleton refused",
+      "passed": true
+    },
+    {
+      "name": "deployment CLI sends locally, finalizes the journal and refuses a duplicate run",
+      "passed": true
+    },
+    {
+      "name": "one real Safe owner cannot accept authority",
+      "passed": true
+    },
+    {
+      "name": "two real Safe owners accept; former operator loses authority",
+      "passed": true
+    }
+  ],
+  "operatorAsRead": {
+    "chainId": 31337,
+    "operator": "0x46f29c680CBa51D624672819E576fb0CdF2Ee036",
+    "blockNumber": "105",
+    "owners": [
+      "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+      "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "0x90f79bf6eb2c4f870365e785982e1f101e93b906"
+    ],
+    "threshold": 2,
+    "runtimeCodeHash": "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c",
+    "singleton": {
+      "address": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+      "runtimeCodeHash": "0xb1f926978a0f44a2c0ec8fe822418ae969bd8c3f18d61e5103100339894f81ff"
+    },
+    "note": "matches reviewed expectations at this block; this check does not grant independent security or launch approval"
+  },
+  "toolDeployment": {
+    "address": "0x880abc439cc14435debfa070576ad197fbd644e1",
+    "block": 108,
+    "transactionHash": "0x228c2b0e38c920f77ac94d57f6dfc8bea8e524858114d711a95b0c54d6fc8cff",
+    "deployer": "0x7231f95b7BA0F951d825a3D23317f3dB2816E27A",
+    "at": "2026-09-13T10:57:04.436Z"
+  },
+  "series": "0xc351628eb244ec633d5f21fbd6621e1a683b1181",
+  "accepted": "0xd58188fd6025dbd63f0b95c70aa78d217e99aa1986f408a2623e82c4d1246db8",
+  "limits": [
+    "Safe code cached from Robinhood block 61245138, installed only on this local node",
+    "mock components; no public deployment, issuer eligibility or independent approval"
+  ]
+}

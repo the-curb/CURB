@@ -1,0 +1,89 @@
+{
+  "recordedAt": "2026-09-13T10:59:36.549Z",
+  "sourceReleaseCommit": "64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf",
+  "sourceDigest": "2ab8baaab23cb4189685034b47f69dd9f72226dcc43a4c71fd89157e90a2c2d8",
+  "digestScope": "The mainnet-preflight source/config/runtime-evidence digest; text CRLF normalized to LF. Evidence hashes below normalize CRLF to LF for portable Git checkouts.",
+  "build": {
+    "CompanySeries": {
+      "sourceCommit": "64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf",
+      "sourceWorkingTreeClean": true,
+      "runtimeBytes": 6693
+    },
+    "CreditDesk": "Unchanged source/compiler; current bytecode and provenance check passed."
+  },
+  "checks": {
+    "application": {
+      "pass": 584,
+      "fail": 0,
+      "skip": 0
+    },
+    "postPinBackendOperator": {
+      "pass": 42,
+      "fail": 0,
+      "skip": 0
+    },
+    "solidity": 54,
+    "fork": 14,
+    "postPinSafeIntegration": 8,
+    "http": 14,
+    "browser": 13,
+    "postgresIncludedInApplication": 45,
+    "productionBuild": "PASS",
+    "rootOnlyTypecheck": "PASS",
+    "restore": "PASS, small synthetic local backup; twice idempotent"
+  },
+  "evidence": [
+    {
+      "path": "docs/reviews/mainnet-evidence/app-tests.txt",
+      "sha256LF": "05f00a09cf42fba6039466f4e569cd66df297a94218ada882e541186e440f04b"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/pinned-source-tests.txt",
+      "sha256LF": "2c8e05a8f8a389a3760aa4eac07303d1f826c344860efdaddeb50fde5bf2e08e"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/build.txt",
+      "sha256LF": "4e2f4518ec5ef2b624bc5b0141ec0ee39f57b2389ea463bbbf3bd82bcbe732f6"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/browser.json",
+      "sha256LF": "b3839c2a10ca66f2422413572a487eb68723a60c5ddd5a8cb1f432eea49378ea"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/http-acceptance.json",
+      "sha256LF": "85ac3505505ace1f34f70166e939ce506e1cd12c4705d9047499d4130a53e636"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/operator-release-local.json",
+      "sha256LF": "76f91aedb7e2c3bd5f19301fe555ccbd776a28a4a821f2d36374e0c4485316ed"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/clean-build-record.json",
+      "sha256LF": "00c8c392b59265903229d6ece1f35f0c0005b901fc033ae68ed4402a7f9a8aa9"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/backup-restore.json",
+      "sha256LF": "1a32c2579e86c22edbcc3b42224ec603f3b8d874698304b3f789457aeb6522f8"
+    },
+    {
+      "path": "contracts/evidence/mainnet-prep-solidity-local.txt",
+      "sha256LF": "061de3924f15e9de14e52a654225da9d21bd259c36a7d8815d470c91a2c2a678"
+    },
+    {
+      "path": "contracts/evidence/mainnet-prep-apple-components-fork.txt",
+      "sha256LF": "2e66eb1e2990d6ca88ae6c6366f04508ec3ee32f96db8d3dbebfad5bfa407432"
+    },
+    {
+      "path": "contracts/evidence/mainnet-prep-ci-verification.json",
+      "sha256LF": "46efa49a7819df0f094c8dd82391fbf65bd86b8c5f83bc3de95df13770b97d5e"
+    }
+  ],
+  "environment": "Node24.19.0; production Next16.3.4 build in copy without environment files; PostgreSQL16.15 loopback54391; Hardhat31337 loopback9546; fresh headless Edge. Browser sends/receipts synthetic, local HTTP uses genuine indexed mock-contract top-ups and Postgres debits.",
+  "limitations": [
+    "No independent review or launch signoff is supplied by this record.",
+    "Mainnet token, paid beta and position pilot remain HELD.",
+    "No public transaction, production database/config access, push or application deployment.",
+    "GitHub Actions and hosted-platform protection were not exercised.",
+    "Local test servers were stopped after the final checks."
+  ]
+}

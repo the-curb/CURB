@@ -1,0 +1,18 @@
+{
+  "at": "2026-09-13T10:56:00.711Z",
+  "sourceReleaseCommit": "64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf",
+  "operations": [
+    {
+      "command": "node contracts/scripts/record-build.mjs --contract CompanySeries",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "recorded CompanySeries runtime bytecode (6693 bytes, 5 immutables: componentA, componentB, qA, qB, capLots) at 64870f116a from source at 64870f116a\n"
+    },
+    {
+      "command": "node contracts/scripts/check-build-record.mjs",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "CompanySeries: the committed record (source at 64870f116a, recorded at 64870f116a) is this source's bytecode, slots componentA, componentB, qA, qB, capLots\nCreditDesk: the committed record (source at 06623ed429, recorded at 8e0acd9f3b) is this source's bytecode, slots curb, treasury\n"
+    }
+  ]
+}
