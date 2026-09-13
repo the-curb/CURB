@@ -47,7 +47,8 @@ export function SiteFooter() {
               <span className="display text-xl tracking-[0.22em] text-(--color-paper)">{BRAND.name}</span>
             </div>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-(--color-paper-dim)">
-              The product is at the design and testing stage. The risk of the share, of each issuer and of each contract remains,
+              The product is on its way to Robinhood Chain mainnet: the treasury is live, the token and the desk follow, and the position
+              contract is a tested prototype not yet deployed. The risk of the share, of each issuer and of each contract remains,
               and the ability to withdraw a component follows the state and terms of that instrument. No receipt is one share, no
               exit is a cash redemption, and no CURB token is a condition of any of it.
             </p>

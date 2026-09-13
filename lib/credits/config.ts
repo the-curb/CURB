@@ -1,7 +1,7 @@
 /**
  * Where the credit desk lives — when it lives anywhere.
  *
- * No token exists and nothing is deployed. The desk is configured, never
+ * No token exists and the desk is not deployed. The desk is configured, never
  * assumed: `CURB_CREDITS` is one JSON record, filled only from what was
  * read from the chain after a launch (docs/decisions/TOKEN.md, "the order
  * of work"). Absent, every credit function reports NOT_CONFIGURED; a record

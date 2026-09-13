@@ -58,7 +58,7 @@ export const APPLE_S1: SeriesSpec = {
   company: 'Apple Inc.',
   illustrativeSymbol: 'cAAPL-S1',
   stage: 'DESIGN',
-  stageLine: 'Design and testing. A prototype contract exists for this series and is tested on forks of Ethereum and on a local chain; nothing is deployed, no issuer integration exists, and no real transaction has been made.',
+  stageLine: 'Mainnet next, behind the token and the desk on Robinhood Chain. A prototype contract exists for this series and is tested on forks of Ethereum and on a local chain; the series itself is not deployed yet, its network is still a gate, and no issuer integration exists.',
   chain: 'Ethereum — the candidate network; availability of both components on it is a gate, not a given',
   receiptDecimals: 0,
   capLotsIllustrative: 1_000n,

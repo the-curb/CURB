@@ -8,6 +8,7 @@ import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { composeBoard } from '@/lib/floor/board';
 import { APPLE_S1, GATES, PROMISES, STEPS, WORKED_EXAMPLE } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
+import { launchStatus } from '@/lib/launch/status';
 import { HeroSection } from './components/hero-figure';
 import { StackSection } from './components/stack-figure';
 import { CardsFigure, ClocksFigure, DotsFigure } from './components/figures';
@@ -67,7 +68,7 @@ function Lead({ href, children }: { href: string; children: React.ReactNode }) {
 export default async function Home() {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeats, feeds] = await Promise.all([store.latestHeartbeats(), store.snapshots('feed:')]);
+  const [heartbeats, feeds, launch] = await Promise.all([store.latestHeartbeats(), store.snapshots('feed:'), launchStatus(store)]);
   const health = heartbeats.state === 'UNREAD' ? null : systemHealth(heartbeats.value, now);
   const board = feeds.state === 'UNREAD' ? null : composeBoard(feeds.value, now);
   const byId = new Map(health?.statuses.map((s) => [s.id, s]) ?? []);
@@ -103,8 +104,11 @@ export default async function Home() {
                 {BRAND.name} is building a way to combine stock-token exposure from multiple issuers into one disclosed position,
                 with the right to every component recorded and withdrawn <strong className="font-bold">component by component</strong>.
               </p>
-              <p className="kicker mt-5" style={{ color: 'var(--color-state-stale)' }}>
-                <b>Stage</b> · building
+              <p className="kicker mt-5" style={{ color: launch.step === 'NOTHING' ? 'var(--color-state-stale)' : 'var(--color-state-live)' }}>
+                <b>Stage</b> · mainnet · {launch.chain}
+              </p>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-(--color-paper-dim)" title={launch.treasury === null ? undefined : `treasury ${launch.treasury.address}`}>
+                {launch.line}
               </p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-(--color-paper-dim)">{APPLE_S1.stageLine} The deposit is in kind, the receipt cannot be transferred, and exit is per component.</p>
             </div>

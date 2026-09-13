@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // in production. The page then says so rather than showing a copy, which
   // is right, but the file being present is better.
   outputFileTracingIncludes: {
+    // The front page's stage line is derived from the treasury's evidence file.
+    '/': ['./contracts/evidence/safes/safe.4663.json'],
     '/doctrine': ['./DOCTRINE.md'],
     '/mechanism': ['./MECHANISM.md'],
     '/mechanism/decisions/**': ['./docs/decisions/*.md'],

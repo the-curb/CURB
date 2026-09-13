@@ -18,10 +18,14 @@ export const BRAND = {
    */
   thesis: 'One company. Multiple issuers. One position.',
   /**
-   * Where the product stands. Public copy follows this line; it moves from
-   * "building" only when the stated function is actually available.
+   * Where the product stands. Public copy follows this line, and the line
+   * follows the record: it moved from "building" to "mainnet" on
+   * 13 September 2026, the day the operator's treasury went live on Robinhood
+   * Chain, at the product owner's decision; what it says is deployed and
+   * what it says is not are both true of the chain that day. The front page
+   * derives the same from the record itself (lib/launch/status.ts).
    */
-  stage: 'Building — a design under test. A prototype contract exists and is tested on forks and a local chain; nothing is deployed, no issuer integration exists, and no real transaction has been made.',
+  stage: 'Mainnet — Robinhood Chain. The operator’s treasury, a 2-of-3 Safe, is live on chain since 13 September 2026; the token and the credit desk follow it. The position product is a prototype contract tested on forks and a local chain, not yet deployed; no issuer integration exists.',
   /**
    * The desk beneath the product: the measuring agents and their line. Before
    * the American Stock Exchange had a building it was the Curb Market: claims

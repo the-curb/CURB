@@ -50,4 +50,4 @@ Every incident gets a dated entry on the series page with the operation, the com
 
 ## What exists today
 
-The conditions and the alert delivery; the drill record (`contracts/evidence/drill-local.json`) showing each row of the table above on a local chain with mock components; the series page's status blocks. No incident has happened, because nothing is deployed.
+The conditions and the alert delivery; the drill record (`contracts/evidence/drill-local.json`) showing each row of the table above on a local chain with mock components; the series page's status blocks. No incident has happened, because nothing but the operator’s treasury is deployed.

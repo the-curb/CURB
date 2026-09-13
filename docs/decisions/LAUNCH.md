@@ -17,6 +17,8 @@ Done, and visible: the services and the gate (`/services`, `/api/credits`, the p
 
 Done since (13 September 2026): rows 1 and 2 — three owners named by address and the Safe created at `0x4E69723F9Ba9fA2C9842d77b240b2C0F601ac219` (`contracts/evidence/safes/safe.4663.json`; owners and threshold read back from the chain, through the operator's endpoint and the public node); the deployer wallet exists and is funded. Not done: rows 3 onward. The site says so — `NOT_CONFIGURED` on `/services` and `/api/credits`, *not done* in the order of work — until they are.
 
+**The public stage line (13 September 2026).** The product owner asked, the day the treasury went live, that the site’s stage read *mainnet*. It does: the front page’s kicker says *Stage · mainnet · Robinhood Chain*, and the line beneath it is derived from the record by `lib/launch/status.ts` — the Safe’s evidence file, the `CURB_CREDITS` line, the last rate row — so it says exactly what is on chain (the treasury) and what is not (the token, the desk, the position series), and moves on its own as rows below are done. The footer’s line (`BRAND.stage`) and the series’ stage line say the same in prose. None of the eight refused claims is made by any of it, and nothing is said to be sold.
+
 ## The rows
 
 | № | Who | What | Needs first | Command or action | Refused when | Done shows as |
