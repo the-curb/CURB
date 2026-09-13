@@ -32,6 +32,8 @@ Everything the site shows today stays free: the series page, the latest evidence
 
 The token itself is read the same way: address, decimals and supply from the chain, once it exists. Nothing about supply, allocation or vesting is proposed here, because the mechanism says there is no basis for it yet, and a launch does not create one.
 
+**The treasury exists.** The operator's 2-of-3 Safe was created on Robinhood Chain on 13 September 2026 at `0x4E69723F9Ba9fA2C9842d77b240b2C0F601ac219` ([the operator policy](OPERATIONS.md), `contracts/evidence/safes/safe.4663.json`); it is the `treasury` the desk's record will name and every top-up will go to. No token exists yet.
+
 ## Credit validity and cancellation
 
 - A credit is a prepaid unit of service. It is not a deposit, not an investment, not a claim on the desk's revenue, treasury or anything else, and it is not refundable in dollars or in CURB: the contract has no refund path and the desk offers none informally.
