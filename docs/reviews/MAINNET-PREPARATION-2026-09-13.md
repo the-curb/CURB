@@ -117,7 +117,9 @@ Keputusan eksternal berikut masih diperlukan: platform/terms launchpad yang bena
 
 Source sudah dipin pada `64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf`. CompanySeries build telah direkam ulang dari source bersih tersebut dan kedua contract build check lulus; production build serta 42 backend/operator/provenance checks dan 8 actual local Safe/deployment checks sesudah pin juga lulus. Ini menggantikan keterbatasan source pin pada rehearsal sebelumnya tanpa menghapus evidence historisnya.
 
-`npm run mainnet:preflight` menghasilkan digest dan status fase berdasarkan file yang benar-benar ada. Output final akan dicatat dalam `docs/reviews/mainnet-evidence/preflight.json`; laporan ini tidak menuliskan digest atau hasil command yang belum tersedia. Seluruh requirement eksternal masih PENDING sehingga phase decisions tetap HELD. Commit evidence/build sesudah source pin tidak otomatis mengubah approval/gate. Remote GitHub Actions dan Vercel belum dijalankan; tidak ada push/deploy/public send dalam paket ini.
+Preflight final dijalankan pada commit evidence/build `da222a56cd9e8851e836d1c73361b669fab7b13e` dengan **working tree bersih**. [Output preflight](mainnet-evidence/preflight.json) mencatat exit code **2**, tanpa record-format error: token-launch, paid-beta dan position-pilot seluruhnya **HELD** karena requirement/signoff belum lengkap dan gate posisi belum lulus. [Record validasi release](mainnet-evidence/release-validation.json) mengikat digest yang sama dengan 11 referensi evidence dan hasil pengujian. Bukti lokal tersedia; persetujuan release tidak diisi otomatis atas nama reviewer.
+
+Digest source/config/runtime-evidence: `2ab8baaab23cb4189685034b47f69dd9f72226dcc43a4c71fd89157e90a2c2d8`. Commit dokumentasi/evidence berikutnya tidak mengubah digest source tersebut atau meluluskan gate. Identitas penulis commit memakai `Codex (local preparation) <codex@localhost>` khusus per command karena profil Git lokal belum memiliki identitas; konfigurasi global tidak diubah. Remote GitHub Actions dan Vercel belum dijalankan; tidak ada push/deploy/public send. Server Next, PostgreSQL dan Hardhat yang dibuat untuk pengujian lokal sudah dihentikan.
 
 ```text
 Release/source commit: 64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf
@@ -125,7 +127,8 @@ Recorded CompanySeries sourceCommit: 64870f116a02fa44fda1dfc4a67dcb9ac4aa15bf
 Recorded CompanySeries build: workingTreeClean true; 6693 runtime bytes; both contract checks PASS
 Post-pin checks: 42 backend/operator/provenance PASS; 8 local Safe/deployment checks PASS
 Final browser result: 13 checks PASS, 0 errors; EIP-1193 adapter, local environment
-Final sourceDigest and preflight evidence: use generated mainnet-evidence/preflight.json when recorded
+Final sourceDigest: 2ab8baaab23cb4189685034b47f69dd9f72226dcc43a4c71fd89157e90a2c2d8
+Final preflight: mainnet-evidence/preflight.json; clean tree at da222a56cd9e8851e836d1c73361b669fab7b13e; exit 2 (HELD)
 External phase decisions: token-launch HELD / paid-beta HELD / position-pilot HELD
 Public deployment/payment evidence from this preparation: NONE
 ```

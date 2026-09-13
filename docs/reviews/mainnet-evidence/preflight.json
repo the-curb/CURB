@@ -1,0 +1,316 @@
+{
+  "checkedAt": "2026-09-13T11:00:38.219Z",
+  "sourceDigest": "2ab8baaab23cb4189685034b47f69dd9f72226dcc43a4c71fd89157e90a2c2d8",
+  "errors": [],
+  "phases": [
+    {
+      "phase": "token-launch",
+      "state": "HELD",
+      "held": [
+        "independent-review",
+        "token-terms",
+        "launchpad-and-funding",
+        "treasury",
+        "release-validation"
+      ]
+    },
+    {
+      "phase": "paid-beta",
+      "state": "HELD",
+      "held": [
+        "independent-review",
+        "token-terms",
+        "launchpad-and-funding",
+        "treasury",
+        "release-validation",
+        "production-operations",
+        "service-economics",
+        "token-and-desk",
+        "pool-and-rate",
+        "paid-http-acceptance"
+      ]
+    },
+    {
+      "phase": "position-pilot",
+      "state": "HELD",
+      "held": [
+        "independent-review",
+        "release-validation",
+        "production-operations",
+        "instrument-identity",
+        "issuer-eligibility",
+        "component-acquisition",
+        "series-operator",
+        "lots-and-user-economics"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "independent-review",
+      "phases": [
+        "token-launch",
+        "paid-beta",
+        "position-pilot"
+      ],
+      "needs": "Independent contract and service review for this release; material findings closed.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "token-terms",
+      "phases": [
+        "token-launch",
+        "paid-beta"
+      ],
+      "needs": "Reviewed token/credits terms and eligible distribution scope.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "launchpad-and-funding",
+      "phases": [
+        "token-launch",
+        "paid-beta"
+      ],
+      "needs": "Verified launchpad mechanics, allocation/vesting/fees, prelaunch funding and proceeds formula.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "treasury",
+      "phases": [
+        "token-launch",
+        "paid-beta"
+      ],
+      "needs": "Target-chain treasury Safe identity, owners, quorum and operating authority verified.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "release-validation",
+      "phases": [
+        "token-launch",
+        "paid-beta",
+        "position-pilot"
+      ],
+      "needs": "Tests, build, database and relevant rehearsals tied to this release digest.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "production-operations",
+      "phases": [
+        "paid-beta",
+        "position-pilot"
+      ],
+      "needs": "Named on-call, independent monitoring, log retention, verified DB TLS, restore and incident evidence.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "service-economics",
+      "phases": [
+        "paid-beta"
+      ],
+      "needs": "Measured service costs/capacity, outstanding credits budget and customer validation.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "token-and-desk",
+      "phases": [
+        "paid-beta"
+      ],
+      "needs": "Actual token/deployment records, source verification and immutable identity.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "pool-and-rate",
+      "phases": [
+        "paid-beta"
+      ],
+      "needs": "Actual pool, liquidity/quote assumptions and fresh rate/code evidence.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "paid-http-acceptance",
+      "phases": [
+        "paid-beta"
+      ],
+      "needs": "Wallet top-up through paid HTTP and webhook, ledger reconciliation and failure recovery.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "instrument-identity",
+      "phases": [
+        "position-pilot"
+      ],
+      "needs": "G1: identities and dependency map with reviewed unresolved boundaries.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "issuer-eligibility",
+      "phases": [
+        "position-pilot"
+      ],
+      "needs": "G2: written rights/access review for contract holder, receipt, users and claims.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "component-acquisition",
+      "phases": [
+        "position-pilot"
+      ],
+      "needs": "G3: permitted acquisition, wrapper issuance/limits and corporate-action evidence.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "series-operator",
+      "phases": [
+        "position-pilot"
+      ],
+      "needs": "G5: Ethereum Safe, permits, incident process and two-step role transfer rehearsed.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    },
+    {
+      "id": "lots-and-user-economics",
+      "phases": [
+        "position-pilot"
+      ],
+      "needs": "G6: actual lot/cap, full cost comparison and genuine user research outcome.",
+      "state": "HELD",
+      "reasons": [
+        "approval pending",
+        "not tied to the current source digest",
+        "reviewer not named",
+        "review date absent, invalid or in the future",
+        "evidence reference/hash missing"
+      ]
+    }
+  ],
+  "limitation": "Checks record completeness and hashes only. It cannot authenticate a reviewer, establish legal eligibility, verify current chain state or authorize deployment/payment.",
+  "recordError": null,
+  "releaseCommit": "da222a56cd9e8851e836d1c73361b669fab7b13e",
+  "workingTreeClean": true,
+  "sourceFiles": 287,
+  "sourceGates": [
+    {
+      "id": "G1",
+      "status": "IN_RESEARCH"
+    },
+    {
+      "id": "G2",
+      "status": "NOT_STARTED"
+    },
+    {
+      "id": "G3",
+      "status": "IN_RESEARCH"
+    },
+    {
+      "id": "G4",
+      "status": "IN_RESEARCH"
+    },
+    {
+      "id": "G5",
+      "status": "IN_RESEARCH"
+    },
+    {
+      "id": "G6",
+      "status": "IN_RESEARCH"
+    }
+  ],
+  "localHold": null,
+  "commandExitCode": 2
+}
