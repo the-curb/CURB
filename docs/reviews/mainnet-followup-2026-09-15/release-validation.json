@@ -1,0 +1,57 @@
+{
+  "at": "2026-09-14T21:30:55.045Z",
+  "sourceReleaseCommit": "490a8c76549b9353cad342a8eef5366137d7e656",
+  "sourceDigest": "9352940fe055ee76cf0753b6a19a8a70b4c233f8ec5e46abfb989840aad0a6fc",
+  "sourceFiles": 299,
+  "workingTreeClean": true,
+  "preflightExitCode": 2,
+  "phases": [
+    {
+      "phase": "token-launch",
+      "state": "HELD"
+    },
+    {
+      "phase": "paid-beta",
+      "state": "HELD"
+    },
+    {
+      "phase": "position-pilot",
+      "state": "HELD"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "docs/reviews/mainnet-evidence/reproducible-local-2026-09-15.json",
+      "sha256LF": "e9ae8d8b4142ad487af3757223a49829da57ea570e7822b067892678d536b3e3"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/operator-safe-2026-09-15.json",
+      "sha256LF": "9a24013a7a17b73264046e6985d504e355966ad4b607f89213c066b0cfadabb9"
+    },
+    {
+      "path": "docs/reviews/mainnet-evidence/rehearsal-cleanup-failure-2026-09-15.json",
+      "sha256LF": "67155d9d6aab6731857168e2d67b971b09a4787e4c9d46e18152e02a2c264a2d"
+    },
+    {
+      "path": "docs/reviews/mainnet-followup-2026-09-15/app-tests-final.txt",
+      "sha256LF": "ed5b76b52aeb042c93cd76657b1158ce036c0d1eedc8cbe362d6f8da3e486e85"
+    },
+    {
+      "path": "docs/reviews/mainnet-followup-2026-09-15/production-build-final.txt",
+      "sha256LF": "adc43743a9df07d8c529b9f9182fd64f531e64c4376259c11829a7bfd2f5b6f9"
+    },
+    {
+      "path": "docs/reviews/mainnet-followup-2026-09-15/source-and-build-check.json",
+      "sha256LF": "b57f9dee5ed53eccc6904273717b4dd9cabb5f266e917883b19b612e7739d313"
+    },
+    {
+      "path": "docs/reviews/mainnet-followup-2026-09-15/public-operations.json",
+      "sha256LF": "7516417a59d693e1b79dea787a51babc5ba88fa3b7f378ad86edf70f8bf788cb"
+    },
+    {
+      "path": "docs/reviews/mainnet-followup-2026-09-15/preflight.json",
+      "sha256LF": "84fb0e4ec8d1915f694ce5f04cfedef45b8a3612dce73cb68fdc8682a1262541"
+    }
+  ],
+  "limits": "Local verification plus public read-only probe. No independent audit, external signoff, remote CI execution, production configuration verification, push, public deployment or public-chain transaction."
+}
