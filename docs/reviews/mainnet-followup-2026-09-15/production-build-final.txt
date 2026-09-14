@@ -1,0 +1,62 @@
+▲ Next.js 16.3.4 (Turbopack)
+✓ Running next.config.ts took 152ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.5s
+  Running TypeScript ...
+  Finished TypeScript in 6.9s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/8) ...
+  Generating static pages using 15 workers (2/8) 
+  Generating static pages using 15 workers (4/8) 
+  Generating static pages using 15 workers (6/8) 
+✓ Generating static pages using 15 workers (8/8) in 258ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /agents
+├ ƒ /agents/[id]
+├ ƒ /api/credits
+├ ƒ /api/desk
+├ ƒ /api/floor
+├ ƒ /api/gazette/[day]
+├ ƒ /api/keys
+├ ƒ /api/keys/[hash]
+├ ƒ /api/positions
+├ ƒ /api/positions/[series]
+├ ƒ /api/positions/[series]/evidence
+├ ƒ /api/positions/[series]/evidence/versions
+├ ƒ /api/positions/[series]/file
+├ ƒ /api/positions/[series]/journal
+├ ƒ /api/positions/[series]/preview-exit
+├ ƒ /api/positions/[series]/preview-mint
+├ ƒ /api/registry
+├ ƒ /api/session
+├ ƒ /api/state
+├ ƒ /api/status
+├ ƒ /api/subscriptions
+├ ƒ /api/tick
+├ ƒ /api/wallets/[address]/claims
+├ ƒ /api/wallets/[address]/positions
+├ ƒ /chambers
+├ ƒ /doctrine
+├ ƒ /floor
+├ ƒ /gazette
+├ ƒ /gazette/[day]
+├ ○ /icon.svg
+├ ƒ /mechanism
+├ ƒ /mechanism/decisions
+├ ƒ /mechanism/decisions/[slug]
+├ ƒ /positions
+├ ƒ /positions/[series]
+├ ƒ /registry
+├ ƒ /services
+└ ƒ /vault
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+

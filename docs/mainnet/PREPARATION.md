@@ -51,9 +51,9 @@ A local build recorded with a dirty-source allowance is rehearsal evidence. Rege
 
 | ID | Concrete choice/input needed | Prepared default or constraint | Recorded answer |
 | --- | --- | --- | --- |
-| D01 | Which launchpad/product and official terms/version? | PONS was mentioned; its current mechanics have not been verified by this package | — |
+| D01 | Which launchpad/product and official terms/version? | Public sources identify ponsfamily.com as the best match; v1/v2 must be distinguished | See [15 September facts](EXTERNAL-FACTS-2026-09-15.md); v2 curve/v4 unsupported, current Curb launcher access unverified |
 | D02 | Who funds review/legal work needed before launch, and when? | Treat it as unfunded until a real funding commitment exists; later proceeds cannot pay an earlier prerequisite without bridge funding | — |
-| D03 | What exact proceeds formula implements the decided priorities? | Proposed residual-pool formula below; approval required before publishing it as policy | — |
+| D03 | What exact proceeds formula implements the decided priorities? | Residual-pool formula below; planning arithmetic, no spending authority | Selected 15 September under owner-delegated implementation discretion; code and tests in `lib/release/budget.ts` |
 | D04 | Which independent reviewers, scope, fee and delivery evidence? | Reviewer brief below; reviewer names are unassigned | — |
 | D05 | Which first users, experiment budget and beta capacity? | Interview recruitment targets below are proposals, not customers or PMF | — |
 | D06 | Ethereum operator Safe, actual signers, quorum and review? | Minimum-two quorum with the policy's proposed three signers; independently verify the target chain and Safe controls | — |
@@ -253,14 +253,14 @@ Record the beta's approved participant count, per-key/use limits, monthly operat
 
 Use [COSTS.md](../decisions/COSTS.md)'s dated fork subtotal only as a starting input. For the chosen lot and participant route, measure: acquiring A/B, two approvals if needed, current-wrapper mint/deposit, series mint, allocation, independent claims, optional unwrap/sale/issuer redemption, gas base/calldata/cold-access costs, spreads, issuer/venue fees, time and failed/replaced transaction costs. Compare the identical start/end holdings with the two-token-wallet baseline. Record ETH/gas and any token-value inputs at a dated block; label estimates and include what cannot be priced. No cost claim or production lot/cap is approved by the simulator.
 
-### PROPOSED executable proceeds waterfall — decision D03
+### Selected planning proceeds waterfall — decision D03
 
-This interpretation is **prepared for approval**, not silently substituted for the decided table in TOKEN. Let **N** be non-negative net launch proceeds actually settled, valued in USD under a recorded conversion convention, after the launchpad's documented deduction. List every deduction once; clarify tax, gas, third-party fees and settlement currency treatment before approval. No proceeds amount is predicted.
+This residual interpretation was selected on **15 September 2026** under the owner's instruction to choose reasonable implementation details and is recorded in TOKEN. Let **N** be non-negative, freely available treasury proceeds actually settled, valued in USD under a recorded conversion convention, after documented deductions. Exclude bonding-curve reserves, locked liquidity, market capitalization, trading volume and customer credit funding. List each deduction once; actual tax, gas, fees and settlement treatment still require evidence. No proceeds amount or funding commitment is predicted.
 
 1. Priority review bucket `P1 = min(N, 40,000)`.
 2. Priority legal bucket `P2 = min(max(N − P1, 0), 15,000)`.
 3. Residual pool `R = N − P1 − P2`.
-4. Proposed budgets: review `P1 + 0.40R`; legal `P2 + 0.20R`; infrastructure/data `0.20R`; unallocated reserve `0.20R`.
+4. Planning budgets: review `P1 + 0.40R`; legal `P2 + 0.20R`; infrastructure/data `0.20R`; unallocated reserve `0.20R`.
 
 | Illustrative N (USD) | Review budget | Legal budget | Infrastructure/data | Reserve | Total |
 | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -269,7 +269,7 @@ This interpretation is **prepared for approval**, not silently substituted for t
 | 55,000 | 40,000 | 15,000 | 0 | 0 | 55,000 |
 | 100,000 | 58,000 | 24,000 | 9,000 | 9,000 | 100,000 |
 
-Each dollar belongs to one bucket. Low proceeds under this interpretation leave operations unfunded; the product owner must explicitly accept that consequence or record a different balanced formula before launch. A budget is not proof of payment or adequate reviewer scope. Handle currency minor-unit rounding deterministically in the approved ledger (proposed: round the first three buckets down to cents and put only the rounding remainder into reserve).
+Each dollar belongs to one bucket. Low proceeds leave operations unfunded; a separately evidenced operating budget is required before paid-service commitments. A budget is not proof of payment or adequate reviewer scope. The implementation rounds the first three buckets down to cents and puts the rounding remainder in reserve. Run `npm run mainnet:budget -- path/to/input.json`; [budget.example.json](budget.example.json) defaults to zero funds and unknown costs. USD micros permit sub-cent unit costs; all attempts incur the supplied unit cost, while only calls and deliveries with confirmed charges contribute usage revenue. A successful delivery whose debit failed is not revenue. These are input scenarios, not observed costs or users.
 
 ### Unfunded prelaunch review decision — D02
 

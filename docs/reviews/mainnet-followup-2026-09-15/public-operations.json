@@ -1,0 +1,121 @@
+{
+  "readAt": "2026-09-14T21:09:00.791Z",
+  "method": "Read-only public HTTPS GETs; no authenticated tick, DB access, writes or customer data requests",
+  "health": {
+    "state": "HEALTHY",
+    "checkedAt": "2026-09-14T21:08:59.324Z",
+    "observedAt": "2026-09-14T21:08:57.124Z",
+    "reportingLastHour": 4,
+    "agents": 9,
+    "reasons": [],
+    "freshness": {
+      "maxAgeSeconds": 120,
+      "allowedClockSkewSeconds": 30
+    }
+  },
+  "reads": [
+    {
+      "url": "https://the-curb.vercel.app/api/credits",
+      "httpStatus": 200,
+      "summary": {
+        "state": "NOT_CONFIGURED",
+        "topLevelFields": [
+          "observedAt",
+          "state",
+          "detail",
+          "desk",
+          "code",
+          "lastRun",
+          "receipts",
+          "minimumOpenCents",
+          "minimumOpen",
+          "minimumDecided",
+          "pricesDecided",
+          "pricesStatus",
+          "termsDecided",
+          "termsStatus",
+          "noticeDays",
+          "services",
+          "rate",
+          "quote",
+          "keyHash",
+          "record"
+        ]
+      }
+    },
+    {
+      "url": "https://the-curb.vercel.app/api/positions/apple-s1",
+      "httpStatus": 200,
+      "summary": {
+        "id": "apple-s1",
+        "stage": "DESIGN",
+        "deploymentState": "NOT_DEPLOYED",
+        "gateStates": [
+          {
+            "id": "G1",
+            "status": "IN_RESEARCH"
+          },
+          {
+            "id": "G2",
+            "status": "NOT_STARTED"
+          },
+          {
+            "id": "G3",
+            "status": "IN_RESEARCH"
+          },
+          {
+            "id": "G4",
+            "status": "IN_RESEARCH"
+          },
+          {
+            "id": "G5",
+            "status": "IN_RESEARCH"
+          },
+          {
+            "id": "G6",
+            "status": "IN_RESEARCH"
+          }
+        ],
+        "topLevelFields": [
+          "observedAt",
+          "id",
+          "name",
+          "company",
+          "stage",
+          "stageLine",
+          "chain",
+          "receiptDecimals",
+          "illustrativeSymbol",
+          "components",
+          "gates",
+          "gatesPassed",
+          "deployment",
+          "indicativeValue",
+          "rules",
+          "deferred",
+          "promises",
+          "evidence",
+          "index",
+          "reconciliation",
+          "reconciliationStoreFault"
+        ]
+      }
+    },
+    {
+      "url": "https://api.github.com/repos/the-curb/CURB/commits/main",
+      "httpStatus": 200,
+      "summary": {
+        "sha": "d1f353b2d371005261a51dffc965433be2c7a5b3",
+        "message": "Evidence refreshed: fork at block 25973811; unit tests 44 passing, 0 failing"
+      }
+    }
+  ],
+  "vercelConnector": {
+    "targetProject": "the-curb",
+    "localTeam": "team_fv7H5jScV5BGX7zuaajvpzai",
+    "accessibleTeam": "team_MNr9oGbUfM56egtNHRkrYbwF",
+    "targetProjectResult": "403 Forbidden",
+    "accessibleProjects": 0,
+    "limitation": "Connected team does not provide access to the configured target; production settings, secrets and deployment identity not verified."
+  }
+}

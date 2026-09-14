@@ -40,13 +40,15 @@ export async function verifyDeskCode(config: CreditsConfig, opts: RpcOptions, no
   const base = { chainId: config.network.chainId, address: config.desk, readAt: now.toISOString() };
   const { build, fault } = await buildRecord('CreditDesk');
   if (build === null) return { ...base, state: 'NO_BUILD', detail: fault, codeHash: null, buildCommit: null, solc: null, immutables: [] };
+  const sourceRecorded = build.workingTreeClean && typeof build.sourceCommit === 'string' && /^[0-9a-f]{40}$/.test(build.sourceCommit);
+  if (!sourceRecorded && config.network.chainId !== 31337) return { ...base, state: 'NO_BUILD', detail: 'public CreditDesk verification requires a build recorded from clean committed source; local rehearsal evidence is insufficient', codeHash: null, buildCommit: null, solc: build.solc, immutables: [] };
   const code = await rpcCall<string>('eth_getCode', [config.desk, 'latest'], opts);
-  const buildCommit = build.sourceCommit ?? build.commit;
+  const buildCommit = sourceRecorded ? build.sourceCommit : null;
   if (code.state === 'UNREAD') return { ...base, state: 'UNREAD', detail: `${code.reason}${code.detail ? ` — ${code.detail}` : ''}`, codeHash: null, buildCommit, solc: build.solc, immutables: [] };
   if (code.value === '0x' || code.value.length <= 2) return { ...base, state: 'MISMATCH', detail: 'no code at the address', codeHash: null, buildCommit, solc: build.solc, immutables: [] };
   const codeHash = toHex(keccak256(Buffer.from(code.value.slice(2), 'hex')));
   const compared = compareAgainst(code.value, build, expectedDeskImmutables(config));
-  return { ...base, state: compared.state, detail: compared.detail, codeHash, buildCommit, solc: build.solc, immutables: compared.immutables };
+  return { ...base, state: compared.state, detail: compared.detail ?? (sourceRecorded ? null : 'local rehearsal build; these bytes are not attributed to a committed source release'), codeHash, buildCommit, solc: build.solc, immutables: compared.immutables };
 }
 
 export function deskCodeSnapshot(v: DeskCodeVerification): SnapshotRecord {

@@ -38,7 +38,7 @@ for (const c of CONTRACTS) {
     refuse(artifact.contractName, `the committed record (commit ${String(record.commit).slice(0, 10)}) is NOT this source's bytecode: lengths ${(now.length - 2) / 2} vs ${(then.length - 2) / 2} bytes, first difference at byte ${Math.floor((at - 2) / 2)}`);
     continue;
   }
-  if ((artifact.contractName === 'CompanySeries' || record.creationBytecode !== undefined) && record.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) {
+  if (record.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) {
     refuse(artifact.contractName, 'the recorded creation bytecode differs from the compiled artifact or is missing');
     continue;
   }

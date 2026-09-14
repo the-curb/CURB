@@ -6,6 +6,19 @@
   "token": "0x0000000000000000000000000000000000000000",
   "decimals": 18,
   "treasury": "0x0000000000000000000000000000000000000000",
+  "treasurySafe": {
+    "chainId": 4663,
+    "version": "1.4.1",
+    "owners": [],
+    "threshold": 2,
+    "runtimeCodeHash": "",
+    "singleton": { "address": "", "runtimeCodeHash": "" },
+    "modules": [],
+    "guard": null,
+    "fallbackHandler": { "address": "", "runtimeCodeHash": "" },
+    "reviewedBy": "",
+    "reviewedAt": ""
+  },
   "priceSource": null,
   "reviewedBy": "",
   "reviewedAt": ""

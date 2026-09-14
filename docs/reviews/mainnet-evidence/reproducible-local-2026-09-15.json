@@ -1,0 +1,171 @@
+{
+  "state": "PASSED",
+  "startedAt": "2026-09-14T21:24:36.596Z",
+  "completedAt": "2026-09-14T21:26:28.435Z",
+  "source": {
+    "commit": "3dd21d4727a5a55f6b8e385548cb9627f54dc3b8",
+    "workingTreeClean": false,
+    "snapshotDirectory": "D:\\BARONG\\.curb-rehearsal-YOjZSc",
+    "snapshotSha256": "82d837cbb9fc6c3c36c61ef8fc4a938cd8a4ded42dde34025a6555b86859b231"
+  },
+  "passed": 31,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "Fresh local deployed CreditDesk bytecode matches the committed build",
+      "passed": true
+    },
+    {
+      "name": "Fresh pool rate and top-up receipts index successfully",
+      "passed": true
+    },
+    {
+      "name": "Fresh mock position transactions index successfully",
+      "passed": true
+    },
+    {
+      "name": "A real mock donation creates a recorded reconciliation change",
+      "passed": true
+    },
+    {
+      "name": "Two actual mock top-ups credit exactly 2500 cents and open the key",
+      "passed": true
+    },
+    {
+      "name": "Paid HTTP request without a key refuses with 401",
+      "passed": true
+    },
+    {
+      "name": "Invalid day refuses with 400 before charging",
+      "passed": true
+    },
+    {
+      "name": "Refused requests do not debit the Postgres ledger",
+      "passed": true
+    },
+    {
+      "name": "Paid HTTP journal contains the actual chain-derived reconciliation change",
+      "passed": true
+    },
+    {
+      "name": "Successful HTTP response reports exactly a five-cent charge",
+      "passed": true
+    },
+    {
+      "name": "HTTP response and independent Postgres read agree on exact debit",
+      "passed": true
+    },
+    {
+      "name": "Key holder can inspect the charged receipt",
+      "passed": true
+    },
+    {
+      "name": "Public key hash hides private charge references",
+      "passed": true
+    },
+    {
+      "name": "Two concurrent funded requests both succeed",
+      "passed": true
+    },
+    {
+      "name": "Concurrent requests debit exactly ten more cents",
+      "passed": true
+    },
+    {
+      "name": "Key creation binds its payment hint to this local desk",
+      "passed": true
+    },
+    {
+      "name": "Unfunded HTTP request refuses with 402",
+      "passed": true
+    },
+    {
+      "name": "Real indexed local code and rate produce a current quote",
+      "passed": true
+    },
+    {
+      "name": "Re-indexing does not replay credit or undo paid HTTP charges",
+      "passed": true
+    },
+    {
+      "name": "Production URL and DNS checks still refuse loopback destinations",
+      "passed": true
+    },
+    {
+      "name": "Real HTTP subscription API rejects a loopback webhook",
+      "passed": true
+    },
+    {
+      "name": "Two webhook subscriptions register through real HTTP without charging",
+      "passed": true
+    },
+    {
+      "name": "Real HTTP webhook delivery succeeds once and reports the 503 failure",
+      "passed": true
+    },
+    {
+      "name": "Successful webhook costs ten cents; failed delivery costs zero",
+      "passed": true
+    },
+    {
+      "name": "Receiver got the production JSON payload over POST",
+      "passed": true
+    },
+    {
+      "name": "API exposes persisted delivered/charged and failed/uncharged receipts",
+      "passed": true
+    },
+    {
+      "name": "Retry sends only the previously failed subscription",
+      "passed": true
+    },
+    {
+      "name": "Retry is charged exactly once after its receiver returns 204",
+      "passed": true
+    },
+    {
+      "name": "Unchanged conditions produce no repeat delivery or debit",
+      "passed": true
+    },
+    {
+      "name": "HTTP cancellation prevents subsequent delivery and charge",
+      "passed": true
+    },
+    {
+      "name": "Cancelled subscription rows remain inspectable",
+      "passed": true
+    }
+  ],
+  "amounts": {
+    "creditedCents": "2500",
+    "paidHttpCents": "15",
+    "successfulWebhookCents": "20",
+    "finalBalanceCents": "2465"
+  },
+  "boundary": "Production Next HTTP + disposable PostgreSQL + fresh Hardhat 31337 mocks. Webhook fanOut and deliver are production functions; CLI-only resolver/transport injection maps two .invalid endpoints to a real loopback HTTP receiver. No public TLS/DNS or actual wallet extension is exercised.",
+  "suite": {
+    "tests": 610,
+    "passed": 610,
+    "failed": 0,
+    "skipped": 0
+  },
+  "creditTool": {
+    "recordedToken": true,
+    "dryRun": true,
+    "deployed": true,
+    "duplicateRefusedWithoutNewTransaction": true,
+    "signer": "new random local account; key discarded, never recorded"
+  },
+  "localOnly": true,
+  "services": {
+    "next": "http://127.0.0.1:61474",
+    "chain": "http://127.0.0.1:65174",
+    "chainId": 31337,
+    "database": "curb_rehearsal_75c48ab972925a5250939129"
+  },
+  "logs": "D:\\BARONG\\the-curb\\.scratch\\rehearsal-ZDYToG",
+  "cleanup": {
+    "ownedProcessesStopped": true,
+    "disposableDatabaseDropped": true
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "PLANNING_ONLY",
+  "proceeds": {
+    "netAvailableCents": "0",
+    "bucketsCents": {
+      "review": "0",
+      "legal": "0",
+      "infrastructure": "0",
+      "reserve": "0"
+    },
+    "totalCents": "0",
+    "limitation": "Only separately identified, freely available treasury proceeds belong here. Bonding-curve reserves, locked liquidity, market capitalization, gross trading volume and customer credit funding are excluded. No funds or spending approval are established."
+  },
+  "economics": {
+    "state": "UNMEASURED",
+    "callAttempts": "0",
+    "chargedCalls": "0",
+    "deliveryAttempts": "0",
+    "successfulDeliveries": "0",
+    "chargedDeliveries": "0",
+    "serviceUsageRevenueUsdMicros": "0",
+    "missing": [
+      "fixedCostUsdMicros",
+      "costPerCallUsdMicros",
+      "costPerDeliveryAttemptUsdMicros"
+    ],
+    "costUsdMicros": null,
+    "surplusUsdMicros": null,
+    "breakEvenCallsOnly": null
+  },
+  "limitation": "No bank, chain, invoice, user demand or funding commitment was verified; no approval or transaction is generated."
+}

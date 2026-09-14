@@ -7,5 +7,11 @@ export async function journaledDeployment(file, intent, send, wait) {
   const hash = await send();
   writeFileSync(file, `${JSON.stringify({ ...initial, pending: { ...initial.pending, transactionHash: hash, state: 'SENT', note: 'hash recorded; receipt not yet confirmed' } }, null, 2)}\n`, { flush: true });
   const receipt = await wait(hash);
+  // A wallet library can return a replacement's receipt. The same CREATE nonce
+  // predicts the same address even when the replacement deployed different code.
+  // Keep SENT and require manual reconciliation instead of finalizing old terms.
+  if (typeof receipt?.transactionHash !== 'string' || receipt.transactionHash.toLowerCase() !== hash.toLowerCase()) {
+    throw new Error('deployment receipt does not identify the sent transaction; retain the journal and reconcile any replacement before finalizing');
+  }
   return { hash, receipt };
 }

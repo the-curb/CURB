@@ -13,8 +13,10 @@
  *     chain by habit;
  *   - the token must be a contract that answers symbol(), decimals() and
  *     totalSupply(), with the decimals the record expects;
- *   - the treasury must be a contract — the operator multisig — except on
- *     a local chain, where an unlocked account will do for a rehearsal;
+ *   - public treasuries must match a reviewed Safe record, including
+ *     quorum, singleton, modules, guard and fallback handler at one block;
+ *   - current source is compiled and both creation/runtime bytes checked;
+ *   - the deployer nonce and expected address are persisted before send;
  *   - `--dry-run` does every check and prints the plan without a key.
  *
  * The key comes from DEPLOYER_PRIVATE_KEY in the environment of the shell
@@ -31,10 +33,15 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
-import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from 'viem';
+import { execFileSync } from 'node:child_process';
+import { createPublicClient, createWalletClient, getContractAddress, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { parseArgs } from './lib/args.ts';
+import { safeAbi } from './lib/safe.ts';
+import { validateOperatorSafeExpectation, verifyOperatorSafe, type OperatorSafeExpectation } from './lib/operator-safe.ts';
+import { assertLoopbackRpc } from './lib/local-chain.ts';
+import { assertRecordedSourceCommit, buildCurrentContracts, currentSourceCommit } from './lib/build-provenance.mjs';
+import { journaledDeployment } from './lib/journaled-deployment.mjs';
 
 interface DeskRecord {
   readonly network: string;
@@ -43,6 +50,8 @@ interface DeskRecord {
   readonly token: Address;
   readonly decimals: number;
   readonly treasury: Address;
+  /** Required for public chains. null/absent permits an EOA only on loopback chain 31337. */
+  readonly treasurySafe?: OperatorSafeExpectation | null;
   /** The pool, when it exists; `fromBlock` is the block it was created in, read from the chain — a top-up before it is priced at the head when indexed. */
   readonly priceSource: { readonly kind: 'uniswap-v2-pair' | 'uniswap-v3-pool'; readonly pair: Address; readonly fromBlock?: number | null; readonly quote: { readonly kind: 'usd-stable' } | { readonly kind: 'chainlink-feed'; readonly feed: Address } } | null;
   /** Who reviewed this record and when; empty means it was not reviewed and it will not be sent. */
@@ -50,10 +59,10 @@ interface DeskRecord {
   readonly reviewedAt: string;
 }
 
-const fail = (why: string): never => {
+function fail(why: string): never {
   console.error(`refused: ${why}`);
   process.exit(1);
-};
+}
 
 /**
  * Did the pool emit anything before `top`? One query over [0, top] on a node
@@ -140,10 +149,16 @@ if (record.priceSource !== null) {
 }
 if (record.chainId !== 31337 && !reviewedFlag) fail(`chain id ${record.chainId} is not a local chain and needs --reviewed on top of the record’s own review`);
 if (record.chainId === 31337 && reviewedFlag) console.error('note: --reviewed is not needed for a local chain');
+if (record.chainId !== 31337 || record.treasurySafe != null) {
+  try { validateOperatorSafeExpectation(record.treasurySafe, record.chainId); } catch (cause) { fail(`treasury verification: ${cause instanceof Error ? cause.message : 'invalid Safe expectation'}`); }
+}
 
 /** The operator's own endpoint for the profile, read from the environment like every other tool and the site (lib/chain/networks.ts); the record keeps naming the public one, and a keyed URL is never printed. */
 const RPC_ENV: Record<string, string> = { 'robinhood-mainnet': 'CURB_RPC_URL', 'robinhood-testnet': 'CURB_RPC_URL_TESTNET', 'ethereum-mainnet': 'CURB_RPC_URL_ETHEREUM', 'ethereum-sepolia': 'CURB_RPC_URL_SEPOLIA', 'hardhat-local': 'CURB_RPC_URL_LOCAL' };
 const rpcUrl = process.env[RPC_ENV[record.network]!] || record.rpcUrl;
+if (record.chainId === 31337) {
+  try { assertLoopbackRpc(rpcUrl); } catch { fail('a local-chain rehearsal requires an uncredentialed loopback RPC'); }
+}
 console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ` (${RPC_ENV[record.network]} from the environment)`}`);
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
 const pub = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -152,6 +167,24 @@ const erc20 = parseAbi(['function symbol() view returns (string)', 'function dec
 // ── the chain ─────────────────────────────────────────────────────────────
 const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(rpcUrl).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`));
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
+let treasuryAsRead = null;
+if (record.treasurySafe != null) {
+  try {
+    treasuryAsRead = await verifyOperatorSafe(record.treasury, record.treasurySafe, record.chainId, {
+      chainId: () => pub.getChainId(), blockNumber: () => pub.getBlockNumber(),
+      code: (address, blockNumber) => pub.getCode({ address, blockNumber }),
+      owners: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getOwners', blockNumber }),
+      threshold: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getThreshold', blockNumber }),
+      singleton: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'masterCopy', blockNumber }),
+      version: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'VERSION', blockNumber }),
+      modules: (address, start, pageSize, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getModulesPaginated', args: [start, pageSize], blockNumber }),
+      storage: (address, slot, blockNumber) => pub.getStorageAt({ address, slot, blockNumber }),
+    });
+  } catch { fail('the treasury Safe did not match its complete reviewed expectations or could not be read; nothing was sent'); }
+  console.error(`treasury Safe: ${record.treasury} · ${treasuryAsRead.threshold}-of-${treasuryAsRead.owners.length} · proxy, singleton, modules, guard and fallback match · block ${treasuryAsRead.blockNumber}`);
+} else {
+  console.error('local rehearsal only: no public treasury Safe verification was requested');
+}
 const tokenCode = await ask('getCode(token)', () => pub.getCode({ address: record.token }));
 if (!tokenCode || tokenCode === '0x') fail(`the token at ${record.token} has no code on chain ${chainId}`);
 const [symbol, decimals, supply] = await Promise.all([
@@ -200,24 +233,25 @@ if (record.priceSource !== null) {
   console.error('pool: none in the record; the CURB_CREDITS line will need priceSource filled when the pool exists');
 }
 
+try { buildCurrentContracts(); } catch { fail('current contract source could not be compiled; no artifact is trusted and nothing was sent'); }
 const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CreditDesk.sol/CreditDesk.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex; deployedBytecode: Hex };
 // What is sent must be what the site verifies against: the committed build record. A stale artifact or a stale record is refused here, not found by a DARK condition later.
-let build: { deployedBytecode: string; commit: string } | null = null;
+let build: { deployedBytecode: string; creationBytecode?: string; commit?: string; workingTreeClean?: boolean; sourceCommit?: string | null };
 try {
-  build = JSON.parse(readFileSync(new URL('../evidence/CreditDesk.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; commit: string };
+  build = JSON.parse(readFileSync(new URL('../evidence/CreditDesk.build.json', import.meta.url), 'utf8')) as typeof build;
 } catch {
-  fail('evidence/CreditDesk.build.json is missing; run npm run record:build and commit it before deploying');
+  build = fail('evidence/CreditDesk.build.json is missing or invalid; record the freshly compiled CreditDesk build before deploying');
 }
-if (record.chainId !== 31337 && (build!.workingTreeClean !== true || typeof build!.sourceCommit !== 'string' || !/^[0-9a-f]{40}$/.test(build!.sourceCommit))) fail('the build record was written from a dirty tree (--allow-dirty) or names no source commit; re-record it from a clean tree and commit it before deploying to a public chain');
+if (typeof build?.deployedBytecode !== 'string' || build.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase() || build.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) fail('the compiled CreditDesk does not match both creation and runtime bytecode in its build record; rebuild and record this source before deploying');
 if (record.chainId !== 31337) {
-  // What is sent is what the repository holds: nothing under src/, the compiler settings or the build record may be uncommitted.
+  try { assertRecordedSourceCommit(build, currentSourceCommit('../src/CreditDesk.sol')); } catch { fail('the CreditDesk build sourceCommit does not match clean current committed source and compiler settings; pin and record it before public deployment'); }
+  // Pin tooling as well as contract bytes: an uncommitted deployment path has not been reviewed with the release.
   const here = fileURLToPath(new URL('.', import.meta.url));
-  const dirty = execSync('git status --porcelain -- ../src ../hardhat.config.ts ../evidence/CreditDesk.build.json', { encoding: 'utf8', cwd: here }).trim();
-  if (dirty.length > 0) fail(`uncommitted changes under contracts/src, hardhat.config.ts or the build record:\n${dirty}\ncommit them (and re-record the build if the source moved) before deploying to a public chain`);
-  console.error(`repository at ${execSync('git rev-parse HEAD', { encoding: 'utf8', cwd: here }).trim().slice(0, 10)}; build record at ${String(build!.commit).slice(0, 10)}, source at ${String(build!.sourceCommit).slice(0, 10)}`);
+  const dirty = execFileSync('git', ['status', '--porcelain', '--', '../src', '../hardhat.config.ts', '../evidence/CreditDesk.build.json', './deploy-credit-desk.ts', './record-token.ts', './lib', '../../lib/chain/keccak.ts'], { encoding: 'utf8', cwd: here }).trim();
+  if (dirty) fail('contract source, compiler settings, build record or deployment tooling has uncommitted changes; pin and review the release before public deployment');
+  console.error(`repository at ${execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: here }).trim().slice(0, 10)}; build source at ${String(build.sourceCommit).slice(0, 10)}`);
 }
-if (build!.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase()) fail(`the compiled CreditDesk is not the committed build record (commit ${build!.commit.slice(0, 10)}); rebuild and re-record, or check out the recorded commit, before deploying`);
-console.error(`the artifact is the committed build at ${build!.commit.slice(0, 10)}`);
+console.error(`fresh creation and runtime bytecode match the build record; source ${build.sourceCommit ?? 'unattributed local rehearsal'}`);
 const out = new URL(`../evidence/deployments/credit-desk.${record.chainId}.json`, import.meta.url);
 if (existsSync(out)) {
   if (!dryRun) fail(`${fileURLToPath(out)} already exists: a desk was deployed from this record before. Read it; if a second desk is really wanted, move that file aside first`);
@@ -241,20 +275,24 @@ const balance = await ask('getBalance(deployer)', () => pub.getBalance({ address
 if (balance === 0n) fail(`the deployer ${account.address} holds no ETH on chain ${chainId}; nothing was sent`);
 console.error(`deployer ${account.address} · ${balance} wei`);
 
-const hash = await ask('the deployment', () => wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never }));
-console.error(`sent ${hash}; waiting for the receipt`);
-// The hash is written down before the receipt is waited for, so a cut-off here leaves a note, not a second deployment on the next run.
+const nonce = await ask('getTransactionCount(deployer)', () => pub.getTransactionCount({ address: account.address, blockTag: 'pending' }));
+const expectedAddress = getContractAddress({ from: account.address, nonce: BigInt(nonce) });
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
-writeFileSync(out, `${JSON.stringify({ record, pending: { transactionHash: hash, deployer: account.address, sentAt: new Date().toISOString(), note: 'sent; the receipt was not yet read when this was written' } }, null, 2)}\n`);
-const receipt = await ask(`the receipt of ${hash}`, () => pub.waitForTransactionReceipt({ hash }));
+const buildAsRecorded = { sourceCommit: build.sourceCommit ?? null, workingTreeClean: build.workingTreeClean === true, recordedAtCommit: build.commit ?? null };
+const { hash, receipt } = await journaledDeployment(out, { record, treasuryAsRead, buildAsRecorded, pending: { deployer: account.address, nonce, expectedAddress, preparedAt: new Date().toISOString() } }, async () => {
+  const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never, nonce });
+  console.error(`sent ${hash}; recording the hash before waiting for the receipt`);
+  return hash;
+}, (hash: Hex) => pub.waitForTransactionReceipt({ hash })).catch(() => fail('deployment outcome is unconfirmed or an intent already exists; preserve and reconcile the journal, deployer nonce and expected address before any retry'));
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
+if (receipt.contractAddress.toLowerCase() !== expectedAddress.toLowerCase()) fail('the receipt address differs from the prepared deployer nonce; the pending journal is retained for investigation');
 const address = receipt.contractAddress!;
 const block = Number(receipt.blockNumber);
 console.error(`deployed the credit desk at ${address} in block ${block}`);
 
 const env = { network: record.network, token: record.token, desk: address, treasury: record.treasury, fromBlock: block, priceSource: record.priceSource };
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
-writeFileSync(out, `${JSON.stringify({ record, deployment: { address, block, transactionHash: hash, deployer: account.address, at: new Date().toISOString() }, constructorArguments: ctor, env }, null, 2)}\n`);
+writeFileSync(out, `${JSON.stringify({ record, treasuryAsRead, buildAsRecorded, deployment: { address, block, transactionHash: hash, deployer: account.address, nonce, expectedAddress, at: new Date().toISOString() }, constructorArguments: ctor, env }, null, 2)}\n`, { flush: true });
 console.error(`written ${fileURLToPath(out)}`);
 // The only line on stdout: the env the site needs (priceSource null until the pool exists).
 console.log(JSON.stringify(env));

@@ -1,5 +1,10 @@
 # THE CURB
 
+Mainnet preparation: [15 September execution decisions](docs/mainnet/EXECUTION-DECISIONS-2026-09-15.md),
+[current external facts](docs/mainnet/EXTERNAL-FACTS-2026-09-15.md) and
+[repeatable local HTTP/ledger/webhook acceptance](scripts/REHEARSAL.md).
+Public launch and paid-service invitations remain subject to their recorded evidence gates.
+
 **One company. Multiple issuers. One position.**
 
 Mainnet preparation: [dossier and decision templates](docs/mainnet/PREPARATION.md),

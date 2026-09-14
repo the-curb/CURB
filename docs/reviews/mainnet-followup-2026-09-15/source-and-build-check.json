@@ -1,0 +1,1083 @@
+{
+  "at": "2026-09-14T21:30:24.212Z",
+  "baseCommit": "3dd21d4727a5a55f6b8e385548cb9627f54dc3b8",
+  "testSnapshot": {
+    "commit": "3dd21d4727a5a55f6b8e385548cb9627f54dc3b8",
+    "workingTreeClean": false,
+    "snapshotDirectory": "D:\\BARONG\\.curb-rehearsal-YOjZSc",
+    "snapshotSha256": "82d837cbb9fc6c3c36c61ef8fc4a938cd8a4ded42dde34025a6555b86859b231"
+  },
+  "matchedSourceFiles": 266,
+  "files": [
+    {
+      "path": "app/agents/[id]/page.tsx",
+      "sha256LF": "7db6b1f1fed4647f06226c94dafe15759dbd458f5bf17da40147f76f8d203935"
+    },
+    {
+      "path": "app/agents/page.tsx",
+      "sha256LF": "278d9efa736ccead9ab068532dd098615af6a7e9cb979ccdd88ab165b2d99836"
+    },
+    {
+      "path": "app/api/credits/route.ts",
+      "sha256LF": "0534cb24ef58d6d681e5db730d8474e88ebf5b371dac40209c521d31d1b2f040"
+    },
+    {
+      "path": "app/api/desk/route.ts",
+      "sha256LF": "17c0f2127384af44647102412ee4852f0d37926d214d8eef58fd35dbda380b24"
+    },
+    {
+      "path": "app/api/floor/route.ts",
+      "sha256LF": "c1aea93f4d437c3c9c45fdfa85251ef2a1c325a6f329e0d3c8866187cf5d60da"
+    },
+    {
+      "path": "app/api/gazette/[day]/route.ts",
+      "sha256LF": "9f509eaeced60ffd4d444a088a95501a1fb9ae5d2b67dca675ce804e018908b2"
+    },
+    {
+      "path": "app/api/keys/[hash]/route.ts",
+      "sha256LF": "2bad80ca120af7dde66604abd3fd1d10148ea298cb90f3d98729e3522e18fdd6"
+    },
+    {
+      "path": "app/api/keys/route.ts",
+      "sha256LF": "aa6fd5fdb4db5b1e488dbd61a9abd298d2689594542ff1391e4b519f62aa0cb4"
+    },
+    {
+      "path": "app/api/positions/[series]/evidence/route.ts",
+      "sha256LF": "f96f4593ea9946d56fda11379b6c1b6ec092e3f7f7a74fab92e495a64d593214"
+    },
+    {
+      "path": "app/api/positions/[series]/evidence/versions/route.ts",
+      "sha256LF": "ca960c3a91d65e125a37c0a6c247f8d8a026306e5b9f71eac30e054216fa69e2"
+    },
+    {
+      "path": "app/api/positions/[series]/file/route.ts",
+      "sha256LF": "60dddfdff20fdf6e4eadcc2f4167926fc2b8aabaac4a35a0e4de7fcce4b2af63"
+    },
+    {
+      "path": "app/api/positions/[series]/journal/route.ts",
+      "sha256LF": "89b4b87cba2d773c88ac4f3e87bbe97bfbc4c1be00e2397d9680c7de67e00558"
+    },
+    {
+      "path": "app/api/positions/[series]/preview-exit/route.ts",
+      "sha256LF": "c0a976072a50c10935928462ebe753bf17e42e136cd3907ad2ca422404a613f0"
+    },
+    {
+      "path": "app/api/positions/[series]/preview-mint/route.ts",
+      "sha256LF": "1a92a5ff680ceb81c02fe7ef8b52de3159412c07ec1e42d47f0fa5be81ef16c0"
+    },
+    {
+      "path": "app/api/positions/[series]/route.ts",
+      "sha256LF": "9a91682137eac9b1a9d25741cff5d834e2249501ee793999cffd370778c8f6b7"
+    },
+    {
+      "path": "app/api/positions/route.ts",
+      "sha256LF": "a5aca4fc2c683afe0fbb2a4d3a9231f3fd161ed919b0aef524daaea4e2c7af1d"
+    },
+    {
+      "path": "app/api/registry/route.ts",
+      "sha256LF": "5107e52972aea6b147d4b49313bf872c00f15ac3b5fe2e1bff9de7d2405df852"
+    },
+    {
+      "path": "app/api/session/route.ts",
+      "sha256LF": "67cc8f77ee18af529200508a15c09261bc42d89ac3257f200a8db8f15bebe413"
+    },
+    {
+      "path": "app/api/state/route.ts",
+      "sha256LF": "c3f5e2092e7dd4cd7b4f501f50cab08b7a8dc81023f0e26405f051105ad931c4"
+    },
+    {
+      "path": "app/api/status/route.ts",
+      "sha256LF": "28491554e44f0ac2e2db71788ec643c332a0434f454d57e434f3c013f5bcc5f7"
+    },
+    {
+      "path": "app/api/subscriptions/route.ts",
+      "sha256LF": "873134508db9b79202b95fb6d44505c36fd292b8827f10aeeb8ebbc72d7a6d36"
+    },
+    {
+      "path": "app/api/tick/route.ts",
+      "sha256LF": "f1cf6210ec386c8e1120710c90d5fa68b63489e9f5772efc5e03fd5bb7ef5aed"
+    },
+    {
+      "path": "app/api/wallets/[address]/claims/route.ts",
+      "sha256LF": "f0afd46ad8403a6761c9f953a8c04b041d32c4fb494a27a237229f483a36a3ac"
+    },
+    {
+      "path": "app/api/wallets/[address]/positions/route.ts",
+      "sha256LF": "61f3d1b8b3144df46a8c27743c33a545186d1d0c1049a83b711db0bd43e79f13"
+    },
+    {
+      "path": "app/chambers/page.tsx",
+      "sha256LF": "78754ed298f1f137906225132c9822254dd1c53f7520d7fb7ca8f8db2893d778"
+    },
+    {
+      "path": "app/components/credit-desk.tsx",
+      "sha256LF": "dc57629691ddf29f273a181f9cd77ebc71c0c493bf349e7f3efce8011a32e455"
+    },
+    {
+      "path": "app/components/desk-nav.tsx",
+      "sha256LF": "94c9988a0fdd85c2520a27173d2e7c9993355b2718bcf823cd990be94ae5c981"
+    },
+    {
+      "path": "app/components/figures.tsx",
+      "sha256LF": "c2630ce7c89368e395e9ef7227665fe84cbbbaf7c71e227af9f79ec10c607532"
+    },
+    {
+      "path": "app/components/floor-board.tsx",
+      "sha256LF": "d575c0c7c2be39cce4f24b75315ee1d982a899be4213571d80a1c0ce59c74bd9"
+    },
+    {
+      "path": "app/components/hero-figure.tsx",
+      "sha256LF": "f344131a0a1010c4e97495436770f4368206d9152492cd4a6f1e104f172628fd"
+    },
+    {
+      "path": "app/components/mark.tsx",
+      "sha256LF": "5b5c69f54eca4e672bd43e379e6a5f19f6460a66cd96d4f99ccca199eb65a5d8"
+    },
+    {
+      "path": "app/components/markdown-view.tsx",
+      "sha256LF": "46494ae049158a48b092ecea5ecb6976fbce7b4ea8f670418222d604c3be0f8d"
+    },
+    {
+      "path": "app/components/position-simulator.tsx",
+      "sha256LF": "f7ca687b4c396a32db9cd3d6b4f932f62595366337842001cd56a0dcf08a93b5"
+    },
+    {
+      "path": "app/components/site-footer.tsx",
+      "sha256LF": "874593b4818500d70f72f7e6b7de31202328a88fc20bfc115ae31f2694c22cd0"
+    },
+    {
+      "path": "app/components/site-header.tsx",
+      "sha256LF": "064d7419335e9151a31b70b5bf541c513fc9d59e682b64f0b37f368290b0b700"
+    },
+    {
+      "path": "app/components/stack-figure.tsx",
+      "sha256LF": "7f8564992322e8f644e3c5e7d3ab683c5d2483514fa4408f478aca26b48eed8f"
+    },
+    {
+      "path": "app/components/tape.tsx",
+      "sha256LF": "40df7a16e5e86a035b6f6a1ac2af02b4ad9c139ff4e9e76be2583e5c91815eff"
+    },
+    {
+      "path": "app/components/theme-toggle.tsx",
+      "sha256LF": "08b0107e413639e4476310e5995e31375c4ab4a2d7c116e67b952cf2344696b3"
+    },
+    {
+      "path": "app/components/use-scroll-progress.ts",
+      "sha256LF": "3bb4983099e2b157a5f6ebbbd5bd5bd56c2e39d612ff2e4303b39b3df89c92d7"
+    },
+    {
+      "path": "app/components/wallet-lookup.tsx",
+      "sha256LF": "f1ed521691010f05b27450f9b35718788ea373cd07c12cd9ca7c5074cb8ae35a"
+    },
+    {
+      "path": "app/components/wallet-sign.tsx",
+      "sha256LF": "529a60f9dd784ed20c690b18158d8f1059c6cc104ce53a258c09a2464dfe6dcb"
+    },
+    {
+      "path": "app/doctrine/page.tsx",
+      "sha256LF": "3216db1b34de1066e51712acd489a40ec3b5f71856193df64aff4040470fad10"
+    },
+    {
+      "path": "app/floor/page.tsx",
+      "sha256LF": "e22d438158931c017e1fe5d71db093d199a5f9687c56adafc5f1482e8d08fac4"
+    },
+    {
+      "path": "app/gazette/[day]/page.tsx",
+      "sha256LF": "50759415a1861b398c4f7498be24c5d722b4bb48d378d09356c58678521d02cc"
+    },
+    {
+      "path": "app/gazette/page.tsx",
+      "sha256LF": "7ee97f853116892dc83bd09f65ac4193ee654c700f62265cb04c2aa30bc589f0"
+    },
+    {
+      "path": "app/globals.css",
+      "sha256LF": "69eab1a82b4d42bbb9383489fc544597ae07fdbcc55cfbba1760d32df18245fa"
+    },
+    {
+      "path": "app/icon.svg",
+      "sha256LF": "e074b9b6dace24e8edd797c48af1884a8490e8d7e32469d9d8813c5ef826ccea"
+    },
+    {
+      "path": "app/layout.tsx",
+      "sha256LF": "cb6e9829f0cad4787ee6fa0fcaacc8b7bd77b112abc1a733d6f7e6396265501f"
+    },
+    {
+      "path": "app/loading.tsx",
+      "sha256LF": "db6de78b392ddfe3a652641f439f7e0dd000289341bebaeb846ac845f9f561a2"
+    },
+    {
+      "path": "app/mechanism/decisions/[slug]/page.tsx",
+      "sha256LF": "9e3eb49802220311106be787dd645d0b214bd607eb5db3658210c46f75fee02a"
+    },
+    {
+      "path": "app/mechanism/decisions/page.tsx",
+      "sha256LF": "29350fe3c875f642c3936b58d997d145c242c7bd5eed5dabcb2621598d5f12ee"
+    },
+    {
+      "path": "app/mechanism/page.tsx",
+      "sha256LF": "d03372745402cfa4481ae41ccd211d8c942dd855de03a833367626f947fadac3"
+    },
+    {
+      "path": "app/page.tsx",
+      "sha256LF": "a1638c8dba05e41185d945fa20f1ca4b31db896b57e0439eea7141c501afa83a"
+    },
+    {
+      "path": "app/positions/[series]/page.tsx",
+      "sha256LF": "81a48e84495a9f232f25b6faac888dc1010bb35258f1745e119ec44b29df6cf5"
+    },
+    {
+      "path": "app/positions/page.tsx",
+      "sha256LF": "4f3c35051dd7d3ad200b9552fb6e7f40c5c9a6f43bc475b93b77f4aa3d8ebb90"
+    },
+    {
+      "path": "app/registry/page.tsx",
+      "sha256LF": "4da7974ca14f87d6413aa2f7b857a0f599f258e82954af7def0e33f3c45feb64"
+    },
+    {
+      "path": "app/services/page.tsx",
+      "sha256LF": "1e01e78a1574bbc91a8c426470fc28d765359c7a48b1a46c83b33911ef9bcfaa"
+    },
+    {
+      "path": "app/vault/page.tsx",
+      "sha256LF": "f9f36687cee476dd5a96f072c143e7c4ae867b664f4a4478da34d5df21011686"
+    },
+    {
+      "path": "contracts/hardhat.config.ts",
+      "sha256LF": "da603caa5b82cf17c03ddcc0fdfd78d24453e0d5005790232f5d2fdfd290e663"
+    },
+    {
+      "path": "contracts/package-lock.json",
+      "sha256LF": "2b70029cccd9714456655dd19dc8e47023e33b368ca93c150019f6478eeace0b"
+    },
+    {
+      "path": "contracts/package.json",
+      "sha256LF": "8d154167184c6d99999cbc031920392fe8e12edf2546757e092dd8c03b71c894"
+    },
+    {
+      "path": "contracts/scripts/cache-safe-codes.ts",
+      "sha256LF": "44ba7a955d4e8d5b8526d3d94b3a2b50e8f7a85b70b36e467fac09cb1d7febf2"
+    },
+    {
+      "path": "contracts/scripts/check-build-record.mjs",
+      "sha256LF": "03d1dace2e1c2cbeca15277db7a40fc620238bf0799b8f5de1dde5a301454f9d"
+    },
+    {
+      "path": "contracts/scripts/credits-rehearsal.ts",
+      "sha256LF": "6a22b17b6ea3a2fe49127e4f7e36ef758f65c9f960a9adf66e5858f173f54d5d"
+    },
+    {
+      "path": "contracts/scripts/deploy-credit-desk.ts",
+      "sha256LF": "4b6c2f7b022fe79a27ff12ab49b91b8a33981881eb05df12e509574dddf4f476"
+    },
+    {
+      "path": "contracts/scripts/deploy-series.ts",
+      "sha256LF": "be611e32ddbb7c7a1e9b3e756d36e7aca4202f0fc67521703437d5d2fbe77c35"
+    },
+    {
+      "path": "contracts/scripts/drill.ts",
+      "sha256LF": "f60e78c48e5bf5d1bfeb0de2fb498abcb313b073156d74b43189c0645c976306"
+    },
+    {
+      "path": "contracts/scripts/lib/args.ts",
+      "sha256LF": "6ab99d612efae442d25ce136ef1a89781c9a97a533bb2efdebc759bf6c59214f"
+    },
+    {
+      "path": "contracts/scripts/lib/build-provenance.d.mts",
+      "sha256LF": "1bdbf388c1e103e5e1d3d3e64e9891c68c4986fb2332f054d81c03a3964f4665"
+    },
+    {
+      "path": "contracts/scripts/lib/build-provenance.mjs",
+      "sha256LF": "a15da204d8619984ef814d6fc8a312f9df59dc0b48b8db6f1f85aa945d726961"
+    },
+    {
+      "path": "contracts/scripts/lib/journaled-deployment.d.mts",
+      "sha256LF": "0f410a552a4e28ed88864c8730f6beb6665c9267da1d36074150891ce69efd73"
+    },
+    {
+      "path": "contracts/scripts/lib/journaled-deployment.mjs",
+      "sha256LF": "e985d655137f99263713dbaf816ea6a8d350d2cc2a8e11a4295aa16a374629f6"
+    },
+    {
+      "path": "contracts/scripts/lib/local-chain.ts",
+      "sha256LF": "feca41a42d1495ddf27b88b4a1d05b86df1ff612477af3233b72d58e1620cb19"
+    },
+    {
+      "path": "contracts/scripts/lib/operator-safe.ts",
+      "sha256LF": "47528091f2209311009f15499b612cae41719937d6d9422feae4a89b5bb39792"
+    },
+    {
+      "path": "contracts/scripts/lib/safe.ts",
+      "sha256LF": "63aa0c2bcd19eddfe8cc1f7b3ef9b2fd02e93dc8b17529d04730ae6248abe9bb"
+    },
+    {
+      "path": "contracts/scripts/operator-calldata.mjs",
+      "sha256LF": "149d5aed65427ef3f4e770effb23a8cebbef117086c6db076a06856170004839"
+    },
+    {
+      "path": "contracts/scripts/plan-safe.ts",
+      "sha256LF": "5eaf0cc73a3394da4c4047c127fc9af665ebe5d36e4d71e9dfc7d77b1a528d59"
+    },
+    {
+      "path": "contracts/scripts/record-build.mjs",
+      "sha256LF": "402231bf26be87f6bb25cd6a87251bc94303c834061431103b98bebe9fd79b20"
+    },
+    {
+      "path": "contracts/scripts/record-tests.mjs",
+      "sha256LF": "129093d53c279fe27b825a9a6ee089e7a9b7b9114e8c92fc122e7533a100b9a2"
+    },
+    {
+      "path": "contracts/scripts/record-token.ts",
+      "sha256LF": "a0b980d4fd54aeb6664aad223c5e0996235804e1180a78725a90e95b79c77700"
+    },
+    {
+      "path": "contracts/scripts/rehearsal.ts",
+      "sha256LF": "388db8098c46275d4a6a2f5eef72f984c683f369ff7f8c35ae65ae51f49e364c"
+    },
+    {
+      "path": "contracts/scripts/safe-rehearsal.ts",
+      "sha256LF": "c1ce9f7499b847420579237f56137e94492c2548aaf56bef707a4e40c9ab53e7"
+    },
+    {
+      "path": "contracts/scripts/safe-tx.ts",
+      "sha256LF": "2b289e18d417785c8ab7429a6abc83a8d0838ed2c177d17b74600f17201e7f8a"
+    },
+    {
+      "path": "contracts/scripts/series-preflight-rehearsal.ts",
+      "sha256LF": "52b99663c34437f70c2186c419c04d59701b845b725c2d6f8b51a296fee88fca"
+    },
+    {
+      "path": "contracts/src/CompanySeries.sol",
+      "sha256LF": "ccd3596efd9099a86e63413828c9578f34992b994be5f9455737ffd900d37674"
+    },
+    {
+      "path": "contracts/src/CreditDesk.sol",
+      "sha256LF": "930bbc701f304bafbf6af6494c35e5d63c72cb4f1da23def2dc216915765a43a"
+    },
+    {
+      "path": "contracts/src/mocks/MockMultisig.sol",
+      "sha256LF": "450e368ba526ec54a3309f035fe7e3272b979a7f21400ba7813662f749cd2e48"
+    },
+    {
+      "path": "contracts/src/mocks/MockPair.sol",
+      "sha256LF": "bccb856d25fd0517a1ecd8a6538c1d764cebf2b1aa729997baf8b53f2d6a4d24"
+    },
+    {
+      "path": "contracts/src/mocks/MockToken.sol",
+      "sha256LF": "cab44bfe2e0c4b9e82aa550c8b734f8dcc0cc7124d2e687b9f1e4cdc6b704a92"
+    },
+    {
+      "path": "contracts/test/CompanySeries.invariant.t.sol",
+      "sha256LF": "6c76ed64fe02ee6c03ff53559f375b00c3c9dcfe406a3a02c5e268cea48f96a6"
+    },
+    {
+      "path": "contracts/test/CompanySeries.t.sol",
+      "sha256LF": "0c1a0b2b109cd2a3804766d6617f6bbe997242a37e26afcbbf976c57398bcf70"
+    },
+    {
+      "path": "contracts/test/CreditDesk.t.sol",
+      "sha256LF": "957ef6a5bc428899c8cce95576e39db54b8a3eee42aaf9f10e88a3000cc8fbf5"
+    },
+    {
+      "path": "contracts/test/OperatorTransfer.t.sol",
+      "sha256LF": "9efb029fbde086b816519fc2243fb2478f275f976b7ca479a14a3eb57114f304"
+    },
+    {
+      "path": "contracts/test/TransferObservation.t.sol",
+      "sha256LF": "69fd704adf681cbd6fc36b76f3e293c8ed61f824ebbaf7f3b247587adc7f5b56"
+    },
+    {
+      "path": "contracts/test/fork/AppleComponentsFork.t.sol",
+      "sha256LF": "5378be0969d3cfba7af580ae37ba8d33b502f9eb24bf635aee333e1f0fb30a33"
+    },
+    {
+      "path": "contracts/test/fork/AppleCorporateActionFork.t.sol",
+      "sha256LF": "588c7d34ceb9f5d4f7d136112d662b5f15db18d12b11b4b4483e7493ab9971c7"
+    },
+    {
+      "path": "contracts/test/helpers/TransferObservation.sol",
+      "sha256LF": "b122e202df6317d3084a7fa7eed7037a7bed42d8812f9479a861bff269bc38eb"
+    },
+    {
+      "path": "lib/agents/health.ts",
+      "sha256LF": "8aedc6a86288a218fc0ad0aa778ff306f8940b94e8d8f99d7237b359d857b9d1"
+    },
+    {
+      "path": "lib/agents/producers/archivist.ts",
+      "sha256LF": "6505f03537e9e7e30365a109b15c4435b9a3c39c10a3f54762593154709a3b6d"
+    },
+    {
+      "path": "lib/agents/producers/bell.ts",
+      "sha256LF": "e1682c3830036c8ce4c085e81ad87d6177c58a6cad422bdf83cc5ffec068e24b"
+    },
+    {
+      "path": "lib/agents/producers/counsel.ts",
+      "sha256LF": "a7b1f7827e3e98034e15889137d4ef45e35e22ecc6b9b1bcf4b333bece6c930b"
+    },
+    {
+      "path": "lib/agents/producers/herald.ts",
+      "sha256LF": "39d4f44258520112f166763b93e2159c9ec73a6156e75b2d762adff27a9b8716"
+    },
+    {
+      "path": "lib/agents/producers/index.ts",
+      "sha256LF": "da2c05bf1169e029f19296d6d93101e91441c4e6216f452a408709d27078f294"
+    },
+    {
+      "path": "lib/agents/producers/pillar.ts",
+      "sha256LF": "69ae3156a4283b45be724fef34cfa8d55d1ff3dc465ff58035be985d1ed77327"
+    },
+    {
+      "path": "lib/agents/producers/registrar.ts",
+      "sha256LF": "5df79c5c876e4ae67b7d467c48a0d25679c4ef3dc58812e890a772e1354bf8a4"
+    },
+    {
+      "path": "lib/agents/producers/surveyor.ts",
+      "sha256LF": "85998b3bacc3c0f845f4a69316af888ec10939474f1c32653af85668681bf8f8"
+    },
+    {
+      "path": "lib/agents/producers/tally.ts",
+      "sha256LF": "6d389629155367afe579fe2de717382de5e46d0e59cafaae797f4e721e788154"
+    },
+    {
+      "path": "lib/agents/producers/warden.ts",
+      "sha256LF": "f7ee06faa5490fba04e22fe9c8b556c60d23d9c502a09fd1c9d9a040adbd1aa5"
+    },
+    {
+      "path": "lib/agents/registry.ts",
+      "sha256LF": "3c5ca9064df5ae978aaeb6a15621a6bd6370814a998d0344aff4560a01e4fa0a"
+    },
+    {
+      "path": "lib/agents/runtime.ts",
+      "sha256LF": "61bb3c48b428c1178010aa2e2011001019ee698f963bf5af6d60e79c9c47d01c"
+    },
+    {
+      "path": "lib/brand.ts",
+      "sha256LF": "ff670549ee19d5d433dfbccaa6a49f476f52e6a000619bd13cf8f67e59500c7c"
+    },
+    {
+      "path": "lib/chain/abi.ts",
+      "sha256LF": "82e71020e3ef0a7dd2a77c9fa019644ccaa6f4ad65b15142fc031e169cbd3c2a"
+    },
+    {
+      "path": "lib/chain/capture-drift.ts",
+      "sha256LF": "4a43ea37b77ef7ccb05b948264ffbc76f179b327b499e1a855251ee91f040932"
+    },
+    {
+      "path": "lib/chain/doh.ts",
+      "sha256LF": "44af92fdb98afd992de94a1024a1ebfd704d2cba9e4fe718d1bf38185e537b19"
+    },
+    {
+      "path": "lib/chain/feed-directory.ts",
+      "sha256LF": "abc7adb115891a12a112b8724d51810ebb826974ab3f4e93d09bff4df82f376a"
+    },
+    {
+      "path": "lib/chain/feeds.ts",
+      "sha256LF": "5525971bbad9d23297785d02d96b5addd7ab2431a842d97e968c009a08789acd"
+    },
+    {
+      "path": "lib/chain/keccak.ts",
+      "sha256LF": "16a1ce9cda184a9e911a905d754faa514250578f56a3957125d63899a15b99a1"
+    },
+    {
+      "path": "lib/chain/logs.ts",
+      "sha256LF": "860e508dedc751289ad7d8a7c7c3a2b805ef18846e9806bc1a19c43cf20f5388"
+    },
+    {
+      "path": "lib/chain/multicall.ts",
+      "sha256LF": "b32d33f3f70fed3926e78cb8ed9bd3a1ee55cfb6523641b22aeaf579f44565f5"
+    },
+    {
+      "path": "lib/chain/networks.ts",
+      "sha256LF": "74a6fc851edb7fd579ddac6e8051acf32a6dd64b25f368cdfd247a1e56982659"
+    },
+    {
+      "path": "lib/chain/oracle.ts",
+      "sha256LF": "425420d96b87a0f89c2087f087dca8e6551b86eac158c56494b6f4c57241ba57"
+    },
+    {
+      "path": "lib/chain/proxy.ts",
+      "sha256LF": "d9eaa629b21c7fad863ef5293d837aa3d70ef00f5f7b9c0c6a221f299fac0634"
+    },
+    {
+      "path": "lib/chain/rpc.ts",
+      "sha256LF": "bf6e09d0a156e9beab08118ca5a3d03729ac72d693e5866205c6cd82e961e01a"
+    },
+    {
+      "path": "lib/chain/stock-tokens.ts",
+      "sha256LF": "d162aee3c6287d0cc4fa37daba649322e0bff0ae3e0616ffafb05d4c7256c854"
+    },
+    {
+      "path": "lib/chain/terms.ts",
+      "sha256LF": "e60fc3360a64133f94d27a8713b67c529e28e042778c331f5af5ac91a71ebdc0"
+    },
+    {
+      "path": "lib/chain/token-read.ts",
+      "sha256LF": "b8562030412b32b5ce0fe848b5909171abb50efa4344074222ad513ab6f6df16"
+    },
+    {
+      "path": "lib/chain/tokens.ts",
+      "sha256LF": "5c084675ca2631c58493819899100aa5aaa25d245c86d214f5d050476705a9c2"
+    },
+    {
+      "path": "lib/chain/transport.ts",
+      "sha256LF": "f35e1bc02dc95b9c2a8d66a064c70f6ba1cd4e9906ac2e6d131bfcdfd65db873"
+    },
+    {
+      "path": "lib/credits/code.ts",
+      "sha256LF": "c064e4b76cd280437335d6fa1ef8f9b74b3b2e5e1e09ea300a05d8475997066b"
+    },
+    {
+      "path": "lib/credits/config.ts",
+      "sha256LF": "f10b9f7063aa99d66619c811a2194508939523f37d7d61c5de83c6e1dbd9e1fe"
+    },
+    {
+      "path": "lib/credits/guard.ts",
+      "sha256LF": "1344008289ddf55ac401d7f0a0b5f13c3a04069421759b4b3eff2fdf53719c3f"
+    },
+    {
+      "path": "lib/credits/indexer.ts",
+      "sha256LF": "64148e35763d0c34b98aa1b2ed4943388fd0dd7f729c356e7663c5c4acb76a89"
+    },
+    {
+      "path": "lib/credits/key-api.ts",
+      "sha256LF": "ccb34c43a108b78b288070bf45d41e9602c680f4f86f4b8b63a20251aa71fcbc"
+    },
+    {
+      "path": "lib/credits/keys.ts",
+      "sha256LF": "1246df1072c0859f7d05772dc2de07d1e79caf99770dd71fdac4ca325e974a0b"
+    },
+    {
+      "path": "lib/credits/maintenance.ts",
+      "sha256LF": "16f380e67f630106acfc2ce3bd65757adb12e644dec33bf02529a539e2aa0a5b"
+    },
+    {
+      "path": "lib/credits/pending.ts",
+      "sha256LF": "e50c87cfef7e5c27eae3e62b1ed046a08e16ec7f0a9234d06a3728884e0eeaec"
+    },
+    {
+      "path": "lib/credits/prices.ts",
+      "sha256LF": "ff219f582d37039b115bd65899f76db98097437c8fcebf213d7f38b08b7d4ccb"
+    },
+    {
+      "path": "lib/credits/rate.ts",
+      "sha256LF": "ab0e7a9dcc1988608174d9ac1aa2d2d3ff351cd9214c24f722cd24be7599c39e"
+    },
+    {
+      "path": "lib/credits/receipts.ts",
+      "sha256LF": "0d09dda416b940ce6753ef35f9ef2a15942efbff3487476b6662b11e2ba297a8"
+    },
+    {
+      "path": "lib/credits/subscriptions.ts",
+      "sha256LF": "e7ee93d44c51fee622bcd2312c37ea912434bd707cd3d4dc3d5aa3d600fd3cfd"
+    },
+    {
+      "path": "lib/credits/top-up.ts",
+      "sha256LF": "742f0eb243e930fe21b4ed4a15c40291e32777a05f093a10c43cab79508f3046"
+    },
+    {
+      "path": "lib/docs/decisions.ts",
+      "sha256LF": "dc2d2f5b42358dae145137c37a55f83c69a83818e99df0d7f28f6ceb3793e464"
+    },
+    {
+      "path": "lib/docs/markdown.ts",
+      "sha256LF": "c0d5fb703282fc03a3a917a8194253c75ca4daeacc83f3828d21a04474370912"
+    },
+    {
+      "path": "lib/doctrine/policy.ts",
+      "sha256LF": "f8430f776a187d86e0ae638bfa6aee564bb5fe4ccd843303ece6595df9dfca4c"
+    },
+    {
+      "path": "lib/doctrine/reading.ts",
+      "sha256LF": "11952e8500d76dfaaed8d73faf38c74971c8d847a23b5ac7c78c88701e01c524"
+    },
+    {
+      "path": "lib/floor/board.ts",
+      "sha256LF": "c1def1898c9c1a9d292ef34a9c930510207b38abf3b4558b8152e339a88cd670"
+    },
+    {
+      "path": "lib/gazette/edition.ts",
+      "sha256LF": "712e70968914535d560d3aac2175f964db09b349a7aa6624141c065aa88670eb"
+    },
+    {
+      "path": "lib/gazette/narrate.ts",
+      "sha256LF": "7a8510cdfac1921d94a9aa6e01ca568c1eaeeba0195accccf6381c3132446b3c"
+    },
+    {
+      "path": "lib/launch/credits-api.ts",
+      "sha256LF": "b573433f974a67133c0c30199bf384f7de0c8fd3496406b9293444f1b934c36d"
+    },
+    {
+      "path": "lib/launch/evidence.ts",
+      "sha256LF": "e9ab1cd7632896c8d8dbe048152b4081bbf6ab1983b6cbc459407a6015b0b0be"
+    },
+    {
+      "path": "lib/launch/status.ts",
+      "sha256LF": "57b0bfb3142ef56d65b5fddc20e5e21476e603a89a9a418d6c00aea3397545c5"
+    },
+    {
+      "path": "lib/market/session.ts",
+      "sha256LF": "6dd30ce954fbcacfad6889834281521920a91a7b3385d43f1eb99071d74c52ac"
+    },
+    {
+      "path": "lib/market/structure.ts",
+      "sha256LF": "3f15ddcfc1f8cddd8159ac7c99a97250ff71beedf4e32039649a5180fe8bf79d"
+    },
+    {
+      "path": "lib/ops/alerts.ts",
+      "sha256LF": "0f8771fd205521adfcff32ae04f18e1df3cfe84bd2c0f47a82ea8ce218182d1e"
+    },
+    {
+      "path": "lib/ops/bearer.ts",
+      "sha256LF": "2d90523643735864830e5bf1e071a0eb04f3915acbc7d67bb5275075f93e286a"
+    },
+    {
+      "path": "lib/ops/health-probe.ts",
+      "sha256LF": "05fbe10524f0181b7ab9b5d1f1ad696fc2028a5368751e6914cc86261f895488"
+    },
+    {
+      "path": "lib/ops/maintenance.ts",
+      "sha256LF": "5747950221644f3fd89ef1bcbbc9cc59ff6faf697c90aca41fba424f0fc749e8"
+    },
+    {
+      "path": "lib/positions/api.ts",
+      "sha256LF": "37d6bece0428e0749f1d47756e9e816d07c9e48259d6bc32334d12d98bf7272d"
+    },
+    {
+      "path": "lib/positions/calldata.ts",
+      "sha256LF": "da0f99bddca32e18de19150c929d54a249bcb5d31e7ba6cec6c5932018653d0d"
+    },
+    {
+      "path": "lib/positions/code.ts",
+      "sha256LF": "1b5267d070cc05326e62f4e8c4f2cf9f9ffd9e39a43d05b399087700cae63fc4"
+    },
+    {
+      "path": "lib/positions/corporate-action.ts",
+      "sha256LF": "d379868d3549d46e20f3de56de691c2b2f1a334680a701ad199a058cea3c2485"
+    },
+    {
+      "path": "lib/positions/dependencies.ts",
+      "sha256LF": "8ca86e473b0174d9d7e8148108702dd036698e18049fb7823a03daa7cd9d74fa"
+    },
+    {
+      "path": "lib/positions/deployments.ts",
+      "sha256LF": "8d97240c5a1a72c75f79ba4a44b6ccbd9dcf91f7260436c654f4aa418d490a84"
+    },
+    {
+      "path": "lib/positions/drill-evidence.ts",
+      "sha256LF": "dfb7aca85110f1d21acee88f5ce31ce1671cd3b669bc064e0bc49ab631abfc20"
+    },
+    {
+      "path": "lib/positions/events.ts",
+      "sha256LF": "197465fef43dff281a68aa9bdcd9b3060d65e6191e9df40b03befeaad0e33df2"
+    },
+    {
+      "path": "lib/positions/evidence.ts",
+      "sha256LF": "376529061f392bc585332d95f5f11555e20f17b643ba2b8c076eb2cccc610d8d"
+    },
+    {
+      "path": "lib/positions/fork-evidence.ts",
+      "sha256LF": "ca989e278ecce334eeca79eaee91debd74009787e6903809f493107abcc4d206"
+    },
+    {
+      "path": "lib/positions/index.ts",
+      "sha256LF": "6afdecd3a435639943af38cb59c6c60c1098ac4d45712e58f2a772bedce264f3"
+    },
+    {
+      "path": "lib/positions/issuers.ts",
+      "sha256LF": "29c8cc0b3ffc0c5efb044dc8e3c0d02f8669ee404ed2adc39bbc300e35248cb8"
+    },
+    {
+      "path": "lib/positions/journal.ts",
+      "sha256LF": "267b1228a85a107a82e1c6248f58ecbb9cb7b46f772554f751babe3a79a66cd3"
+    },
+    {
+      "path": "lib/positions/ledger.ts",
+      "sha256LF": "6883bfa40f4ebbdf5c550f4b2d9c2a30e26524335082bb43e093feb12fdde985"
+    },
+    {
+      "path": "lib/positions/maintenance.ts",
+      "sha256LF": "f01727b81e18b58453d3060ce045c7b87ca8d54a3b2ac167a0cb59f35b31f31b"
+    },
+    {
+      "path": "lib/positions/ondo-page.ts",
+      "sha256LF": "23cca6976d286b6fd90a282bcc28910eb6555fabc5bd68f1ef1d4ff8b2e29e07"
+    },
+    {
+      "path": "lib/positions/reconcile.ts",
+      "sha256LF": "0153bff5ab032fd16277329af6452a1e35454368fbe57200d94fcf0ffdbdabc4"
+    },
+    {
+      "path": "lib/positions/series.ts",
+      "sha256LF": "99dfffba425a84b93d2206ae7bae18fc253acc5c009130d29c9f4096eeb4ea37"
+    },
+    {
+      "path": "lib/positions/test-record.ts",
+      "sha256LF": "6f7c0f0d8b3412f49675dfdf2753b148ae4d07b9d53a1e40deb6d1f6f4a4eee3"
+    },
+    {
+      "path": "lib/positions/valuation.ts",
+      "sha256LF": "f7981db18275f31ab9b2cbac780367ff6492e6ef112d161e2a1903dae4cc17e7"
+    },
+    {
+      "path": "lib/positions/verify.ts",
+      "sha256LF": "f347ac8bdb918e4fb8819b285f2c1642b31d48528dd43b9b375ce2df378dc7a2"
+    },
+    {
+      "path": "lib/positions/wallet-review.ts",
+      "sha256LF": "b1b0a799791fbd4c9d2318c31e92cd1423d06580ffb2d14ea585d3d937e37248"
+    },
+    {
+      "path": "lib/positions/wallet.ts",
+      "sha256LF": "e07583833208e62cba0a9d04566c8d9279c33cc74fb944c95075eb886373ae83"
+    },
+    {
+      "path": "lib/registry/roll.ts",
+      "sha256LF": "eefa170b839973234bad0f1136e9141fb8318ac48a40c15a3f2605da4917fa61"
+    },
+    {
+      "path": "lib/release/budget.ts",
+      "sha256LF": "fbe96a4273c9416b6f3799b36089be23fd19f25305a5a17a4c6d0e6b92c73e46"
+    },
+    {
+      "path": "lib/release/readiness.ts",
+      "sha256LF": "2014e72979aac4b3202347c9d8c0511cd9c0fbd3f884ea585d313d4431a4a80b"
+    },
+    {
+      "path": "lib/store/fs.ts",
+      "sha256LF": "bed192f42240be56f049c1228fae38a2f67d9b99e33e0d327523c7b7f097dc0c"
+    },
+    {
+      "path": "lib/store/index.ts",
+      "sha256LF": "09cf48e22e60efcc621ace6c9dbbdefd1f77196e8202d98c807d77f8b9d617ea"
+    },
+    {
+      "path": "lib/store/postgres.ts",
+      "sha256LF": "9d239af45df70af7082a9c54b576fd08271184088a0032e04f099895ac425ea4"
+    },
+    {
+      "path": "lib/store/retention.ts",
+      "sha256LF": "24a8c4b66729c303e440a8a4d0c469eae661381bf4c5ce50d0f5626428b18d18"
+    },
+    {
+      "path": "lib/store/schema.sql",
+      "sha256LF": "978345e9ca193d4d574754d7f332dbf7511dc9d3444d0da65dbdfb1557c2a4aa"
+    },
+    {
+      "path": "lib/store/types.ts",
+      "sha256LF": "6fff0cd3b1d302fe888d020803340fb3ff5ce67b4e6e188e855fbfcf2b27af64"
+    },
+    {
+      "path": "lib/terms/table.ts",
+      "sha256LF": "efc7a537e5fd62490d5ef91fcccb99a433ff52f6b5fad1476c6333c924ee35b7"
+    },
+    {
+      "path": "lib/terms/watch.ts",
+      "sha256LF": "511f95464be40a4269f91a1ee5c74dc617b0c6da13a054edc5c78e9d527b32bb"
+    },
+    {
+      "path": "lib/vault/flow.ts",
+      "sha256LF": "482c30b4a4920530d6b22c2d1c2645700f580ac65cf62c55e0d4c74833eb2038"
+    },
+    {
+      "path": "next.config.ts",
+      "sha256LF": "1ad7f46bb5c25e165164047eb8c7f1cadcd5fe38bb6caa4e9b935ea276cfb076"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256LF": "3a5039b70091893db66c355affc4a0d8cc7fcfd248f2aa8deb92ff1f3d0e4021"
+    },
+    {
+      "path": "package.json",
+      "sha256LF": "ac61531590ad28e84e3e29036c9930f02f2bb21a17c936ed92d2197055b3f3cb"
+    },
+    {
+      "path": "postcss.config.mjs",
+      "sha256LF": "f50058e0d309cdb3e7c25a1123337338641fb71e988572607d57f47209db1fd1"
+    },
+    {
+      "path": "scripts/REHEARSAL.md",
+      "sha256LF": "e5c05969593a71ad1ffd2756c8ced2fa657d8bb0981b3704b4a1d75a31018868"
+    },
+    {
+      "path": "scripts/capture-feeds.ts",
+      "sha256LF": "4d806d44fdad05ac1adea4bf76bc3f5d6e223613f6c6075c0b5d54748ec2acb6"
+    },
+    {
+      "path": "scripts/capture-stock-tokens.ts",
+      "sha256LF": "2468a23dda4c2a9485de7b5529ad36b718709e30e25b1e491c83a0d776029f2a"
+    },
+    {
+      "path": "scripts/check-health.ts",
+      "sha256LF": "71b563101b05f52b363010d43abd83a941dbaa530c43a9dbce2a623e7a3bf744"
+    },
+    {
+      "path": "scripts/dump.ts",
+      "sha256LF": "b2e953b82018e2e7c188c8dec6cdf50628bb3b2410629a6dab9157608a15c5f7"
+    },
+    {
+      "path": "scripts/mainnet-budget.ts",
+      "sha256LF": "307a57b6248d9541fa5a30f86fd6b61924937de7a2c83669340a5575595580ed"
+    },
+    {
+      "path": "scripts/mainnet-preflight.ts",
+      "sha256LF": "044d477716999165533f5ddf4e9818ab451d4beff0d6712eac3a01fae3bddd80"
+    },
+    {
+      "path": "scripts/migrate.ts",
+      "sha256LF": "400715a1691de922cfd255e8f06d2388e316a092598e58d666bec9ae771108d4"
+    },
+    {
+      "path": "scripts/preview.ts",
+      "sha256LF": "f799d66ee472fe937c72b4ba4f22c95e5035131b0eead25637a3760e1d59895c"
+    },
+    {
+      "path": "scripts/probe-rpc.ts",
+      "sha256LF": "6bedea7e368e554b0d95b707dcdc758f14809e17f5d939950fa312437360273f"
+    },
+    {
+      "path": "scripts/prune.ts",
+      "sha256LF": "da70d8465be2569b20728c3339dbe39ee1150b720dc54b6b2150158e85115153"
+    },
+    {
+      "path": "scripts/rehearsal-acceptance.mjs",
+      "sha256LF": "cfeb436ca76c54a4af4e0c210d8bccddfc5c3aa2c0737222cfb24d67e5602845"
+    },
+    {
+      "path": "scripts/rehearsal-credit-tool.mjs",
+      "sha256LF": "ca27c64b947b5c51d17d6dccc1b6762105b73bdc0b3fcb4f8bb719c80f930731"
+    },
+    {
+      "path": "scripts/rehearsal-local.mjs",
+      "sha256LF": "bff83f44d94abc6bc1990f28ffb2dc3987521ac376246de6ffd7578009de3621"
+    },
+    {
+      "path": "scripts/rehearsal-safety.mjs",
+      "sha256LF": "d55cee9946aba27ed062a6c944dd4a1d146db177d1fffd49f4427bd920f0b777"
+    },
+    {
+      "path": "scripts/review-package.ts",
+      "sha256LF": "e278a7bc49261328da0b8328d7d52691a91d42fb8bd003aa041e23c1c36bf46a"
+    },
+    {
+      "path": "tests/abi.test.ts",
+      "sha256LF": "f1bbf0e4781ae1a753b90e43dbf2f98c3c9d5d907391cbdcf6d6225e1c9c2377"
+    },
+    {
+      "path": "tests/archivist.test.ts",
+      "sha256LF": "573d26a2c8fe629f079d292e61763d768a743c306f32550d2b58214e09ff38a7"
+    },
+    {
+      "path": "tests/chain-guard.test.ts",
+      "sha256LF": "f00ce5d19c0a48536aa0bf333c15b9193c174f30ff2e25fa1341a5feaa07d3d3"
+    },
+    {
+      "path": "tests/contract-events.test.ts",
+      "sha256LF": "c0320cccfef752e87b2c039fdf02a04d7644ce29ce35c603e5080a026d063d3c"
+    },
+    {
+      "path": "tests/credit-desk-code-provenance.test.ts",
+      "sha256LF": "58cbfdda37cbac9d6db8b02e049322db364f97a35ee21fcb059e6ab7992810c1"
+    },
+    {
+      "path": "tests/credit-desk-deployment-safety.test.ts",
+      "sha256LF": "672f82be14ec9222d76c7a478c865d9a7b80b68602ed2ab685e71739d176a8e9"
+    },
+    {
+      "path": "tests/credits-http.test.ts",
+      "sha256LF": "aecde4f354a156f75539ae40f5b48669fdf52263b784ccd8ea172976709757bb"
+    },
+    {
+      "path": "tests/credits-read-state.test.ts",
+      "sha256LF": "9668eeccd15300c5cd5940480b6f1a49757e3ef059114051a2ccf7ef6001c374"
+    },
+    {
+      "path": "tests/credits-rehearsal.test.ts",
+      "sha256LF": "fb342c8c8deeab81c1219829e2689bde2c4f8d91ab4c44c424c17e5e14e6a719"
+    },
+    {
+      "path": "tests/credits-tool-rehearsal.test.ts",
+      "sha256LF": "2d3f50712e499fca1a020829569279273623adb0e6037eadb095f8f8299c112d"
+    },
+    {
+      "path": "tests/credits.test.ts",
+      "sha256LF": "960592cf306d8f9b903c6fb0e1d2857c0c1032ee1e2aa88d1f5fba3c5910f191"
+    },
+    {
+      "path": "tests/districts.test.ts",
+      "sha256LF": "0f4ac3c35efa3fa1611a771291587527f155b86692c7ca48315a3d0fa2acd5c0"
+    },
+    {
+      "path": "tests/drift.test.ts",
+      "sha256LF": "eb27ee78b225ed2c2e149dd1478befb8646cdfde23262f3e815d7d27f3b8af49"
+    },
+    {
+      "path": "tests/edition.test.ts",
+      "sha256LF": "936a30d6df9ba0099a127599a72ade76800774c012201abb9757668f9d9f6dfd"
+    },
+    {
+      "path": "tests/fixtures/CompanySeries.events.json",
+      "sha256LF": "c0c2f2398c4904bc09e3afa5f4194780a3dce681ea6079a65b7d4dc3a2791b48"
+    },
+    {
+      "path": "tests/fixtures/ondo-aaplon-page.html",
+      "sha256LF": "b33bbde22865d8144c43093699c29bfec3c38f55c980be0c0c009052a8c60f9f"
+    },
+    {
+      "path": "tests/fixtures/xstocks-aaplx.json",
+      "sha256LF": "e6377f92baa7bca6d80e298e96338db1f74a17312194cb185e7ff7a2d0602967"
+    },
+    {
+      "path": "tests/health-probe.test.ts",
+      "sha256LF": "821c85abb2e8a238e91ab6c194ed55942a2ac9422a1b9ecb3e5ca1689bd92a98"
+    },
+    {
+      "path": "tests/health.test.ts",
+      "sha256LF": "089fa79469ca847722578900be464d08f03acd8dcb6f96a67db6e4ae534310b2"
+    },
+    {
+      "path": "tests/keccak.test.ts",
+      "sha256LF": "830f539550ad45e3eeb8aaa8f97f7aba399298f95bf5036e4e77782c41d4e140"
+    },
+    {
+      "path": "tests/launch.test.ts",
+      "sha256LF": "40db1ab4d17eb94bf66ec3a1303af2e4a1deeaeb770246a470593a54fd9d793e"
+    },
+    {
+      "path": "tests/mainnet-budget.test.ts",
+      "sha256LF": "13e4c402201ee836553e68bb216b580bed6661338ad160f5482bb6224f6f1f1d"
+    },
+    {
+      "path": "tests/mainnet-readiness.test.ts",
+      "sha256LF": "d1bd0d1f21b6d292dc3560696fd2cd6d344a88d933695203a9026578360d73ea"
+    },
+    {
+      "path": "tests/multicall.test.ts",
+      "sha256LF": "35508543e2fb692b447638868db7b54b5fb28f13f0cd45bd6544cf8999f4a2ed"
+    },
+    {
+      "path": "tests/narrate.test.ts",
+      "sha256LF": "999fdf02a32299c0ce0c0921d3c33b0d108ff920e68a7dbe18afcca685df5621"
+    },
+    {
+      "path": "tests/operator-calldata.test.ts",
+      "sha256LF": "023b60c25d099091c5337d405bd08b2f565256c7a8a6916c9dad6971b94475a0"
+    },
+    {
+      "path": "tests/operator-safe.test.ts",
+      "sha256LF": "76b6be7deaf0572f5e30e1f19f6c8b10d49564e401e2efcf99a6f55e14fba299"
+    },
+    {
+      "path": "tests/ops.test.ts",
+      "sha256LF": "36602bbbbd0819e4b09e78cf0c24c0b054ada7f19c591b3a4b3765aea3d78a88"
+    },
+    {
+      "path": "tests/pages.test.ts",
+      "sha256LF": "01e127f3ad0eb783d0cc8cc397f871ae5a1502a4f476db79123204ade0984aa7"
+    },
+    {
+      "path": "tests/pillar.test.ts",
+      "sha256LF": "9ab9b5b92a92b98aa8f1364bb4cf5833478125da546f2fc0ceec9b48e76da729"
+    },
+    {
+      "path": "tests/policy.test.ts",
+      "sha256LF": "b9f06546c6bda25beabca6e922b4b3f2d132d5483bc43ff97ef99e215985faf6"
+    },
+    {
+      "path": "tests/positions-backend.test.ts",
+      "sha256LF": "27e02766f55e5552efb24a84fa5654ad8675dbfd2def6b947bcef91e97b03c7b"
+    },
+    {
+      "path": "tests/positions-calldata.test.ts",
+      "sha256LF": "45247ba3635242f76872ec1698e71157d6a537be780cfc11fdaac5dd5445a84c"
+    },
+    {
+      "path": "tests/positions-drill.test.ts",
+      "sha256LF": "ed8d95b053e6247e0c1ef1a51eb8ab6dedfa7cc0e74fd64745148e2e7024491d"
+    },
+    {
+      "path": "tests/positions-evidence.test.ts",
+      "sha256LF": "abab24109ce233e047a79dc79e7f6c46d12d6d0487fc903b311ab3f4afe490e1"
+    },
+    {
+      "path": "tests/positions-journal.test.ts",
+      "sha256LF": "089af790f123dce257ad85c374b114762ea076aa042d01350836e591e0234d67"
+    },
+    {
+      "path": "tests/positions-rehearsal.test.ts",
+      "sha256LF": "331d053fd1dc1149c332e985e0ab44d8bc2110ee59dbe7431b654ddbcc5ac032"
+    },
+    {
+      "path": "tests/positions-valuation.test.ts",
+      "sha256LF": "1e0c299320083e59deb02008ffbb2e2356dbd26a7c7682d26a52437002a2df28"
+    },
+    {
+      "path": "tests/positions-wallet-review.test.ts",
+      "sha256LF": "5b7ce1eda0a225d8539fdd89f20b3508200ea8e3eec15fd4cb5cd38d6605ef47"
+    },
+    {
+      "path": "tests/positions-wallet.test.ts",
+      "sha256LF": "520a4c3db2da04c94b58bec815b71b76512c5b5396df4c772d584283d9d43e85"
+    },
+    {
+      "path": "tests/positions.test.ts",
+      "sha256LF": "77284f41a6fba47b18ef346001d1c7d358b39081d1007a833d3b7670711cacad"
+    },
+    {
+      "path": "tests/rehearsal-safety.test.ts",
+      "sha256LF": "d4b9c02b380123e7d8570391adc318164c6a31c75eb0c71fee90b7c3387c7797"
+    },
+    {
+      "path": "tests/runtime.test.ts",
+      "sha256LF": "176c910f881d51fa30051415e8d12c0fcbd4c0f9914579fbfad77365d8992c31"
+    },
+    {
+      "path": "tests/series-deployment-safety.test.ts",
+      "sha256LF": "11510cecff214acc859efe81f6c9728d62bd9a203c11e8745b1db661fa08d66e"
+    },
+    {
+      "path": "tests/session.test.ts",
+      "sha256LF": "c518607fc5d52eadca2e3c2e1bec83732b52dbf39e08f22053c2d078650c4900"
+    },
+    {
+      "path": "tests/slots.test.ts",
+      "sha256LF": "e6ec4137758e9c9577dcc8714cccaecbbd0c3d62decabd22c82109924053f1e3"
+    },
+    {
+      "path": "tests/store-conformance.ts",
+      "sha256LF": "c2634d259ec79e86389fbacaf8bde0662c06cfde7f764e4f41ab8b2de2da01ab"
+    },
+    {
+      "path": "tests/store-fs.test.ts",
+      "sha256LF": "e9be8edcb81df4c5ba2841a60063c64c4ab1f58bc2169bdce9a05e0156779197"
+    },
+    {
+      "path": "tests/store-postgres.test.ts",
+      "sha256LF": "73bf8631e777dda12a22f6717c96edc280ceb2480aa8032890865323ad988a9a"
+    },
+    {
+      "path": "tests/structure.test.ts",
+      "sha256LF": "5c705c365aa0fe90d13219077c017d8b85cae974a685c8bdf76dc449c7865823"
+    },
+    {
+      "path": "tests/tally.test.ts",
+      "sha256LF": "92f9e0d645bc21317a929f1f2fca19663ee84ffe238bccce11d85b269f842b67"
+    },
+    {
+      "path": "tests/terms.test.ts",
+      "sha256LF": "d915addeaf7fb987319c7606ae5f7a6f7e40b8ea3717c9a4548a4006656a719b"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256LF": "b6fa10b02df1e94925ee771b28250ca0b4f0468295773def691c89cafac0a51e"
+    },
+    {
+      "path": "vercel.json",
+      "sha256LF": "480f67fd39c39b8bd3a66e527b10abd7e99a97774504c86c1521547e727b8cf4"
+    }
+  ],
+  "scope": "Application, contract and operator source, tests, build/config files; normalized LF. Documentation/evidence not asserted equal. CI legacy fixture-refresh line added after snapshot and reviewed separately; remote workflow not executed.",
+  "buildCheck": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "CompanySeries: the committed record (source at 64870f116a, recorded at 64870f116a) is this source's bytecode, slots componentA, componentB, qA, qB, capLots\nCreditDesk: the committed record (source at 06623ed429, recorded at 3dd21d4727) is this source's bytecode, slots curb, treasury\n"
+  }
+}

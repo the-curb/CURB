@@ -1,0 +1,4826 @@
+TAP version 13
+# Subtest: decoders
+    # Subtest: decodes a dynamic string
+    ok 1 - decodes a dynamic string
+      ---
+      duration_ms: 2.0761
+      type: 'test'
+      ...
+    # Subtest: decodes the older bytes32 string form
+    ok 2 - decodes the older bytes32 string form
+      ---
+      duration_ms: 0.5906
+      type: 'test'
+      ...
+    # Subtest: returns null rather than a guess for undecodable data
+    ok 3 - returns null rather than a guess for undecodable data
+      ---
+      duration_ms: 0.3404
+      type: 'test'
+      ...
+    # Subtest: reads an address out of a right-aligned word
+    ok 4 - reads an address out of a right-aligned word
+      ---
+      duration_ms: 0.3983
+      type: 'test'
+      ...
+    # Subtest: treats an empty slot as absent, not as the zero address
+    ok 5 - treats an empty slot as absent, not as the zero address
+      ---
+      duration_ms: 0.3378
+      type: 'test'
+      ...
+    # Subtest: formats units without floating point
+    ok 6 - formats units without floating point
+      ---
+      duration_ms: 0.5759
+      type: 'test'
+      ...
+    1..6
+ok 1 - decoders
+  ---
+  duration_ms: 7.499
+  type: 'suite'
+  ...
+# Subtest: signed answers
+    # Subtest: decodes a negative int256 as negative, not as an enormous positive
+    ok 1 - decodes a negative int256 as negative, not as an enormous positive
+      ---
+      duration_ms: 0.749
+      type: 'test'
+      ...
+    # Subtest: rejects a non-positive feed answer rather than displaying it
+    ok 2 - rejects a non-positive feed answer rather than displaying it
+      ---
+      duration_ms: 0.3883
+      type: 'test'
+      ...
+    # Subtest: scales a positive answer by its decimals
+    ok 3 - scales a positive answer by its decimals
+      ---
+      duration_ms: 0.2902
+      type: 'test'
+      ...
+    # Subtest: splits a static return into 32-byte words
+    ok 4 - splits a static return into 32-byte words
+      ---
+      duration_ms: 0.484
+      type: 'test'
+      ...
+    1..4
+ok 2 - signed answers
+  ---
+  duration_ms: 2.5306
+  type: 'suite'
+  ...
+# Subtest: selectors, checked against the chain
+    # Subtest: has four-byte selectors
+    ok 1 - has four-byte selectors
+      ---
+      duration_ms: 0.7435
+      type: 'test'
+      ...
+    # Subtest: reads the recorded decimals and symbol back from USDG
+    ok 2 - reads the recorded decimals and symbol back from USDG
+      ---
+      duration_ms: 1103.7762
+      type: 'test'
+      ...
+    1..2
+ok 3 - selectors, checked against the chain
+  ---
+  duration_ms: 1105.2262
+  type: 'suite'
+  ...
+# Subtest: the registry entry
+    # Subtest: declares exactly what the producer asks
+    ok 1 - declares exactly what the producer asks
+      ---
+      duration_ms: 1.7624
+      type: 'test'
+      ...
+    1..1
+ok 4 - the registry entry
+  ---
+  duration_ms: 4.0546
+  type: 'suite'
+  ...
+# Subtest: judgeToken
+    # Subtest: reads a multiplier of one with nothing pending and nothing prior
+    ok 1 - reads a multiplier of one with nothing pending and nothing prior
+      ---
+      duration_ms: 1.3071
+      type: 'test'
+      ...
+    # Subtest: reports a move against the prior snapshot, with the prior value
+    ok 2 - reports a move against the prior snapshot, with the prior value
+      ---
+      duration_ms: 0.511
+      type: 'test'
+      ...
+    # Subtest: does not call an unchanged multiplier a move
+    ok 3 - does not call an unchanged multiplier a move
+      ---
+      duration_ms: 0.6569
+      type: 'test'
+      ...
+    # Subtest: calls a staged change pending only while its effective time is ahead
+    ok 4 - calls a staged change pending only while its effective time is ahead
+      ---
+      duration_ms: 2.7449
+      type: 'test'
+      ...
+    # Subtest: reports supply movement direction against the prior snapshot
+    ok 5 - reports supply movement direction against the prior snapshot
+      ---
+      duration_ms: 0.7612
+      type: 'test'
+      ...
+    # Subtest: reports an unread multiplier as an absence with its reason, never as one
+    ok 6 - reports an unread multiplier as an absence with its reason, never as one
+      ---
+      duration_ms: 1.4197
+      type: 'test'
+      ...
+    1..6
+ok 5 - judgeToken
+  ---
+  duration_ms: 8.8385
+  type: 'suite'
+  ...
+# Subtest: the token snapshot
+    # Subtest: records the exact multiplier and round-trips into a prior
+    ok 1 - records the exact multiplier and round-trips into a prior
+      ---
+      duration_ms: 1.128
+      type: 'test'
+      ...
+    # Subtest: yields no prior from a snapshot that recorded an absence
+    ok 2 - yields no prior from a snapshot that recorded an absence
+      ---
+      duration_ms: 0.3805
+      type: 'test'
+      ...
+    1..2
+ok 6 - the token snapshot
+  ---
+  duration_ms: 2.0922
+  type: 'suite'
+  ...
+# Subtest: the chain guard
+    # Subtest: asks the chain id once, then lets reads through on the right chain
+    ok 1 - asks the chain id once, then lets reads through on the right chain
+      ---
+      duration_ms: 45.9594
+      type: 'test'
+      ...
+    # Subtest: reads nothing from an endpoint on another chain, and says which chain it found
+    ok 2 - reads nothing from an endpoint on another chain, and says which chain it found
+      ---
+      duration_ms: 3.3313
+      type: 'test'
+      ...
+    # Subtest: carries a transport failure on the chain id itself as the reading, naming the fallback that did not answer either
+    ok 3 - carries a transport failure on the chain id itself as the reading, naming the fallback that did not answer either
+      ---
+      duration_ms: 7.592
+      type: 'test'
+      ...
+    # Subtest: falls back to the public node when the operator’s endpoint does not answer, and not when it answers wrongly
+    ok 4 - falls back to the public node when the operator’s endpoint does not answer, and not when it answers wrongly
+      ---
+      duration_ms: 89.4983
+      type: 'test'
+      ...
+    1..4
+ok 7 - the chain guard
+  ---
+  duration_ms: 153.6002
+  type: 'suite'
+  ...
+# Subtest: the series contract’s events
+    # Subtest: carry exactly the signatures the indexer decodes, with the same topics
+    ok 1 - carry exactly the signatures the indexer decodes, with the same topics
+      ---
+      duration_ms: 7.4259
+      type: 'test'
+      ...
+    # Subtest: match the built artifact when one exists
+    ok 2 - match the built artifact when one exists
+      ---
+      duration_ms: 5.1354
+      type: 'test'
+      ...
+    1..2
+ok 8 - the series contract’s events
+  ---
+  duration_ms: 15.2464
+  type: 'suite'
+  ...
+# Subtest: CreditDesk runtime verification source provenance
+    # Subtest: rejects dirty, absent or malformed public source attribution before RPC
+    ok 1 - rejects dirty, absent or malformed public source attribution before RPC
+      ---
+      duration_ms: 76.6277
+      type: 'test'
+      ...
+    # Subtest: compares local rehearsal bytes without falsely assigning the recording commit as source
+    ok 2 - compares local rehearsal bytes without falsely assigning the recording commit as source
+      ---
+      duration_ms: 50.2723
+      type: 'test'
+      ...
+    # Subtest: attributes a public bytecode match to the clean source commit, not the record-writing commit
+    ok 3 - attributes a public bytecode match to the clean source commit, not the record-writing commit
+      ---
+      duration_ms: 110.3669
+      type: 'test'
+      ...
+    1..3
+ok 9 - CreditDesk runtime verification source provenance
+  ---
+  duration_ms: 240.9428
+  type: 'suite'
+  ...
+# Subtest: CreditDesk public deployment record guards
+    # Subtest: requires reviewed treasury governance even when an address was supplied
+    ok 1 - requires reviewed treasury governance even when an address was supplied
+      ---
+      duration_ms: 4296.5235
+      type: 'test'
+      ...
+    # Subtest: rejects a one-signer treasury expectation before making RPC calls
+    ok 2 - rejects a one-signer treasury expectation before making RPC calls
+      ---
+      duration_ms: 1180.9649
+      type: 'test'
+      ...
+    # Subtest: rejects a treasury expectation copied from another chain
+    ok 3 - rejects a treasury expectation copied from another chain
+      ---
+      duration_ms: 1053.8008
+      type: 'test'
+      ...
+    # Subtest: does not equate omitted modules and fallback controls with reviewed absence
+    ok 4 - does not equate omitted modules and fallback controls with reviewed absence
+      ---
+      duration_ms: 2115.9083
+      type: 'test'
+      ...
+    # Subtest: does not use the local-chain exception with a remote or credentialed endpoint
+    ok 5 - does not use the local-chain exception with a remote or credentialed endpoint
+      ---
+      duration_ms: 1855.1436
+      type: 'test'
+      ...
+    1..5
+ok 10 - CreditDesk public deployment record guards
+  ---
+  duration_ms: 10505.6048
+  type: 'suite'
+  ...
+# Subtest: the credit desk HTTP response
+    # Subtest: quotes using ImmutableCheck values produced by the actual build comparator
+    ok 1 - quotes using ImmutableCheck values produced by the actual build comparator
+      ---
+      duration_ms: 53.9988
+      type: 'test'
+      ...
+    # Subtest: quotes from current evidence, preserving prices, exact base units, and the existing 5% margin
+    ok 2 - quotes from current evidence, preserving prices, exact base units, and the existing 5% margin
+      ---
+      duration_ms: 6.8763
+      type: 'test'
+      ...
+    # Subtest: expires quote eligibility at 30 minutes without rewriting the historical MATCHES and READ observations
+    ok 3 - expires quote eligibility at 30 minutes without rewriting the historical MATCHES and READ observations
+      ---
+      duration_ms: 30.795
+      type: 'test'
+      ...
+    # Subtest: holds fresh rate quotes when the configured treasury changes after desk verification
+    ok 4 - holds fresh rate quotes when the configured treasury changes after desk verification
+      ---
+      duration_ms: 9.2049
+      type: 'test'
+      ...
+    # Subtest: holds a stale, future-dated or invalid-time rate even while the code verification is current
+    ok 5 - holds a stale, future-dated or invalid-time rate even while the code verification is current
+      ---
+      duration_ms: 7.6301
+      type: 'test'
+      ...
+    # Subtest: quarantines legacy and other-chain rates even when token and pool addresses match
+    ok 6 - quarantines legacy and other-chain rates even when token and pool addresses match
+      ---
+      duration_ms: 15.5232
+      type: 'test'
+      ...
+    # Subtest: does not reuse a rate for a different token, pool kind or quote feed at the same recorded pool address
+    ok 7 - does not reuse a rate for a different token, pool kind or quote feed at the same recorded pool address
+      ---
+      duration_ms: 3.4696
+      type: 'test'
+      ...
+    # Subtest: distinguishes unavailable rate storage, unread rates, and no observation from a quoted amount
+    ok 8 - distinguishes unavailable rate storage, unread rates, and no observation from a quoted amount
+      ---
+      duration_ms: 5.8448
+      type: 'test'
+      ...
+    # Subtest: keeps configuration and input errors explicit, and omits a quote unless requested
+    ok 9 - keeps configuration and input errors explicit, and omits a quote unless requested
+      ---
+      duration_ms: 7.128
+      type: 'test'
+      ...
+    1..9
+ok 11 - the credit desk HTTP response
+  ---
+  duration_ms: 145.6782
+  type: 'suite'
+  ...
+# Subtest: every top-up invitation follows the quote evidence
+    # Subtest: keeps POST key creation and unpaid API hints aligned with /api/credits across stale, changed and unread evidence
+    ok 1 - keeps POST key creation and unpaid API hints aligned with /api/credits across stale, changed and unread evidence
+      ---
+      duration_ms: 30.373
+      type: 'test'
+      ...
+    # Subtest: does not withhold funded API admission when rate evidence or the pending index is unavailable
+    ok 2 - does not withhold funded API admission when rate evidence or the pending index is unavailable
+      ---
+      duration_ms: 3.4806
+      type: 'test'
+      ...
+    # Subtest: can create a key with no configuration while withholding payment instructions
+    ok 3 - can create a key with no configuration while withholding payment instructions
+      ---
+      duration_ms: 0.9793
+      type: 'test'
+      ...
+    1..3
+ok 12 - every top-up invitation follows the quote evidence
+  ---
+  duration_ms: 35.6255
+  type: 'suite'
+  ...
+# Subtest: credited amounts and the pending index are independent readings
+    # Subtest: retains real credited receipts and balance when only the index fails, without inventing zero pending
+    ok 1 - retains real credited receipts and balance when only the index fails, without inventing zero pending
+      ---
+      duration_ms: 18.7273
+      type: 'test'
+      ...
+    # Subtest: distinguishes no index yet, a successfully read empty queue, and a known pending payment
+    ok 2 - distinguishes no index yet, a successfully read empty queue, and a known pending payment
+      ---
+      duration_ms: 3.7418
+      type: 'test'
+      ...
+    # Subtest: does not convert a malformed queue into an empty one
+    ok 3 - does not convert a malformed queue into an empty one
+      ---
+      duration_ms: 1.2862
+      type: 'test'
+      ...
+    # Subtest: marks pending:false as NOT_REQUESTED without reading the index and still charges a funded key
+    ok 4 - marks pending:false as NOT_REQUESTED without reading the index and still charges a funded key
+      ---
+      duration_ms: 1.5549
+      type: 'test'
+      ...
+    # Subtest: preserves the independent pending result when balance or receipt rows fail
+    ok 5 - preserves the independent pending result when balance or receipt rows fail
+      ---
+      duration_ms: 0.9677
+      type: 'test'
+      ...
+    1..5
+ok 13 - credited amounts and the pending index are independent readings
+  ---
+  duration_ms: 29.4378
+  type: 'suite'
+  ...
+# Subtest: the credit desk, rehearsed on a local chain
+    # Subtest: reads the pool, verifies the desk’s code and treasury, credits the two top-ups at their own blocks, opens the key and charges a call
+    ok 1 - reads the pool, verifies the desk’s code and treasury, credits the two top-ups at their own blocks, opens the key and charges a call
+      ---
+      duration_ms: 1077.7723
+      type: 'test'
+      ...
+    # Subtest: accepts cumulative mock payments through the paid gate, delivery, receipts and exhaustion without replaying credit
+    ok 2 - accepts cumulative mock payments through the paid gate, delivery, receipts and exhaustion without replaying credit
+      ---
+      duration_ms: 22060.6232
+      type: 'test'
+      ...
+    # LOCAL MOCKS ONLY: cumulative $20 credited, 398 five-cent calls and one ten-cent delivery consumed $20; failed delivery and refused calls charged zero; replay did not duplicate receipts
+    1..2
+ok 14 - the credit desk, rehearsed on a local chain
+  ---
+  duration_ms: 23141.5256
+  type: 'suite'
+  ...
+# Subtest: the credit desk deployed through the operator’s tools, read by the site
+    # Subtest: finds the tool-deployed desk to be the build, paying to the recorded treasury, with a rate from the pool
+    ok 1 - finds the tool-deployed desk to be the build, paying to the recorded treasury, with a rate from the pool
+      ---
+      duration_ms: 420.6611
+      type: 'test'
+      ...
+    1..1
+ok 15 - the credit desk deployed through the operator’s tools, read by the site
+  ---
+  duration_ms: 424.8718
+  type: 'suite'
+  ...
+# Subtest: the credit desk, site side
+    # Subtest: prints cents as dollars without a float
+    ok 1 - prints cents as dollars without a float
+      ---
+      duration_ms: 6.3357
+      type: 'test'
+      ...
+    # Subtest: is NOT_CONFIGURED without the record and refuses a record that does not describe a desk
+    ok 2 - is NOT_CONFIGURED without the record and refuses a record that does not describe a desk
+      ---
+      duration_ms: 2.6392
+      type: 'test'
+      ...
+    # Subtest: verifies the desk’s code against the committed build and the record’s treasury, and names what is wrong
+    ok 3 - verifies the desk’s code against the committed build and the record’s treasury, and names what is wrong
+      ---
+      duration_ms: 219.7563
+      type: 'test'
+      ...
+    # Subtest: makes keys the desk never stores, and hashes them the way the chain sees them
+    ok 4 - makes keys the desk never stores, and hashes them the way the chain sees them
+      ---
+      duration_ms: 3.4242
+      type: 'test'
+      ...
+    # Subtest: converts between cents and CURB in base units, rounding once and in the payer’s disfavour
+    ok 5 - converts between cents and CURB in base units, rounding once and in the payer’s disfavour
+      ---
+      duration_ms: 1.7346
+      type: 'test'
+      ...
+    # Subtest: reads the pool and the supply at a block into a price and a market cap, and has no price for an empty pool
+    ok 6 - reads the pool and the supply at a block into a price and a market cap, and has no price for an empty pool
+      ---
+      duration_ms: 42.8965
+      type: 'test'
+      ...
+    # Subtest: prices a quote asset through a feed, and refuses a feed that answers nothing positive
+    ok 7 - prices a quote asset through a feed, and refuses a feed that answers nothing positive
+      ---
+      duration_ms: 71.5961
+      type: 'test'
+      ...
+    # Subtest: prices at a block from the pair’s own Sync events when the node no longer serves the state, and never from a later event
+    ok 8 - prices at a block from the pair’s own Sync events when the node no longer serves the state, and never from a later event
+      ---
+      duration_ms: 23.1853
+      type: 'test'
+      ...
+    # Subtest: reads a v3 pool by state and by events, with CURB on either side
+    ok 9 - reads a v3 pool by state and by events, with CURB on either side
+      ---
+      duration_ms: 130.268
+      type: 'test'
+      ...
+    # Subtest: decodes a TopUp and sets aside a log that is not one
+    ok 10 - decodes a TopUp and sets aside a log that is not one
+      ---
+      duration_ms: 2.1665
+      type: 'test'
+      ...
+    # Subtest: credits a top-up at the rate at its block, once, and rolls it back when the block is reorganised
+    ok 11 - credits a top-up at the rate at its block, once, and rolls it back when the block is reorganised
+      ---
+      duration_ms: 1175.6921
+      type: 'test'
+      ...
+    # Subtest: holds a top-up it cannot price rather than guessing, and prices it at the head when its block is gone
+    ok 12 - holds a top-up it cannot price rather than guessing, and prices it at the head when its block is gone
+      ---
+      duration_ms: 628.4925
+      type: 'test'
+      ...
+    # Subtest: prices a top-up at its own block from the pool’s events when the node’s state window has passed, and says so
+    ok 13 - prices a top-up at its own block from the pool’s events when the node’s state window has passed, and says so
+      ---
+      duration_ms: 154.8799
+      type: 'test'
+      ...
+    # Subtest: guards a top-up against a pump: the lowest price the pool showed in the window before the block is the one credited
+    ok 14 - guards a top-up against a pump: the lowest price the pool showed in the window before the block is the one credited
+      ---
+      duration_ms: 16.8377
+      type: 'test'
+      ...
+    # Subtest: weighs a busy window page by page: fifteen thousand Syncs in the window are two pages, not a refusal
+    ok 15 - weighs a busy window page by page: fifteen thousand Syncs in the window are two pages, not a refusal
+      ---
+      duration_ms: 420.9221
+      type: 'test'
+      ...
+    # Subtest: narrows a log query the node refuses for matching too much, for the last event and for the window
+    ok 16 - narrows a log query the node refuses for matching too much, for the last event and for the window
+      ---
+      duration_ms: 11.2031
+      type: 'test'
+      ...
+    # Subtest: prices at most fifty top-ups a run and lists the rest as next in line — a burst drains at fifty a run, oldest first
+    ok 17 - prices at most fifty top-ups a run and lists the rest as next in line — a burst drains at fifty a run, oldest first
+      ---
+      duration_ms: 5955.1054
+      type: 'test'
+      ...
+    # Subtest: retries the waiting top-ups a few per run, the least-tried first, after the fresh ones
+    ok 18 - retries the waiting top-ups a few per run, the least-tried first, after the fresh ones
+      ---
+      duration_ms: 311.5208
+      type: 'test'
+      ...
+    # Subtest: stops the cursor before a tip block whose hash it could not read, and reads it again next run
+    ok 19 - stops the cursor before a tip block whose hash it could not read, and reads it again next run
+      ---
+      duration_ms: 40.9429
+      type: 'test'
+      ...
+    # Subtest: cuts a message before the webhook’s limit and counts what was left out
+    ok 20 - cuts a message before the webhook’s limit and counts what was left out
+      ---
+      duration_ms: 0.9396
+      type: 'test'
+      ...
+    # Subtest: tells a subscriber before it charges, and charges nothing when the row could not be marked told
+    ok 21 - tells a subscriber before it charges, and charges nothing when the row could not be marked told
+      ---
+      duration_ms: 84.4529
+      type: 'test'
+      ...
+    # Subtest: loses no charge to another charge landing at the same time, and refuses the later one when the first left too little (20 initial contenders)
+    ok 22 - loses no charge to another charge landing at the same time, and refuses the later one when the first left too little (20 initial contenders)
+      ---
+      duration_ms: 970.2691
+      type: 'test'
+      ...
+    # Subtest: loses no charge to another charge landing at the same time, and refuses the later one when the first left too little (2 initial contenders)
+    ok 23 - loses no charge to another charge landing at the same time, and refuses the later one when the first left too little (2 initial contenders)
+      ---
+      duration_ms: 609.6351
+      type: 'test'
+      ...
+    # Subtest: keeps a cancellation that lands while the fan-out is writing the same row, and counts a delivery whose charge did not land
+    ok 24 - keeps a cancellation that lands while the fan-out is writing the same row, and counts a delivery whose charge did not land
+      ---
+      duration_ms: 95.4671
+      type: 'test'
+      ...
+    # Subtest: holds the index when the record’s fromBlock is later than a log the pool emitted, found through the node’s own refusals
+    ok 25 - holds the index when the record’s fromBlock is later than a log the pool emitted, found through the node’s own refusals
+      ---
+      duration_ms: 75.8967
+      type: 'test'
+      ...
+    # Subtest: holds the subscription caps and the same-URL rule under concurrent requests
+    ok 26 - holds the subscription caps and the same-URL rule under concurrent requests
+      ---
+      duration_ms: 196.7783
+      type: 'test'
+      ...
+    # Subtest: does not tell subscribers of the fan-out’s own bookkeeping
+    ok 27 - does not tell subscribers of the fan-out’s own bookkeeping
+      ---
+      duration_ms: 59.4189
+      type: 'test'
+      ...
+    # Subtest: does not quote from a rate row an earlier build wrote
+    ok 28 - does not quote from a rate row an earlier build wrote
+      ---
+      duration_ms: 9.642
+      type: 'test'
+      ...
+    # Subtest: reports an uncertain settlement without retrying or claiming that no debit landed
+    ok 29 - reports an uncertain settlement without retrying or claiming that no debit landed
+      ---
+      duration_ms: 30.3209
+      type: 'test'
+      ...
+    # Subtest: gates a paid endpoint: 503 unsold, 401 without a key, 402 with the figures, then charges and answers
+    ok 30 - gates a paid endpoint: 503 unsold, 401 without a key, 402 with the figures, then charges and answers
+      ---
+      duration_ms: 87.1083
+      type: 'test'
+      ...
+    # Subtest: refuses webhooks the desk should not post to
+    ok 31 - refuses webhooks the desk should not post to
+      ---
+      duration_ms: 0.4888
+      type: 'test'
+      ...
+    # Subtest: refuses, at delivery time, a public name that resolves inward
+    ok 32 - refuses, at delivery time, a public name that resolves inward
+      ---
+      duration_ms: 0.6691
+      type: 'test'
+      ...
+    # Subtest: fans an alert out to paying subscribers once per transition, charging only what was delivered
+    ok 33 - fans an alert out to paying subscribers once per transition, charging only what was delivered
+      ---
+      duration_ms: 361.1365
+      type: 'test'
+      ...
+    # Subtest: runs on the tick: NOT_CONFIGURED without a record; with one, the rate at the head is recorded with its block
+    ok 34 - runs on the tick: NOT_CONFIGURED without a record; with one, the rate at the head is recorded with its block
+      ---
+      duration_ms: 120.6098
+      type: 'test'
+      ...
+    1..34
+ok 16 - the credit desk, site side
+  ---
+  duration_ms: 11936.7653
+  type: 'suite'
+  ...
+# Subtest: the selector the services page assembles by hand
+    # Subtest: is the one keccak gives for topUp(bytes32,uint256)
+    ok 1 - is the one keccak gives for topUp(bytes32,uint256)
+      ---
+      duration_ms: 0.2496
+      type: 'test'
+      ...
+    1..1
+ok 17 - the selector the services page assembles by hand
+  ---
+  duration_ms: 0.3445
+  type: 'suite'
+  ...
+# Subtest: the Vault
+    # Subtest: summarises a series as latest, low, median and high, oldest first
+    ok 1 - summarises a series as latest, low, median and high, oldest first
+      ---
+      duration_ms: 8.0172
+      type: 'test'
+      ...
+    # Subtest: drops a row that cannot be a rate rather than drawing it
+    ok 2 - drops a row that cannot be a rate rather than drawing it
+      ---
+      duration_ms: 1.0637
+      type: 'test'
+      ...
+    # Subtest: carries an unreadable series as unreadable, not as quiet
+    ok 3 - carries an unreadable series as unreadable, not as quiet
+      ---
+      duration_ms: 0.7473
+      type: 'test'
+      ...
+    # Subtest: states the flow’s sample state from the newest sample against the Tally’s interval
+    ok 4 - states the flow’s sample state from the newest sample against the Tally’s interval
+      ---
+      duration_ms: 0.61
+      type: 'test'
+      ...
+    1..4
+ok 18 - the Vault
+  ---
+  duration_ms: 16.2094
+  type: 'suite'
+  ...
+# Subtest: the Chambers table
+    # Subtest: lists every page in the register even before any is watched
+    ok 1 - lists every page in the register even before any is watched
+      ---
+      duration_ms: 0.8474
+      type: 'test'
+      ...
+    # Subtest: reads a watch back and counts a change
+    ok 2 - reads a watch back and counts a change
+      ---
+      duration_ms: 0.8317
+      type: 'test'
+      ...
+    1..2
+ok 19 - the Chambers table
+  ---
+  duration_ms: 2.0995
+  type: 'suite'
+  ...
+# Subtest: diffTokens
+    # Subtest: reports the same set as clean
+    ok 1 - reports the same set as clean
+      ---
+      duration_ms: 4.5186
+      type: 'test'
+      ...
+    # Subtest: names what was added, removed and moved, joined by registry id and not by ticker
+    ok 2 - names what was added, removed and moved, joined by registry id and not by ticker
+      ---
+      duration_ms: 1.5991
+      type: 'test'
+      ...
+    # Subtest: compares addresses and ids without regard to case
+    ok 3 - compares addresses and ids without regard to case
+      ---
+      duration_ms: 4.6546
+      type: 'test'
+      ...
+    1..3
+ok 20 - diffTokens
+  ---
+  duration_ms: 13.8335
+  type: 'suite'
+  ...
+# Subtest: diffFeeds
+    # Subtest: reports the same set as clean and names additions and removals by proxy
+    ok 1 - reports the same set as clean and names additions and removals by proxy
+      ---
+      duration_ms: 1.13
+      type: 'test'
+      ...
+    1..1
+ok 21 - diffFeeds
+  ---
+  duration_ms: 1.6
+  type: 'suite'
+  ...
+# Subtest: drift as a condition
+    # Subtest: is silent on a clean check and speaks on each kind of drift
+    ok 1 - is silent on a clean check and speaks on each kind of drift
+      ---
+      duration_ms: 45.2056
+      type: 'test'
+      ...
+    # Subtest: treats a malformed payload as no drift, not as drift
+    ok 2 - treats a malformed payload as no drift, not as drift
+      ---
+      duration_ms: 3.0393
+      type: 'test'
+      ...
+    # Subtest: is declared in the Registrar’s sources
+    ok 3 - is declared in the Registrar’s sources
+      ---
+      duration_ms: 0.4756
+      type: 'test'
+      ...
+    1..3
+ok 22 - drift as a condition
+  ---
+  duration_ms: 49.5015
+  type: 'suite'
+  ...
+# Subtest: an empty day
+    # Subtest: is an edition with nothing in it, not an error
+    ok 1 - is an edition with nothing in it, not an error
+      ---
+      duration_ms: 6.7065
+      type: 'test'
+      ...
+    # Subtest: knows whether it is still being written
+    ok 2 - knows whether it is still being written
+      ---
+      duration_ms: 0.9149
+      type: 'test'
+      ...
+    1..2
+ok 23 - an empty day
+  ---
+  duration_ms: 10.0028
+  type: 'suite'
+  ...
+# Subtest: the front page
+    # Subtest: leads with the session when the Bell filed
+    ok 1 - leads with the session when the Bell filed
+      ---
+      duration_ms: 0.9563
+      type: 'test'
+      ...
+    # Subtest: falls through the lead order when the Bell was quiet
+    ok 2 - falls through the lead order when the Bell was quiet
+      ---
+      duration_ms: 0.4877
+      type: 'test'
+      ...
+    # Subtest: counts itself honestly in the lede
+    ok 3 - counts itself honestly in the lede
+      ---
+      duration_ms: 0.6927
+      type: 'test'
+      ...
+    1..3
+ok 24 - the front page
+  ---
+  duration_ms: 2.7659
+  type: 'suite'
+  ...
+# Subtest: sections
+    # Subtest: are grouped by district in the city’s order
+    ok 1 - are grouped by district in the city’s order
+      ---
+      duration_ms: 2.0022
+      type: 'test'
+      ...
+    # Subtest: shows the latest filing per agent and counts the rest
+    ok 2 - shows the latest filing per agent and counts the rest
+      ---
+      duration_ms: 0.9566
+      type: 'test'
+      ...
+    # Subtest: carries each author’s declared refusal
+    ok 3 - carries each author’s declared refusal
+      ---
+      duration_ms: 0.4694
+      type: 'test'
+      ...
+    # Subtest: marks the promoter as promotion
+    ok 4 - marks the promoter as promotion
+      ---
+      duration_ms: 0.3506
+      type: 'test'
+      ...
+    1..4
+ok 25 - sections
+  ---
+  duration_ms: 4.5068
+  type: 'suite'
+  ...
+# Subtest: what was not read
+    # Subtest: names the agents that could not complete, latest run each
+    ok 1 - names the agents that could not complete, latest run each
+      ---
+      duration_ms: 40.0581
+      type: 'test'
+      ...
+    # Subtest: is empty, and stays a section, on a clean day
+    ok 2 - is empty, and stays a section, on a clean day
+      ---
+      duration_ms: 0.523
+      type: 'test'
+      ...
+    1..2
+ok 26 - what was not read
+  ---
+  duration_ms: 41.0298
+  type: 'suite'
+  ...
+# Subtest: sources of record
+    # Subtest: deduplicates and counts, most-cited first
+    ok 1 - deduplicates and counts, most-cited first
+      ---
+      duration_ms: 0.6271
+      type: 'test'
+      ...
+    1..1
+ok 27 - sources of record
+  ---
+  duration_ms: 0.9125
+  type: 'suite'
+  ...
+# Subtest: the ledger
+    # Subtest: counts every run, including the ones that produced nothing
+    ok 1 - counts every run, including the ones that produced nothing
+      ---
+      duration_ms: 0.5466
+      type: 'test'
+      ...
+    1..1
+ok 28 - the ledger
+  ---
+  duration_ms: 1.0784
+  type: 'suite'
+  ...
+# Subtest: days
+    # Subtest: validates the calendar shape
+    ok 1 - validates the calendar shape
+      ---
+      duration_ms: 0.4803
+      type: 'test'
+      ...
+    # Subtest: uses the UTC calendar
+    ok 2 - uses the UTC calendar
+      ---
+      duration_ms: 0.258
+      type: 'test'
+      ...
+    1..2
+ok 29 - days
+  ---
+  duration_ms: 1.0153
+  type: 'suite'
+  ...
+# Subtest: accepts a complete fresh operational reading without requiring idle on-request agents to run
+ok 30 - accepts a complete fresh operational reading without requiring idle on-request agents to run
+  ---
+  duration_ms: 7.3723
+  type: 'test'
+  ...
+# Subtest: fails closed for missing fields and non-finite, nonpositive or fractional last-hour counts
+ok 31 - fails closed for missing fields and non-finite, nonpositive or fractional last-hour counts
+  ---
+  duration_ms: 4.1397
+  type: 'test'
+  ...
+# Subtest: rejects stale or malformed response times and states the small permitted clock skew explicitly
+ok 32 - rejects stale or malformed response times and states the small permitted clock skew explicitly
+  ---
+  duration_ms: 0.7481
+  type: 'test'
+  ...
+# Subtest: rejects unread store, behind schema, DARK conditions and malformed condition arrays
+ok 33 - rejects unread store, behind schema, DARK conditions and malformed condition arrays
+  ---
+  duration_ms: 1.2004
+  type: 'test'
+  ...
+# Subtest: rejects missing, duplicate, malformed, absent and never-observed scheduled agents
+ok 34 - rejects missing, duplicate, malformed, absent and never-observed scheduled agents
+  ---
+  duration_ms: 1.1462
+  type: 'test'
+  ...
+# Subtest: allows public HTTPS and loopback HTTP, safely converts the legacy tick path and refuses other protocols
+ok 35 - allows public HTTPS and loopback HTTP, safely converts the legacy tick path and refuses other protocols
+  ---
+  duration_ms: 2.4927
+  type: 'test'
+  ...
+# Subtest: turns HTTP errors, non-JSON, malformed JSON, excessive bodies and thrown errors into safe failures
+ok 36 - turns HTTP errors, non-JSON, malformed JSON, excessive bodies and thrown errors into safe failures
+  ---
+  duration_ms: 19.2477
+  type: 'test'
+  ...
+# Subtest: uses one real read-only loopback GET, refuses redirects and times out without exposing credentials
+ok 37 - uses one real read-only loopback GET, refuses redirects and times out without exposing credentials
+  ---
+  duration_ms: 221.1847
+  type: 'test'
+  ...
+# Subtest: the CLI accepts an environment URL, returns a failure exit code and never prints its query
+ok 38 - the CLI accepts an environment URL, returns a failure exit code and never prints its query
+  ---
+  duration_ms: 1345.1173
+  type: 'test'
+  ...
+# Subtest: systemHealth
+    # Subtest: counts reached and expected over the same agents, leaving the on-request one out of both
+    ok 1 - counts reached and expected over the same agents, leaving the on-request one out of both
+      ---
+      duration_ms: 5.4611
+      type: 'test'
+      ...
+    # Subtest: never has reached exceed expected when every agent reached what it declared
+    ok 2 - never has reached exceed expected when every agent reached what it declared
+      ---
+      duration_ms: 3.4599
+      type: 'test'
+      ...
+    # Subtest: keeps the on-request agent out of the fault lights whatever it did
+    ok 3 - keeps the on-request agent out of the fault lights whatever it did
+      ---
+      duration_ms: 0.3571
+      type: 'test'
+      ...
+    1..3
+ok 39 - systemHealth
+  ---
+  duration_ms: 12.3946
+  type: 'suite'
+  ...
+# Subtest: keccak256 against published vectors
+    # Subtest: hashes the empty string
+    ok 1 - hashes the empty string
+      ---
+      duration_ms: 3.2716
+      type: 'test'
+      ...
+    # Subtest: hashes "abc"
+    ok 2 - hashes "abc"
+      ---
+      duration_ms: 1.9892
+      type: 'test'
+      ...
+    1..2
+ok 40 - keccak256 against published vectors
+  ---
+  duration_ms: 8.5986
+  type: 'suite'
+  ...
+# Subtest: multi-block absorption (regression pins, not independent vectors)
+    # Subtest: is stable for 135 bytes
+    ok 1 - is stable for 135 bytes
+      ---
+      duration_ms: 1.5987
+      type: 'test'
+      ...
+    # Subtest: is stable for 136 bytes
+    ok 2 - is stable for 136 bytes
+      ---
+      duration_ms: 2.3064
+      type: 'test'
+      ...
+    # Subtest: is stable for 137 bytes
+    ok 3 - is stable for 137 bytes
+      ---
+      duration_ms: 1.5003
+      type: 'test'
+      ...
+    # Subtest: is stable for 200 bytes
+    ok 4 - is stable for 200 bytes
+      ---
+      duration_ms: 2.0182
+      type: 'test'
+      ...
+    1..4
+ok 41 - multi-block absorption (regression pins, not independent vectors)
+  ---
+  duration_ms: 8.5333
+  type: 'suite'
+  ...
+# Subtest: well-known selectors reproduce
+    # Subtest: derives name()
+    ok 1 - derives name()
+      ---
+      duration_ms: 2.1321
+      type: 'test'
+      ...
+    # Subtest: derives symbol()
+    ok 2 - derives symbol()
+      ---
+      duration_ms: 0.8325
+      type: 'test'
+      ...
+    # Subtest: derives decimals()
+    ok 3 - derives decimals()
+      ---
+      duration_ms: 1.5688
+      type: 'test'
+      ...
+    # Subtest: derives totalSupply()
+    ok 4 - derives totalSupply()
+      ---
+      duration_ms: 0.7778
+      type: 'test'
+      ...
+    # Subtest: derives balanceOf(address)
+    ok 5 - derives balanceOf(address)
+      ---
+      duration_ms: 0.6107
+      type: 'test'
+      ...
+    # Subtest: derives transfer(address,uint256)
+    ok 6 - derives transfer(address,uint256)
+      ---
+      duration_ms: 0.5874
+      type: 'test'
+      ...
+    # Subtest: derives paused()
+    ok 7 - derives paused()
+      ---
+      duration_ms: 0.5454
+      type: 'test'
+      ...
+    # Subtest: derives owner()
+    ok 8 - derives owner()
+      ---
+      duration_ms: 0.6138
+      type: 'test'
+      ...
+    # Subtest: derives latestRoundData()
+    ok 9 - derives latestRoundData()
+      ---
+      duration_ms: 0.6125
+      type: 'test'
+      ...
+    1..9
+ok 42 - well-known selectors reproduce
+  ---
+  duration_ms: 10.0303
+  type: 'suite'
+  ...
+# Subtest: the selector table
+    # Subtest: derives every entry from its signature
+    ok 1 - derives every entry from its signature
+      ---
+      duration_ms: 9.8581
+      type: 'test'
+      ...
+    # Subtest: produces four-byte selectors throughout
+    ok 2 - produces four-byte selectors throughout
+      ---
+      duration_ms: 0.8566
+      type: 'test'
+      ...
+    1..2
+ok 43 - the selector table
+  ---
+  duration_ms: 11.0882
+  type: 'suite'
+  ...
+# Subtest: conservative launch milestones
+    # Subtest: calls valid Safe evidence a creation record, without live availability claims
+    ok 1 - calls valid Safe evidence a creation record, without live availability claims
+      ---
+      duration_ms: 375.8162
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with wrong chain
+    ok 2 - does not infer on-chain absence from a Safe record with wrong chain
+      ---
+      duration_ms: 37.7474
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with zero address
+    ok 3 - does not infer on-chain absence from a Safe record with zero address
+      ---
+      duration_ms: 26.4039
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with duplicate owners
+    ok 4 - does not infer on-chain absence from a Safe record with duplicate owners
+      ---
+      duration_ms: 36.0149
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with impossible threshold
+    ok 5 - does not infer on-chain absence from a Safe record with impossible threshold
+      ---
+      duration_ms: 27.6594
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with no observed code
+    ok 6 - does not infer on-chain absence from a Safe record with no observed code
+      ---
+      duration_ms: 10.5187
+      type: 'test'
+      ...
+    # Subtest: does not infer on-chain absence from a Safe record with invalid creation block
+    ok 7 - does not infer on-chain absence from a Safe record with invalid creation block
+      ---
+      duration_ms: 18.3034
+      type: 'test'
+      ...
+    # Subtest: treats missing, malformed and null Safe files as missing local evidence
+    ok 8 - treats missing, malformed and null Safe files as missing local evidence
+      ---
+      duration_ms: 42.6497
+      type: 'test'
+      ...
+    # Subtest: reports invalid configuration without reading the store
+    ok 9 - reports invalid configuration without reading the store
+      ---
+      duration_ms: 4.0835
+      type: 'test'
+      ...
+    # Subtest: does not describe Ethereum configuration as a Robinhood deployment
+    ok 10 - does not describe Ethereum configuration as a Robinhood deployment
+      ---
+      duration_ms: 6.2612
+      type: 'test'
+      ...
+    # Subtest: configuration alone proves neither deployment nor matching code
+    ok 11 - configuration alone proves neither deployment nor matching code
+      ---
+      duration_ms: 5.8574
+      type: 'test'
+      ...
+    # Subtest: a fresh rate and receipt cannot promote a desk without matching code
+    ok 12 - a fresh rate and receipt cannot promote a desk without matching code
+      ---
+      duration_ms: 49.925
+      type: 'test'
+      ...
+    # Subtest: requires code before rate and both before the credited-top-up milestone
+    ok 13 - requires code before rate and both before the credited-top-up milestone
+      ---
+      duration_ms: 38.5675
+      type: 'test'
+      ...
+    # Subtest: expired code prevents promotion even with a fresh rate and receipts
+    ok 14 - expired code prevents promotion even with a fresh rate and receipts
+      ---
+      duration_ms: 6.971
+      type: 'test'
+      ...
+    # Subtest: holds the rate milestone until a fresh observation identifies the configured chain
+    ok 15 - holds the rate milestone until a fresh observation identifies the configured chain
+      ---
+      duration_ms: 7.6078
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by another chain
+    ok 16 - rejects a top-up supported by another chain
+      ---
+      duration_ms: 3.2873
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by another indexed desk
+    ok 17 - rejects a top-up supported by another indexed desk
+      ---
+      duration_ms: 4.1164
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by an old receipt desk
+    ok 18 - rejects a top-up supported by an old receipt desk
+      ---
+      duration_ms: 4.6901
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by no applied event
+    ok 19 - rejects a top-up supported by no applied event
+      ---
+      duration_ms: 15.3052
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by another key
+    ok 20 - rejects a top-up supported by another key
+      ---
+      duration_ms: 31.7001
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by another log
+    ok 21 - rejects a top-up supported by another log
+      ---
+      duration_ms: 3.5577
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by another block
+    ok 22 - rejects a top-up supported by another block
+      ---
+      duration_ms: 3.1156
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by predeployment receipt
+    ok 23 - rejects a top-up supported by predeployment receipt
+      ---
+      duration_ms: 3.2312
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by zero credits
+    ok 24 - rejects a top-up supported by zero credits
+      ---
+      duration_ms: 3.9095
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by negative log index
+    ok 25 - rejects a top-up supported by negative log index
+      ---
+      duration_ms: 3.2178
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by fractional log index
+    ok 26 - rejects a top-up supported by fractional log index
+      ---
+      duration_ms: 12.2612
+      type: 'test'
+      ...
+    # Subtest: rejects a top-up supported by receipt beyond cursor
+    ok 27 - rejects a top-up supported by receipt beyond cursor
+      ---
+      duration_ms: 54.7304
+      type: 'test'
+      ...
+    # Subtest: ignores unrelated newer receipts
+    ok 28 - ignores unrelated newer receipts
+      ---
+      duration_ms: 18.2758
+      type: 'test'
+      ...
+    # Subtest: preserves UNREAD credits:code as a fault, never zero or a confirmed payment
+    ok 29 - preserves UNREAD credits:code as a fault, never zero or a confirmed payment
+      ---
+      duration_ms: 5.0584
+      type: 'test'
+      ...
+    # Subtest: preserves UNREAD credits:rate as a fault, never zero or a confirmed payment
+    ok 30 - preserves UNREAD credits:rate as a fault, never zero or a confirmed payment
+      ---
+      duration_ms: 4.4532
+      type: 'test'
+      ...
+    # Subtest: preserves UNREAD credits:index as a fault, never zero or a confirmed payment
+    ok 31 - preserves UNREAD credits:index as a fault, never zero or a confirmed payment
+      ---
+      duration_ms: 3.4085
+      type: 'test'
+      ...
+    # Subtest: preserves UNREAD credits:topups: as a fault, never zero or a confirmed payment
+    ok 32 - preserves UNREAD credits:topups: as a fault, never zero or a confirmed payment
+      ---
+      duration_ms: 4.9138
+      type: 'test'
+      ...
+    # Subtest: malformed evidence cannot crash status or silently claim success
+    ok 33 - malformed evidence cannot crash status or silently claim success
+      ---
+      duration_ms: 4.7615
+      type: 'test'
+      ...
+    # Subtest: shortens addresses and exposes the expected local evidence path
+    ok 34 - shortens addresses and exposes the expected local evidence path
+      ---
+      duration_ms: 2.4221
+      type: 'test'
+      ...
+    1..34
+ok 44 - conservative launch milestones
+  ---
+  duration_ms: 891.1523
+  type: 'suite'
+  ...
+# Subtest: current launch code and rate evidence
+    # Subtest: quarantines unscoped and other-chain reads without rewriting the historical row
+    ok 1 - quarantines unscoped and other-chain reads without rewriting the historical row
+      ---
+      duration_ms: 0.745
+      type: 'test'
+      ...
+    # Subtest: accepts exactly 30 minutes, rejects future, invalid and older timestamps
+    ok 2 - accepts exactly 30 minutes, rejects future, invalid and older timestamps
+      ---
+      duration_ms: 0.39
+      type: 'test'
+      ...
+    # Subtest: requires exact immutable booleans/values and unique checks on the configured chain/desk
+    ok 3 - requires exact immutable booleans/values and unique checks on the configured chain/desk
+      ---
+      duration_ms: 0.8722
+      type: 'test'
+      ...
+    # Subtest: requires fresh snapshot/read timestamps and matching token/pool/quote identity
+    ok 4 - requires fresh snapshot/read timestamps and matching token/pool/quote identity
+      ---
+      duration_ms: 0.7876
+      type: 'test'
+      ...
+    # Subtest: requires the configured Chainlink feed when the quote uses one
+    ok 5 - requires the configured Chainlink feed when the quote uses one
+      ---
+      duration_ms: 0.2862
+      type: 'test'
+      ...
+    1..5
+ok 45 - current launch code and rate evidence
+  ---
+  duration_ms: 3.8433
+  type: 'suite'
+  ...
+# Subtest: 24-hour rate history
+    # Subtest: keeps missing/unread history UNREAD without inventing a count
+    ok 1 - keeps missing/unread history UNREAD without inventing a count
+      ---
+      duration_ms: 0.7165
+      type: 'test'
+      ...
+    # Subtest: distinguishes a readable empty window from an unread history
+    ok 2 - distinguishes a readable empty window from an unread history
+      ---
+      duration_ms: 0.288
+      type: 'test'
+      ...
+    # Subtest: separates histories by chain, token, pool kind/address and quote kind/feed
+    ok 3 - separates histories by chain, token, pool kind/address and quote kind/feed
+      ---
+      duration_ms: 0.5429
+      type: 'test'
+      ...
+    # Subtest: accepts only the explicitly requested pricing source and never combines legacy samples
+    ok 4 - accepts only the explicitly requested pricing source and never combines legacy samples
+      ---
+      duration_ms: 0.4712
+      type: 'test'
+      ...
+    # Subtest: uses precise raw units and includes the 24-hour boundary while excluding older samples
+    ok 5 - uses precise raw units and includes the 24-hour boundary while excluding older samples
+      ---
+      duration_ms: 0.5299
+      type: 'test'
+      ...
+    # Subtest: malformed rows do not become one observation or a zero rate
+    ok 6 - malformed rows do not become one observation or a zero rate
+      ---
+      duration_ms: 0.383
+      type: 'test'
+      ...
+    1..6
+ok 46 - 24-hour rate history
+  ---
+  duration_ms: 3.4783
+  type: 'suite'
+  ...
+# Subtest: mainnet budget conserves cents without treating unavailable funding as cash
+    # Subtest: respects priority boundaries and balances every cent including rounding
+    ok 1 - respects priority boundaries and balances every cent including rounding
+      ---
+      duration_ms: 4.1201
+      type: 'test'
+      ...
+    # Subtest: refuses negatives, fractional, coerced or oversized inputs
+    ok 2 - refuses negatives, fractional, coerced or oversized inputs
+      ---
+      duration_ms: 1.0586
+      type: 'test'
+      ...
+    1..2
+ok 47 - mainnet budget conserves cents without treating unavailable funding as cash
+  ---
+  duration_ms: 8.1061
+  type: 'suite'
+  ...
+# Subtest: service economics
+    # Subtest: charges successful deliveries only, costs every attempt and keeps losses visible
+    ok 1 - charges successful deliveries only, costs every attempt and keeps losses visible
+      ---
+      duration_ms: 1.4241
+      type: 'test'
+      ...
+    # Subtest: does not silently zero unmeasured costs
+    ok 2 - does not silently zero unmeasured costs
+      ---
+      duration_ms: 0.5779
+      type: 'test'
+      ...
+    # Subtest: costs unbilled attempts and does not recognize successful but uncharged delivery as revenue
+    ok 3 - costs unbilled attempts and does not recognize successful but uncharged delivery as revenue
+      ---
+      duration_ms: 5.1127
+      type: 'test'
+      ...
+    # Subtest: reports no calls-only break-even with non-positive marginal revenue
+    ok 4 - reports no calls-only break-even with non-positive marginal revenue
+      ---
+      duration_ms: 0.6093
+      type: 'test'
+      ...
+    # Subtest: rounds required calls up and refuses inconsistent attempts or omitted costs
+    ok 5 - rounds required calls up and refuses inconsistent attempts or omitted costs
+      ---
+      duration_ms: 0.6005
+      type: 'test'
+      ...
+    1..5
+ok 48 - service economics
+  ---
+  duration_ms: 9.6276
+  type: 'suite'
+  ...
+# Subtest: holds missing and pending records instead of inventing readiness
+ok 49 - holds missing and pending records instead of inventing readiness
+  ---
+  duration_ms: 5.3189
+  type: 'test'
+  ...
+# Subtest: binds approval to source and exact evidence; rejects duplicates and future dates
+ok 50 - binds approval to source and exact evidence; rejects duplicates and future dates
+  ---
+  duration_ms: 2.2665
+  type: 'test'
+  ...
+# Subtest: separates token launch, paid beta and position evidence and never calls completeness authorization
+ok 51 - separates token launch, paid beta and position evidence and never calls completeness authorization
+  ---
+  duration_ms: 1.4289
+  type: 'test'
+  ...
+# Subtest: rejects unknown requirement IDs and placeholder reviewer names
+ok 52 - rejects unknown requirement IDs and placeholder reviewer names
+  ---
+  duration_ms: 5.9656
+  type: 'test'
+  ...
+# Subtest: aggregate3 selector
+    # Subtest: is derived from the signature and equals the well-known value
+    ok 1 - is derived from the signature and equals the well-known value
+      ---
+      duration_ms: 3.3905
+      type: 'test'
+      ...
+    1..1
+ok 53 - aggregate3 selector
+  ---
+  duration_ms: 7.9111
+  type: 'suite'
+  ...
+# Subtest: encodeAggregate3
+    # Subtest: lays out two calls exactly as the ABI says
+    ok 1 - lays out two calls exactly as the ABI says
+      ---
+      duration_ms: 4.3848
+      type: 'test'
+      ...
+    # Subtest: pads calldata that is not a multiple of 32 bytes and lowercases it
+    ok 2 - pads calldata that is not a multiple of 32 bytes and lowercases it
+      ---
+      duration_ms: 0.7843
+      type: 'test'
+      ...
+    # Subtest: refuses calldata that is not hex
+    ok 3 - refuses calldata that is not hex
+      ---
+      duration_ms: 1.3
+      type: 'test'
+      ...
+    1..3
+ok 54 - encodeAggregate3
+  ---
+  duration_ms: 9.2174
+  type: 'suite'
+  ...
+# Subtest: decodeAggregate3
+    # Subtest: returns each result with its own success flag and untouched bytes
+    ok 1 - returns each result with its own success flag and untouched bytes
+      ---
+      duration_ms: 3.1782
+      type: 'test'
+      ...
+    # Subtest: returns null when the count disagrees with what was asked
+    ok 2 - returns null when the count disagrees with what was asked
+      ---
+      duration_ms: 0.4289
+      type: 'test'
+      ...
+    # Subtest: returns null on truncated data rather than a partial answer
+    ok 3 - returns null on truncated data rather than a partial answer
+      ---
+      duration_ms: 6.0583
+      type: 'test'
+      ...
+    # Subtest: decodes an empty return payload as success with no bytes
+    ok 4 - decodes an empty return payload as success with no bytes
+      ---
+      duration_ms: 0.7824
+      type: 'test'
+      ...
+    1..4
+ok 55 - decodeAggregate3
+  ---
+  duration_ms: 11.6277
+  type: 'suite'
+  ...
+# Subtest: readMany
+    # Subtest: splits into chunks of the given size and keeps call order
+    ok 1 - splits into chunks of the given size and keeps call order
+      ---
+      duration_ms: 4.2048
+      type: 'test'
+      ...
+    # Subtest: makes a reverted subcall FIELD_ABSENT without touching its neighbours
+    ok 2 - makes a reverted subcall FIELD_ABSENT without touching its neighbours
+      ---
+      duration_ms: 0.9283
+      type: 'test'
+      ...
+    # Subtest: marks a failed chunk unread with the transport reason and lets other chunks stand
+    ok 3 - marks a failed chunk unread with the transport reason and lets other chunks stand
+      ---
+      duration_ms: 0.8455
+      type: 'test'
+      ...
+    # Subtest: defaults to a batch size that is a positive integer
+    ok 4 - defaults to a batch size that is a positive integer
+      ---
+      duration_ms: 2.986
+      type: 'test'
+      ...
+    1..4
+ok 56 - readMany
+  ---
+  duration_ms: 9.9457
+  type: 'suite'
+  ...
+# Subtest: the prompt
+    # Subtest: hands the model exactly the figures the gate will accept
+    ok 1 - hands the model exactly the figures the gate will accept
+      ---
+      duration_ms: 2.9586
+      type: 'test'
+      ...
+    # Subtest: tells the model the rule in the system prompt, not the user turn
+    ok 2 - tells the model the rule in the system prompt, not the user turn
+      ---
+      duration_ms: 1.2636
+      type: 'test'
+      ...
+    1..2
+ok 57 - the prompt
+  ---
+  duration_ms: 7.173
+  type: 'suite'
+  ...
+# Subtest: the hash
+    # Subtest: ignores when the edition was composed
+    ok 1 - ignores when the edition was composed
+      ---
+      duration_ms: 1.2127
+      type: 'test'
+      ...
+    # Subtest: changes when the record changes
+    ok 2 - changes when the record changes
+      ---
+      duration_ms: 0.8243
+      type: 'test'
+      ...
+    1..2
+ok 58 - the hash
+  ---
+  duration_ms: 41.3368
+  type: 'suite'
+  ...
+# Subtest: outcomes
+    # Subtest: narrates clean prose that repeats only the record’s figures
+    ok 1 - narrates clean prose that repeats only the record’s figures
+      ---
+      duration_ms: 9.0179
+      type: 'test'
+      ...
+    # Subtest: blocks a number the record does not hold
+    ok 2 - blocks a number the record does not hold
+      ---
+      duration_ms: 6.4542
+      type: 'test'
+      ...
+    # Subtest: blocks advice, exactly as it would from an agent
+    ok 3 - blocks advice, exactly as it would from an agent
+      ---
+      duration_ms: 20.3546
+      type: 'test'
+      ...
+    # Subtest: blocks a forecast
+    ok 4 - blocks a forecast
+      ---
+      duration_ms: 7.0697
+      type: 'test'
+      ...
+    # Subtest: records a refusal as a refusal
+    ok 5 - records a refusal as a refusal
+      ---
+      duration_ms: 15.3115
+      type: 'test'
+      ...
+    # Subtest: records an empty answer as a failure, not as a blank lede
+    ok 6 - records an empty answer as a failure, not as a blank lede
+      ---
+      duration_ms: 1.0322
+      type: 'test'
+      ...
+    # Subtest: records an API failure with its reason
+    ok 7 - records an API failure with its reason
+      ---
+      duration_ms: 1.1125
+      type: 'test'
+      ...
+    # Subtest: will not narrate a live edition
+    ok 8 - will not narrate a live edition
+      ---
+      duration_ms: 1.4038
+      type: 'test'
+      ...
+    # Subtest: reports not-configured when there is no key and no client
+    ok 9 - reports not-configured when there is no key and no client
+      ---
+      duration_ms: 0.7144
+      type: 'test'
+      ...
+    1..9
+ok 59 - outcomes
+  ---
+  duration_ms: 65.9792
+  type: 'suite'
+  ...
+# Subtest: narrateClosedDay, once the day has settled
+    # Subtest: leaves an existing narration alone without reading the day back
+    ok 1 - leaves an existing narration alone without reading the day back
+      ---
+      duration_ms: 1.9443
+      type: 'test'
+      ...
+    # Subtest: still recomposes and compares inside the settling window
+    ok 2 - still recomposes and compares inside the settling window
+      ---
+      duration_ms: 0.7797
+      type: 'test'
+      ...
+    # Subtest: narrates a settled day that was never narrated
+    ok 3 - narrates a settled day that was never narrated
+      ---
+      duration_ms: 6.2531
+      type: 'test'
+      ...
+    # Subtest: retries a settled day recorded as not configured once a client is available
+    ok 4 - retries a settled day recorded as not configured once a client is available
+      ---
+      duration_ms: 2.5012
+      type: 'test'
+      ...
+    1..4
+ok 60 - narrateClosedDay, once the day has settled
+  ---
+  duration_ms: 12.3068
+  type: 'suite'
+  ...
+# Subtest: two-step operator calldata
+    # Subtest: distinguishes nomination from acceptance and cancellation with the correct sender
+    ok 1 - distinguishes nomination from acceptance and cancellation with the correct sender
+      ---
+      duration_ms: 4389.9468
+      type: 'test'
+      ...
+    # Subtest: refuses a zero nominee and trailing arguments that could mislead a signer
+    ok 2 - refuses a zero nominee and trailing arguments that could mislead a signer
+      ---
+      duration_ms: 3687.6501
+      type: 'test'
+      ...
+    1..2
+ok 61 - two-step operator calldata
+  ---
+  duration_ms: 8080.4016
+  type: 'suite'
+  ...
+# Subtest: public series operator Safe preflight
+    # Subtest: requires explicit reviewed chain, unique owners, quorum and runtime identity before reading a node
+    ok 1 - requires explicit reviewed chain, unique owners, quorum and runtime identity before reading a node
+      ---
+      duration_ms: 4.8855
+      type: 'test'
+      ...
+    # Subtest: verifies the same block, owner set regardless of order, quorum, proxy and singleton
+    ok 2 - verifies the same block, owner set regardless of order, quorum, proxy and singleton
+      ---
+      duration_ms: 22.5294
+      type: 'test'
+      ...
+    # Subtest: refuses an EOA, wrong chain, duplicate or different owners and quorum mismatch
+    ok 3 - refuses an EOA, wrong chain, duplicate or different owners and quorum mismatch
+      ---
+      duration_ms: 7.55
+      type: 'test'
+      ...
+    # Subtest: refuses an altered proxy, a different singleton and changed singleton code even if owners match
+    ok 4 - refuses an altered proxy, a different singleton and changed singleton code even if owners match
+      ---
+      duration_ms: 3.4257
+      type: 'test'
+      ...
+    # Subtest: requires explicit version, complete module records, guard and fallback expectations
+    ok 5 - requires explicit version, complete module records, guard and fallback expectations
+      ---
+      duration_ms: 3.1438
+      type: 'test'
+      ...
+    # Subtest: refuses an enabled unreviewed module, unread module list, and unsupported Safe version
+    ok 6 - refuses an enabled unreviewed module, unread module list, and unsupported Safe version
+      ---
+      duration_ms: 24.7755
+      type: 'test'
+      ...
+    # Subtest: walks every module page at the pinned block and matches module runtime hashes
+    ok 7 - walks every module page at the pinned block and matches module runtime hashes
+      ---
+      duration_ms: 102.0891
+      type: 'test'
+      ...
+    # Subtest: refuses truncated, looping, malformed or unbounded module lists
+    ok 8 - refuses truncated, looping, malformed or unbounded module lists
+      ---
+      duration_ms: 44.4315
+      type: 'test'
+      ...
+    # Subtest: matches guard and fallback address and code or explicit absence at the pinned block
+    ok 9 - matches guard and fallback address and code or explicit absence at the pinned block
+      ---
+      duration_ms: 23.1104
+      type: 'test'
+      ...
+    1..9
+ok 62 - public series operator Safe preflight
+  ---
+  duration_ms: 240.7113
+  type: 'suite'
+  ...
+# Subtest: local rehearsal endpoints
+    # Subtest: accepts only uncredentialed loopback URLs before any network or transaction
+    ok 1 - accepts only uncredentialed loopback URLs before any network or transaction
+      ---
+      duration_ms: 1.2337
+      type: 'test'
+      ...
+    1..1
+ok 63 - local rehearsal endpoints
+  ---
+  duration_ms: 1.6453
+  type: 'suite'
+  ...
+# Subtest: deriveConditions
+    # Subtest: is empty for a healthy record, as a real empty
+    ok 1 - is empty for a healthy record, as a real empty
+      ---
+      duration_ms: 8.5433
+      type: 'test'
+      ...
+    # Subtest: names an absent agent, a degraded one, and a stale one, with the detail
+    ok 2 - names an absent agent, a degraded one, and a stale one, with the detail
+      ---
+      duration_ms: 38.5991
+      type: 'test'
+      ...
+    # Subtest: treats an unreadable store as its own condition, not as a clean bill
+    ok 3 - treats an unreadable store as its own condition, not as a clean bill
+      ---
+      duration_ms: 0.5937
+      type: 'test'
+      ...
+    # Subtest: raises on a paused feed, an identity drift, and staleness while the market was open
+    ok 4 - raises on a paused feed, an identity drift, and staleness while the market was open
+      ---
+      duration_ms: 0.7157
+      type: 'test'
+      ...
+    # Subtest: raises when the chain head had stalled at the Pillar’s last sample, and not otherwise
+    ok 5 - raises when the chain head had stalled at the Pillar’s last sample, and not otherwise
+      ---
+      duration_ms: 0.6193
+      type: 'test'
+      ...
+    # Subtest: raises when the last audit says the beacon changed
+    ok 6 - raises when the last audit says the beacon changed
+      ---
+      duration_ms: 0.3984
+      type: 'test'
+      ...
+    1..6
+ok 64 - deriveConditions
+  ---
+  duration_ms: 52.4418
+  type: 'suite'
+  ...
+# Subtest: transition and message
+    # Subtest: reports what was raised and what cleared, and nothing for what persists
+    ok 1 - reports what was raised and what cleared, and nothing for what persists
+      ---
+      duration_ms: 0.631
+      type: 'test'
+      ...
+    # Subtest: writes a message that names raised, cleared and still active
+    ok 2 - writes a message that names raised, cleared and still active
+      ---
+      duration_ms: 0.7836
+      type: 'test'
+      ...
+    1..2
+ok 65 - transition and message
+  ---
+  duration_ms: 1.8781
+  type: 'suite'
+  ...
+# Subtest: runAlerts and maintainRetention against a real store
+    # Subtest: does not record a set it could not deliver, and records it once it can
+    ok 1 - does not record a set it could not deliver, and records it once it can
+      ---
+      duration_ms: 187.768
+      type: 'test'
+      ...
+    # Subtest: prunes once a day and reports the second call as already done
+    ok 2 - prunes once a day and reports the second call as already done
+      ---
+      duration_ms: 170.2415
+      type: 'test'
+      ...
+    1..2
+ok 66 - runAlerts and maintainRetention against a real store
+  ---
+  duration_ms: 365.4715
+  type: 'suite'
+  ...
+# Subtest: the Floor board
+    # Subtest: computes the feed age against now, not against the sample
+    ok 1 - computes the feed age against now, not against the sample
+      ---
+      duration_ms: 3.9197
+      type: 'test'
+      ...
+    # Subtest: keeps an absence an absence, with its reason
+    ok 2 - keeps an absence an absence, with its reason
+      ---
+      duration_ms: 1.2732
+      type: 'test'
+      ...
+    # Subtest: does not trust the payload shape
+    ok 3 - does not trust the payload shape
+      ---
+      duration_ms: 0.7165
+      type: 'test'
+      ...
+    # Subtest: says how old the board is, in the same three states as everything else
+    ok 4 - says how old the board is, in the same three states as everything else
+      ---
+      duration_ms: 1.5384
+      type: 'test'
+      ...
+    # Subtest: counts the book and splits the clocks
+    ok 5 - counts the book and splits the clocks
+      ---
+      duration_ms: 38.1655
+      type: 'test'
+      ...
+    1..5
+ok 67 - the Floor board
+  ---
+  duration_ms: 53.5763
+  type: 'suite'
+  ...
+# Subtest: the Registry roll
+    # Subtest: lists every token in the registry even before any is read
+    ok 1 - lists every token in the registry even before any is read
+      ---
+      duration_ms: 2.3788
+      type: 'test'
+      ...
+    # Subtest: renders a read token exactly, with six places for the eye
+    ok 2 - renders a read token exactly, with six places for the eye
+      ---
+      duration_ms: 1.6651
+      type: 'test'
+      ...
+    # Subtest: shows a pending change and never invents one from a malformed payload
+    ok 3 - shows a pending change and never invents one from a malformed payload
+      ---
+      duration_ms: 2.3917
+      type: 'test'
+      ...
+    1..3
+ok 68 - the Registry roll
+  ---
+  duration_ms: 7.5798
+  type: 'suite'
+  ...
+# Subtest: the markdown renderer
+    # Subtest: parses inline code and bold, nothing nested
+    ok 1 - parses inline code and bold, nothing nested
+      ---
+      duration_ms: 1.8588
+      type: 'test'
+      ...
+    # Subtest: parses headings, paragraphs, lists, tables and indented code
+    ok 2 - parses headings, paragraphs, lists, tables and indented code
+      ---
+      duration_ms: 2.2356
+      type: 'test'
+      ...
+    # Subtest: renders the real DOCTRINE.md without losing a section
+    ok 3 - renders the real DOCTRINE.md without losing a section
+      ---
+      duration_ms: 6.2444
+      type: 'test'
+      ...
+    1..3
+ok 69 - the markdown renderer
+  ---
+  duration_ms: 11.7353
+  type: 'suite'
+  ...
+# Subtest: the registries agree with each other
+    # Subtest: every equity feed prices exactly one stock token, by ticker
+    ok 1 - every equity feed prices exactly one stock token, by ticker
+      ---
+      duration_ms: 6.0957
+      type: 'test'
+      ...
+    # Subtest: was verified on chain in full at capture
+    ok 2 - was verified on chain in full at capture
+      ---
+      duration_ms: 1.503
+      type: 'test'
+      ...
+    # Subtest: records every stock token as a proxy on the one shared beacon
+    ok 3 - records every stock token as a proxy on the one shared beacon
+      ---
+      duration_ms: 0.878
+      type: 'test'
+      ...
+    # Subtest: declares in the agent registry exactly what the producer asks
+    ok 4 - declares in the agent registry exactly what the producer asks
+      ---
+      duration_ms: 0.3151
+      type: 'test'
+      ...
+    1..4
+ok 70 - the registries agree with each other
+  ---
+  duration_ms: 12.0004
+  type: 'suite'
+  ...
+# Subtest: judgeFeed
+    # Subtest: prices a clean answer and stamps its age against the heartbeat
+    ok 1 - prices a clean answer and stamps its age against the heartbeat
+      ---
+      duration_ms: 1.9397
+      type: 'test'
+      ...
+    # Subtest: reports an unread round as an absence with the reason, never as zero
+    ok 2 - reports an unread round as an absence with the reason, never as zero
+      ---
+      duration_ms: 0.8029
+      type: 'test'
+      ...
+    # Subtest: withholds the price when the feed no longer describes itself as recorded
+    ok 3 - withholds the price when the feed no longer describes itself as recorded
+      ---
+      duration_ms: 0.6944
+      type: 'test'
+      ...
+    # Subtest: keeps the price but says the identity was not re-verified when description() fails
+    ok 4 - keeps the price but says the identity was not re-verified when description() fails
+      ---
+      duration_ms: 14.7034
+      type: 'test'
+      ...
+    # Subtest: rejects a non-positive answer rather than displaying it
+    ok 5 - rejects a non-positive answer rather than displaying it
+      ---
+      duration_ms: 1.2843
+      type: 'test'
+      ...
+    # Subtest: cannot scale an answer without decimals, and says so
+    ok 6 - cannot scale an answer without decimals, and says so
+      ---
+      duration_ms: 2.1254
+      type: 'test'
+      ...
+    # Subtest: judges staleness against the feed’s own published heartbeat
+    ok 7 - judges staleness against the feed’s own published heartbeat
+      ---
+      duration_ms: 1.6764
+      type: 'test'
+      ...
+    # Subtest: keeps the pause flag tri-state
+    ok 8 - keeps the pause flag tri-state
+      ---
+      duration_ms: 0.8057
+      type: 'test'
+      ...
+    1..8
+ok 71 - judgeFeed
+  ---
+  duration_ms: 26.0214
+  type: 'suite'
+  ...
+# Subtest: summariseEquity
+    # Subtest: describes a clean book and passes the gate
+    ok 1 - describes a clean book and passes the gate
+      ---
+      duration_ms: 6.1897
+      type: 'test'
+      ...
+    # Subtest: names what is past heartbeat, paused, drifted and unreadable — and still passes the gate
+    ok 2 - names what is past heartbeat, paused, drifted and unreadable — and still passes the gate
+      ---
+      duration_ms: 3.3675
+      type: 'test'
+      ...
+    # Subtest: says nothing about ages when nothing answered, and does not invent a freshest feed
+    ok 3 - says nothing about ages when nothing answered, and does not invent a freshest feed
+      ---
+      duration_ms: 0.7244
+      type: 'test'
+      ...
+    # Subtest: calls a stale feed consistent with a closed market only when the market is closed
+    ok 4 - calls a stale feed consistent with a closed market only when the market is closed
+      ---
+      duration_ms: 6.0721
+      type: 'test'
+      ...
+    1..4
+ok 72 - summariseEquity
+  ---
+  duration_ms: 17.2108
+  type: 'suite'
+  ...
+# Subtest: the snapshot
+    # Subtest: carries the price, its age, and every judgement — with the raw integer, not a double
+    ok 1 - carries the price, its age, and every judgement — with the raw integer, not a double
+      ---
+      duration_ms: 6.2406
+      type: 'test'
+      ...
+    # Subtest: records an absence as an absence
+    ok 2 - records an absence as an absence
+      ---
+      duration_ms: 5.5555
+      type: 'test'
+      ...
+    1..2
+ok 73 - the snapshot
+  ---
+  duration_ms: 12.5625
+  type: 'suite'
+  ...
+# Subtest: the shape of the book
+    # Subtest: ignores ages and prices, so a book that only got older is the same book
+    ok 1 - ignores ages and prices, so a book that only got older is the same book
+      ---
+      duration_ms: 1.4289
+      type: 'test'
+      ...
+    # Subtest: changes when an exception appears, the session moves, or the head stalls
+    ok 2 - changes when an exception appears, the session moves, or the head stalls
+      ---
+      duration_ms: 4.2631
+      type: 'test'
+      ...
+    # Subtest: does not depend on the order the feeds were read in
+    ok 3 - does not depend on the order the feeds were read in
+      ---
+      duration_ms: 0.5161
+      type: 'test'
+      ...
+    # Subtest: refiles within a bounded silence
+    ok 4 - refiles within a bounded silence
+      ---
+      duration_ms: 0.3808
+      type: 'test'
+      ...
+    1..4
+ok 74 - the shape of the book
+  ---
+  duration_ms: 7.2811
+  type: 'suite'
+  ...
+# Subtest: banned claims
+    # Subtest: blocks share ownership
+    ok 1 - blocks share ownership
+      ---
+      duration_ms: 5.3727
+      type: 'test'
+      ...
+    # Subtest: blocks guaranteed redemption
+    ok 2 - blocks guaranteed redemption
+      ---
+      duration_ms: 15.6947
+      type: 'test'
+      ...
+    # Subtest: blocks 24/7 liquidity
+    ok 3 - blocks 24/7 liquidity
+      ---
+      duration_ms: 0.7444
+      type: 'test'
+      ...
+    # Subtest: blocks automatic dividends
+    ok 4 - blocks automatic dividends
+      ---
+      duration_ms: 0.5313
+      type: 'test'
+      ...
+    # Subtest: blocks best execution
+    ok 5 - blocks best execution
+      ---
+      duration_ms: 0.4932
+      type: 'test'
+      ...
+    # Subtest: blocks risk-free
+    ok 6 - blocks risk-free
+      ---
+      duration_ms: 0.401
+      type: 'test'
+      ...
+    # Subtest: blocks available to anyone
+    ok 7 - blocks available to anyone
+      ---
+      duration_ms: 0.4516
+      type: 'test'
+      ...
+    # Subtest: blocks fully backed
+    ok 8 - blocks fully backed
+      ---
+      duration_ms: 0.6765
+      type: 'test'
+      ...
+    1..8
+ok 75 - banned claims
+  ---
+  duration_ms: 38.7423
+  type: 'suite'
+  ...
+# Subtest: advice, forecasts and verdicts
+    # Subtest: blocks an entry point
+    ok 1 - blocks an entry point
+      ---
+      duration_ms: 0.8868
+      type: 'test'
+      ...
+    # Subtest: blocks a stop-loss
+    ok 2 - blocks a stop-loss
+      ---
+      duration_ms: 0.5322
+      type: 'test'
+      ...
+    # Subtest: blocks an instruction to act
+    ok 3 - blocks an instruction to act
+      ---
+      duration_ms: 0.3643
+      type: 'test'
+      ...
+    # Subtest: blocks a directional forecast
+    ok 4 - blocks a directional forecast
+      ---
+      duration_ms: 0.2884
+      type: 'test'
+      ...
+    # Subtest: blocks a yield claim
+    ok 5 - blocks a yield claim
+      ---
+      duration_ms: 0.2426
+      type: 'test'
+      ...
+    # Subtest: blocks a safety verdict
+    ok 6 - blocks a safety verdict
+      ---
+      duration_ms: 0.3619
+      type: 'test'
+      ...
+    # Subtest: blocks a fraud verdict
+    ok 7 - blocks a fraud verdict
+      ---
+      duration_ms: 0.2632
+      type: 'test'
+      ...
+    # Subtest: blocks an eligibility determination
+    ok 8 - blocks an eligibility determination
+      ---
+      duration_ms: 0.2406
+      type: 'test'
+      ...
+    # Subtest: blocks a legal characterisation
+    ok 9 - blocks a legal characterisation
+      ---
+      duration_ms: 0.2591
+      type: 'test'
+      ...
+    1..9
+ok 76 - advice, forecasts and verdicts
+  ---
+  duration_ms: 4.5481
+  type: 'suite'
+  ...
+# Subtest: the unsourced-figure gate
+    # Subtest: blocks a number that was never declared
+    ok 1 - blocks a number that was never declared
+      ---
+      duration_ms: 0.5408
+      type: 'test'
+      ...
+    # Subtest: allows the same number once it carries a source
+    ok 2 - allows the same number once it carries a source
+      ---
+      duration_ms: 0.5782
+      type: 'test'
+      ...
+    # Subtest: matches a declared figure through its formatting
+    ok 3 - matches a declared figure through its formatting
+      ---
+      duration_ms: 0.339
+      type: 'test'
+      ...
+    # Subtest: treats timestamps as coordinates, not measurements
+    ok 4 - treats timestamps as coordinates, not measurements
+      ---
+      duration_ms: 0.317
+      type: 'test'
+      ...
+    # Subtest: still blocks a magnitude hiding next to a timestamp
+    ok 5 - still blocks a magnitude hiding next to a timestamp
+      ---
+      duration_ms: 0.3472
+      type: 'test'
+      ...
+    1..5
+ok 77 - the unsourced-figure gate
+  ---
+  duration_ms: 2.8053
+  type: 'suite'
+  ...
+# Subtest: absence must not be dressed as a value
+    # Subtest: blocks a number printed beside an unread reading
+    ok 1 - blocks a number printed beside an unread reading
+      ---
+      duration_ms: 3.8932
+      type: 'test'
+      ...
+    # Subtest: allows the same label when the reading was actually taken
+    ok 2 - allows the same label when the reading was actually taken
+      ---
+      duration_ms: 0.8929
+      type: 'test'
+      ...
+    1..2
+ok 78 - absence must not be dressed as a value
+  ---
+  duration_ms: 5.18
+  type: 'suite'
+  ...
+# Subtest: hex identifiers are names, not magnitudes
+    # Subtest: allows a full contract address without declaring its digits
+    ok 1 - allows a full contract address without declaring its digits
+      ---
+      duration_ms: 0.4293
+      type: 'test'
+      ...
+    # Subtest: allows the elided form used in headlines
+    ok 2 - allows the elided form used in headlines
+      ---
+      duration_ms: 1.9556
+      type: 'test'
+      ...
+    # Subtest: still blocks a magnitude sitting next to an address
+    ok 3 - still blocks a magnitude sitting next to an address
+      ---
+      duration_ms: 0.3241
+      type: 'test'
+      ...
+    1..3
+ok 79 - hex identifiers are names, not magnitudes
+  ---
+  duration_ms: 3.1273
+  type: 'suite'
+  ...
+# Subtest: the agents' own fixed prose passes their own gate
+    # Subtest: clears the Registrar’s third block
+    ok 1 - clears the Registrar’s third block
+      ---
+      duration_ms: 0.4941
+      type: 'test'
+      ...
+    1..1
+ok 80 - the agents' own fixed prose passes their own gate
+  ---
+  duration_ms: 0.7343
+  type: 'suite'
+  ...
+# Subtest: clean copy
+    # Subtest: passes prose that measures and does not conclude
+    ok 1 - passes prose that measures and does not conclude
+      ---
+      duration_ms: 0.2733
+      type: 'test'
+      ...
+    1..1
+ok 81 - clean copy
+  ---
+  duration_ms: 0.447
+  type: 'suite'
+  ...
+# Subtest: figuresIn — the numbers a failure line carries
+    # Subtest: declares status codes and limits from a refusal, sourced to the source that refused
+    ok 1 - declares status codes and limits from a refusal, sourced to the source that refused
+      ---
+      duration_ms: 2.0453
+      type: 'test'
+      ...
+    # Subtest: skips coordinates, hex identifiers, years and small ordinals, and repeats
+    ok 2 - skips coordinates, hex identifiers, years and small ordinals, and repeats
+      ---
+      duration_ms: 0.5992
+      type: 'test'
+      ...
+    # Subtest: makes the Tally’s rate-limited gap line pass the gate — the filing that was lost
+    ok 3 - makes the Tally’s rate-limited gap line pass the gate — the filing that was lost
+      ---
+      duration_ms: 0.6259
+      type: 'test'
+      ...
+    1..3
+ok 82 - figuresIn — the numbers a failure line carries
+  ---
+  duration_ms: 3.6919
+  type: 'suite'
+  ...
+# Subtest: issuer parsers
+    # Subtest: parses the xStocks asset record as received, keeping only what the series needs
+    ok 1 - parses the xStocks asset record as received, keeping only what the series needs
+      ---
+      duration_ms: 5.3793
+      type: 'test'
+      ...
+    # Subtest: reports a moved shape as SCHEMA_CHANGED and a non-JSON body as NOT_JSON
+    ok 2 - reports a moved shape as SCHEMA_CHANGED and a non-JSON body as NOT_JSON
+      ---
+      duration_ms: 18.95
+      type: 'test'
+      ...
+    # Subtest: parses Ondo addresses with the chain id taken from the network label, and refuses a bad entry
+    ok 3 - parses Ondo addresses with the chain id taken from the network label, and refuses a bad entry
+      ---
+      duration_ms: 0.8837
+      type: 'test'
+      ...
+    # Subtest: draws candidates only from parsed evidence on the requested chain
+    ok 4 - draws candidates only from parsed evidence on the requested chain
+      ---
+      duration_ms: 1.9356
+      type: 'test'
+      ...
+    1..4
+ok 83 - issuer parsers
+  ---
+  duration_ms: 30.1208
+  type: 'suite'
+  ...
+# Subtest: the event codec
+    # Subtest: computes topics from signatures and round-trips every event
+    ok 1 - computes topics from signatures and round-trips every event
+      ---
+      duration_ms: 5.1884
+      type: 'test'
+      ...
+    # Subtest: sets aside a topic it does not know and faults a body it cannot decode
+    ok 2 - sets aside a topic it does not know and faults a body it cannot decode
+      ---
+      duration_ms: 0.5094
+      type: 'test'
+      ...
+    1..2
+ok 84 - the event codec
+  ---
+  duration_ms: 6.2459
+  type: 'suite'
+  ...
+# Subtest: the chain index
+    # Subtest: keeps nominations separate from accepted authority and reconstructs them after a reorg
+    ok 1 - keeps nominations separate from accepted authority and reconstructs them after a reorg
+      ---
+      duration_ms: 4.6192
+      type: 'test'
+      ...
+    # Subtest: applies a log once however many times it is seen, and orders by block then index
+    ok 2 - applies a log once however many times it is seen, and orders by block then index
+      ---
+      duration_ms: 1.0522
+      type: 'test'
+      ...
+    # Subtest: rolls back everything at and after a reorganised height, and moves the cursor back
+    ok 3 - rolls back everything at and after a reorganised height, and moves the cursor back
+      ---
+      duration_ms: 0.9157
+      type: 'test'
+      ...
+    # Subtest: keeps an undecodable log as a fault rather than dropping it
+    ok 4 - keeps an undecodable log as a fault rather than dropping it
+      ---
+      duration_ms: 1.2822
+      type: 'test'
+      ...
+    # Subtest: reduces to the ledger through the same functions the tests use, and reports a disagreement
+    ok 5 - reduces to the ledger through the same functions the tests use, and reports a disagreement
+      ---
+      duration_ms: 1.8989
+      type: 'test'
+      ...
+    # Subtest: reads the operator’s actions out of the events: permits as last set, every stop with its reason, the operator as the chain last said
+    ok 6 - reads the operator’s actions out of the events: permits as last set, every stop with its reason, the operator as the chain last said
+      ---
+      duration_ms: 1.8903
+      type: 'test'
+      ...
+    # Subtest: keeps a permit’s until as a number through the store, and reads an index a previous build wrote from the start
+    ok 7 - keeps a permit’s until as a number through the store, and reads an index a previous build wrote from the start
+      ---
+      duration_ms: 212.3447
+      type: 'test'
+      ...
+    1..7
+ok 85 - the chain index
+  ---
+  duration_ms: 225.6945
+  type: 'suite'
+  ...
+# Subtest: reconciliation
+    # Subtest: names the four findings and never calls a unit finding an audit
+    ok 1 - names the four findings and never calls a unit finding an audit
+      ---
+      duration_ms: 0.8963
+      type: 'test'
+      ...
+    # Subtest: encodes balanceOf(holder) with the selector and a padded address
+    ok 2 - encodes balanceOf(holder) with the selector and a padded address
+      ---
+      duration_ms: 0.2968
+      type: 'test'
+      ...
+    1..2
+ok 86 - reconciliation
+  ---
+  duration_ms: 1.5529
+  type: 'suite'
+  ...
+# Subtest: deployment configuration
+    # Subtest: refuses an operator that is not an address, and keeps one that is
+    ok 1 - refuses an operator that is not an address, and keeps one that is
+      ---
+      duration_ms: 1.3032
+      type: 'test'
+      ...
+    # Subtest: is empty when unset, refuses a shared component address, and requires integer strings
+    ok 2 - is empty when unset, refuses a shared component address, and requires integer strings
+      ---
+      duration_ms: 0.585
+      type: 'test'
+      ...
+    1..2
+ok 87 - deployment configuration
+  ---
+  duration_ms: 2.3185
+  type: 'suite'
+  ...
+# Subtest: previews
+    # Subtest: quote units as strings, no value and no gas, and refuse a bad lot count
+    ok 1 - quote units as strings, no value and no gas, and refuse a bad lot count
+      ---
+      duration_ms: 1.5244
+      type: 'test'
+      ...
+    1..1
+ok 88 - previews
+  ---
+  duration_ms: 1.7808
+  type: 'suite'
+  ...
+# Subtest: the networks
+    # Subtest: give each profile its own RPC override so one variable cannot point both networks at one node
+    ok 1 - give each profile its own RPC override so one variable cannot point both networks at one node
+      ---
+      duration_ms: 0.6369
+      type: 'test'
+      ...
+    1..1
+ok 89 - the networks
+  ---
+  duration_ms: 0.828
+  type: 'suite'
+  ...
+# Subtest: the position conditions
+    # Subtest: raise a changed document for two days, and never a refusal for want of a key
+    ok 1 - raise a changed document for two days, and never a refusal for want of a key
+      ---
+      duration_ms: 31.906
+      type: 'test'
+      ...
+    # Subtest: name a drifted candidate darkly, and a shortfall or a disagreement on a series
+    ok 2 - name a drifted candidate darkly, and a shortfall or a disagreement on a series
+      ---
+      duration_ms: 3.1539
+      type: 'test'
+      ...
+    1..2
+ok 90 - the position conditions
+  ---
+  duration_ms: 35.8581
+  type: 'suite'
+  ...
+# Subtest: verification drift
+    # Subtest: names a field that moved between two runs, and an address that stopped answering
+    ok 1 - names a field that moved between two runs, and an address that stopped answering
+      ---
+      duration_ms: 2.1836
+      type: 'test'
+      ...
+    # Subtest: sees an upgrade the code hash cannot: the implementation slot moved behind an unchanged proxy
+    ok 2 - sees an upgrade the code hash cannot: the implementation slot moved behind an unchanged proxy
+      ---
+      duration_ms: 2.4506
+      type: 'test'
+      ...
+    1..2
+ok 91 - verification drift
+  ---
+  duration_ms: 5.0671
+  type: 'suite'
+  ...
+# Subtest: the map of related parties (R02)
+    # Subtest: names every source, leaves unnamed roles empty, and finds no party named under both components
+    ok 1 - names every source, leaves unnamed roles empty, and finds no party named under both components
+      ---
+      duration_ms: 2.1085
+      type: 'test'
+      ...
+    1..1
+ok 92 - the map of related parties (R02)
+  ---
+  duration_ms: 2.4089
+  type: 'suite'
+  ...
+# Subtest: the issuer’s product page
+    # Subtest: yields the record the page publishes — deployments per network, decimals, the live multiplier apart
+    ok 1 - yields the record the page publishes — deployments per network, decimals, the live multiplier apart
+      ---
+      duration_ms: 63.0139
+      type: 'test'
+      ...
+    # Subtest: is a candidate source for component B on Ethereum, and the refused API is not
+    ok 2 - is a candidate source for component B on Ethereum, and the refused API is not
+      ---
+      duration_ms: 2.066
+      type: 'test'
+      ...
+    1..2
+ok 93 - the issuer’s product page
+  ---
+  duration_ms: 65.4826
+  type: 'suite'
+  ...
+# Subtest: the corporate-action evidence (T14)
+    # Subtest: reads the committed record and prints its figures without a float
+    ok 1 - reads the committed record and prints its figures without a float
+      ---
+      duration_ms: 40.6567
+      type: 'test'
+      ...
+    1..1
+ok 94 - the corporate-action evidence (T14)
+  ---
+  duration_ms: 41.9367
+  type: 'suite'
+  ...
+# Subtest: a candidate set that moved
+    # Subtest: is a drift of its own, per component, and the parser finds the record past an earlier mention of the symbol
+    ok 1 - is a drift of its own, per component, and the parser finds the record past an earlier mention of the symbol
+      ---
+      duration_ms: 2.3352
+      type: 'test'
+      ...
+    1..1
+ok 95 - a candidate set that moved
+  ---
+  duration_ms: 2.8714
+  type: 'suite'
+  ...
+# Subtest: a corporate action seen by the daily read
+    # Subtest: is a multiplier drift, reported as a NOTE that says what it is, never as a fault
+    ok 1 - is a multiplier drift, reported as a NOTE that says what it is, never as a fault
+      ---
+      duration_ms: 1.2399
+      type: 'test'
+      ...
+    1..1
+ok 96 - a corporate action seen by the daily read
+  ---
+  duration_ms: 1.5076
+  type: 'suite'
+  ...
+# Subtest: the series code against the build
+    # Subtest: refuses uncommitted build provenance on public chains while identifying local rehearsal bytes honestly
+    ok 1 - refuses uncommitted build provenance on public chains while identifying local rehearsal bytes honestly
+      ---
+      duration_ms: 1.8126
+      type: 'test'
+      ...
+    # Subtest: matches only when the bytes agree outside the immutable slots and the slots hold the record
+    ok 2 - matches only when the bytes agree outside the immutable slots and the slots hold the record
+      ---
+      duration_ms: 27.5433
+      type: 'test'
+      ...
+    1..2
+ok 97 - the series code against the build
+  ---
+  duration_ms: 30.0969
+  type: 'suite'
+  ...
+# Subtest: calldata for a deployed series
+    # Subtest: uses signatures the contract actually has
+    ok 1 - uses signatures the contract actually has
+      ---
+      duration_ms: 4.4335
+      type: 'test'
+      ...
+    # Subtest: encodes each call as selector plus 32-byte words, lower-cased
+    ok 2 - encodes each call as selector plus 32-byte words, lower-cased
+      ---
+      duration_ms: 8.8098
+      type: 'test'
+      ...
+    # Subtest: refuses what a word cannot hold
+    ok 3 - refuses what a word cannot hold
+      ---
+      duration_ms: 1.8228
+      type: 'test'
+      ...
+    # Subtest: prepares nothing while there is no deployment, and says so
+    ok 4 - prepares nothing while there is no deployment, and says so
+      ---
+      duration_ms: 3.5654
+      type: 'test'
+      ...
+    # Subtest: matches the built artifact when one exists
+    ok 5 - matches the built artifact when one exists
+      ---
+      duration_ms: 2.419
+      type: 'test'
+      ...
+    1..5
+ok 98 - calldata for a deployed series
+  ---
+  duration_ms: 25.566
+  type: 'suite'
+  ...
+# Subtest: the operational drill, on a local chain
+    # Subtest: finds the shortfall, keeps the record through a failed RPC, and names a lost source
+    ok 1 - finds the shortfall, keeps the record through a failed RPC, and names a lost source
+      ---
+      duration_ms: 750.7039
+      type: 'test'
+      ...
+    1..1
+ok 99 - the operational drill, on a local chain
+  ---
+  duration_ms: 753.5895
+  type: 'suite'
+  ...
+# Subtest: the identity of an issuer record
+    # Subtest: does not move when the trading session moves or the deployments are reordered
+    ok 1 - does not move when the trading session moves or the deployments are reordered
+      ---
+      duration_ms: 56.9369
+      type: 'test'
+      ...
+    # Subtest: moves when a field the series reads moves
+    ok 2 - moves when a field the series reads moves
+      ---
+      duration_ms: 1.8386
+      type: 'test'
+      ...
+    1..2
+ok 100 - the identity of an issuer record
+  ---
+  duration_ms: 66.2195
+  type: 'suite'
+  ...
+# Subtest: the archive, across the change to canonical identities
+    # Subtest: does not archive the same record again when only its bytes moved, and does when a wrapper moves
+    ok 1 - does not archive the same record again when only its bytes moved, and does when a wrapper moves
+      ---
+      duration_ms: 405.4306
+      type: 'test'
+      ...
+    1..1
+ok 101 - the archive, across the change to canonical identities
+  ---
+  duration_ms: 406.4182
+  type: 'suite'
+  ...
+# Subtest: the position product’s journal
+    # Subtest: prints a source first archived, a source changed, and an address that moved, by day
+    ok 1 - prints a source first archived, a source changed, and an address that moved, by day
+      ---
+      duration_ms: 241.3167
+      type: 'test'
+      ...
+    1..1
+ok 102 - the position product’s journal
+  ---
+  duration_ms: 245.6697
+  type: 'suite'
+  ...
+# Subtest: a reconciliation finding that moved
+    # Subtest: is journalled once, on the day it moved, and printed as such
+    ok 1 - is journalled once, on the day it moved, and printed as such
+      ---
+      duration_ms: 16.2632
+      type: 'test'
+      ...
+    1..1
+ok 103 - a reconciliation finding that moved
+  ---
+  duration_ms: 17.0335
+  type: 'suite'
+  ...
+# Subtest: the index and the reconciliation, rehearsed on a local chain
+    # Subtest: replays the worked example from the chain and finds every component matched
+    ok 1 - replays the worked example from the chain and finds every component matched
+      ---
+      duration_ms: 500.2981
+      type: 'test'
+      ...
+    1..1
+ok 104 - the index and the reconciliation, rehearsed on a local chain
+  ---
+  duration_ms: 503.2795
+  type: 'suite'
+  ...
+# Subtest: the indicative value of a lot
+    # Subtest: rounds money half up at two places from any scale
+    ok 1 - rounds money half up at two places from any scale
+      ---
+      duration_ms: 45.4387
+      type: 'test'
+      ...
+    # Subtest: values A from the fork’s conversion and a fresh feed sample, leaves B unavailable, and never totals
+    ok 2 - values A from the fork’s conversion and a fresh feed sample, leaves B unavailable, and never totals
+      ---
+      duration_ms: 67.7665
+      type: 'test'
+      ...
+    # Subtest: values B from the issuer’s published shares-per-token figure once the page is archived, and then totals the lot
+    ok 3 - values B from the issuer’s published shares-per-token figure once the page is archived, and then totals the lot
+      ---
+      duration_ms: 69.0159
+      type: 'test'
+      ...
+    # Subtest: withholds the value when the sample is stale, the feed drifted, or nothing was sampled
+    ok 4 - withholds the value when the sample is stale, the feed drifted, or nothing was sampled
+      ---
+      duration_ms: 122.1921
+      type: 'test'
+      ...
+    1..4
+ok 105 - the indicative value of a lot
+  ---
+  duration_ms: 309.0074
+  type: 'suite'
+  ...
+# Subtest: a deployment’s units per lot
+    # Subtest: are kept in base units for the arithmetic, so a lot of 10.5 units is neither rounded nor mis-scaled
+    ok 1 - are kept in base units for the arithmetic, so a lot of 10.5 units is neither rounded nor mis-scaled
+      ---
+      duration_ms: 37.5687
+      type: 'test'
+      ...
+    1..1
+ok 106 - a deployment’s units per lot
+  ---
+  duration_ms: 38.4527
+  type: 'suite'
+  ...
+# Subtest: the wrapper’s conversion, read daily
+    # Subtest: is preferred over the fork’s recorded rate, and dated by the read
+    ok 1 - is preferred over the fork’s recorded rate, and dated by the read
+      ---
+      duration_ms: 36.7568
+      type: 'test'
+      ...
+    1..1
+ok 107 - the wrapper’s conversion, read daily
+  ---
+  duration_ms: 38.1972
+  type: 'suite'
+  ...
+# Subtest: displays units exactly beyond Number precision and for differing decimals
+ok 108 - displays units exactly beyond Number precision and for differing decimals
+  ---
+  duration_ms: 19.9461
+  type: 'test'
+  ...
+# Subtest: reads allowance/decimals at one block, keeps failed B and gas unavailable, and never sends
+ok 109 - reads allowance/decimals at one block, keeps failed B and gas unavailable, and never sends
+  ---
+  duration_ms: 23.7521
+  type: 'test'
+  ...
+# Subtest: recognizes a mined speed-up only when sender, nonce, value and action match
+ok 110 - recognizes a mined speed-up only when sender, nonce, value and action match
+  ---
+  duration_ms: 3.729
+  type: 'test'
+  ...
+# Subtest: distinguishes cancellation, different action and still-pending replacement
+ok 111 - distinguishes cancellation, different action and still-pending replacement
+  ---
+  duration_ms: 1.3516
+  type: 'test'
+  ...
+# Subtest: does not reconcile a replacement on another chain
+ok 112 - does not reconcile a replacement on another chain
+  ---
+  duration_ms: 0.6255
+  type: 'test'
+  ...
+# Subtest: requires a receipt bound to the replacement hash and rejects a chain switch during the read
+ok 113 - requires a receipt bound to the replacement hash and rejects a chain switch during the read
+  ---
+  duration_ms: 3.2981
+  type: 'test'
+  ...
+# Subtest: position lot input
+    # Subtest: rejects fractional, partial, exponent and noncanonical parses; preserves integers beyond Number precision
+    ok 1 - rejects fractional, partial, exponent and noncanonical parses; preserves integers beyond Number precision
+      ---
+      duration_ms: 2.3261
+      type: 'test'
+      ...
+    1..1
+ok 114 - position lot input
+  ---
+  duration_ms: 4.7658
+  type: 'suite'
+  ...
+# Subtest: separate allocation and component claims
+    # Subtest: allocates once, then lets a zero-receipt holder claim B after A reverts without touching A or allocating again
+    ok 1 - allocates once, then lets a zero-receipt holder claim B after A reverts without touching A or allocating again
+      ---
+      duration_ms: 13.1269
+      type: 'test'
+      ...
+    # Subtest: reads pending claims even when receipts are zero, at one block, without calling either component
+    ok 2 - reads pending claims even when receipts are zero, at one block, without calling either component
+      ---
+      duration_ms: 12.9008
+      type: 'test'
+      ...
+    1..2
+ok 115 - separate allocation and component claims
+  ---
+  duration_ms: 26.7223
+  type: 'suite'
+  ...
+# Subtest: wallet context and unresolved transactions
+    # Subtest: blocks a stale connected account or chain before the first send
+    ok 1 - blocks a stale connected account or chain before the first send
+      ---
+      duration_ms: 2.6974
+      type: 'test'
+      ...
+    # Subtest: rechecks account and chain after an approval, before sending the next transaction
+    ok 2 - rechecks account and chain after an approval, before sending the next transaction
+      ---
+      duration_ms: 4.4124
+      type: 'test'
+      ...
+    # Subtest: keeps a timed-out hash pending, checks it without resending, then resumes only unsent steps
+    ok 3 - keeps a timed-out hash pending, checks it without resending, then resumes only unsent steps
+      ---
+      duration_ms: 4.8544
+      type: 'test'
+      ...
+    # Subtest: does not infer that a missing wallet response means nothing was broadcast
+    ok 4 - does not infer that a missing wallet response means nothing was broadcast
+      ---
+      duration_ms: 2.0059
+      type: 'test'
+      ...
+    # Subtest: does not automatically retry a user rejection or an on-chain revert
+    ok 5 - does not automatically retry a user rejection or an on-chain revert
+      ---
+      duration_ms: 6.486
+      type: 'test'
+      ...
+    # Subtest: does not send if the unresolved-state checkpoint cannot be saved before the wallet call
+    ok 6 - does not send if the unresolved-state checkpoint cannot be saved before the wallet call
+      ---
+      duration_ms: 2.2645
+      type: 'test'
+      ...
+    # Subtest: refuses to check a known hash on a different chain and retains unread receipt outcomes
+    ok 7 - refuses to check a known hash on a different chain and retains unread receipt outcomes
+      ---
+      duration_ms: 0.7138
+      type: 'test'
+      ...
+    # Subtest: restores only validated unresolved metadata; no prepared transaction bytes are recovered for signing
+    ok 8 - restores only validated unresolved metadata; no prepared transaction bytes are recovered for signing
+      ---
+      duration_ms: 17.2488
+      type: 'test'
+      ...
+    1..8
+ok 116 - wallet context and unresolved transactions
+  ---
+  duration_ms: 42.4862
+  type: 'suite'
+  ...
+# Subtest: the position ledger
+    # Subtest: T01 — mints exactly, and never owes more than it holds
+    ok 1 - T01 — mints exactly, and never owes more than it holds
+      ---
+      duration_ms: 9.1625
+      type: 'test'
+      ...
+    # Subtest: T02 — a second component that cannot arrive reverts the whole mint
+    ok 2 - T02 — a second component that cannot arrive reverts the whole mint
+      ---
+      duration_ms: 0.535
+      type: 'test'
+      ...
+    # Subtest: T03 — an exit moves rights from active to reserved and changes no total liability
+    ok 3 - T03 — an exit moves rights from active to reserved and changes no total liability
+      ---
+      duration_ms: 0.5648
+      type: 'test'
+      ...
+    # Subtest: T04 — a halted A leaves the A claim intact and lets B be claimed without touching A
+    ok 4 - T04 — a halted A leaves the A claim intact and lets B be claimed without touching A
+      ---
+      duration_ms: 0.5067
+      type: 'test'
+      ...
+    # Subtest: T05 — a claim pays once, and only to its holder
+    ok 5 - T05 — a claim pays once, and only to its holder
+      ---
+      duration_ms: 0.379
+      type: 'test'
+      ...
+    # Subtest: T06 — a depositor after pending claims gets no part of the reserve
+    ok 6 - T06 — a depositor after pending claims gets no part of the reserve
+      ---
+      duration_ms: 0.4884
+      type: 'test'
+      ...
+    # Subtest: T07 — a donation changes no lot, no receipt and no claim
+    ok 7 - T07 — a donation changes no lot, no receipt and no claim
+      ---
+      duration_ms: 0.6973
+      type: 'test'
+      ...
+    # Subtest: T08 — a component held short of its liability pays nobody, so there is no race
+    ok 8 - T08 — a component held short of its liability pays nobody, so there is no race
+      ---
+      duration_ms: 0.7118
+      type: 'test'
+      ...
+    # Subtest: T11 — zero supply with reserved claims does not let a new mint adopt them
+    ok 9 - T11 — zero supply with reserved claims does not let a new mint adopt them
+      ---
+      duration_ms: 0.5915
+      type: 'test'
+      ...
+    # Subtest: T12 — integers only: a large lot count and 18-decimal units do not lose precision
+    ok 10 - T12 — integers only: a large lot count and 18-decimal units do not lose precision
+      ---
+      duration_ms: 0.9559
+      type: 'test'
+      ...
+    # Subtest: T19 — a series with a non-positive unit per lot cannot be opened
+    ok 11 - T19 — a series with a non-positive unit per lot cannot be opened
+      ---
+      duration_ms: 0.7398
+      type: 'test'
+      ...
+    # Subtest: T22 — burning and re-minting cannot get past a cap that counts reserved units
+    ok 12 - T22 — burning and re-minting cannot get past a cap that counts reserved units
+      ---
+      duration_ms: 0.3319
+      type: 'test'
+      ...
+    # Subtest: T23 — an exact deposit does not quietly cover an older shortfall
+    ok 13 - T23 — an exact deposit does not quietly cover an older shortfall
+      ---
+      duration_ms: 0.2076
+      type: 'test'
+      ...
+    # Subtest: T24 — supply changes only through a full deposit or an exit allocation
+    ok 14 - T24 — supply changes only through a full deposit or an exit allocation
+      ---
+      duration_ms: 0.2764
+      type: 'test'
+      ...
+    # Subtest: operator stops are per operation and per component, and touch no right
+    ok 15 - operator stops are per operation and per component, and touch no right
+      ---
+      duration_ms: 0.5034
+      type: 'test'
+      ...
+    # Subtest: reproduces the worked example, row by row
+    ok 16 - reproduces the worked example, row by row
+      ---
+      duration_ms: 0.6529
+      type: 'test'
+      ...
+    1..16
+ok 117 - the position ledger
+  ---
+  duration_ms: 22.2905
+  type: 'suite'
+  ...
+# Subtest: local release rehearsal boundaries
+    # Subtest: rejects remote, ambiguous, credentialed and redirectable HTTP origins
+    ok 1 - rejects remote, ambiguous, credentialed and redirectable HTTP origins
+      ---
+      duration_ms: 2.8619
+      type: 'test'
+      ...
+    # Subtest: rejects Postgres host/service overrides and refuses existing database names
+    ok 2 - rejects Postgres host/service overrides and refuses existing database names
+      ---
+      duration_ms: 7.734
+      type: 'test'
+      ...
+    # Subtest: drops secrets, dotenv loaders and proxy routing from child processes
+    ok 3 - drops secrets, dotenv loaders and proxy routing from child processes
+      ---
+      duration_ms: 1.6056
+      type: 'test'
+      ...
+    # Subtest: redacts generated API keys and local database credentials in evidence logs
+    ok 4 - redacts generated API keys and local database credentials in evidence logs
+      ---
+      duration_ms: 0.8982
+      type: 'test'
+      ...
+    # Subtest: excludes environment files and historical deployment journals without deleting originals
+    ok 5 - excludes environment files and historical deployment journals without deleting originals
+      ---
+      duration_ms: 36.8275
+      type: 'test'
+      ...
+    1..5
+ok 118 - local release rehearsal boundaries
+  ---
+  duration_ms: 53.196
+  type: 'suite'
+  ...
+# Subtest: the happy path
+    # Subtest: publishes and writes exactly one heartbeat
+    ok 1 - publishes and writes exactly one heartbeat
+      ---
+      duration_ms: 9.2988
+      type: 'test'
+      ...
+    # Subtest: links the heartbeat to the publication it produced
+    ok 2 - links the heartbeat to the publication it produced
+      ---
+      duration_ms: 2.7311
+      type: 'test'
+      ...
+    1..2
+ok 119 - the happy path
+  ---
+  duration_ms: 14.9299
+  type: 'suite'
+  ...
+# Subtest: the heartbeat is written on every real run
+    # Subtest: records a producer crash instead of losing it
+    ok 1 - records a producer crash instead of losing it
+      ---
+      duration_ms: 1.4862
+      type: 'test'
+      ...
+    # Subtest: distinguishes nothing-to-say from a failure
+    ok 2 - distinguishes nothing-to-say from a failure
+      ---
+      duration_ms: 1.045
+      type: 'test'
+      ...
+    # Subtest: declares unknown rather than publishing below minimum coverage
+    ok 3 - declares unknown rather than publishing below minimum coverage
+      ---
+      duration_ms: 2.9058
+      type: 'test'
+      ...
+    1..3
+ok 120 - the heartbeat is written on every real run
+  ---
+  duration_ms: 6.4482
+  type: 'suite'
+  ...
+# Subtest: the gates
+    # Subtest: refuses a figure that carries no source
+    ok 1 - refuses a figure that carries no source
+      ---
+      duration_ms: 1.3331
+      type: 'test'
+      ...
+    # Subtest: blocks a policy breach and keeps the blocked text as an event
+    ok 2 - blocks a policy breach and keeps the blocked text as an event
+      ---
+      duration_ms: 1.4776
+      type: 'test'
+      ...
+    # Subtest: blocks an absence that was printed as a number
+    ok 3 - blocks an absence that was printed as a number
+      ---
+      duration_ms: 1.3781
+      type: 'test'
+      ...
+    1..3
+ok 121 - the gates
+  ---
+  duration_ms: 5.0078
+  type: 'suite'
+  ...
+# Subtest: measurements outlive the prose
+    # Subtest: records an observation on a clean run
+    ok 1 - records an observation on a clean run
+      ---
+      duration_ms: 1.099
+      type: 'test'
+      ...
+    # Subtest: still records it when policy blocks the sentence
+    ok 2 - still records it when policy blocks the sentence
+      ---
+      duration_ms: 0.8768
+      type: 'test'
+      ...
+    # Subtest: records nothing at all on a rehearsal
+    ok 3 - records nothing at all on a rehearsal
+      ---
+      duration_ms: 0.6731
+      type: 'test'
+      ...
+    1..3
+ok 122 - measurements outlive the prose
+  ---
+  duration_ms: 3.1221
+  type: 'suite'
+  ...
+# Subtest: a dry run moves nothing
+    # Subtest: writes no heartbeat, no publication and no block
+    ok 1 - writes no heartbeat, no publication and no block
+      ---
+      duration_ms: 0.5944
+      type: 'test'
+      ...
+    # Subtest: does not persist a blocked rehearsal either
+    ok 2 - does not persist a blocked rehearsal either
+      ---
+      duration_ms: 2.6594
+      type: 'test'
+      ...
+    1..2
+ok 123 - a dry run moves nothing
+  ---
+  duration_ms: 3.5632
+  type: 'suite'
+  ...
+# Subtest: an unreadable store is not an empty one
+    # Subtest: publishes the pair together, so neither can exist alone
+    ok 1 - publishes the pair together, so neither can exist alone
+      ---
+      duration_ms: 1.1311
+      type: 'test'
+      ...
+    # Subtest: reports whether the write was actually atomic
+    ok 2 - reports whether the write was actually atomic
+      ---
+      duration_ms: 0.6557
+      type: 'test'
+      ...
+    # Subtest: surfaces a publication that landed without its heartbeat
+    ok 3 - surfaces a publication that landed without its heartbeat
+      ---
+      duration_ms: 1.7153
+      type: 'test'
+      ...
+    # Subtest: does not swallow a failed heartbeat write
+    ok 4 - does not swallow a failed heartbeat write
+      ---
+      duration_ms: 0.7492
+      type: 'test'
+      ...
+    # Subtest: records an observation write failure on the heartbeat
+    ok 5 - records an observation write failure on the heartbeat
+      ---
+      duration_ms: 1.3102
+      type: 'test'
+      ...
+    # Subtest: runs nothing it cannot judge as due, and names it
+    ok 6 - runs nothing it cannot judge as due, and names it
+      ---
+      duration_ms: 2.0452
+      type: 'test'
+      ...
+    # Subtest: still runs normally once the store answers
+    ok 7 - still runs normally once the store answers
+      ---
+      duration_ms: 1.683
+      type: 'test'
+      ...
+    1..7
+ok 124 - an unreadable store is not an empty one
+  ---
+  duration_ms: 10.5175
+  type: 'suite'
+  ...
+# Subtest: the run lock
+    # Subtest: takes the lock, runs, and gives it back
+    ok 1 - takes the lock, runs, and gives it back
+      ---
+      duration_ms: 1.5069
+      type: 'test'
+      ...
+    # Subtest: runs nothing while another holder has it
+    ok 2 - runs nothing while another holder has it
+      ---
+      duration_ms: 0.5294
+      type: 'test'
+      ...
+    # Subtest: runs nothing when it cannot tell whether the lock is free
+    ok 3 - runs nothing when it cannot tell whether the lock is free
+      ---
+      duration_ms: 0.4531
+      type: 'test'
+      ...
+    # Subtest: releases the lock even when an agent throws
+    ok 4 - releases the lock even when an agent throws
+      ---
+      duration_ms: 1.145
+      type: 'test'
+      ...
+    # Subtest: takes no lock on a rehearsal, and cannot block a real run
+    ok 5 - takes no lock on a rehearsal, and cannot block a real run
+      ---
+      duration_ms: 0.6813
+      type: 'test'
+      ...
+    1..5
+ok 125 - the run lock
+  ---
+  duration_ms: 5.3573
+  type: 'suite'
+  ...
+# Subtest: the promoter cannot lose its disclosure
+    # Subtest: appends the disclosure by code, not by good manners
+    ok 1 - appends the disclosure by code, not by good manners
+      ---
+      duration_ms: 0.9364
+      type: 'test'
+      ...
+    1..1
+ok 126 - the promoter cannot lose its disclosure
+  ---
+  duration_ms: 1.3481
+  type: 'suite'
+  ...
+# Subtest: series deployment source provenance
+    # Subtest: refuses a clean-looking build from an older source/compiler commit
+    ok 1 - refuses a clean-looking build from an older source/compiler commit
+      ---
+      duration_ms: 2.4574
+      type: 'test'
+      ...
+    1..1
+ok 127 - series deployment source provenance
+  ---
+  duration_ms: 4.5497
+  type: 'suite'
+  ...
+# Subtest: series deployment journal
+    # Subtest: writes the nonce and intended address before send and the hash before receipt polling
+    ok 1 - writes the nonce and intended address before send and the hash before receipt polling
+      ---
+      duration_ms: 34.7277
+      type: 'test'
+      ...
+    # Subtest: retains uncertain send intent and forbids another send using the same deployment record
+    ok 2 - retains uncertain send intent and forbids another send using the same deployment record
+      ---
+      duration_ms: 25.1158
+      type: 'test'
+      ...
+    # Subtest: retains the known hash if receipt polling fails
+    ok 3 - retains the known hash if receipt polling fails
+      ---
+      duration_ms: 14.2457
+      type: 'test'
+      ...
+    # Subtest: retains SENT when receipt polling returns another transaction or omits its hash
+    ok 4 - retains SENT when receipt polling returns another transaction or omits its hash
+      ---
+      duration_ms: 46.6454
+      type: 'test'
+      ...
+    1..4
+ok 128 - series deployment journal
+  ---
+  duration_ms: 122.3508
+  type: 'suite'
+  ...
+# Subtest: regular sessions
+    # Subtest: opens at 14:30 UTC in winter (EST)
+    ok 1 - opens at 14:30 UTC in winter (EST)
+      ---
+      duration_ms: 83.2139
+      type: 'test'
+      ...
+    # Subtest: opens at 13:30 UTC in summer (EDT)
+    ok 2 - opens at 13:30 UTC in summer (EDT)
+      ---
+      duration_ms: 4.9652
+      type: 'test'
+      ...
+    # Subtest: walks pre → regular → post → closed across one winter day
+    ok 3 - walks pre → regular → post → closed across one winter day
+      ---
+      duration_ms: 15.0069
+      type: 'test'
+      ...
+    # Subtest: is closed before the pre-market bell
+    ok 4 - is closed before the pre-market bell
+      ---
+      duration_ms: 4.0247
+      type: 'test'
+      ...
+    # Subtest: reports no time since close while the market is open
+    ok 5 - reports no time since close while the market is open
+      ---
+      duration_ms: 4.154
+      type: 'test'
+      ...
+    1..5
+ok 129 - regular sessions
+  ---
+  duration_ms: 115.3336
+  type: 'suite'
+  ...
+# Subtest: weekends
+    # Subtest: is not a trading day on Saturday
+    ok 1 - is not a trading day on Saturday
+      ---
+      duration_ms: 2.7999
+      type: 'test'
+      ...
+    # Subtest: skips a holiday Monday when looking for the next open
+    ok 2 - skips a holiday Monday when looking for the next open
+      ---
+      duration_ms: 2.295
+      type: 'test'
+      ...
+    # Subtest: points at the next weekday open when no holiday intervenes
+    ok 3 - points at the next weekday open when no holiday intervenes
+      ---
+      duration_ms: 4.4003
+      type: 'test'
+      ...
+    1..3
+ok 130 - weekends
+  ---
+  duration_ms: 10.4009
+  type: 'suite'
+  ...
+# Subtest: holidays
+    # Subtest: closes for New Year's Day
+    ok 1 - closes for New Year's Day
+      ---
+      duration_ms: 3.4762
+      type: 'test'
+      ...
+    # Subtest: closes for Martin Luther King, Jr. Day
+    ok 2 - closes for Martin Luther King, Jr. Day
+      ---
+      duration_ms: 2.4974
+      type: 'test'
+      ...
+    # Subtest: closes for Washington's Birthday
+    ok 3 - closes for Washington's Birthday
+      ---
+      duration_ms: 2.8526
+      type: 'test'
+      ...
+    # Subtest: closes for Good Friday
+    ok 4 - closes for Good Friday
+      ---
+      duration_ms: 2.6556
+      type: 'test'
+      ...
+    # Subtest: closes for Memorial Day
+    ok 5 - closes for Memorial Day
+      ---
+      duration_ms: 2.0763
+      type: 'test'
+      ...
+    # Subtest: closes for Juneteenth National Independence Day
+    ok 6 - closes for Juneteenth National Independence Day
+      ---
+      duration_ms: 2.2618
+      type: 'test'
+      ...
+    # Subtest: closes for Labor Day
+    ok 7 - closes for Labor Day
+      ---
+      duration_ms: 2.3084
+      type: 'test'
+      ...
+    # Subtest: closes for Thanksgiving Day
+    ok 8 - closes for Thanksgiving Day
+      ---
+      duration_ms: 3.7711
+      type: 'test'
+      ...
+    # Subtest: closes for Christmas Day
+    ok 9 - closes for Christmas Day
+      ---
+      duration_ms: 2.4368
+      type: 'test'
+      ...
+    # Subtest: observes Independence Day on Friday when 4 July is a Saturday
+    ok 10 - observes Independence Day on Friday when 4 July is a Saturday
+      ---
+      duration_ms: 1.9847
+      type: 'test'
+      ...
+    # Subtest: does not treat the observed holiday as an early close
+    ok 11 - does not treat the observed holiday as an early close
+      ---
+      duration_ms: 2.1384
+      type: 'test'
+      ...
+    1..11
+ok 131 - holidays
+  ---
+  duration_ms: 30.7074
+  type: 'suite'
+  ...
+# Subtest: early closes
+    # Subtest: closes at 13:00 ET on the day after Thanksgiving
+    ok 1 - closes at 13:00 ET on the day after Thanksgiving
+      ---
+      duration_ms: 5.3869
+      type: 'test'
+      ...
+    # Subtest: is already closed at 14:00 ET on a half day
+    ok 2 - is already closed at 14:00 ET on a half day
+      ---
+      duration_ms: 3.5327
+      type: 'test'
+      ...
+    # Subtest: closes early on Christmas Eve when it is a weekday
+    ok 3 - closes early on Christmas Eve when it is a weekday
+      ---
+      duration_ms: 3.8275
+      type: 'test'
+      ...
+    1..3
+ok 132 - early closes
+  ---
+  duration_ms: 13.3669
+  type: 'suite'
+  ...
+# Subtest: price age against the session
+    # Subtest: calls a price taken before the last close what it is
+    ok 1 - calls a price taken before the last close what it is
+      ---
+      duration_ms: 3.7449
+      type: 'test'
+      ...
+    # Subtest: calls a price from before the last close what it is in the pre-market and the post-market too
+    ok 2 - calls a price from before the last close what it is in the pre-market and the post-market too
+      ---
+      duration_ms: 15.3344
+      type: 'test'
+      ...
+    # Subtest: reports an unread price as absent rather than old
+    ok 3 - reports an unread price as absent rather than old
+      ---
+      duration_ms: 4.2685
+      type: 'test'
+      ...
+    # Subtest: calls a live price in-session
+    ok 4 - calls a live price in-session
+      ---
+      duration_ms: 4.5971
+      type: 'test'
+      ...
+    1..4
+ok 133 - price age against the session
+  ---
+  duration_ms: 28.6725
+  type: 'suite'
+  ...
+# Subtest: Slots
+    # Subtest: admits up to its size at once and makes the rest wait in order
+    ok 1 - admits up to its size at once and makes the rest wait in order
+      ---
+      duration_ms: 51.8888
+      type: 'test'
+      ...
+    # Subtest: never has more than its size in flight under a burst
+    ok 2 - never has more than its size in flight under a burst
+      ---
+      duration_ms: 103.1299
+      type: 'test'
+      ...
+    # Subtest: treats a size below one as one rather than as none
+    ok 3 - treats a size below one as one rather than as none
+      ---
+      duration_ms: 0.998
+      type: 'test'
+      ...
+    1..3
+ok 134 - Slots
+  ---
+  duration_ms: 160.6759
+  type: 'suite'
+  ...
+# Subtest: store conformance · FileSystemStore
+    # Subtest: an empty store answers, rather than failing
+        # Subtest: reads no heartbeats as an empty list, not as unread
+        ok 1 - reads no heartbeats as an empty list, not as unread
+          ---
+          duration_ms: 17.548
+          type: 'test'
+          ...
+        # Subtest: reads a missing agent as null rather than unread
+        ok 2 - reads a missing agent as null rather than unread
+          ---
+          duration_ms: 5.3013
+          type: 'test'
+          ...
+        # Subtest: carries a source on every reading
+        ok 3 - carries a source on every reading
+          ---
+          duration_ms: 4.1472
+          type: 'test'
+          ...
+        1..3
+    ok 1 - an empty store answers, rather than failing
+      ---
+      duration_ms: 30.1835
+      type: 'suite'
+      ...
+    # Subtest: heartbeats
+        # Subtest: keeps only the most recent per agent
+        ok 1 - keeps only the most recent per agent
+          ---
+          duration_ms: 25.7886
+          type: 'test'
+          ...
+        # Subtest: returns the latest for one agent
+        ok 2 - returns the latest for one agent
+          ---
+          duration_ms: 49.0525
+          type: 'test'
+          ...
+        1..2
+    ok 2 - heartbeats
+      ---
+      duration_ms: 75.8402
+      type: 'suite'
+      ...
+    # Subtest: publishing
+        # Subtest: writes the publication and its heartbeat together
+        ok 1 - writes the publication and its heartbeat together
+          ---
+          duration_ms: 29.6184
+          type: 'test'
+          ...
+        # Subtest: states whether it was atomic rather than implying it
+        ok 2 - states whether it was atomic rather than implying it
+          ---
+          duration_ms: 8.0281
+          type: 'test'
+          ...
+        # Subtest: returns publications newest first
+        ok 3 - returns publications newest first
+          ---
+          duration_ms: 58.0428
+          type: 'test'
+          ...
+        # Subtest: round-trips the declared figures
+        ok 4 - round-trips the declared figures
+          ---
+          duration_ms: 25.751
+          type: 'test'
+          ...
+        1..4
+    ok 3 - publishing
+      ---
+      duration_ms: 124.9792
+      type: 'suite'
+      ...
+    # Subtest: observations
+        # Subtest: returns a series oldest first, so it is ready to compute over
+        ok 1 - returns a series oldest first, so it is ready to compute over
+          ---
+          duration_ms: 8.0642
+          type: 'test'
+          ...
+        # Subtest: keeps series apart by key
+        ok 2 - keeps series apart by key
+          ---
+          duration_ms: 6.4648
+          type: 'test'
+          ...
+        # Subtest: keeps the raw integer when one was given
+        ok 3 - keeps the raw integer when one was given
+          ---
+          duration_ms: 6.3516
+          type: 'test'
+          ...
+        # Subtest: accepts an empty write without complaint
+        ok 4 - accepts an empty write without complaint
+          ---
+          duration_ms: 1.515
+          type: 'test'
+          ...
+        # Subtest: writes a large batch in one go and keeps every row
+        ok 5 - writes a large batch in one go and keeps every row
+          ---
+          duration_ms: 18.7044
+          type: 'test'
+          ...
+        1..5
+    ok 4 - observations
+      ---
+      duration_ms: 42.4136
+      type: 'suite'
+      ...
+    # Subtest: counts
+        # Subtest: counts every row, not the length of a bounded read
+        ok 1 - counts every row, not the length of a bounded read
+          ---
+          duration_ms: 31.9677
+          type: 'test'
+          ...
+        1..1
+    ok 5 - counts
+      ---
+      duration_ms: 32.372
+      type: 'suite'
+      ...
+    # Subtest: snapshots
+        # Subtest: reads none as an empty list, not as unread
+        ok 1 - reads none as an empty list, not as unread
+          ---
+          duration_ms: 2.197
+          type: 'test'
+          ...
+        # Subtest: keeps one row per key, the latest write replacing the earlier one
+        ok 2 - keeps one row per key, the latest write replacing the earlier one
+          ---
+          duration_ms: 17.3974
+          type: 'test'
+          ...
+        # Subtest: selects by prefix and returns nothing from other prefixes
+        ok 3 - selects by prefix and returns nothing from other prefixes
+          ---
+          duration_ms: 5.5443
+          type: 'test'
+          ...
+        # Subtest: round-trips a nested payload as structure, not as a string
+        ok 4 - round-trips a nested payload as structure, not as a string
+          ---
+          duration_ms: 4.8277
+          type: 'test'
+          ...
+        # Subtest: accepts an empty write without complaint
+        ok 5 - accepts an empty write without complaint
+          ---
+          duration_ms: 1.1333
+          type: 'test'
+          ...
+        1..5
+    ok 6 - snapshots
+      ---
+      duration_ms: 32.0046
+      type: 'suite'
+      ...
+    # Subtest: retention
+        # Subtest: removes only what is older than the cutoff
+        ok 1 - removes only what is older than the cutoff
+          ---
+          duration_ms: 18.1037
+          type: 'test'
+          ...
+        # Subtest: reports a count, and reports zero as a real zero
+        ok 2 - reports a count, and reports zero as a real zero
+          ---
+          duration_ms: 4.8638
+          type: 'test'
+          ...
+        # Subtest: prunes across every key, not just one
+        ok 3 - prunes across every key, not just one
+          ---
+          duration_ms: 6.4856
+          type: 'test'
+          ...
+        # Subtest: leaves other records untouched
+        ok 4 - leaves other records untouched
+          ---
+          duration_ms: 11.5163
+          type: 'test'
+          ...
+        1..4
+    ok 7 - retention
+      ---
+      duration_ms: 41.9268
+      type: 'suite'
+      ...
+    # Subtest: the day record
+        # Subtest: returns everything on one UTC day and nothing from the next
+        ok 1 - returns everything on one UTC day and nothing from the next
+          ---
+          duration_ms: 20.8407
+          type: 'test'
+          ...
+        # Subtest: is an empty record for a day with nothing, not an unread one
+        ok 2 - is an empty record for a day with nothing, not an unread one
+          ---
+          duration_ms: 1.6394
+          type: 'test'
+          ...
+        # Subtest: lists publication days newest first
+        ok 3 - lists publication days newest first
+          ---
+          duration_ms: 14.555
+          type: 'test'
+          ...
+        1..3
+    ok 8 - the day record
+      ---
+      duration_ms: 37.7175
+      type: 'suite'
+      ...
+    # Subtest: one agent’s history
+        # Subtest: returns that agent’s filings newest first, and nobody else’s
+        ok 1 - returns that agent’s filings newest first, and nobody else’s
+          ---
+          duration_ms: 16.7052
+          type: 'test'
+          ...
+        # Subtest: returns every outcome for that agent, not only the published ones
+        ok 2 - returns every outcome for that agent, not only the published ones
+          ---
+          duration_ms: 14.8409
+          type: 'test'
+          ...
+        1..2
+    ok 9 - one agent’s history
+      ---
+      duration_ms: 32.1366
+      type: 'suite'
+      ...
+    # Subtest: narrations
+        # Subtest: reads no narration as null, not as unread
+        ok 1 - reads no narration as null, not as unread
+          ---
+          duration_ms: 2.4306
+          type: 'test'
+          ...
+        # Subtest: keeps one row per day, the latest attempt winning
+        ok 2 - keeps one row per day, the latest attempt winning
+          ---
+          duration_ms: 7.097
+          type: 'test'
+          ...
+        # Subtest: keeps a refusal as a refusal
+        ok 3 - keeps a refusal as a refusal
+          ---
+          duration_ms: 4.8519
+          type: 'test'
+          ...
+        1..3
+    ok 10 - narrations
+      ---
+      duration_ms: 15.0501
+      type: 'suite'
+      ...
+    # Subtest: blocked outputs
+        # Subtest: keeps the text and the breaches in full
+        ok 1 - keeps the text and the breaches in full
+          ---
+          duration_ms: 12.0693
+          type: 'test'
+          ...
+        1..1
+    ok 11 - blocked outputs
+      ---
+      duration_ms: 12.6218
+      type: 'suite'
+      ...
+    # Subtest: the schema
+        # Subtest: is current for this build
+        ok 1 - is current for this build
+          ---
+          duration_ms: 1.7138
+          type: 'test'
+          ...
+        1..1
+    ok 12 - the schema
+      ---
+      duration_ms: 2.055
+      type: 'suite'
+      ...
+    # Subtest: the conditional snapshot write
+        # Subtest: writes a new row only when none exists, and a replacement only onto the version read
+        ok 1 - writes a new row only when none exists, and a replacement only onto the version read
+          ---
+          duration_ms: 21.2629
+          type: 'test'
+          ...
+        # Subtest: has the plain write move the version too, so a conditional write after it sees the move
+        ok 2 - has the plain write move the version too, so a conditional write after it sees the move
+          ---
+          duration_ms: 10.1923
+          type: 'test'
+          ...
+        # Subtest: lets many writers at once each land exactly once
+        ok 3 - lets many writers at once each land exactly once
+          ---
+          duration_ms: 192.9032
+          type: 'test'
+          ...
+        1..3
+    ok 13 - the conditional snapshot write
+      ---
+      duration_ms: 224.9785
+      type: 'suite'
+      ...
+    # Subtest: the run lock
+        # Subtest: is granted when free
+        ok 1 - is granted when free
+          ---
+          duration_ms: 3.37
+          type: 'test'
+          ...
+        # Subtest: is refused to a second holder
+        ok 2 - is refused to a second holder
+          ---
+          duration_ms: 13.4763
+          type: 'test'
+          ...
+        # Subtest: is granted again to the holder that has it — an acquire whose answer was lost, resent
+        ok 3 - is granted again to the holder that has it — an acquire whose answer was lost, resent
+          ---
+          duration_ms: 23.392
+          type: 'test'
+          ...
+        # Subtest: is available again after release
+        ok 4 - is available again after release
+          ---
+          duration_ms: 16.5041
+          type: 'test'
+          ...
+        # Subtest: cannot be released by somebody who does not hold it
+        ok 5 - cannot be released by somebody who does not hold it
+          ---
+          duration_ms: 11.584
+          type: 'test'
+          ...
+        # Subtest: can be renewed by its holder
+        ok 6 - can be renewed by its holder
+          ---
+          duration_ms: 24.6136
+          type: 'test'
+          ...
+        # Subtest: refuses to renew a lock held by somebody else
+        ok 7 - refuses to renew a lock held by somebody else
+          ---
+          duration_ms: 11.6884
+          type: 'test'
+          ...
+        # Subtest: lets a lapsed lock be taken, and then refuses the old holder
+        ok 8 - lets a lapsed lock be taken, and then refuses the old holder
+          ---
+          duration_ms: 1221.0723
+          type: 'test'
+          ...
+        1..8
+    ok 14 - the run lock
+      ---
+      duration_ms: 1326.9048
+      type: 'suite'
+      ...
+    1..14
+ok 135 - store conformance · FileSystemStore
+  ---
+  duration_ms: 2035.0767
+  type: 'suite'
+  ...
+# Subtest: the FileSystemStore run lock
+    # Subtest: takes over an empty lock file left by a crash once it is older than the TTL, and not before
+    ok 1 - takes over an empty lock file left by a crash once it is older than the TTL, and not before
+      ---
+      duration_ms: 16.7928
+      type: 'test'
+      ...
+    1..1
+ok 136 - the FileSystemStore run lock
+  ---
+  duration_ms: 17.0683
+  type: 'suite'
+  ...
+# Subtest: store selection
+    # Subtest: uses the filesystem when nothing is configured
+    ok 1 - uses the filesystem when nothing is configured
+      ---
+      duration_ms: 0.4484
+      type: 'test'
+      ...
+    # Subtest: treats an empty value as unconfigured
+    ok 2 - treats an empty value as unconfigured
+      ---
+      duration_ms: 0.173
+      type: 'test'
+      ...
+    # Subtest: refuses an unedited template instead of quietly using it
+    ok 3 - refuses an unedited template instead of quietly using it
+      ---
+      duration_ms: 0.8745
+      type: 'test'
+      ...
+    # Subtest: accepts a real connection string
+    ok 4 - accepts a real connection string
+      ---
+      duration_ms: 0.3574
+      type: 'test'
+      ...
+    1..4
+ok 137 - store selection
+  ---
+  duration_ms: 2.2992
+  type: 'suite'
+  ...
+# {
+#   severity_local: 'NOTICE',
+#   severity: 'NOTICE',
+#   code: '42701',
+#   message: 'column "version" of relation "snapshots" already exists, skipping',
+#   file: 'tablecmds.c',
+#   line: '7352',
+#   routine: 'check_for_column_name_collision'
+# }
+# {
+#   severity_local: 'NOTICE',
+#   severity: 'NOTICE',
+#   code: '42701',
+#   message: 'column "write_token" of relation "snapshots" already exists, skipping',
+#   file: 'tablecmds.c',
+#   line: '7352',
+#   routine: 'check_for_column_name_collision'
+# }
+# Subtest: store conformance · PostgresStore (schema curb_conformance)
+    # Subtest: an empty store answers, rather than failing
+        # Subtest: reads no heartbeats as an empty list, not as unread
+        ok 1 - reads no heartbeats as an empty list, not as unread
+          ---
+          duration_ms: 132.0815
+          type: 'test'
+          ...
+        # Subtest: reads a missing agent as null rather than unread
+        ok 2 - reads a missing agent as null rather than unread
+          ---
+          duration_ms: 120.3014
+          type: 'test'
+          ...
+        # Subtest: carries a source on every reading
+        ok 3 - carries a source on every reading
+          ---
+          duration_ms: 122.8133
+          type: 'test'
+          ...
+        1..3
+    ok 1 - an empty store answers, rather than failing
+      ---
+      duration_ms: 377.2357
+      type: 'suite'
+      ...
+    # Subtest: heartbeats
+        # Subtest: keeps only the most recent per agent
+        ok 1 - keeps only the most recent per agent
+          ---
+          duration_ms: 165.2827
+          type: 'test'
+          ...
+        # Subtest: returns the latest for one agent
+        ok 2 - returns the latest for one agent
+          ---
+          duration_ms: 115.3248
+          type: 'test'
+          ...
+        1..2
+    ok 2 - heartbeats
+      ---
+      duration_ms: 281.4159
+      type: 'suite'
+      ...
+    # Subtest: publishing
+        # Subtest: writes the publication and its heartbeat together
+        ok 1 - writes the publication and its heartbeat together
+          ---
+          duration_ms: 139.051
+          type: 'test'
+          ...
+        # Subtest: states whether it was atomic rather than implying it
+        ok 2 - states whether it was atomic rather than implying it
+          ---
+          duration_ms: 126.6919
+          type: 'test'
+          ...
+        # Subtest: returns publications newest first
+        ok 3 - returns publications newest first
+          ---
+          duration_ms: 126.2956
+          type: 'test'
+          ...
+        # Subtest: round-trips the declared figures
+        ok 4 - round-trips the declared figures
+          ---
+          duration_ms: 118.2423
+          type: 'test'
+          ...
+        1..4
+    ok 3 - publishing
+      ---
+      duration_ms: 511.1605
+      type: 'suite'
+      ...
+    # Subtest: observations
+        # Subtest: returns a series oldest first, so it is ready to compute over
+        ok 1 - returns a series oldest first, so it is ready to compute over
+          ---
+          duration_ms: 116.3285
+          type: 'test'
+          ...
+        # Subtest: keeps series apart by key
+        ok 2 - keeps series apart by key
+          ---
+          duration_ms: 105.7594
+          type: 'test'
+          ...
+        # Subtest: keeps the raw integer when one was given
+        ok 3 - keeps the raw integer when one was given
+          ---
+          duration_ms: 103.2544
+          type: 'test'
+          ...
+        # Subtest: accepts an empty write without complaint
+        ok 4 - accepts an empty write without complaint
+          ---
+          duration_ms: 102.9779
+          type: 'test'
+          ...
+        # Subtest: writes a large batch in one go and keeps every row
+        ok 5 - writes a large batch in one go and keeps every row
+          ---
+          duration_ms: 124.4178
+          type: 'test'
+          ...
+        1..5
+    ok 4 - observations
+      ---
+      duration_ms: 553.5603
+      type: 'suite'
+      ...
+    # Subtest: counts
+        # Subtest: counts every row, not the length of a bounded read
+        ok 1 - counts every row, not the length of a bounded read
+          ---
+          duration_ms: 124.3759
+          type: 'test'
+          ...
+        1..1
+    ok 5 - counts
+      ---
+      duration_ms: 124.7129
+      type: 'suite'
+      ...
+    # Subtest: snapshots
+        # Subtest: reads none as an empty list, not as unread
+        ok 1 - reads none as an empty list, not as unread
+          ---
+          duration_ms: 118.6737
+          type: 'test'
+          ...
+        # Subtest: keeps one row per key, the latest write replacing the earlier one
+        ok 2 - keeps one row per key, the latest write replacing the earlier one
+          ---
+          duration_ms: 112.6275
+          type: 'test'
+          ...
+        # Subtest: selects by prefix and returns nothing from other prefixes
+        ok 3 - selects by prefix and returns nothing from other prefixes
+          ---
+          duration_ms: 100.2374
+          type: 'test'
+          ...
+        # Subtest: round-trips a nested payload as structure, not as a string
+        ok 4 - round-trips a nested payload as structure, not as a string
+          ---
+          duration_ms: 98.5
+          type: 'test'
+          ...
+        # Subtest: accepts an empty write without complaint
+        ok 5 - accepts an empty write without complaint
+          ---
+          duration_ms: 95.8196
+          type: 'test'
+          ...
+        1..5
+    ok 6 - snapshots
+      ---
+      duration_ms: 526.7983
+      type: 'suite'
+      ...
+    # Subtest: retention
+        # Subtest: removes only what is older than the cutoff
+        ok 1 - removes only what is older than the cutoff
+          ---
+          duration_ms: 105.4703
+          type: 'test'
+          ...
+        # Subtest: reports a count, and reports zero as a real zero
+        ok 2 - reports a count, and reports zero as a real zero
+          ---
+          duration_ms: 100.036
+          type: 'test'
+          ...
+        # Subtest: prunes across every key, not just one
+        ok 3 - prunes across every key, not just one
+          ---
+          duration_ms: 98.5434
+          type: 'test'
+          ...
+        # Subtest: leaves other records untouched
+        ok 4 - leaves other records untouched
+          ---
+          duration_ms: 108.5071
+          type: 'test'
+          ...
+        1..4
+    ok 7 - retention
+      ---
+      duration_ms: 413.3313
+      type: 'suite'
+      ...
+    # Subtest: the day record
+        # Subtest: returns everything on one UTC day and nothing from the next
+        ok 1 - returns everything on one UTC day and nothing from the next
+          ---
+          duration_ms: 187.5717
+          type: 'test'
+          ...
+        # Subtest: is an empty record for a day with nothing, not an unread one
+        ok 2 - is an empty record for a day with nothing, not an unread one
+          ---
+          duration_ms: 146.0375
+          type: 'test'
+          ...
+        # Subtest: lists publication days newest first
+        ok 3 - lists publication days newest first
+          ---
+          duration_ms: 163.1572
+          type: 'test'
+          ...
+        1..3
+    ok 8 - the day record
+      ---
+      duration_ms: 497.5185
+      type: 'suite'
+      ...
+    # Subtest: one agent’s history
+        # Subtest: returns that agent’s filings newest first, and nobody else’s
+        ok 1 - returns that agent’s filings newest first, and nobody else’s
+          ---
+          duration_ms: 162.0645
+          type: 'test'
+          ...
+        # Subtest: returns every outcome for that agent, not only the published ones
+        ok 2 - returns every outcome for that agent, not only the published ones
+          ---
+          duration_ms: 116.8278
+          type: 'test'
+          ...
+        1..2
+    ok 9 - one agent’s history
+      ---
+      duration_ms: 279.5075
+      type: 'suite'
+      ...
+    # Subtest: narrations
+        # Subtest: reads no narration as null, not as unread
+        ok 1 - reads no narration as null, not as unread
+          ---
+          duration_ms: 96.9387
+          type: 'test'
+          ...
+        # Subtest: keeps one row per day, the latest attempt winning
+        ok 2 - keeps one row per day, the latest attempt winning
+          ---
+          duration_ms: 111.9124
+          type: 'test'
+          ...
+        # Subtest: keeps a refusal as a refusal
+        ok 3 - keeps a refusal as a refusal
+          ---
+          duration_ms: 101.6707
+          type: 'test'
+          ...
+        1..3
+    ok 10 - narrations
+      ---
+      duration_ms: 311.1726
+      type: 'suite'
+      ...
+    # Subtest: blocked outputs
+        # Subtest: keeps the text and the breaches in full
+        ok 1 - keeps the text and the breaches in full
+          ---
+          duration_ms: 106.1058
+          type: 'test'
+          ...
+        1..1
+    ok 11 - blocked outputs
+      ---
+      duration_ms: 106.4932
+      type: 'suite'
+      ...
+    # Subtest: the schema
+        # Subtest: is current for this build
+        ok 1 - is current for this build
+          ---
+          duration_ms: 125.2443
+          type: 'test'
+          ...
+        1..1
+    ok 12 - the schema
+      ---
+      duration_ms: 125.6143
+      type: 'suite'
+      ...
+    # Subtest: the conditional snapshot write
+        # Subtest: writes a new row only when none exists, and a replacement only onto the version read
+        ok 1 - writes a new row only when none exists, and a replacement only onto the version read
+          ---
+          duration_ms: 121.2507
+          type: 'test'
+          ...
+        # Subtest: has the plain write move the version too, so a conditional write after it sees the move
+        ok 2 - has the plain write move the version too, so a conditional write after it sees the move
+          ---
+          duration_ms: 109.0954
+          type: 'test'
+          ...
+        # Subtest: lets many writers at once each land exactly once
+        ok 3 - lets many writers at once each land exactly once
+          ---
+          duration_ms: 185.1362
+          type: 'test'
+          ...
+        1..3
+    ok 13 - the conditional snapshot write
+      ---
+      duration_ms: 416.0319
+      type: 'suite'
+      ...
+    # Subtest: the run lock
+        # Subtest: is granted when free
+        ok 1 - is granted when free
+          ---
+          duration_ms: 94.9871
+          type: 'test'
+          ...
+        # Subtest: is refused to a second holder
+        ok 2 - is refused to a second holder
+          ---
+          duration_ms: 109.0898
+          type: 'test'
+          ...
+        # Subtest: is granted again to the holder that has it — an acquire whose answer was lost, resent
+        ok 3 - is granted again to the holder that has it — an acquire whose answer was lost, resent
+          ---
+          duration_ms: 103.5741
+          type: 'test'
+          ...
+        # Subtest: is available again after release
+        ok 4 - is available again after release
+          ---
+          duration_ms: 103.5254
+          type: 'test'
+          ...
+        # Subtest: cannot be released by somebody who does not hold it
+        ok 5 - cannot be released by somebody who does not hold it
+          ---
+          duration_ms: 109.9848
+          type: 'test'
+          ...
+        # Subtest: can be renewed by its holder
+        ok 6 - can be renewed by its holder
+          ---
+          duration_ms: 124.6832
+          type: 'test'
+          ...
+        # Subtest: refuses to renew a lock held by somebody else
+        ok 7 - refuses to renew a lock held by somebody else
+          ---
+          duration_ms: 114.3876
+          type: 'test'
+          ...
+        # Subtest: lets a lapsed lock be taken, and then refuses the old holder
+        ok 8 - lets a lapsed lock be taken, and then refuses the old holder
+          ---
+          duration_ms: 1307.6427
+          type: 'test'
+          ...
+        1..8
+    ok 14 - the run lock
+      ---
+      duration_ms: 2068.7362
+      type: 'suite'
+      ...
+    1..14
+ok 138 - store conformance · PostgresStore (schema curb_conformance)
+  ---
+  duration_ms: 6596.2426
+  type: 'suite'
+  ...
+# {
+#   severity_local: 'NOTICE',
+#   severity: 'NOTICE',
+#   code: '00000',
+#   message: 'drop cascades to 7 other objects',
+#   detail: 'drop cascades to table heartbeats\\n' +
+#     'drop cascades to table publications\\n' +
+#     'drop cascades to table blocks\\n' +
+#     'drop cascades to table observations\\n' +
+#     'drop cascades to table run_lock\\n' +
+#     'drop cascades to table narrations\\n' +
+#     'drop cascades to table snapshots',
+#   file: 'dependency.c',
+#   line: '1227',
+#   routine: 'reportDependentObjects'
+# }
+# Subtest: log returns
+    # Subtest: is the log of the ratio between consecutive closes
+    ok 1 - is the log of the ratio between consecutive closes
+      ---
+      duration_ms: 2.0026
+      type: 'test'
+      ...
+    # Subtest: drops non-positive prices instead of producing NaN
+    ok 2 - drops non-positive prices instead of producing NaN
+      ---
+      duration_ms: 1.6336
+      type: 'test'
+      ...
+    # Subtest: produces one fewer value than it was given
+    ok 3 - produces one fewer value than it was given
+      ---
+      duration_ms: 1.1448
+      type: 'test'
+      ...
+    1..3
+ok 139 - log returns
+  ---
+  duration_ms: 9.7764
+  type: 'suite'
+  ...
+# Subtest: realised volatility
+    # Subtest: is zero when every return is identical
+    ok 1 - is zero when every return is identical
+      ---
+      duration_ms: 0.8715
+      type: 'test'
+      ...
+    # Subtest: scales with the square root of the periods per year
+    ok 2 - scales with the square root of the periods per year
+      ---
+      duration_ms: 0.4144
+      type: 'test'
+      ...
+    # Subtest: declares nothing below its stated minimum
+    ok 3 - declares nothing below its stated minimum
+      ---
+      duration_ms: 0.3457
+      type: 'test'
+      ...
+    1..3
+ok 140 - realised volatility
+  ---
+  duration_ms: 2.35
+  type: 'suite'
+  ...
+# Subtest: the smooth bound
+    # Subtest: passes small values through almost unchanged
+    ok 1 - passes small values through almost unchanged
+      ---
+      duration_ms: 0.6406
+      type: 'test'
+      ...
+    # Subtest: never returns the same output for two different inputs
+    ok 2 - never returns the same output for two different inputs
+      ---
+      duration_ms: 0.4522
+      type: 'test'
+      ...
+    # Subtest: stays inside the limit
+    ok 3 - stays inside the limit
+      ---
+      duration_ms: 0.3135
+      type: 'test'
+      ...
+    # Subtest: is symmetric about zero
+    ok 4 - is symmetric about zero
+      ---
+      duration_ms: 0.4214
+      type: 'test'
+      ...
+    1..4
+ok 141 - the smooth bound
+  ---
+  duration_ms: 2.5489
+  type: 'suite'
+  ...
+# Subtest: trend strength
+    # Subtest: reports zero for a flat series
+    ok 1 - reports zero for a flat series
+      ---
+      duration_ms: 1.2414
+      type: 'test'
+      ...
+    # Subtest: sits at the bound for a perfectly straight log-price line
+    ok 2 - sits at the bound for a perfectly straight log-price line
+      ---
+      duration_ms: 0.3708
+      type: 'test'
+      ...
+    # Subtest: signs a falling series negative
+    ok 3 - signs a falling series negative
+      ---
+      duration_ms: 0.2583
+      type: 'test'
+      ...
+    # Subtest: rates a clean rise above a jagged one of the same total move
+    ok 4 - rates a clean rise above a jagged one of the same total move
+      ---
+      duration_ms: 0.295
+      type: 'test'
+      ...
+    # Subtest: declares nothing below its stated minimum
+    ok 5 - declares nothing below its stated minimum
+      ---
+      duration_ms: 0.1672
+      type: 'test'
+      ...
+    1..5
+ok 142 - trend strength
+  ---
+  duration_ms: 2.7679
+  type: 'suite'
+  ...
+# Subtest: RSI
+    # Subtest: is at its ceiling when nothing falls
+    ok 1 - is at its ceiling when nothing falls
+      ---
+      duration_ms: 0.5733
+      type: 'test'
+      ...
+    # Subtest: is at its floor when nothing rises
+    ok 2 - is at its floor when nothing rises
+      ---
+      duration_ms: 0.2238
+      type: 'test'
+      ...
+    # Subtest: is the midpoint for a flat series
+    ok 3 - is the midpoint for a flat series
+      ---
+      duration_ms: 0.2284
+      type: 'test'
+      ...
+    # Subtest: lands between the extremes for a mixed series
+    ok 4 - lands between the extremes for a mixed series
+      ---
+      duration_ms: 0.2539
+      type: 'test'
+      ...
+    # Subtest: declares nothing below its stated minimum
+    ok 5 - declares nothing below its stated minimum
+      ---
+      duration_ms: 0.1577
+      type: 'test'
+      ...
+    1..5
+ok 143 - RSI
+  ---
+  duration_ms: 1.8895
+  type: 'suite'
+  ...
+# Subtest: range position
+    # Subtest: is at the top when the last close is the high
+    ok 1 - is at the top when the last close is the high
+      ---
+      duration_ms: 3.289
+      type: 'test'
+      ...
+    # Subtest: is at the bottom when the last close is the low
+    ok 2 - is at the bottom when the last close is the low
+      ---
+      duration_ms: 0.4129
+      type: 'test'
+      ...
+    # Subtest: is halfway in the middle
+    ok 3 - is halfway in the middle
+      ---
+      duration_ms: 0.2942
+      type: 'test'
+      ...
+    # Subtest: answers the midpoint for a flat series rather than dividing by zero
+    ok 4 - answers the midpoint for a flat series rather than dividing by zero
+      ---
+      duration_ms: 0.2483
+      type: 'test'
+      ...
+    1..4
+ok 144 - range position
+  ---
+  duration_ms: 4.8853
+  type: 'suite'
+  ...
+# Subtest: window agreement
+    # Subtest: names a conflict rather than averaging it away
+    ok 1 - names a conflict rather than averaging it away
+      ---
+      duration_ms: 0.3063
+      type: 'test'
+      ...
+    # Subtest: recognises both windows pointing the same way
+    ok 2 - recognises both windows pointing the same way
+      ---
+      duration_ms: 0.1716
+      type: 'test'
+      ...
+    # Subtest: is undetermined when a window could not be measured
+    ok 3 - is undetermined when a window could not be measured
+      ---
+      duration_ms: 0.1794
+      type: 'test'
+      ...
+    1..3
+ok 145 - window agreement
+  ---
+  duration_ms: 1.1928
+  type: 'suite'
+  ...
+# Subtest: the whole read
+    # Subtest: reports what it can and leaves the rest absent
+    ok 1 - reports what it can and leaves the rest absent
+      ---
+      duration_ms: 0.7673
+      type: 'test'
+      ...
+    # Subtest: fills in once the series is long enough
+    ok 2 - fills in once the series is long enough
+      ---
+      duration_ms: 1.1316
+      type: 'test'
+      ...
+    1..2
+ok 146 - the whole read
+  ---
+  duration_ms: 2.4315
+  type: 'suite'
+  ...
+# Subtest: readLogWindow
+    # Subtest: reads a window the node accepts in one page
+    ok 1 - reads a window the node accepts in one page
+      ---
+      duration_ms: 13.0122
+      type: 'test'
+      ...
+    # Subtest: splits on the node’s refusal until pages are narrow enough, keeping block order
+    ok 2 - splits on the node’s refusal until pages are narrow enough, keeping block order
+      ---
+      duration_ms: 2.8662
+      type: 'test'
+      ...
+    # Subtest: stops splitting at the minimum page and reports a gap, not a zero
+    ok 3 - stops splitting at the minimum page and reports a gap, not a zero
+      ---
+      duration_ms: 2.1731
+      type: 'test'
+      ...
+    # Subtest: records a non-refusal failure as a gap without splitting
+    ok 4 - records a non-refusal failure as a gap without splitting
+      ---
+      duration_ms: 0.9073
+      type: 'test'
+      ...
+    # Subtest: flags an answer of exactly the cap as a floor, and one above it as complete
+    ok 5 - flags an answer of exactly the cap as a floor, and one above it as complete
+      ---
+      duration_ms: 81.5133
+      type: 'test'
+      ...
+    # Subtest: recognises the node’s wording for too many logs
+    ok 6 - recognises the node’s wording for too many logs
+      ---
+      duration_ms: 0.4671
+      type: 'test'
+      ...
+    1..6
+ok 147 - readLogWindow
+  ---
+  duration_ms: 104.1745
+  type: 'suite'
+  ...
+# Subtest: tallyFlows
+    # Subtest: counts transfers, distinct addresses, mint, burn and the largest per token
+    ok 1 - counts transfers, distinct addresses, mint, burn and the largest per token
+      ---
+      duration_ms: 1.7295
+      type: 'test'
+      ...
+    # Subtest: reports a token with no logs as a measured zero, not an absence
+    ok 2 - reports a token with no logs as a measured zero, not an absence
+      ---
+      duration_ms: 0.7136
+      type: 'test'
+      ...
+    # Subtest: computes a rate per minute over the sample, and never over a zero span
+    ok 3 - computes a rate per minute over the sample, and never over a zero span
+      ---
+      duration_ms: 0.4773
+      type: 'test'
+      ...
+    # Subtest: samples about a minute of chain time at the measured block rate
+    ok 4 - samples about a minute of chain time at the measured block rate
+      ---
+      duration_ms: 0.4696
+      type: 'test'
+      ...
+    1..4
+ok 148 - tallyFlows
+  ---
+  duration_ms: 4.2538
+  type: 'suite'
+  ...
+# Subtest: visibleText
+    # Subtest: keeps the main content and drops chrome, scripts and tags
+    ok 1 - keeps the main content and drops chrome, scripts and tags
+      ---
+      duration_ms: 2.3597
+      type: 'test'
+      ...
+    # Subtest: falls back to the article, then the body, then the whole document
+    ok 2 - falls back to the article, then the body, then the whole document
+      ---
+      duration_ms: 1.6163
+      type: 'test'
+      ...
+    # Subtest: hashes the text, not the markup, so a re-render with the same words is the same page
+    ok 3 - hashes the text, not the markup, so a re-render with the same words is the same page
+      ---
+      duration_ms: 1.0609
+      type: 'test'
+      ...
+    1..3
+ok 149 - visibleText
+  ---
+  duration_ms: 8.2896
+  type: 'suite'
+  ...
+# Subtest: judgePage
+    # Subtest: is a first sighting without a prior, and unchanged when the hash holds
+    ok 1 - is a first sighting without a prior, and unchanged when the hash holds
+      ---
+      duration_ms: 0.9841
+      type: 'test'
+      ...
+    # Subtest: records a change with the date and counts it
+    ok 2 - records a change with the date and counts it
+      ---
+      duration_ms: 0.8579
+      type: 'test'
+      ...
+    # Subtest: round-trips through a snapshot and refuses a malformed one
+    ok 3 - round-trips through a snapshot and refuses a malformed one
+      ---
+      duration_ms: 2.7645
+      type: 'test'
+      ...
+    1..3
+ok 150 - judgePage
+  ---
+  duration_ms: 5.6991
+  type: 'suite'
+  ...
+# Subtest: the watch lines
+    # Subtest: say why a page could not be fetched, and that unknown is not unchanged
+    ok 1 - say why a page could not be fetched, and that unknown is not unchanged
+      ---
+      duration_ms: 1.5779
+      type: 'test'
+      ...
+    # Subtest: flag a changed page whose content was recorded by hand
+    ok 2 - flag a changed page whose content was recorded by hand
+      ---
+      duration_ms: 0.8316
+      type: 'test'
+      ...
+    # Subtest: pass the gate: every age and status code printed is declared
+    ok 3 - pass the gate: every age and status code printed is declared
+      ---
+      duration_ms: 7.6718
+      type: 'test'
+      ...
+    # Subtest: declares in the registry what the producer asks
+    ok 4 - declares in the registry what the producer asks
+      ---
+      duration_ms: 0.5995
+      type: 'test'
+      ...
+    1..4
+ok 151 - the watch lines
+  ---
+  duration_ms: 11.7175
+  type: 'suite'
+  ...
+1..151
+# tests 610
+# suites 160
+# pass 610
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 24068.5466
+

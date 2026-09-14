@@ -38,10 +38,10 @@ const SLOTS = {
   beacon: '0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50',
 } as const;
 
-const fail = (why: string): never => {
+function fail(why: string): never {
   console.error(`refused: ${why}`);
   process.exit(1);
-};
+}
 const { positionals, flags } = parseArgs(process.argv.slice(2), ['network', 'treasury', 'out'], fail);
 if (positionals.length !== 1) fail('give exactly one token address as the argument');
 const token: Address = checkedAddress(positionals[0]!, 'the token', fail);
@@ -106,13 +106,14 @@ if (owner !== null) console.error(`note: owner() answers ${owner}`);
 if (paused !== null) console.error(`note: paused() answers ${paused}`);
 
 const record = {
-  _: `Written by scripts/record-token.ts from chain ${chainId} at block ${at.block}, ${at.timestamp}. The token's facts are in tokenAsRead. Fill treasury (the operator multisig), priceSource when the pool exists, and reviewedBy / reviewedAt by name; the deployment tool refuses the record until then.`,
+  _: `Written by scripts/record-token.ts from chain ${chainId} at block ${at.block}, ${at.timestamp}. The token's facts are in tokenAsRead. Fill treasury and its independently reviewed treasurySafe expectation on public chains (version, quorum, code, modules, guard and fallback), priceSource when the pool exists, and reviewedBy / reviewedAt by name; the deployment tool refuses incomplete public records.`,
   network: networkName,
   chainId,
   rpcUrl: network!.publicRpc,
   token,
   decimals: Number(decimals),
   treasury: treasury ?? '0x0000000000000000000000000000000000000000',
+  treasurySafe: null,
   priceSource: null,
   reviewedBy: '',
   reviewedAt: '',

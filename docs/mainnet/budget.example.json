@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "netAvailableCents": "0",
+  "economics": {
+    "fixedCostUsdMicros": null,
+    "costPerCallUsdMicros": null,
+    "costPerDeliveryAttemptUsdMicros": null,
+    "callAttempts": "0",
+    "chargedCalls": "0",
+    "deliveryAttempts": "0",
+    "successfulDeliveries": "0",
+    "chargedDeliveries": "0"
+  }
+}

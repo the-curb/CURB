@@ -622,8 +622,9 @@ from actual evidence and named reviews; pass its path as the command argument.
 The output keeps token launch, paid beta and position pilot separate. Public
 series gates and a dirty working tree also hold release status.
 
-The checks workflow now supports manual runs and `codex/**` branches and exposes
-one aggregate `release checks` status. Configure repository rules and the hosting
+The checks workflow supports manual runs and `codex/**` branches and exposes
+one aggregate `release checks` status covering site, store, contracts, local-chain
+rehearsal and production HTTP/webhook acceptance. Configure repository rules and the hosting
 deployment path to require that status for the exact commit. Adding the workflow
 does not change the live Vercel integration or branch rules by itself. Confirm
 those account settings before promoting a release; retain a rollback deployment.
@@ -641,3 +642,11 @@ same implementation. It performs one read-only request and fails for unread,
 malformed or stale state, missing roster, absent agents, schema drift and DARK
 conditions. Running it on an independently scheduled platform and assigning its
 alerts remain operator setup tasks; committing the script does not install a monitor.
+
+The [15 September execution decisions](docs/mainnet/EXECUTION-DECISIONS-2026-09-15.md)
+record the selected funding calculation and the current PONS v2 compatibility hold.
+Use `npm run rehearsal:local -- --postgres-url <numeric-loopback-admin-url>` for
+the repeatable isolated payment/ledger/webhook run; see [its guide](scripts/REHEARSAL.md).
+`npm run mainnet:budget` keeps unmeasured costs explicit and excludes reserved
+liquidity/customer funding from proceeds. After committing the reviewed release,
+`npm run review:package` exports its source and evidence with an archive hash.

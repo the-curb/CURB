@@ -27,7 +27,7 @@ describe('series deployment journal', () => {
       return '0xlocalhash';
     }, async (hash) => {
       assert.equal(JSON.parse(readFileSync(file, 'utf8')).pending.transactionHash, hash);
-      return { status: 'success' };
+      return { status: 'success', transactionHash: hash };
     });
     assert.equal(result.hash, '0xlocalhash');
   });
@@ -45,5 +45,15 @@ describe('series deployment journal', () => {
     const journal = JSON.parse(readFileSync(file, 'utf8'));
     assert.equal(journal.pending.transactionHash, '0xknownhash');
     assert.equal(journal.pending.state, 'SENT');
+  });
+  it('retains SENT when receipt polling returns another transaction or omits its hash', async () => {
+    for (const receipt of [{ status: 'success', transactionHash: '0xreplacement' }, { status: 'success' }]) {
+      const file = fresh();
+      await assert.rejects(journaledDeployment(file, intent, async () => '0xoriginal', async () => receipt), /receipt does not identify the sent transaction/);
+      const journal = JSON.parse(readFileSync(file, 'utf8'));
+      assert.equal(journal.pending.state, 'SENT');
+      assert.equal(journal.pending.transactionHash, '0xoriginal');
+      assert.equal(journal.pending.expectedAddress, intent.pending.expectedAddress);
+    }
   });
 });

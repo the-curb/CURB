@@ -169,6 +169,9 @@ jobs:
         run: node scripts/series-preflight-rehearsal.ts > series-preflight-rehearsal.json
       - name: Read them back through the site's index, reconciliation, conditions, prepared calldata and the credit desk
         run: |
+          # The Safe rehearsal mines blocks; refresh the price fixture so its
+          # deliberately bounded 40-block observation window remains valid.
+          (cd contracts && node scripts/credits-rehearsal.ts > credits-rehearsal.json)
           CURB_REHEARSAL_DEPLOYMENTS="$(cat contracts/rehearsal.json)" CURB_DRILL_RECORD="$(cat contracts/drill.json)" CURB_REHEARSAL_CREDITS="$(cat contracts/credits-rehearsal.json)" CURB_REHEARSAL_DESK_ENV="$(cat contracts/desk-env.json)" node --test tests/positions-rehearsal.test.ts tests/positions-drill.test.ts tests/credits-rehearsal.test.ts tests/credits-tool-rehearsal.test.ts
       - name: The drill's record, as the test wrote it (not committed from here)
         run: node -e 'const d=require("./contracts/evidence/drill-local.json");console.log(d.ranAt, d.siteFindings.map(f=>f.scenario).join(" | "))'
@@ -176,18 +179,54 @@ jobs:
       - name: The whole site suite, artifacts present
         run: npm test
 
+  local-acceptance:
+    name: local HTTP, ledger and webhook acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: curb
+          POSTGRES_DB: curb
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm ci
+        working-directory: contracts
+      - name: Exercise production HTTP with isolated mocks, database and webhook receiver
+        run: node scripts/rehearsal-local.mjs --postgres-url 'postgres://postgres:curb@127.0.0.1:5432/postgres?sslmode=disable' --out .scratch/local-acceptance.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-acceptance
+          path: .scratch/local-acceptance.json
+          if-no-files-found: warn
+
   release-checks:
     name: release checks
     if: always()
-    needs: [site, store, contracts, rehearsal]
+    needs: [site, store, contracts, rehearsal, local-acceptance]
     runs-on: ubuntu-latest
     steps:
       - name: Every required job passed for this commit
         env:
           RESULTS: ${{ join(needs.*.result, ',') }}
         run: |
-          if [ "$RESULTS" != "success,success,success,success" ]; then
+          if [ "$RESULTS" != "success,success,success,success,success" ]; then
             echo "Required release checks did not all pass: $RESULTS"
             exit 1
           fi
-          echo "All four checks passed. This does not approve a token launch or asset pilot."
+          echo "All five checks passed. This does not approve a token launch or asset pilot."

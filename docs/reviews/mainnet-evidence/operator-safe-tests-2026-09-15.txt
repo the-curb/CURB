@@ -1,0 +1,22 @@
+▶ public series operator Safe preflight
+  ✔ requires explicit reviewed chain, unique owners, quorum and runtime identity before reading a node (2.0231ms)
+  ✔ verifies the same block, owner set regardless of order, quorum, proxy and singleton (3.8222ms)
+  ✔ refuses an EOA, wrong chain, duplicate or different owners and quorum mismatch (2.0874ms)
+  ✔ refuses an altered proxy, a different singleton and changed singleton code even if owners match (1.4784ms)
+  ✔ requires explicit version, complete module records, guard and fallback expectations (1.5421ms)
+  ✔ refuses an enabled unreviewed module, unread module list, and unsupported Safe version (2.9327ms)
+  ✔ walks every module page at the pinned block and matches module runtime hashes (31.7566ms)
+  ✔ refuses truncated, looping, malformed or unbounded module lists (5.1394ms)
+  ✔ matches guard and fallback address and code or explicit absence at the pinned block (7.687ms)
+✔ public series operator Safe preflight (60.6769ms)
+▶ local rehearsal endpoints
+  ✔ accepts only uncredentialed loopback URLs before any network or transaction (1.6375ms)
+✔ local rehearsal endpoints (1.9474ms)
+ℹ tests 10
+ℹ suites 2
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 238.5552

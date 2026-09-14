@@ -38,13 +38,31 @@ answer as the record says, a public operator that fails its reviewed
 comes from `DEPLOYER_PRIVATE_KEY` in the operator's shell and is never
 printed. Rehearsed on a local chain only.
 
-The public-chain Safe check reads one block and compares proxy runtime,
-singleton address/runtime, exact owners and quorum (at least two) with the
-reviewed record. The Robinhood treasury record does not establish an
-Ethereum series operator. The reviewer also examines Safe modules, guards,
-fallback configuration and actual signer control; a hash match alone is
-not full governance approval. See `docs/mainnet/PREPARATION.md` from the
-repository root for the review brief and evidence slots.
+The public-chain Safe check supports version 1.4.1 and reads one pinned
+block. It compares proxy runtime, singleton address/runtime, exact owners
+and quorum (at least two), the complete enabled module set, guard and
+fallback handler with the reviewed record. Every enabled module and every
+configured guard/handler needs its reviewed address and runtime hash.
+`modules: []` explicitly requires no modules; `guard: null` and
+`fallbackHandler: null` explicitly require absence. Missing fields are
+refused. Module pagination must terminate without duplicate, malformed or
+truncated pages; at most 256 modules are supported. Unreadable storage or
+code is a refusal. The example deliberately leaves the fallback review
+empty; it cannot authorize a deployment.
+
+The layout and pagination follow the official Safe 1.4.1
+[ModuleManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/ModuleManager.sol),
+[GuardManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/GuardManager.sol)
+and [FallbackManager](https://github.com/safe-global/safe-smart-account/blob/v1.4.1/contracts/base/FallbackManager.sol).
+`VERSION()` must match before guard/fallback slots are interpreted. The
+Robinhood treasury record does not establish an Ethereum series operator.
+The reviewer still examines actual signer control, module permissions,
+guard recovery, handler behavior, and extension proxy implementations or
+upgrade authority. Runtime equality is not a security review and does not
+freeze later Safe configuration changes. Re-run against the final record
+immediately before deployment and monitor configuration afterward. See
+`docs/mainnet/PREPARATION.md` from the repository root for the review brief
+and evidence slots.
 
 ## The multisig, planned (O01)
 

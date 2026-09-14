@@ -13,10 +13,14 @@
   "operator": "0x0000000000000000000000000000000000000000",
   "operatorSafe": {
     "chainId": 1,
+    "version": "1.4.1",
     "owners": [],
     "threshold": 2,
     "runtimeCodeHash": "",
     "singleton": { "address": "", "runtimeCodeHash": "" },
+    "modules": [],
+    "guard": null,
+    "fallbackHandler": { "address": "", "runtimeCodeHash": "" },
     "reviewedBy": "",
     "reviewedAt": ""
   },

@@ -110,9 +110,12 @@ if (record.operatorSafe !== undefined) {
       owners: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getOwners', blockNumber }),
       threshold: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getThreshold', blockNumber }),
       singleton: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'masterCopy', blockNumber }),
+      version: (address, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'VERSION', blockNumber }),
+      modules: (address, start, pageSize, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getModulesPaginated', args: [start, pageSize], blockNumber }),
+      storage: (address, slot, blockNumber) => pub.getStorageAt({ address, slot, blockNumber }),
     });
   } catch (cause) { fail(cause instanceof Error ? cause.message : 'the operator Safe could not be verified'); }
-  console.error(`operator Safe: ${record.operator} · ${operatorAsRead.threshold}-of-${operatorAsRead.owners.length} · code and singleton match · block ${operatorAsRead.blockNumber}`);
+  console.error(`operator Safe: ${record.operator} · ${operatorAsRead.threshold}-of-${operatorAsRead.owners.length} · proxy, singleton, modules, guard and fallback match · block ${operatorAsRead.blockNumber}`);
 } else {
   console.error('local rehearsal only: no public operator Safe verification was requested');
 }
