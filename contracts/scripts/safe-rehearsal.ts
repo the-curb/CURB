@@ -21,12 +21,17 @@
 import { readFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi, type Address, type Hex } from 'viem';
 import { SAFE_1_4_1, approveHashData, execTransactionData, factoryAbi, planCreation, plainSafeTx, safeAbi, safeTxHash } from './lib/safe.ts';
+import { assertLoopbackRpc } from './lib/local-chain.ts';
 
 const RPC = process.env.REHEARSAL_RPC_URL ?? 'http://127.0.0.1:8545';
+// A rehearsal writes chain state (hardhat_setCode) and sends from unlocked accounts: loopback only, and the node must answer chain 31337.
+assertLoopbackRpc(RPC);
 const chain = { id: 31337, name: 'Hardhat (local)', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [RPC] } } } as const;
 
 async function main() {
   const pub = createPublicClient({ chain, transport: http(RPC) });
+  const chainId = await pub.getChainId();
+  if (chainId !== 31337) throw new Error(`the node answers chain id ${chainId}; a rehearsal runs on a local chain (31337) only`);
   const accounts = (await pub.request({ method: 'eth_accounts' })) as Address[];
   const [deployer, , , , owner1, owner2, owner3, payee, anyone] = accounts;
   if (!deployer || !owner1 || !owner2 || !owner3 || !payee || !anyone) throw new Error('the node exposes fewer than nine unlocked accounts');

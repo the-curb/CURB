@@ -218,7 +218,8 @@ const BIGINT_FIELDS = new Set(['lots', 'unitsA', 'unitsB', 'units', 'until']);
 /**
  * The shape of the index this build writes. An index a previous build wrote
  * (no version, or an older one) was built without the events this build
- * reads — the operator's permits — and its cursor has passed the blocks
+ * reads — the operator's permits, and since version 3 the operator transfer
+ * nomination and its cancellation — and its cursor has passed the blocks
  * they are in, so it is not carried forward: it is read again from the
  * deployment's first block, which costs one sync and loses nothing.
  */

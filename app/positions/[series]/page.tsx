@@ -355,7 +355,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                         : 'no deployed series operator is recorded; the Robinhood treasury record does not verify an Ethereum operator'
                       : ledger.operator === null
                         ? 'not readable'
-                        : `${ledger.operator.operator ?? 'as deployed'} · ${ledger.operator.mintPermits.filter((x) => x.live).length} mint permit${ledger.operator.mintPermits.filter((x) => x.live).length === 1 ? '' : 's'} live, ${ledger.operator.claimPermits.filter((x) => x.permitted).length} claim permit${ledger.operator.claimPermits.filter((x) => x.permitted).length === 1 ? '' : 's'} · ${ledger.operator.stops.length} stop${ledger.operator.stops.length === 1 ? '' : 's'} or resume${ledger.operator.stops.length === 1 ? '' : 's'} on chain${ledger.operator.changes.length > 0 ? ` · operator changed ${ledger.operator.changes.length} time${ledger.operator.changes.length === 1 ? '' : 's'}` : ''} — every one an event the chain recorded, the log the policy asks for`}
+                        : `${ledger.operator.operator ?? 'as deployed'} · ${ledger.operator.mintPermits.filter((x) => x.live).length} mint permit${ledger.operator.mintPermits.filter((x) => x.live).length === 1 ? '' : 's'} live, ${ledger.operator.claimPermits.filter((x) => x.permitted).length} claim permit${ledger.operator.claimPermits.filter((x) => x.permitted).length === 1 ? '' : 's'} · ${ledger.operator.stops.length} stop${ledger.operator.stops.length === 1 ? '' : 's'} or resume${ledger.operator.stops.length === 1 ? '' : 's'} on chain${ledger.operator.changes.length > 0 ? ` · operator changed ${ledger.operator.changes.length} time${ledger.operator.changes.length === 1 ? '' : 's'}` : ''}${ledger.operator.pendingOperator ? ` · a transfer to ${ledger.operator.pendingOperator} is nominated and not yet accepted` : ''} — every one an event the chain recorded, the log the policy asks for`}
                 </dd>
                 <dt className="text-(--color-paper-faint)">Reconciliation</dt>
                 <dd className="text-(--color-paper-dim)">
@@ -370,7 +370,9 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     : code.code === null
                       ? 'not verified yet — the next tick compares the code with the build in this repository'
                       : code.code.state === 'MATCHES'
-                        ? `the contract in this repository at commit ${code.code.buildCommit?.slice(0, 10) ?? '?'} (solc ${code.code.solc ?? '?'}), immutables as the record says · read ${ageOf(code.code.readAt)} ago`
+                        ? code.code.buildCommit
+                          ? `the contract in this repository at commit ${code.code.buildCommit.slice(0, 10)} (solc ${code.code.solc ?? '?'}), immutables as the record says · read ${ageOf(code.code.readAt)} ago`
+                          : `a local rehearsal build — the bytes match, but they are not attributed to a committed source${code.code.detail ? ` (${code.code.detail})` : ''} · read ${ageOf(code.code.readAt)} ago`
                         : `${code.code.state.toLowerCase().replace('_', ' ')}${code.code.detail ? ` — ${code.code.detail}` : ''}`}
                 </dd>
                 <dt className="text-(--color-paper-faint)">Sign it yourself</dt>
