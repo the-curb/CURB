@@ -71,8 +71,3 @@ export async function latestDeskCode(store: Store, config: CreditsConfig): Promi
   return { code: v, storeFault: null };
 }
 
-/** The last verification says MATCHES for the configured desk — the only state in which a top-up is invited. */
-export async function deskVerified(store: Store, config: CreditsConfig): Promise<boolean> {
-  const { code } = await latestDeskCode(store, config);
-  return code !== null && code.state === 'MATCHES';
-}

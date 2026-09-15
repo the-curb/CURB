@@ -31,7 +31,7 @@ export function currentRate(snapshot: RateSnapshot | null | undefined, config: C
 }
 
 /** A failed/malformed history must not be described as a single observation. */
-export function rateHistory(read: Reading<readonly ObservationRecord[]> | null, now: Date, expectedKey: string | null = 'credits:rate:usd-per-curb'): { state: 'UNREAD'; detail: string } | { state: 'READ'; count: number; low: bigint | null; high: bigint | null } {
+export function rateHistory(read: Reading<readonly ObservationRecord[]> | null, now: Date, expectedKey: string | null): { state: 'UNREAD'; detail: string } | { state: 'READ'; count: number; low: bigint | null; high: bigint | null } {
   if (read === null || expectedKey === null) return { state: 'UNREAD', detail: 'history is not configured' };
   if (read.state === 'UNREAD') return { state: 'UNREAD', detail: `${read.reason}${read.detail ? ` — ${read.detail}` : ''}` };
   if (!Array.isArray(read.value)) return { state: 'UNREAD', detail: 'history is not an array of observations' };

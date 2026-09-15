@@ -242,7 +242,7 @@ describe('every top-up invitation follows the quote evidence', () => {
           assert.equal(body.topUp.validUntil, '2026-09-13T12:25:00.000Z', 'expiry follows observation time, not the later HTTP request');
           assert.equal(hint.topUpHeld, null);
         } else {
-          assert.notEqual(api.quote.state, 'QUOTED'); assert.equal(hint.topUp, null); assert.match(body.topUpHeld, /check \/api\/credits/);
+          assert.notEqual(api.quote.state, 'QUOTED'); assert.equal(hint.topUp, null); assert.match(body.topUpHeld, /do not send/); assert.match(body.topUpHeld, /check \/api\/credits/);
         }
       }
     } finally { if (prior === undefined) delete process.env.CURB_CREDITS; else process.env.CURB_CREDITS = prior; }

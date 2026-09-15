@@ -43,7 +43,7 @@ const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string 
   'hardhat-local': { chainId: 31337, rpc: process.env.CURB_RPC_URL_LOCAL ?? 'http://127.0.0.1:8545', explorer: null },
 };
 
-const fail = (why: string): never => {
+const fail: (why: string) => never = (why) => {
   console.error(`refused: ${why}`);
   process.exit(1);
 };
@@ -81,15 +81,15 @@ async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
 const chainId = await ask('eth_chainId', () => pub.getChainId());
 if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; the ${networkName} profile expects ${network!.chainId}`);
 for (const [name, address] of Object.entries(SAFE_1_4_1)) {
-  const code = await pub.getCode({ address: address as Address });
+  const code = await ask(`getCode(${name})`, () => pub.getCode({ address: address as Address }));
   if (!code || code === '0x') fail(`Safe's ${name} has no code at ${address} on chain ${chainId}; a Safe cannot be created there from these addresses`);
   console.error(`${name}: ${address} · code present (${(code.length - 2) / 2} bytes, keccak ${keccak256(code).slice(0, 18)}…)`);
 }
 
 // ── the transaction, and the address the factory will give it ────────────
-const creationCode = (await pub.readContract({ address: SAFE_1_4_1.proxyFactory, abi: factoryAbi, functionName: 'proxyCreationCode' })) as Hex;
+const creationCode = (await ask('proxyCreationCode()', () => pub.readContract({ address: SAFE_1_4_1.proxyFactory, abi: factoryAbi, functionName: 'proxyCreationCode' }))) as Hex;
 const { initializer, data, predicted } = planCreation(owners, threshold, saltNonce, creationCode);
-const existing = await pub.getCode({ address: predicted });
+const existing = await ask('getCode(predicted)', () => pub.getCode({ address: predicted }));
 if (existing && existing !== '0x') fail(`a contract already sits at ${predicted} — this --nonce (${saltNonce}) was used with these owners before; choose another`);
 
 // ── the node's own simulation of the call, sent by nobody ─────────────────

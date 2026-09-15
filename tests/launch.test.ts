@@ -65,12 +65,12 @@ describe('conservative launch milestones', () => {
   });
   const configure = () => { process.env.CURB_CREDITS = CONFIG_JSON; };
   const writeSafe = (value: unknown) => { const file = path.join(root, SAFE_EVIDENCE); mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value)); };
-  it('calls valid Safe evidence a creation record, without live availability claims', async () => {
+  it('says the treasury is live from valid Safe evidence, and that nothing is sold yet', async () => {
     writeSafe(safeRecord()); const status = await launchStatus(noStore, root, NOW);
     assert.equal(status.step, 'TREASURY_RECORDED');
     assert.deepEqual(status.treasury, { address: TREASURY, owners: 3, threshold: '2', block: 1234 });
-    assert.match(status.line, /Treasury creation recorded/);
-    assert.doesNotMatch(status.line, /TREASURY_LIVE|nothing is sold|no token.*on chain/i);
+    assert.match(status.line, /^On Robinhood Chain mainnet: the operator's 2-of-3 Safe — the treasury every top-up goes to — is live at 0x4000…0004 \(block 1,234\); the token and the desk come next, so nothing is sold yet\./);
+    assert.doesNotMatch(status.line, /TREASURY_RECORDED|TREASURY_LIVE|guarantee/);
   });
   for (const [name, alter] of [
     ['wrong chain', (s: any) => { s.plan.chainId = 1; }], ['zero address', (s: any) => { s.plan.predictedAddress = `0x${'0'.repeat(40)}`; }],
@@ -80,15 +80,15 @@ describe('conservative launch milestones', () => {
     it(`does not infer on-chain absence from a Safe record with ${name}`, async () => {
       const record = safeRecord(); alter(record); writeSafe(record); const status = await launchStatus(noStore, root, NOW);
       assert.equal(status.step, 'NOTHING'); assert.equal(status.treasury, null);
-      assert.match(status.line, /No valid treasury creation record is available here/);
-      assert.doesNotMatch(status.line, /no treasury.*on chain|nothing.*on chain|nothing is sold/i);
+      assert.match(status.line, /no treasury creation record is available here/);
+      assert.doesNotMatch(status.line, /is live|no treasury.*on chain/i);
     });
   }
   it('treats missing, malformed and null Safe files as missing local evidence', async () => {
     for (const body of [undefined, '{broken', 'null']) {
       if (body !== undefined) writeSafe(body);
       const status = await launchStatus(noStore, root, NOW);
-      assert.equal(status.treasury, null); assert.match(status.line, /No valid treasury creation record is available here/);
+      assert.equal(status.treasury, null); assert.match(status.line, /no treasury creation record is available here/);
     }
   });
   it('reports invalid configuration without reading the store', async () => {
@@ -101,7 +101,7 @@ describe('conservative launch milestones', () => {
   });
   it('configuration alone proves neither deployment nor matching code', async () => {
     configure(); const status = await launchStatus(storeOf(), root, NOW);
-    assert.equal(status.step, 'DESK_CONFIGURED'); assert.match(status.line, /Configuration alone does not prove deployment/);
+    assert.equal(status.step, 'DESK_CONFIGURED'); assert.match(status.line, /configuration alone does not prove deployment/);
     assert.equal(status.rateAtBlock, null); assert.equal(status.topUp, null);
   });
   it('a fresh rate and receipt cannot promote a desk without matching code', async () => {
@@ -212,12 +212,13 @@ describe('current launch code and rate evidence', () => {
 });
 
 describe('24-hour rate history', () => {
+  const LEGACY = 'credits:rate:usd-per-curb';
   const observation = (raw: string, observedAt = AT): ObservationRecord => ({ key: 'credits:rate:usd-per-curb', raw, decimals: 18, value: Number(raw) / 1e18, observedAt, source: 'fixture' });
   it('keeps missing/unread history UNREAD without inventing a count', () => {
-    for (const r of [null, unavailable()]) { const result = rateHistory(r, NOW); assert.equal(result.state, 'UNREAD'); assert.equal('count' in result, false); }
+    for (const r of [null, unavailable()]) { const result = rateHistory(r, NOW, LEGACY); assert.equal(result.state, 'UNREAD'); assert.equal('count' in result, false); }
   });
   it('distinguishes a readable empty window from an unread history', () => {
-    assert.deepEqual(rateHistory(verified([]), NOW), { state: 'READ', count: 0, low: null, high: null });
+    assert.deepEqual(rateHistory(verified([]), NOW, LEGACY), { state: 'READ', count: 0, low: null, high: null });
   });
   it('separates histories by chain, token, pool kind/address and quote kind/feed', () => {
     const key = creditRateHistoryKey(CONFIG);
@@ -245,13 +246,13 @@ describe('24-hour rate history', () => {
   it('uses precise raw units and includes the 24-hour boundary while excluding older samples', () => {
     const low = '9007199254740993000000001'; const high = '9007199254740993000000002';
     const rows = [observation(high), observation(low, '2026-09-12T09:00:00Z'), observation('1', '2026-09-12T08:59:59Z')];
-    assert.deepEqual(rateHistory(verified(rows), NOW), { state: 'READ', count: 2, low: BigInt(low), high: BigInt(high) });
+    assert.deepEqual(rateHistory(verified(rows), NOW, LEGACY), { state: 'READ', count: 2, low: BigInt(low), high: BigInt(high) });
   });
   it('malformed rows do not become one observation or a zero rate', () => {
     for (const bad of [null, observation('0'), observation('-1'), observation('1.2'), observation('NaN'), { ...observation('1'), decimals: 6 }, { ...observation('1'), raw: undefined }, observation('1', 'invalid'), observation('1', '2026-09-13T09:00:01Z')]) {
-      const result = rateHistory(verified([bad]) as Reading<readonly ObservationRecord[]>, NOW);
+      const result = rateHistory(verified([bad]) as Reading<readonly ObservationRecord[]>, NOW, LEGACY);
       assert.equal(result.state, 'UNREAD'); assert.equal('count' in result, false);
     }
-    assert.equal(rateHistory(verified(null) as unknown as Reading<readonly ObservationRecord[]>, NOW).state, 'UNREAD');
+    assert.equal(rateHistory(verified(null) as unknown as Reading<readonly ObservationRecord[]>, NOW, LEGACY).state, 'UNREAD');
   });
 });

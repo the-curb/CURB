@@ -1,6 +1,6 @@
 # Execution decisions — 15 September 2026
 
-The owner instructed the implementation team to finish the work and choose reasonable defaults. This record uses that discretion for implementation and sequencing. It does not attest that funding, customers, issuer eligibility, an independent review or a production account has been obtained.
+No instruction from the product owner to choose defaults is on the record: the defaults below were chosen by the implementation for sequencing and are proposals until the product owner confirms each one. This record does not attest that funding, customers, issuer eligibility, an independent review or a production account has been obtained.
 
 ## Selected sequence
 

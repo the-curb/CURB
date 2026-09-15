@@ -1,4 +1,13 @@
-/** Public launch milestones are evidence, not availability guarantees. */
+/**
+ * Where the launch on Robinhood Chain stands, derived from the record: the
+ * Safe's evidence file, the CURB_CREDITS line, the last code and rate reads,
+ * the credited top-ups. The product owner decided on 13 September 2026, the
+ * day the treasury went live, that the public stage reads "mainnet"; the
+ * front page's kicker says so and the line here says exactly what is on
+ * chain and what is not. Milestones are evidence, not availability
+ * guarantees: a code or rate read older than LAUNCH_READ_MAX_AGE_MS does not
+ * count, and nothing here verifies the Safe against the chain at request time.
+ */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { SnapshotRecord, Store } from '../store/types.ts';
@@ -94,15 +103,20 @@ export async function launchStatus(store: Store, root: string = process.cwd(), n
       }
     }
   }
-  const treasuryLine = treasury === null ? 'No valid treasury creation record is available here.' : `Treasury creation recorded on Robinhood Chain mainnet: ${treasury.threshold}-of-${treasury.owners} Safe ${shortAddress(treasury.address)}, block ${treasury.block.toLocaleString('en-US')}.`;
+  // The treasury as the record has it, in every branch: the Safe is the one thing on chain today and stays named after the desk joins it.
+  const treasuryLine = treasury === null
+    ? 'no treasury creation record is available here'
+    : `the operator's ${treasury.threshold}-of-${treasury.owners} Safe — the treasury every top-up goes to — is live at ${shortAddress(treasury.address)} (block ${treasury.block.toLocaleString('en-US')})`;
   const line = step === 'TOP_UP_RECORDED'
-    ? `Credit desk ${shortAddress(desk!)} on Robinhood Chain mainnet: recent code and rate reads, and a credited top-up recorded at block ${topUp!.block.toLocaleString('en-US')}. This is recorded activity, not a guarantee of current availability.`
+    ? `On Robinhood Chain mainnet: the desk at ${shortAddress(desk!)} has recent matching code and a recent rate, and a credited top-up is recorded at block ${topUp!.block.toLocaleString('en-US')}; ${treasuryLine}. Recorded activity, not a guarantee of current availability.`
     : step === 'RATE_READ'
-      ? `Credit desk ${shortAddress(desk!)} on Robinhood Chain mainnet: recent matching code and a rate at block ${rateAtBlock!.toLocaleString('en-US')}; no credited top-up confirmed by this record.`
+      ? `On Robinhood Chain mainnet: the desk at ${shortAddress(desk!)} has recent matching code and a rate at block ${rateAtBlock!.toLocaleString('en-US')}; ${treasuryLine}; no credited top-up is confirmed by this record.`
       : step === 'CODE_VERIFIED'
-        ? `Credit desk ${shortAddress(desk!)} on Robinhood Chain mainnet: recent code matches the configured token and treasury; a current rate is not confirmed.`
+        ? `On Robinhood Chain mainnet: the desk at ${shortAddress(desk!)} has recent code matching the configured token and treasury; ${treasuryLine}; a current rate is not confirmed, so nothing is quoted yet.`
         : step === 'DESK_CONFIGURED'
-          ? `Credit desk ${shortAddress(desk!)} is configured for Robinhood Chain mainnet; a recent matching code read is not confirmed. Configuration alone does not prove deployment.`
-          : `${treasuryLine} The credit desk is not configured here; the position series remains a prototype.`;
+          ? `On Robinhood Chain mainnet: the desk at ${shortAddress(desk!)} is configured but a recent matching code read is not confirmed — configuration alone does not prove deployment; ${treasuryLine}.`
+          : treasury === null
+            ? 'Prepared for Robinhood Chain mainnet: no treasury creation record is available here, no token and no desk are configured; nothing is sold.'
+            : `On Robinhood Chain mainnet: ${treasuryLine}; the token and the desk come next, so nothing is sold yet. The position series remains a prototype.`;
   return { chain: 'Robinhood Chain', chainId: 4663, step, treasury, desk, rateAtBlock, topUp, faults, line: faults.length ? `${line} Some evidence could not be read; see Services.` : line };
 }

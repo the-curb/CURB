@@ -1,17 +1,14 @@
 # THE CURB
 
-Mainnet preparation: [15 September execution decisions](docs/mainnet/EXECUTION-DECISIONS-2026-09-15.md),
-[current external facts](docs/mainnet/EXTERNAL-FACTS-2026-09-15.md) and
-[repeatable local HTTP/ledger/webhook acceptance](scripts/REHEARSAL.md).
-Public launch and paid-service invitations remain subject to their recorded evidence gates.
-
 **One company. Multiple issuers. One position.**
 
-Mainnet preparation: [dossier and decision templates](docs/mainnet/PREPARATION.md),
-[release evidence](docs/reviews/MAINNET-PREPARATION-2026-09-13.md).
-`npm run mainnet:preflight` reports missing evidence for token launch, paid beta
-and the position pilot. The preparation template remains HELD until actual
-reviews and deployment evidence are recorded; it does not authorize a launch.
+Mainnet preparation: [the dossier and decision templates](docs/mainnet/PREPARATION.md),
+[the 15 September execution notes](docs/mainnet/EXECUTION-DECISIONS-2026-09-15.md) (proposals until the product owner confirms them),
+[the external facts researched](docs/mainnet/EXTERNAL-FACTS-2026-09-15.md),
+[the release evidence](docs/reviews/MAINNET-PREPARATION-2026-09-13.md) and
+[the repeatable local HTTP/ledger/webhook acceptance](scripts/REHEARSAL.md).
+`npm run mainnet:preflight` reports the evidence still missing for a token launch, a paid beta
+and the position pilot; it stays HELD until real reviews and deployment evidence are recorded, and it authorizes nothing.
 
 Live at **https://the-curb.vercel.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
 
@@ -22,13 +19,15 @@ open — one position on one company, formed from several issuers, with the
 composition inspectable, the right to every component recorded, and every
 component withdrawn on its own.
 
-**Stage: position prototype; treasury mainnet record.** The CompanySeries
-contract exists and has been exercised on local chains and Ethereum forks.
-No public series deployment or issuer integration is approved. A 2-of-3
-treasury Safe creation on Robinhood Chain is recorded separately in
-`contracts/evidence/safes/safe.4663.json`; it does not establish an Ethereum
-series operator or a working credit desk. `/services` reports the configured
-desk, code verification, rates and receipts. What exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
+**Stage: mainnet — Robinhood Chain.** The operator's treasury, a 2-of-3 Safe,
+is live on chain since 13 September 2026 (`contracts/evidence/safes/safe.4663.json`);
+the token and the credit desk follow it, and `/services` says `NOT_CONFIGURED`
+until they are configured from the chain — then it reports the desk, its code
+verification, the rate and the receipts as they are read. The position product
+is a prototype: the CompanySeries contract exists and has been exercised on
+local chains and Ethereum forks; no public series deployment or issuer
+integration is approved, and the Robinhood treasury does not make an Ethereum
+series operator. What exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
 the ledger model that implements its accounting (`lib/positions/`, tested
 against the blueprint's cases in `tests/positions.test.ts`), a simulation
 of it at `/positions/apple-s1` — illustrative units, no prices, no chain —

@@ -58,7 +58,7 @@ export const APPLE_S1: SeriesSpec = {
   company: 'Apple Inc.',
   illustrativeSymbol: 'cAAPL-S1',
   stage: 'DESIGN',
-  stageLine: 'Position prototype, tested on Ethereum forks and a local chain. No public series deployment or issuer integration is approved. The separate Robinhood Chain treasury creation is recorded; it does not establish an Ethereum series operator. Positions do not depend on CURB or the credit desk.',
+  stageLine: 'Mainnet next, behind the token and the desk on Robinhood Chain. A prototype contract exists for this series and is tested on forks of Ethereum and on a local chain; the series itself is not deployed yet, its network is still a gate, and no issuer integration exists. The Robinhood Chain treasury is a separate chain and role — it does not make an Ethereum series operator — and positions do not depend on CURB or the credit desk.',
   chain: 'Ethereum — the candidate network; availability of both components on it is a gate, not a given',
   receiptDecimals: 0,
   capLotsIllustrative: 1_000n,

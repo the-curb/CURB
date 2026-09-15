@@ -98,8 +98,17 @@ const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurre
 const pub = createPublicClient({ chain, transport: http(rpcUrl) });
 const erc20 = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)']);
 
+/** A node call that failed is a refusal naming the host and the first line of the cause — never viem's full message, which carries the URL the key is in. */
+async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (cause) {
+    return fail(`the node at ${new URL(rpcUrl).host} did not answer ${what}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`);
+  }
+}
+
 // ── the chain ─────────────────────────────────────────────────────────────
-const chainId = await pub.getChainId();
+const chainId = await ask('eth_chainId', () => pub.getChainId());
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
 let operatorAsRead = null;
 if (record.operatorSafe !== undefined) {
@@ -114,14 +123,14 @@ if (record.operatorSafe !== undefined) {
       modules: (address, start, pageSize, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getModulesPaginated', args: [start, pageSize], blockNumber }),
       storage: (address, slot, blockNumber) => pub.getStorageAt({ address, slot, blockNumber }),
     });
-  } catch (cause) { fail(cause instanceof Error ? cause.message : 'the operator Safe could not be verified'); }
+  } catch (cause) { fail(`the operator Safe could not be verified: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`); }
   console.error(`operator Safe: ${record.operator} · ${operatorAsRead.threshold}-of-${operatorAsRead.owners.length} · proxy, singleton, modules, guard and fallback match · block ${operatorAsRead.blockNumber}`);
 } else {
   console.error('local rehearsal only: no public operator Safe verification was requested');
 }
 for (const id of ['A', 'B'] as const) {
   const address = record.components[id];
-  const code = await pub.getCode({ address });
+  const code = await ask(`getCode(component ${id})`, () => pub.getCode({ address }));
   if (!code || code === '0x') fail(`component ${id} at ${address} has no code on chain ${chainId}`);
   const [symbol, decimals] = await Promise.all([
     pub.readContract({ address, abi: erc20, functionName: 'symbol' }).catch(() => null),
@@ -132,7 +141,7 @@ for (const id of ['A', 'B'] as const) {
   console.error(`component ${id}: ${address} · ${symbol} · ${decimals} decimals · code present`);
 }
 
-buildCurrentContracts();
+try { buildCurrentContracts(); } catch (cause) { fail(`the contracts did not compile: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`); }
 const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CompanySeries.sol/CompanySeries.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex; deployedBytecode: Hex };
 const build = JSON.parse(readFileSync(new URL('../evidence/CompanySeries.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; creationBytecode?: string; workingTreeClean: boolean; sourceCommit: string | null };
 if (build.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase() || build.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) fail('the compiled series does not match both creation and runtime bytecode in its build record; rebuild and record this source before deploying');
@@ -164,14 +173,16 @@ const account = privateKeyToAccount(key as Hex);
 const wallet = createWalletClient({ chain, transport: http(rpcUrl), account });
 console.error(`deployer ${account.address}`);
 
-const nonce = await pub.getTransactionCount({ address: account.address, blockTag: 'pending' });
+const balance = await ask('getBalance(deployer)', () => pub.getBalance({ address: account.address }));
+if (balance === 0n) fail(`the deployer ${account.address} holds no ETH on chain ${chainId}; nothing was sent`);
+const nonce = await ask('getTransactionCount(deployer)', () => pub.getTransactionCount({ address: account.address, blockTag: 'pending' }));
 const expectedAddress = getContractAddress({ from: account.address, nonce: BigInt(nonce) });
 mkdirSync(new URL('../evidence/deployments/', import.meta.url), { recursive: true });
 const { hash, receipt } = await journaledDeployment(out, { record, operatorAsRead, pending: { deployer: account.address, nonce, expectedAddress, preparedAt: new Date().toISOString() } }, async () => {
   const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never, nonce });
   console.error(`sent ${hash}; recording the hash before waiting for the receipt`);
   return hash;
-}, (hash: Hex) => pub.waitForTransactionReceipt({ hash }));
+}, (hash: Hex) => pub.waitForTransactionReceipt({ hash })).catch((cause: unknown) => fail(`the deployment did not complete: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; if a hash was journaled in ${fileURLToPath(out)}, preserve and reconcile the journal before any second attempt`));
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
 if (receipt.contractAddress.toLowerCase() !== expectedAddress.toLowerCase()) fail('the receipt address differs from the prepared deployer nonce; the pending journal is retained for investigation');
 const address = receipt.contractAddress!;
