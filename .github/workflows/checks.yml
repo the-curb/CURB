@@ -1,7 +1,8 @@
 # The checks: the site's types, tests and build; the contract's compile and
 # unit tests. Every push and pull request, so a change that breaks either is
-# named before it is deployed — Vercel builds the site on push regardless,
-# and a failed check here is the earlier, louder warning.
+# named before it is deployed — Railway builds the site on push to main (or,
+# with its "Wait for CI" setting on, only after these checks pass), so a
+# failed check here is the earlier, louder warning or the gate itself.
 #
 # The fork tests are not here: they read Ethereum and run in the weekly
 # fork-evidence workflow, with their findings committed. The local-chain

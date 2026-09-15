@@ -1,7 +1,8 @@
 # Deploying
 
-The system is three parts with three different owners: the app on Vercel, the
-store on Supabase, and the scheduler on GitHub. They are separate on purpose.
+The system is three parts with three different owners: the app on Railway, the
+store on Railway Postgres (moved from Supabase; §1 says how), and the scheduler
+on GitHub. They are separate on purpose.
 The app can be redeployed without touching the record; the record can be
 inspected without the app; and the scheduler can stop without the app looking
 healthy — the Warden's "agents reporting in the last hour" goes to zero and says
@@ -47,15 +48,27 @@ platform default of ten would kill it mid-run with the lock held. Sixty is
 within the Hobby plan's ceiling; the run lock's 120-second TTL is what frees a
 run that overruns even that.
 
-## 1. Store — Supabase
+## 1. Store — Railway Postgres
 
-Done once.
+Done once. (Until 15 September 2026 the store was a Supabase project reached
+through its transaction pooler; the move is the last step of this section.)
 
-1. Create a project. Any region; Singapore is closest to the chain's RPC.
-2. Dashboard → **Connect** → **Transaction pooler**. Copy it. Port **6543**,
-   username `postgres.<project-ref>`, host `aws-<n>-<region>.pooler.supabase.com`.
-   Not the direct connection (IPv6, runs out of slots), not session mode.
-3. Locally, with that string in `.env.local` as `CURB_POSTGRES_URL`:
+1. In the Railway project of §2, **Create → Database → PostgreSQL**, in the
+   same region as the app (Singapore, `asia-southeast1`). One Postgres
+   service; nothing else runs in it.
+2. Two connection strings exist and they are not interchangeable:
+   - **From the app**, the private one — `postgres://postgres:…@postgres.railway.internal:5432/railway`,
+     which Railway exposes to the app as the variable reference
+     `${{Postgres.DATABASE_URL}}`. The private network carries no TLS, so the
+     app's `CURB_POSTGRES_URL` is that reference with `?sslmode=disable`
+     appended (the driver otherwise insists on TLS and the connection fails).
+   - **From the operator's shell**, the public one — the *TCP proxy* string
+     (`…proxy.rlwy.net:<port>`), with `?sslmode=require`. This is the one that
+     goes in `.env.local`; it is a secret like every connection string.
+   The app is a long-lived server on Railway, not a function: the store keeps
+   its pool open (`CURB_POSTGRES_MAX`, default small), so no external pooler
+   is needed and none is used.
+3. Locally, with the public string in `.env.local` as `CURB_POSTGRES_URL`:
 
    ```bash
    npm run db:migrate     # applies lib/store/schema.sql, idempotent
@@ -65,6 +78,16 @@ Done once.
    The verification creates and drops `curb_conformance`; it never touches
    `public`. Do not deploy against a store that has not passed it. The
    checks workflow runs it too, against a Postgres of its own.
+
+   **Moving the record from Supabase (once).** With the Supabase string in
+   the shell, `npm run db:dump <directory>`; with the Railway string,
+   `npm run db:migrate` then `npm run db:restore <directory>`, and compare the
+   manifest's counts with the tables' (`db:dump` again into a second directory
+   and diff the manifests). Then point the scheduler at the new app (§3), let
+   one tick run, read `/api/state` (`state: READ`, `warden.reportingLastHour`
+   climbing), and leave the Supabase project untouched for a week before it is
+   deleted — the dump kept off both providers is the record's insurance while
+   the two exist.
 
    **Backups.** The record is the store; a provider's backups are the
    provider's. `npm run db:dump <directory>` writes every table but the run
@@ -80,22 +103,30 @@ Done once.
    column), and the scheduler's run turns red on it. Run `db:migrate` before
    the push that needs it; the migration is idempotent and additive.
 
-## 2. App — Vercel
+## 2. App — Railway
 
-The plan: the desk sells services for dollars once `CURB_CREDITS` is set;
-Vercel's Hobby plan is for non-commercial use, so the project moves to a
-paid plan before LAUNCH row 8 — and the function ceiling (`maxDuration`
-60 s here) and the `sin1` region pin are checked again after the move.
-Vercel deploys every push to `main` whether or not the checks passed: a
-red check is the earlier warning, not a gate, so a push that fails them is
-followed by the fix or a revert at once.
+Railway runs the app as one long-lived Node server (no function ceiling: the
+`maxDuration` the tick and the desk routes export is the budget the tick
+gives itself, not a platform limit) and prices by usage on a paid plan that
+permits commercial use, so the desk can sell services from it once
+`CURB_CREDITS` is set (LAUNCH row 8). `railway.json` at the repository root
+is the build and deploy record: Railpack, `npm run build`, `npm run start`
+(Next listens on the `PORT` Railway provides, on every interface), health
+check on `/api/state`, restart on failure; `.node-version` pins Node 24, the
+version CI runs. Railway deploys every push to `main`; with the service's
+**Wait for CI** setting on, it deploys only after the repository's checks
+have passed for that commit — turn it on, so `release checks` gates the
+deployment rather than warning after it.
 
-1. Import the repository. Framework: Next.js. No build overrides.
-2. Environment variables, **Production**:
+1. **New project → Deploy from GitHub repo** `the-curb/CURB`, branch `main`,
+   region Singapore (`asia-southeast1`) — the store is created in the same
+   project and region (§1). No build overrides: `railway.json` is read.
+2. Variables on the app service (**Variables → Raw editor** takes the table
+   as `KEY=value` lines):
 
    | Variable | Value |
    | --- | --- |
-   | `CURB_POSTGRES_URL` | the transaction-pooler string from step 1 |
+   | `CURB_POSTGRES_URL` | `${{Postgres.DATABASE_URL}}?sslmode=disable` — the reference to the Postgres service of §1, private network, no TLS |
    | `CURB_TICK_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
    | `CURB_NETWORK` | `robinhood-mainnet` (the default; set it anyway so it is visible) |
    | `CURB_ALERT_WEBHOOK` | optional — a Discord or Slack incoming-webhook URL; see Alerting below |
@@ -105,21 +136,22 @@ followed by the fix or a revert at once.
    | `CURB_ONDO_API_KEY` | not held (register A8); the issuer's API answers ACCESS_DENIED without it and the page stays the source |
    | `CURB_CREDITS` | the credit desk, only after LAUNCH row 7 — the line the deployment tool prints; absent means NOT_CONFIGURED |
 
-   A keyed URL is a secret: it lives on Vercel and in the operator's
+   A keyed URL is a secret: it lives on Railway and in the operator's
    `.env.local`, nowhere else, and is rotated at the provider when anyone who
    saw it leaves. `CURB_TICK_SECRET` is rotated by setting the new value on
-   Vercel, redeploying (`vercel deploy --prod --yes` — an environment change
-   is not live until a deployment carries it), then setting the same value in
-   the repository's secrets; the ticks between the redeploy and the second
+   Railway (a variable change redeploys the service; the change is live when
+   that deployment is), then setting the same value in the repository's
+   secrets; the ticks between the redeploy and the second
    step fail with 401 and say so, and every secret's owner is the operator
    the policy names (register A4). Without `CURB_TICK_SECRET` the tick and the
    desk endpoint refuse in production (503) rather than run open.
 
-   Do **not** set `CURB_DNS_OVER_HTTPS` on Vercel. It exists for a local network
-   whose resolver hijacks the RPC hostname. Vercel's does not, and the plain
+   Do **not** set `CURB_DNS_OVER_HTTPS` on Railway. It exists for a local network
+   whose resolver hijacks the RPC hostname. Railway's does not, and the plain
    `fetch` path is the one with the fewest moving parts.
 
-3. Deploy. Then confirm:
+3. **Settings → Networking → Generate domain** (`<service>.up.railway.app`;
+   a custom domain is a CNAME to it, later). Deploy. Then confirm:
 
    ```bash
    curl -s https://<deployment>/api/state | jq '{state, store: .warden}'
@@ -141,16 +173,14 @@ followed by the fix or a revert at once.
    # 401 — the Surveyor runs on request, and the request carries the secret
    ```
 
-5. The functions must run next to the store. `vercel.json` pins them to
-   `sin1` because the Supabase project is in `ap-southeast-1`; if the store is
-   ever created elsewhere, change the region to match it, not the other way
-   round. This is not a preference. Every page reads the record on demand
-   through a pool of one connection, so a page is a handful of round trips in
-   sequence, and the connection itself is three or four more the first time.
-   Measured from Washington (`iad1`, the default) to Singapore that was 1.3 to
-   5 seconds to first byte on every navigation; in-region it is the store's
-   own time. `curl -sI https://<deployment>/api/state | grep x-vercel-id` shows
-   the region that served the request as the second segment.
+5. The app must run next to the store: both services in the same Railway
+   project and region, talking over the private network. This is not a
+   preference. Every page reads the record on demand, so a page is a handful
+   of round trips in sequence; measured across an ocean (the earlier Vercel
+   deployment from Washington to a store in Singapore) that was 1.3 to 5
+   seconds to first byte on every navigation; in-region it is the store's own
+   time. The service's region is in its settings; the store's is in its own.
+   (`vercel.json`, the earlier region pin, is removed with the cutover.)
 
 **The tick holds a lock for its maintenance.** Alerts, retention, the
 position product's backend and the credit desk run only when the tick held
@@ -167,8 +197,8 @@ Repository → Settings → Secrets and variables → Actions:
 
 | Secret | Value |
 | --- | --- |
-| `CURB_TICK_URL` | `https://<deployment>/api/tick` |
-| `CURB_TICK_SECRET` | the same value as on Vercel |
+| `CURB_TICK_URL` | `https://<service>.up.railway.app/api/tick` |
+| `CURB_TICK_SECRET` | the same value as on Railway |
 | (none) | the checks workflow's Postgres conformance job needs no secret: it runs against a Postgres of its own |
 
 Then Actions → **tick** → **Run workflow** with *dry run* ticked. A dry run
@@ -183,7 +213,13 @@ its last heartbeat, so a late tick runs what is due, and two ticks that overlap
 are refused by the run lock. The freshness thresholds (an agent's interval plus
 two hours of grace) absorb it. If a tighter cadence ever matters, an outside
 pinger calling POST /api/tick with the secret every five minutes is the fix;
-nothing in the app assumes the caller is GitHub.
+nothing in the app assumes the caller is GitHub. Railway can be that pinger:
+a second service from the same repository with a **cron schedule** of
+`*/5 * * * *` and the start command
+`curl -fsS -X POST -H "Authorization: Bearer $CURB_TICK_SECRET" "$CURB_TICK_URL"`
+runs to completion on Railway's clock — but it shares no durable log with
+the Actions run, so the GitHub workflow stays the record even if Railway
+does the calling.
 
 ## What to watch
 
@@ -588,11 +624,12 @@ and is reported under `credits`. No token exists; in production it is
 - **Prices for 159 of the 194 stock tokens.** The directory lists a feed for
   35. The rest are on the Registry roll with every measured column present and
   no price, and nothing on the site states one for them.
-- **Logs and errors off the platform.** Vercel keeps runtime logs briefly and
-  the tick's durable log is the GitHub Actions run (ninety days); a 500 on a
-  page or on an API route other than the tick is recorded nowhere. A log
-  drain is a platform setting the paid plan brings; until then the tick's red
-  runs and `/api/state` are what there is.
+- **Logs and errors off the platform.** Railway keeps a deployment's build
+  and runtime logs while the deployment exists, searchable in the dashboard;
+  the tick's durable log is the GitHub Actions run (ninety days). A 500 on a
+  page is in Railway's log and nowhere durable; a log drain to somewhere that
+  outlives the deployment is not set up. Until it is, the tick's red runs,
+  the watch workflow and `/api/state` are what there is.
 - **A probe from outside, half of one.** `.github/workflows/watch.yml`
   fetches `/api/state` every half hour from a workflow of its own and turns
   red when the store did not answer, no agent reported in the last hour, the
@@ -606,8 +643,8 @@ and is reported under `credits`. No token exists; in production it is
   set up (see the note in `.env.local.example`).
 - **What it costs.** The token record has the desk's costs published and the
   policy has the treasury pay them monthly against the published figures; the
-  tiers and quotas of Vercel, Supabase and the RPC provider, and their monthly
-  cost, are not on a page yet — they go into the token record's proceeds table
+  tiers and quotas of Railway (the app and the Postgres service) and the RPC
+  provider, and their monthly cost, are not on a page yet — they go into the token record's proceeds table
   after the actual plans, quotas, service volumes and budgets are measured
   and decided (LAUNCH row 8). Naming treasury signers did not measure these costs.
 
@@ -626,8 +663,10 @@ The checks workflow supports manual runs and `codex/**` branches and exposes
 one aggregate `release checks` status covering site, store, contracts, local-chain
 rehearsal and production HTTP/webhook acceptance. Configure repository rules and the hosting
 deployment path to require that status for the exact commit. Adding the workflow
-does not change the live Vercel integration or branch rules by itself. Confirm
-those account settings before promoting a release; retain a rollback deployment.
+does not change the live Railway integration (its *Wait for CI* setting) or
+branch rules by itself. Confirm those account settings before promoting a
+release; retain a rollback deployment (Railway keeps earlier deployments and
+can roll back to one from the dashboard).
 
 Before changing production, run Postgres conformance against a disposable database,
 not a URL loaded from `.env.local`. Use an explicit isolated `CURB_POSTGRES_URL`

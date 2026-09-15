@@ -23,7 +23,7 @@ The compatibility decision follows the dated [public-source findings](EXTERNAL-F
 | Token choices | Preserve Robinhood Chain decision, existing service prices and no promised fee share/buyback; no creator tax or buyback is configured here | Reviewed platform-specific launch parameters and authority |
 | Safe verification | Require complete reviewed version, owners/quorum, proxy/singleton, modules, guard and fallback identity at one block | Actual signer custody, extension internals/upgrade powers and scope-specific approval |
 | Pilot | Keep illustrative asset lots/cap out of a public deployment | Issuer eligibility/acquisition evidence, full costs and participant comprehension |
-| Hosting | Use the existing linked project; do not deploy a lookalike project into the unrelated accessible Vercel team | Connection to the team owning the current project, settings and release controls |
+| Hosting | Hosting moved to Railway on 15 September 2026 (DEPLOY.md §2): one project, app and Postgres in one region, deployed from `main` with *Wait for CI* on | The Railway project owned by the product owner; its settings and release controls |
 | Release evidence | Keep historical results dated; preserve newer tests for changed contract source when upstream automation tests an older source | Required checks on the chosen release and post-deployment smoke results |
 
 The selected proceeds interpretation implements the previously stated priorities without counting the same dollar twice. It is documented in [TOKEN](../decisions/TOKEN.md) and executed by `npm run mainnet:budget`. It does not spend funds or alter customer service prices.
@@ -48,7 +48,7 @@ The review package requires a clean Git tree. It exports the committed repositor
 
 ## Current hosting access
 
-The connected Vercel account lists a different team from `.vercel/project.json`. The target project's API request returned **403**, and the accessible team listed no projects. Its plan does not establish the plan of The Curb. Production settings, secrets, protection and deployment identity remain unverified. Public GET checks are recorded separately in [public-operations.json](../reviews/mainnet-followup-2026-09-15/public-operations.json); a healthy read response does not prove paid-beta readiness.
+Superseded 15 September 2026: hosting moves to Railway (DEPLOY.md); the Vercel project is retired after the cutover. As found earlier that day: the connected Vercel account listed a different team from `.vercel/project.json`. The target project's API request returned **403**, and the accessible team listed no projects. Its plan does not establish the plan of The Curb. Production settings, secrets, protection and deployment identity remain unverified. Public GET checks are recorded separately in [public-operations.json](../reviews/mainnet-followup-2026-09-15/public-operations.json); a healthy read response does not prove paid-beta readiness.
 
 ## Required outside inputs
 
