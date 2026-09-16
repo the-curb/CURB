@@ -254,5 +254,10 @@ export function utcDay(instant: Date): string {
 }
 
 export function isValidDay(day: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(new Date(`${day}T00:00:00Z`).getTime());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  // The parse must give the same day back. JavaScript rolls 2026-09-31 forward
+  // into October rather than refusing it, and an edition composed for a day the
+  // calendar does not have would report "no agent filed" about nothing.
+  const at = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === day;
 }

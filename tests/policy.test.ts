@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { figuresIn, screen, type DeclaredFigure } from '../lib/doctrine/policy.ts';
 import { read, unread } from '../lib/doctrine/reading.ts';
 import { UNKNOWABLE_FROM_CHAIN } from '../lib/chain/tokens.ts';
+import { BRAND } from '../lib/brand.ts';
 
 const figure = (token: string): DeclaredFigure => ({
   token,
@@ -178,6 +179,28 @@ describe("the agents' own fixed prose passes their own gate", () => {
         `blocked: ${line}\n${verdict.decision === 'BLOCK' ? JSON.stringify(verdict.breaches) : ''}`,
       );
     }
+  });
+
+  // The Herald prints the brand's own lines on every post. A stage edit on
+  // 13 September put a bare "13" in BRAND.stage and the gate blocked the agent
+  // in production for four days; the figures are declared from the file they
+  // are written in now, and the next copy change is caught here instead.
+  it('clears the brand lines the Herald prints, with their own figures declared', () => {
+    for (const line of [BRAND.thesis, BRAND.stage, BRAND.desk.line]) {
+      const verdict = screen({ text: line, figures: figuresIn(line, 'lib/brand.ts', '2026-09-16T00:00:00.000Z') });
+      assert.equal(
+        verdict.decision,
+        'ALLOW',
+        `blocked: ${line}\n${verdict.decision === 'BLOCK' ? JSON.stringify(verdict.breaches) : ''}`,
+      );
+    }
+  });
+
+  // Undeclared is what the outage looked like: the gate was right, the caller was not.
+  it('blocks the brand stage line when its figures are not declared', () => {
+    const verdict = screen({ text: BRAND.stage, figures: [] });
+    assert.equal(verdict.decision, 'BLOCK');
+    assert.ok(verdict.decision === 'BLOCK' && verdict.breaches.some((b) => b.rule === 'UNSOURCED_FIGURE'));
   });
 });
 

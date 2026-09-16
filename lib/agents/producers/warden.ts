@@ -42,9 +42,11 @@ const MEANINGS: Record<AgentHealth, string> = {
 };
 
 export const wardenProducer: Producer = async ({ now, store }): Promise<ProducerResult> => {
-  const [heartbeatsRead, blocksRead] = await Promise.all([
+  const [heartbeatsRead, countsRead] = await Promise.all([
     store.latestHeartbeats(),
-    store.recentBlocks(50),
+    // The store's own count, not the length of a bounded read: fifty is fifty
+    // forever once the record passes it, and this agent publishes the figure.
+    store.recordCounts(),
   ]);
 
   // The failure this agent must never get wrong. An unreadable record is not a
@@ -61,7 +63,7 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
 
   const heartbeats = heartbeatsRead.value;
   /** Null means the block log could not be read — never rendered as a count. */
-  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
+  const counts = countsRead.state === 'UNREAD' ? null : countsRead.value;
   const health = systemHealth(heartbeats, now);
 
   if (heartbeats.length === 0) {
@@ -102,15 +104,15 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
     numbers.push(`— Oldest input still behind a published figure: ${age} old.`);
   }
 
-  if (blocks === null) {
+  if (counts === null) {
     numbers.push(
-      '— Outputs blocked by policy: the block log could not be read, so the count is reported as absent. It is not a count of zero.',
+      '— Outputs blocked by policy: the record counts could not be read, so the count is reported as absent. It is not a count of zero.',
     );
   } else {
-    const blockCount = String(blocks.length);
+    const blockCount = String(counts.blocks);
     declare(blockCount);
     numbers.push(
-      blocks.length === 0
+      counts.blocks === 0
         ? `— Outputs blocked by policy and kept for review: ${blockCount}.`
         : `— Outputs blocked by policy and kept for review: ${blockCount}. Each one is stored in full, with the rule it broke, because a blocked output is an event to look at rather than a silence.`,
     );

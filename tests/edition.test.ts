@@ -216,6 +216,15 @@ describe('days', () => {
     assert.equal(isValidDay('2026-09-11'), true);
     assert.equal(isValidDay('2026-13-40'), false);
     assert.equal(isValidDay('yesterday'), false);
+    // A day the calendar does not have: JavaScript rolls these forward rather
+    // than refusing them, and an edition was composed for both in production.
+    assert.equal(isValidDay('2026-09-31'), false);
+    assert.equal(isValidDay('2026-02-30'), false);
+    assert.equal(isValidDay('2025-02-29'), false);
+    assert.equal(isValidDay('2024-02-29'), true, 'a leap day is a day');
+    // A future day stays valid: the page prints "has not happened yet", which
+    // is a truer answer than refusing to talk about it.
+    assert.equal(isValidDay('2099-01-01'), true);
   });
 
   it('uses the UTC calendar', () => {

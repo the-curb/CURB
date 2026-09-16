@@ -172,8 +172,10 @@ export default async function EditionPage(props: { params: Params }) {
                 <p className="text-base leading-relaxed text-(--color-paper-dim)">{edition.standfirst}</p>
                 {narration && narration.current && narration.outcome !== 'NARRATED' ? (
                   <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-                    A narration was attempted and {narration.outcome.replace(/_/g, ' ').toLowerCase()}
-                    {narration.detail ? ` — ${narration.detail}` : ''}. The paper&apos;s own count stands.
+                    {/* The outcome is the paper's business; the vendor's own error text is
+                        not, and republishing a billing message on a public page tells a
+                        reader nothing about the record. The detail stays in the row. */}
+                    A narration was attempted and {narration.outcome.replace(/_/g, ' ').toLowerCase()}. The paper&apos;s own count stands.
                   </p>
                 ) : narration && !narration.current ? (
                   <p className="mt-3 text-xs leading-relaxed text-(--color-paper-faint)">

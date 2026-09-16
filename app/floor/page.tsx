@@ -85,10 +85,14 @@ export default async function FloorPage() {
   const session = readSession(now);
   const store = await getStoreAsync();
 
-  const [heartbeatsRead, publicationsRead, blocksRead, feedSnapshots, headSnapshots] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, countsRead, feedSnapshots, headSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(6),
-    store.recentBlocks(5),
+    // The store's own count of blocked outputs, not the length of a bounded
+    // read: a window of five is five forever once the record passes it, and
+    // printing that under "three numbers that cannot be faked" would be
+    // publishing a floor as a total.
+    store.recordCounts(),
     store.snapshots('feed:'),
     store.snapshots('chain:head'),
   ]);
@@ -111,7 +115,7 @@ export default async function FloorPage() {
    */
   const heartbeats = heartbeatsRead.state === 'UNREAD' ? null : heartbeatsRead.value;
   const publications = publicationsRead.state === 'UNREAD' ? null : publicationsRead.value;
-  const blocks = blocksRead.state === 'UNREAD' ? null : blocksRead.value;
+  const counts = countsRead.state === 'UNREAD' ? null : countsRead.value;
   const health = heartbeats === null ? null : systemHealth(heartbeats, now);
   const storeFault =
     heartbeatsRead.state === 'UNREAD'
@@ -270,10 +274,10 @@ export default async function FloorPage() {
               )}
             </Row>
             <Row label="Blocked outputs kept">
-              {blocks === null ? (
-                <Absent why="the block log could not be read — this is not a count of zero" />
+              {counts === null ? (
+                <Absent why="the record counts could not be read — this is not a count of zero" />
               ) : (
-                <span className="tabular">{blocks.length}</span>
+                <span className="tabular">{counts.blocks.toLocaleString('en-US')}</span>
               )}
             </Row>
           </div>

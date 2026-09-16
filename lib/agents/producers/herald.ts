@@ -14,7 +14,7 @@
 import type { Producer, ProducerResult } from '../runtime.ts';
 import type { DeclaredFigure } from '../../doctrine/policy.ts';
 import { AGENTS, AGENT_COUNTS } from '../registry.ts';
-import { RULE_COUNT } from '../../doctrine/policy.ts';
+import { figuresIn, RULE_COUNT } from '../../doctrine/policy.ts';
 import { BRAND } from '../../brand.ts';
 
 const STORE_SOURCE = 'the heartbeat and publication store, read at the moment of posting';
@@ -67,6 +67,11 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
           declare(blocked);
           return `— ${published} ${counts.publications === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${counts.blocks === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts come from the same store; the second is not hidden to make the first look better.`;
         })();
+
+  // The brand lines are prose the product owner writes; any figure inside them —
+  // a date, a quorum — is declared from the file it is written in, so a change
+  // of copy cannot silently block this agent at the gate.
+  figures.push(...figuresIn(`${BRAND.thesis} ${BRAND.stage}`, 'lib/brand.ts — the brand record as the product owner wrote it', now.toISOString()));
 
   const neverRan = AGENTS.filter((agent) => !heartbeats.some((h) => h.agentId === agent.id));
   const neverRanCount = String(neverRan.length);
