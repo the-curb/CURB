@@ -1,6 +1,6 @@
 # Execution decisions — 15 September 2026
 
-No instruction from the product owner to choose defaults is on the record: the defaults below were chosen by the implementation for sequencing and are proposals until the product owner confirms each one. This record does not attest that funding, customers, issuer eligibility, an independent review or a production account has been obtained.
+No instruction from the product owner to choose defaults was on the record when this was written; the defaults below were chosen by the implementation for sequencing. On 17 September 2026 the product owner confirmed the proceeds reading (D03) and decided D05, D08 and D09, and deferred D06 and D07 — the dossier's table carries each answer; the rest stay proposals. This record does not attest that funding, customers, issuer eligibility, an independent review or a production account has been obtained.
 
 ## Selected sequence
 

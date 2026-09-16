@@ -61,6 +61,10 @@ Every operator transaction has an entry in the incident, rotation or access log 
 - A claim pause on a component is reviewed every 7 days and either lifted or re-justified in writing. It is never used to hold one component because the other is short: a shortfall in A halts payments of A by the contract itself ([ADR-004](ADR-004-per-component-stops.md)) and needs no operator pause of B.
 - A pause is never a reason to change what is owed. The ledger is the ledger.
 
+## Who answers, and how fast
+
+Decided by the product owner on 17 September 2026 (the dossier's D08). The operating owner is the product owner: the first responder to the alert channel, with a second signer of the operator Safe as backup. The target is a response within twenty-four hours, and no faster level is promised anywhere. The store's recovery point is up to seven days behind — its only copy off the platform is the weekly encrypted dump — and its recovery time about an hour, by the restore commands in DEPLOY.md; the provider's continuous backup is off and is the one setting that would shorten the seven days. No reserve budget exists yet; the reserve is a share of proceeds and there are none.
+
 ## What exists today
 
 The functions and events named above, in `contracts/src/CompanySeries.sol`, with tests for the operator's limits; the conditions the desk raises (`/api/state` → `conditions`); the drill on the series page, whose sixth scenario hands the operator role to a 2-of-3 multisig (a mock, for the rehearsal) and shows that one signer's proposal does not stop minting, a second confirmation does, the former single key can no longer act, and the resume needs two again — the index carrying both with their reasons. The Robinhood Chain treasury creation and its three named signer addresses are recorded above. No public series operation is established by that record; the Ethereum operator and remaining policy still require verification and approval. CompanySeries checks the operator address for every pause: it contains no one-signer guardian path, so a 2-of-3 Safe requires quorum for a stop as well as a resume.
