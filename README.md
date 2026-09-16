@@ -10,7 +10,7 @@ Mainnet preparation: [the dossier and decision templates](docs/mainnet/PREPARATI
 `npm run mainnet:preflight` reports the evidence still missing for a token launch, a paid beta
 and the position pilot; it stays HELD until real reviews and deployment evidence are recorded, and it authorizes nothing.
 
-Live at **https://the-curb.vercel.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
+Live at **https://the-curb-production.up.railway.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
 
 A stock-token holder chooses a company and, in the same act, a particular way
 of getting exposure to it: an issuer, a contract, a set of terms and an exit.

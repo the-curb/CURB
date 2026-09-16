@@ -180,7 +180,7 @@ deployment rather than warning after it.
    deployment from Washington to a store in Singapore) that was 1.3 to 5
    seconds to first byte on every navigation; in-region it is the store's own
    time. The service's region is in its settings; the store's is in its own.
-   (`vercel.json`, the earlier region pin, is removed with the cutover.)
+   (`vercel.json`, the earlier region pin, was removed at the cutover on 16 September 2026.)
 
 **The tick holds a lock for its maintenance.** Alerts, retention, the
 position product's backend and the credit desk run only when the tick held
