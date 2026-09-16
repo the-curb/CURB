@@ -22,7 +22,7 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: { default: BRAND.name, template: `%s — ${BRAND.name}` },
   description: BRAND.descriptor,
-  metadataBase: new URL(`https://${BRAND.domain}`),
+  metadataBase: new URL(process.env.CURB_SITE_ORIGIN ?? BRAND.origin),
 };
 
 /**

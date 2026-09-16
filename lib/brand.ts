@@ -37,7 +37,16 @@ export const BRAND = {
   desk: {
     line: 'The ticker tells you the exposure. The desk tells you the conditions.',
   },
+  /** The name, which is not yet registered and does not resolve. */
   domain: 'thecurb.io',
+  /**
+   * The origin that actually answers, used to resolve the metadata's relative
+   * URLs. A canonical link pointing at a domain nobody can open is worse than
+   * one pointing at the deployment, so this names the deployment until a
+   * domain is registered and pointed here (DEPLOY.md §2); `CURB_SITE_ORIGIN`
+   * overrides it without a code change.
+   */
+  origin: 'https://the-curb-production.up.railway.app',
   /** Narrative universe: original financial-noir. No licensed characters, ever. */
   universe: {
     city: 'The Curb',

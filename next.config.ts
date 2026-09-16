@@ -2,6 +2,27 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  /**
+   * The headers the host used to add and this one does not. HSTS was served by
+   * the old platform and was lost in the move; it belongs in the application
+   * so it survives the next move too. The rest are the cheap ones: no MIME
+   * sniffing, no framing, and a referrer policy that does not leak a path to
+   * another site. Nothing here is a substitute for the policy gate — these
+   * only govern how a browser treats the answer.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
+  },
   // Turbopack is the default in Next 16; config lives at the top level now.
   turbopack: {},
   // Pages that read a file from the repository at request time — so the site

@@ -8,7 +8,12 @@
 # leaves the last record in place and a red run to say so.
 #
 # Needs nothing but the repository's own token: the workflow commits to main
-# with the bot identity, and the deployment follows the push as always.
+# with the bot identity. A push made with that token deliberately triggers no
+# workflow — GitHub's loop guard — so this commit would otherwise reach main
+# with no check run at all, and the deployment waits for checks that would
+# never exist. The dispatch below is the documented exception: a workflow can
+# be started with the same token, and the run it creates is a check run on
+# this commit, which is what the deploy waits for.
 
 name: fork-evidence
 
@@ -19,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: fork-evidence
@@ -57,6 +63,7 @@ jobs:
         working-directory: contracts
         run: node scripts/check-build-record.mjs
       - name: Commit the record if it moved
+        id: record
         run: |
           set -euo pipefail
           if git diff --quiet -- contracts/evidence; then
@@ -70,3 +77,10 @@ jobs:
           git add contracts/evidence
           git commit -m "Evidence refreshed: fork at block ${BLOCK}; unit tests ${UNIT}"
           git push
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Start the checks for the commit just pushed
+        if: steps.record.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run checks.yml --ref main

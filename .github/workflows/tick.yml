@@ -77,6 +77,8 @@ jobs:
             if (t.positions && t.positions.daily && t.positions.daily.state === "STATE_UNREADABLE") red("positions daily run: the store did not answer (" + (t.positions.daily.detail ?? "") + ")");
             for (const s of (t.positions && t.positions.series) || []) if (s.sync && (s.sync.state === "STORE_UNREADABLE" || s.sync.state === "HEAD_UNREAD")) red("positions series " + s.seriesId + " sync " + s.sync.state + ": " + (s.sync.detail ?? ""));
             if (t.narration && t.narration.state === "ATTEMPTED") console.log("narration:", t.narration.record.outcome, t.narration.record.detail ?? "");
+            if (!t.store || !t.store.startsWith("postgres")) red("the tick wrote to " + (t.store ?? "a store it did not name") + ", not postgres: a filesystem store on a container is lost at the next deploy");
+            if (t.narration && t.narration.state === "ATTEMPTED" && t.narration.record && t.narration.record.outcome !== "NARRATED") red("narration " + t.narration.record.outcome + ": " + (t.narration.record.detail ?? "").slice(0, 200));
             if (t.storeSchema) console.log("schema:", t.storeSchema.state, t.storeSchema.detail ?? "");
             if (t.storeSchema && t.storeSchema.state !== "CURRENT") red("store schema " + t.storeSchema.state + ": " + (t.storeSchema.detail ?? ""));
           '
