@@ -5,13 +5,13 @@
   "source": {
     "commit": "3dd21d4727a5a55f6b8e385548cb9627f54dc3b8",
     "workingTreeClean": false,
-    "snapshotDirectory": "D:\\BARONG\\.curb-rehearsal-OPrDrV",
+    "snapshotDirectory": "<parent>\\.curb-rehearsal-OPrDrV",
     "snapshotSha256": "70b4595e96ca4877ed9254b446f416a1f8ff760c424c9a11b8fcf4386c41524c"
   },
   "error": "Intentional failure drill after creating the owned disposable database",
   "failureDrillRequested": true,
   "localOnly": true,
-  "logs": "D:\\BARONG\\the-curb\\.scratch\\rehearsal-4Lu0mR",
+  "logs": "<repo>\\.scratch\\rehearsal-4Lu0mR",
   "cleanup": {
     "ownedProcessesStopped": true,
     "disposableDatabaseDropped": true

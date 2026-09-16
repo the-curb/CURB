@@ -118,5 +118,5 @@ export async function launchStatus(store: Store, root: string = process.cwd(), n
           : treasury === null
             ? 'Prepared for Robinhood Chain mainnet: no treasury creation record is available here, no token and no desk are configured; nothing is sold.'
             : `On Robinhood Chain mainnet: ${treasuryLine}; the token and the desk come next, so nothing is sold yet. The position series remains a prototype.`;
-  return { chain: 'Robinhood Chain', chainId: 4663, step, treasury, desk, rateAtBlock, topUp, faults, line: faults.length ? `${line} Some evidence could not be read; see Services.` : line };
+  return { chain: 'Robinhood Chain', chainId: 4663, step, treasury, desk, rateAtBlock, topUp, faults: [...new Set(faults)], line: faults.length ? `${line} Some evidence could not be read; see Services.` : line };
 }

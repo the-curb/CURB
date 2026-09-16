@@ -8,6 +8,7 @@ import { gzipSync } from 'node:zlib';
 // Export committed source, not the working directory, dependencies, local keys or database.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
+if (args[0] === '--help' || args[0] === '-h') { console.log('usage: node scripts/review-package.ts [output-directory]'); process.exit(0); }
 if (args.length > 1 || args[0]?.startsWith('--')) throw new Error('usage: node scripts/review-package.ts [output-directory]');
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 if (git('status', '--porcelain')) throw new Error('commit the reviewed source and evidence before packaging');

@@ -19,7 +19,7 @@ Read the contract and its tests line by line against the blueprint's cases; run 
 | Whole-liability check | A claim pays only if `held ≥ liability` for that component; a mint reverts if the series would be short after the deposit | Held (T08, T23; invariant `ShortfallHaltsPayment`). |
 | Cap | `capLots` bounds `n × q + reserved` per component | Held (T22; invariant `CapCountsReserved`). |
 | Immutables and construction | Components, units, cap immutable; zero address, equal components, non-contract, zero units, zero cap and `cap × q` overflow refused | Held (T01, T19). |
-| Access control | `onlyOperator` on stops, permits and `transferOperator`; no admin mint, no burn without allocation, no sweep | Held (T24; the invariant handler's `transferReceipt` never succeeds). |
+| Access control | `onlyOperator` on stops, permits, `transferOperator` and `cancelOperatorTransfer`; `acceptOperator` callable only by the nominated `pendingOperator` (two-step handover since 13 September 2026 — a new external surface this checklist now names); no admin mint, no burn without allocation, no sweep | Held (T24; the invariant handler's `transferReceipt` never succeeds). |
 | Receipt transfer | `transfer`, `transferFrom`, `approve` revert unconditionally | Held (T17). |
 | Permits | Mint needs an unexpired permit; claim needs a claim permit; both are on-chain state, no backend signature | Held (T25). |
 | Pauses | Mint pause and per-component claim pause are separate; a pause of A does not touch B | Held (T04, T20, operator-limit tests, the drill). |

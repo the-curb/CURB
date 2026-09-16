@@ -8,6 +8,7 @@ import { GATES } from '../lib/positions/series.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
+if (args[0] === '--help' || args[0] === '-h') { console.log('usage: node scripts/mainnet-preflight.ts [readiness-record.json]'); process.exit(0); }
 if (args.length > 1 || args[0]?.startsWith('--')) throw new Error('usage: node scripts/mainnet-preflight.ts [readiness-record.json]');
 const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' }).split('\0');
 const files = [...new Set(listed)].filter(p => /^(?:app\/|lib\/|public\/|scripts\/|tests\/|contracts\/(?:src|scripts|test)\/|docs\/decisions\/|\.github\/workflows\/)/.test(p) || /^(?:[^/]+\.md|package(?:-lock)?\.json|postcss\.config\.mjs|next\.config\.ts|tsconfig\.json|vercel\.json|contracts\/(?:package(?:-lock)?\.json|hardhat\.config\.ts)|contracts\/evidence\/(?:[^/]+\.(?:build|fork|corporate-action)\.json|drill-local\.json|unit-tests\.json|safes\/[^/]+\.json))$/.test(p)).sort();

@@ -1,6 +1,6 @@
 Local mock token + local Hardhat test key, chain31337, loopback9546.
 CURB (The Curb (rehearsal)) at 0x0E801D84Fa97b50751Dbf25036d067dCf18858bF on chain 31337 · 18 decimals · supply 1000000000000000000000000000 · code 2785 bytes · read at block 91 (2026-09-13T10:26:29.000Z)
-written D:\BARONG\the-curb\.scratch\mainnet-prep\credit-tools-b5bytU\record.json
+written <repo>\.scratch\mainnet-prep\credit-tools-b5bytU\record.json
 
 node: 127.0.0.1:9546 (CURB_RPC_URL_LOCAL from the environment)
 token: 0x0E801D84Fa97b50751Dbf25036d067dCf18858bF · CURB · 18 decimals · supply 1000000000000000000000000000 · code present
@@ -21,5 +21,5 @@ constructor arguments: ["0x0E801D84Fa97b50751Dbf25036d067dCf18858bF","0x70997970
 deployer 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 · 9999995991978232802159 wei
 sent 0x12a4665fd3022dbb0b0fb4de8102e1331261ce01915f0815ee7a32a49d4dca92; waiting for the receipt
 deployed the credit desk at 0x82e01223d51eb87e16a03e24687edf0f294da6f1 in block 92
-written D:\BARONG\the-curb\.scratch\mainnet-prep\credit-tools-b5bytU\evidence\deployments\credit-desk.31337.json
+written <repo>\.scratch\mainnet-prep\credit-tools-b5bytU\evidence\deployments\credit-desk.31337.json
 

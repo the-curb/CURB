@@ -1,6 +1,6 @@
 # The Curb — tindak lanjut persiapan mainnet, 15 September 2026
 
-**Paket implementasi lokal selesai: 610 tes aplikasi lulus tanpa skip, 31 pemeriksaan HTTP/ledger/webhook lulus, dan build produksi berhasil. Token launch, paid beta dan position pilot tetap menunggu bukti eksternal.** Pekerjaan berada di `D:/BARONG/the-curb`, branch `codex/curb-first-release-hardening`. Tidak ada push, deployment publik, transaksi public-chain, pembelian layanan atau pengiriman pesan ke pihak luar.
+**Paket implementasi lokal selesai: 610 tes aplikasi lulus tanpa skip, 31 pemeriksaan HTTP/ledger/webhook lulus, dan build produksi berhasil. Token launch, paid beta dan position pilot tetap menunggu bukti eksternal.** Pekerjaan berada di `<repo>`, branch `codex/curb-first-release-hardening`. Tidak ada push, deployment publik, transaksi public-chain, pembelian layanan atau pengiriman pesan ke pihak luar.
 
 Laporan ini melanjutkan [persiapan 13 September](MAINNET-PREPARATION-2026-09-13.md). Keputusan teknis rutin menggunakan mandat pemilik untuk memilih yang masuk akal; tidak ada identitas reviewer, pendanaan, hak issuer atau persetujuan release yang diisi secara fiktif. [Keputusan pelaksanaan](../mainnet/EXECUTION-DECISIONS-2026-09-15.md) menetapkan urutan pekerjaan dan input yang masih diperlukan.
 

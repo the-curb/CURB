@@ -2,7 +2,7 @@
 
 **One company. Multiple issuers. One position.**
 
-This is a proposed specification and a validation plan, written 12 September 2026. A CompanySeries prototype now exists and has been exercised on local chains and Ethereum forks. No public series deployment or issuer integration is approved. The Robinhood Chain treasury Safe creation is recorded separately; it does not establish an Ethereum series operator or a live credit desk. Addresses, fees, compositions, receipt symbols and pilot limits that have not been verified are not production configuration and are labelled illustrative wherever they appear. Public copy distinguishes the position prototype and simulation from the treasury mainnet record; a treasury creation does not establish a real-asset position pilot.
+This is a proposed specification and a validation plan, written 12 September 2026 and kept current since (the dated facts below say when each was read). A CompanySeries prototype now exists and has been exercised on local chains and Ethereum forks. No public series deployment or issuer integration is approved. The Robinhood Chain treasury Safe creation is recorded separately; it does not establish an Ethereum series operator or a live credit desk. Addresses, fees, compositions, receipt symbols and pilot limits that have not been verified are not production configuration and are labelled illustrative wherever they appear. Public copy distinguishes the position prototype and simulation from the treasury mainnet record; a treasury creation does not establish a real-asset position pilot.
 
 ## 1. The decision
 

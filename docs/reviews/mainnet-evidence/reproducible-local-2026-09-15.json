@@ -5,7 +5,7 @@
   "source": {
     "commit": "3dd21d4727a5a55f6b8e385548cb9627f54dc3b8",
     "workingTreeClean": false,
-    "snapshotDirectory": "D:\\BARONG\\.curb-rehearsal-YOjZSc",
+    "snapshotDirectory": "<parent>\\.curb-rehearsal-YOjZSc",
     "snapshotSha256": "82d837cbb9fc6c3c36c61ef8fc4a938cd8a4ded42dde34025a6555b86859b231"
   },
   "passed": 31,
@@ -163,7 +163,7 @@
     "chainId": 31337,
     "database": "curb_rehearsal_75c48ab972925a5250939129"
   },
-  "logs": "D:\\BARONG\\the-curb\\.scratch\\rehearsal-ZDYToG",
+  "logs": "<repo>\\.scratch\\rehearsal-ZDYToG",
   "cleanup": {
     "ownedProcessesStopped": true,
     "disposableDatabaseDropped": true
