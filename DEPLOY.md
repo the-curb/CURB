@@ -54,7 +54,7 @@ Done once. (Until 15 September 2026 the store was a Supabase project reached
 through its transaction pooler; the move is the last step of this section.)
 
 1. In the Railway project of §2, **Create → Database → PostgreSQL**, in the
-   same region as the app (Singapore, `asia-southeast1`). One Postgres
+   same region as the app — both were created in `sfo` (US West) on 16 September 2026; what matters is that the two are in one region, not which. One Postgres
    service; nothing else runs in it.
 2. Two connection strings exist and they are not interchangeable:
    - **From the app**, the private one — `postgres://postgres:…@postgres.railway.internal:5432/railway`,
@@ -109,18 +109,28 @@ Railway runs the app as one long-lived Node server (no function ceiling: the
 `maxDuration` the tick and the desk routes export is the budget the tick
 gives itself, not a platform limit) and prices by usage on a paid plan that
 permits commercial use, so the desk can sell services from it once
-`CURB_CREDITS` is set (LAUNCH row 8). `railway.json` at the repository root
-is the build and deploy record: Railpack, `npm run build`, `npm run start`
-(Next listens on the `PORT` Railway provides, on every interface), health
-check on `/api/state`, restart on failure; `.node-version` pins Node 24, the
-version CI runs. Railway deploys every push to `main`; with the service's
-**Wait for CI** setting on, it deploys only after the repository's checks
-have passed for that commit — turn it on, so `release checks` gates the
-deployment rather than warning after it.
+`CURB_CREDITS` is set (LAUNCH row 8).
+
+**Where the deploy settings live, and why not in this repository.** They are
+on the service, set 16 September 2026 and readable in **Settings → Deploy**:
+health check `/api/state` with a 300-second timeout, restart `ON_FAILURE`,
+and **Wait for CI on** — so a push to `main` deploys only after the
+repository's checks have passed for that commit and `release checks` gates
+the deployment rather than warning after it. The build and start commands are
+not set: Railpack detects Next.js and runs `npm run build` then `npm run start`
+(Next listens on the `PORT` Railway provides, on every interface), and
+`.node-version` pins Node 24, the version CI runs. A `railway.json` in the
+repository would be the tidier record, but Railway has retired Config as Code:
+the API refuses to point a service at one ("use Infrastructure as Code
+instead"), and the successor — `.railway/railway.ts` with `railway config
+plan`/`apply` — needs the `railway` npm package, whose version check rejected
+this CLI when it was tried on 16 September. So the settings above are the
+record until that path works; check them against this list when anything about
+the deployment changes.
 
 1. **New project → Deploy from GitHub repo** `the-curb/CURB`, branch `main`,
-   region Singapore (`asia-southeast1`) — the store is created in the same
-   project and region (§1). No build overrides: `railway.json` is read.
+   region `sfo` (US West), as the store is (§1) — they are created in the same
+   project and region (§1). No build overrides; set the deploy settings above.
 2. Variables on the app service (**Variables → Raw editor** takes the table
    as `KEY=value` lines):
 
