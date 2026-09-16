@@ -96,7 +96,34 @@ through its transaction pooler; the move is the last step of this section.)
    inserting what is missing and leaving what is there. A dump before every
    migration, and one a week, kept off the provider. Rehearsed 13 September
    2026: 5,404 observations, 297 snapshots, 100 publications dumped and
-   restored into a fresh schema, twice (the second time inserting nothing).
+   restored into a fresh schema, twice (the second time inserting nothing);
+   and again on 16 September, when the whole record moved from Supabase to
+   Railway with every table's count matched.
+
+   The weekly one runs by itself: `.github/workflows/backup.yml` dumps the
+   store every Sunday at 02:00 UTC and keeps the artifact for ninety days —
+   off the platform the store runs on, which is the point. This repository is
+   public and an artifact of a public repository can be downloaded by anyone
+   who can see it, so the dump is encrypted on the runner before it is
+   uploaded and the plain files are deleted there: the store is mostly the
+   published record, but once the desk runs it also holds subscribers'
+   delivery URLs and the hashes their credits are keyed by. Two secrets:
+   `CURB_POSTGRES_URL` (the store's public connection string,
+   `sslmode=require`) and `CURB_BACKUP_PASSPHRASE`. Without either the run
+   fails rather than passing with nothing in hand, and GitHub cannot show a
+   secret back — **a lost passphrase is a lost backup**, so it lives in the
+   operator's own keeping as well. Reading one back:
+
+   ```bash
+   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in store.tar.gz.enc \
+     -out store.tar.gz -pass env:CURB_BACKUP_PASSPHRASE
+   tar xzf store.tar.gz && npm run db:restore backup
+   ```
+
+   Railway can also keep continuous backups of the Postgres service itself
+   (`railway postgres pitr enable`; off as of 16 September 2026, and it
+   stores them next to the database it protects) — that is the provider's
+   copy, and it does not replace this one.
 
    **Schema.** A build that needs a column a migration adds says so: the tick
    and `/api/state` carry `storeSchema` (`CURRENT` or `BEHIND`, naming the

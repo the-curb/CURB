@@ -1,0 +1,91 @@
+# The record is the store, and a provider's backups are the provider's. This
+# takes the dump DEPLOY.md asks for — every table but the run lock, as gzipped
+# JSONL with a manifest — and keeps it here, off the platform the store runs
+# on, for ninety days. It is the copy that survives the provider account.
+#
+# This repository is public, and an artifact of a public repository can be
+# downloaded by anyone who can see the repository. The store is mostly the
+# measured record, which is published anyway — but once the credit desk runs
+# it also holds subscribers' delivery URLs and the hashes their credits are
+# keyed by. So the dump is encrypted before it is uploaded, and the plain
+# files never leave the runner.
+#
+# Two secrets:
+#   CURB_POSTGRES_URL       the store's connection string from a shell
+#                           (Railway's public proxy string, sslmode=require)
+#   CURB_BACKUP_PASSPHRASE  a passphrase that exists nowhere else but the
+#                           operator's own keeping — GitHub cannot show it
+#                           back, so a lost passphrase is a lost backup
+# Without either, the run fails rather than passing with nothing in hand.
+#
+# To read one back: download the artifact, then
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in store.tar.gz.enc \
+#     -out store.tar.gz -pass env:CURB_BACKUP_PASSPHRASE
+#   tar xzf store.tar.gz && npm run db:restore backup
+# which inserts what is missing and leaves what is there.
+name: backup
+
+on:
+  schedule:
+    # Sunday 02:00 UTC — after the weekly fork evidence, before the week's work.
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Dump the store
+        env:
+          CURB_POSTGRES_URL: ${{ secrets.CURB_POSTGRES_URL }}
+        run: |
+          if [ -z "$CURB_POSTGRES_URL" ]; then
+            echo "CURB_POSTGRES_URL is not set as a repository secret; no backup was taken." >&2
+            exit 1
+          fi
+          node scripts/dump.ts backup
+      - name: Say what was dumped
+        run: |
+          node -e "
+            const m = require('./backup/manifest.json');
+            const tables = m.tables ?? m;
+            let total = 0;
+            for (const [name, meta] of Object.entries(tables)) {
+              const rows = meta.rows ?? meta.count ?? meta;
+              total += Number(rows) || 0;
+              console.log(name + ': ' + rows + ' rows');
+            }
+            if (total === 0) throw new Error('the dump is empty; the store answered nothing');
+            console.log('total ' + total + ' rows');
+          "
+      - name: Encrypt it, and leave nothing in the clear
+        env:
+          CURB_BACKUP_PASSPHRASE: ${{ secrets.CURB_BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$CURB_BACKUP_PASSPHRASE" ]; then
+            echo "CURB_BACKUP_PASSPHRASE is not set as a repository secret; the dump would be readable by anyone who can see this public repository." >&2
+            exit 1
+          fi
+          tar czf store.tar.gz backup
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in store.tar.gz -out store.tar.gz.enc -pass env:CURB_BACKUP_PASSPHRASE
+          rm -rf backup store.tar.gz
+          ls -l store.tar.gz.enc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: curb-store-dump
+          path: store.tar.gz.enc
+          retention-days: 90
+          if-no-files-found: error
