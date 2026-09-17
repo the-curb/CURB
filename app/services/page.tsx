@@ -6,6 +6,7 @@ import { receipts } from '@/lib/credits/receipts';
 import { MINIMUM_DECISION, MINIMUM_OPEN_CENTS, NOTICE_DAYS, PRICES_DECISION, PRICES_STATUS, SERVICES, TERMS_DECISION, centsText } from '@/lib/credits/prices';
 import { curbForCents, curbText, usd18Text } from '@/lib/credits/rate';
 import { explorerAddress } from '@/lib/chain/networks';
+import { hookPermissions, isNativeCurrency, ZERO_ADDRESS } from '@/lib/chain/uniswap-v4';
 import { getStoreAsync } from '@/lib/store';
 import { launchStatus } from '@/lib/launch/status';
 import { rateHistory } from '@/lib/launch/evidence';
@@ -155,7 +156,29 @@ export default async function ServicesPage() {
               <div>
                 <dt className="kicker">Read</dt>
                 <dd className="tabular mt-1 text-[12px] text-(--color-paper-dim)">
-                  block {rate.rate.block} · {rate.at} · {rate.rate.pool.kind === 'uniswap-v2-pair' ? 'pair' : 'v3 pool'} <Addr address={rate.rate.pool.address} href={link(rate.rate.pool.address)} /> on {status.config.network.label} · quote <Addr address={rate.rate.pool.quoteAddress} href={link(rate.rate.pool.quoteAddress)} /> {rate.rate.quote.kind === 'usd-stable' ? 'taken as US dollars' : `priced by feed ${rate.rate.quote.feed}`}
+                  block {rate.rate.block} · {rate.at} ·{' '}
+                  {rate.rate.pool.kind === 'uniswap-v4-pool' ? (
+                    <>
+                      {/* A v4 pool has no address: its id inside the manager, which is what the explorer can show. */}
+                      v4 pool <span className="tabular break-all">{rate.rate.pool.address}</span> in the manager <Addr address={rate.rate.pool.poolManager ?? '?'} href={rate.rate.pool.poolManager ? link(rate.rate.pool.poolManager) : null} />
+                    </>
+                  ) : (
+                    <>
+                      {rate.rate.pool.kind === 'uniswap-v2-pair' ? 'pair' : 'v3 pool'} <Addr address={rate.rate.pool.address} href={link(rate.rate.pool.address)} />
+                    </>
+                  )}{' '}
+                  on {status.config.network.label} · quote {isNativeCurrency(rate.rate.pool.quoteAddress) ? 'native ETH' : <Addr address={rate.rate.pool.quoteAddress} href={link(rate.rate.pool.quoteAddress)} />}{' '}
+                  {rate.rate.quote.kind === 'usd-stable' ? 'taken as US dollars' : `priced by feed ${rate.rate.quote.feed}`}
+                  {status.config.priceSource?.v4 !== undefined && status.config.priceSource.v4.key.hooks !== ZERO_ADDRESS ? (
+                    <>
+                      {' '}· hook <Addr address={status.config.priceSource.v4.key.hooks} href={link(status.config.priceSource.v4.key.hooks)} />
+                      {hookPermissions(status.config.priceSource.v4.key.hooks).beforeSwap
+                        ? ' — it may act before a swap, so a pool price is what the hook lets it be; read its terms'
+                        : hookPermissions(status.config.priceSource.v4.key.hooks).afterSwapReturnsDelta
+                          ? ' — it acts after a swap and takes from its output, so buying CURB costs the venue’s cut on top of the pool’s price; it cannot move the price the desk reads'
+                          : ''}
+                    </>
+                  ) : null}
                   {rate.rate.basis === 'EVENTS' ? ` · from the pool's event at block ${rate.rate.pool.eventBlock}` : ''}
                 </dd>
               </div>

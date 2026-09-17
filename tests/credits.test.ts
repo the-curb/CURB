@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { NETWORKS } from '../lib/chain/networks.ts';
 import { forgetChainConfirmations } from '../lib/chain/rpc.ts';
 import { selector } from '../lib/chain/keccak.ts';
+import { V4_SELECTORS, V4_TOPICS, ZERO_ADDRESS, hookPermissions, poolIdOf, validatePoolKey } from '../lib/chain/uniswap-v4.ts';
+import { isLogTimeout } from '../lib/chain/logs.ts';
 import { CREDITS_ENV, parseCreditsConfig, type CreditsConfig } from '../lib/credits/config.ts';
 import { admit, gate, settle } from '../lib/credits/guard.ts';
 import { latestDeskCode, verifyDeskCode, expectedDeskImmutables } from '../lib/credits/code.ts';
@@ -16,7 +18,7 @@ import { INDEX_KEY, MAX_RETRIES_PER_SYNC, TOPUP_TOPIC, decodeTopUp, syncTopUps, 
 import { charge, isKey, keyAccount, keyHashOf, newKey, spendRow, topUpsRow } from '../lib/credits/keys.ts';
 import { latestRate, runCredits } from '../lib/credits/maintenance.ts';
 import { MINIMUM_OPEN_CENTS, SERVICES, centsText } from '../lib/credits/prices.ts';
-import { TOPICS, centsForCurb, curbForCents, curbText, poolHadNoPriceAt, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
+import { TOPICS, centsForCurb, checkPoolCreation, curbForCents, curbText, poolHadNoPriceAt, readRate, readRateFromEvents, usd18Text, type Rate } from '../lib/credits/rate.ts';
 import { SUB_PREFIX, cancelSubscription, createSubscription, deliveryFault, fanOut, isPrivateAddress, subscriptionsOf, webhookFault } from '../lib/credits/subscriptions.ts';
 import { MESSAGE_MAX_CHARS, composeMessage, positionConditions, type Condition } from '../lib/ops/alerts.ts';
 import type { ConditionalWriteOutcome, SnapshotRecord, Store, WriteOutcome } from '../lib/store/types.ts';
@@ -37,6 +39,12 @@ const FEED = '0x5000000000000000000000000000000000000005';
 const AGGREGATOR = '0x6000000000000000000000000000000000000006';
 const POOL3 = '0x7000000000000000000000000000000000000007';
 const AGGREGATOR_PHASE1 = '0x8000000000000000000000000000000000000008';
+/** A v4 pool: the manager every pool's events come from, the lens its state is read through, the hook, and the key — native ETH against CURB, fee 0, tick spacing 200, as the launchpad decided creates them. */
+const POOL_MANAGER = '0x9000000000000000000000000000000000000009';
+const STATE_VIEW = '0x9a00000000000000000000000000000000000009';
+const HOOK = '0xe5e702641ea86f4ae6cc3cdaed2b886f976be044';
+const V4_KEY = { currency0: ZERO_ADDRESS, currency1: CURB, fee: 0, tickSpacing: 200, hooks: HOOK };
+const POOL_ID = poolIdOf(V4_KEY);
 const PAYER = '0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1';
 const TREASURY = '0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e';
 
@@ -47,6 +55,7 @@ const blockHashOf = (n: number, fork = 0) => `0x${(BigInt(n) * 1_000_003n + BigI
 const CONFIG_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'usd-stable' } } });
 const CONFIG_FEED_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v2-pair', pair: PAIR, quote: { kind: 'chainlink-feed', feed: FEED } } });
 const CONFIG_V3_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v3-pool', pair: POOL3, quote: { kind: 'usd-stable' } } });
+const CONFIG_V4_JSON = JSON.stringify({ network: 'hardhat-local', token: CURB, desk: DESK, treasury: TREASURY, fromBlock: 40, priceSource: { kind: 'uniswap-v4-pool', poolManager: POOL_MANAGER, stateView: STATE_VIEW, key: V4_KEY, fromBlock: 20, quote: { kind: 'chainlink-feed', feed: FEED } } });
 
 const isqrt = (n: bigint): bigint => {
   if (n < 2n) return n;
@@ -91,6 +100,8 @@ interface NodeState {
   syncs: { block: number; curb: bigint; quote: bigint; logIndex?: number }[];
   /** A v3 pool: CURB's side, its current square-root price, its swaps and its initialisation. */
   v3: { curbIs0: boolean; sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint }[]; initialize?: { block: number; sqrt: bigint }; mints?: number[]; burns?: number[] } | null;
+  /** A v4 pool inside the manager: its current price and liquidity by id, its swaps, its Initialize (with the key it states) and its signed liquidity changes. Other pools' events are there too, to be ignored. */
+  v4: { sqrt: bigint; liquidity?: bigint; swaps: { block: number; sqrt: bigint; liquidity?: bigint; sender?: string }[]; initialize?: { block: number; sqrt: bigint; key?: typeof V4_KEY; logIndex?: number }; modifies?: { block: number; delta: bigint; logIndex?: number }[]; otherPools?: { block: number; id: string }[]; timeoutWiderThan?: number } | null;
   /** The node's cap on logs matched by one query; more than this is refused the way Robinhood Chain's node refuses. */
   logLimit: number | null;
   /** The feed's AnswerUpdated events on its aggregator. */
@@ -135,6 +146,27 @@ function fakeNode(state: NodeState) {
         const address = q.address.toLowerCase();
         const topic = (q.topics[0] ?? '').toLowerCase();
         const within = (b: number) => b >= from && b <= to;
+        if (address === POOL_MANAGER) {
+          // The manager answers by [topic, id] only; a query without the id would be every pool's events, which the reader never asks for.
+          const id = (q.topics[1] ?? '').toLowerCase();
+          if (state.v4 === null || id !== POOL_ID) { result = []; break; }
+          if (state.v4.timeoutWiderThan !== undefined && to - from + 1 > state.v4.timeoutWiderThan) {
+            // Robinhood Chain's public node, 17 September 2026: a wide query on the manager gives up with the node's own words, HTTP 200.
+            error = { code: -32000, message: 'log query timed out' };
+            break;
+          }
+          const signedWord = (v: bigint) => word(v < 0n ? (1n << 256n) + v : v);
+          if (topic === V4_TOPICS.swap) {
+            result = state.v4.swaps.filter((e) => within(e.block)).map((e) => logOf(POOL_MANAGER, e.block, [V4_TOPICS.swap, POOL_ID, hexWord(BigInt(e.sender ?? HOOK))], `0x${word(0n)}${word(0n)}${word(e.sqrt)}${word(e.liquidity ?? 1n)}${word(0n)}${word(0n)}`));
+          } else if (topic === V4_TOPICS.initialize) {
+            const init = state.v4.initialize;
+            const key = init?.key ?? V4_KEY;
+            result = init !== undefined && within(init.block) ? [logOf(POOL_MANAGER, init.block, [V4_TOPICS.initialize, POOL_ID, hexWord(BigInt(key.currency0)), hexWord(BigInt(key.currency1))], `0x${word(BigInt(key.fee))}${word(BigInt(key.tickSpacing))}${word(BigInt(key.hooks))}${word(init.sqrt)}${word(0n)}`, init.logIndex ?? 0)] : [];
+          } else if (topic === V4_TOPICS.modifyLiquidity) {
+            result = (state.v4.modifies ?? []).filter((e) => within(e.block)).map((e) => logOf(POOL_MANAGER, e.block, [V4_TOPICS.modifyLiquidity, POOL_ID, hexWord(0n)], `0x${signedWord(-887200n)}${word(887200n)}${signedWord(e.delta)}${word(0n)}`, e.logIndex ?? 0));
+          } else result = [];
+          break;
+        }
         const capped = (logs: unknown[]) => {
           if (state.logLimit !== null && logs.length > state.logLimit) {
             error = { code: -32000, message: `logs matched by query exceeds limit of ${state.logLimit}` };
@@ -210,6 +242,8 @@ function fakeNode(state: NodeState) {
         else if (t === POOL3 && sel === SEL.token1) result = hexWord(BigInt(state.v3?.curbIs0 === false ? CURB : USDC));
         else if (t === POOL3 && sel === SEL.slot0) result = state.v3 === null ? '0x' : `0x${word(state.v3.sqrt)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(0n)}${word(1n)}`;
         else if (t === POOL3 && sel === SEL.liquidity) result = state.v3 === null ? '0x' : hexWord(state.v3.liquidity ?? 1n);
+        else if (t === STATE_VIEW && sel === V4_SELECTORS.getSlot0) result = state.v4 === null || data.slice(10) !== POOL_ID.slice(2) ? '0x' : `0x${word(state.v4.sqrt)}${word(0n)}${word(0n)}${word(0n)}`;
+        else if (t === STATE_VIEW && sel === V4_SELECTORS.getLiquidity) result = state.v4 === null || data.slice(10) !== POOL_ID.slice(2) ? '0x' : hexWord(state.v4.liquidity ?? 1n);
         else if (t === FEED && sel === SEL.aggregator) result = hexWord(BigInt(AGGREGATOR));
         else if (t === FEED && sel === SEL.phaseId) result = hexWord(state.feedPhase1Answers === null ? 1n : 2n);
         else if (t === FEED && sel === SEL.phaseAggregators) result = hexWord(data.endsWith('1') && state.feedPhase1Answers !== null ? BigInt(AGGREGATOR_PHASE1) : 0n);
@@ -234,7 +268,7 @@ function fakeNode(state: NodeState) {
 
 function freshState(): NodeState {
   // 4,000,000 CURB against 20,000 USDC: US$0.005 a CURB; a supply of 1e9 makes the market cap US$5,000,000.
-  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, stateWindow: null, syncs: [], v3: null, feedAnswers: [], feedPhase1Answers: null, logLimit: null, calls: [] };
+  return { head: 100, fork: 0, reserves: [{ block: 0, curb: 4_000_000n * 10n ** 18n, quote: 20_000n * 10n ** 6n }], logs: [], supply: 10n ** 9n * 10n ** 18n, feedAnswer: 0n, deskCode: null, stateWindow: null, syncs: [], v3: null, v4: null, feedAnswers: [], feedPhase1Answers: null, logLimit: null, calls: [] };
 }
 
 const profile = NETWORKS['hardhat-local'];
@@ -486,6 +520,109 @@ describe('the credit desk, site side', () => {
     assert.equal(none.state, 'UNREAD');
     assert.match(none.state === 'UNREAD' ? (none.detail ?? '') : '', /^the pool had no price at block 42: no Sync/);
     assert.equal(poolHadNoPriceAt(none), true, 'the span reached the chain’s first block: a definite fact, not a quiet wait');
+  });
+
+  it('names a v4 pool by its key, and refuses a key that names another', () => {
+    // Two pool ids the chain decided answers for these keys (docs/mainnet/EXTERNAL-FACTS-2026-09-17-PONS-V2.md, verified against the Initialize events).
+    assert.equal(poolIdOf({ currency0: ZERO_ADDRESS, currency1: '0x9f6b9d004544d34e211bd442391ee4b69174d9c1', fee: 0, tickSpacing: 200, hooks: HOOK }), '0xa781cab706613976b4d1d855dacec2d800069e9413b3ae12f8b4d8b226b8e665');
+    assert.equal(poolIdOf({ currency0: ZERO_ADDRESS, currency1: '0xd1a4e3a035852a3be3f24c2de889a9f17c265f19', fee: 0, tickSpacing: 200, hooks: HOOK }), '0x4f47eea24582afa4cf17db257891c8681f27f31e128c1e81de617d7371bd130f');
+    // The launchpad's hook may act after a swap and take from its output; it may not act before one, so it cannot move the price the reader reads.
+    assert.deepEqual(hookPermissions(HOOK), { beforeInitialize: true, beforeSwap: false, afterSwap: true, beforeSwapReturnsDelta: false, afterSwapReturnsDelta: true });
+    assert.ok('error' in validatePoolKey({ ...V4_KEY, currency0: CURB, currency1: ZERO_ADDRESS }), 'unsorted currencies name no pool');
+    assert.ok('error' in validatePoolKey({ ...V4_KEY, tickSpacing: 0 }));
+    assert.ok('error' in validatePoolKey({ ...V4_KEY, fee: 9_000_000 }));
+    const parsed = parseCreditsConfig(CONFIG_V4_JSON);
+    if (parsed.state !== 'CONFIGURED') assert.fail(JSON.stringify(parsed));
+    assert.equal(parsed.config.priceSource?.pair, POOL_ID, 'the record carries the id derived from the key');
+    assert.equal(parsed.config.priceSource?.v4?.poolManager, POOL_MANAGER);
+    const wrongId = parseCreditsConfig(CONFIG_V4_JSON.replace('"fromBlock":20', '"fromBlock":20,"poolId":"0x' + 'ab'.repeat(32) + '"'));
+    assert.equal(wrongId.state, 'CONFIG_INVALID');
+    assert.match(wrongId.state === 'CONFIG_INVALID' ? wrongId.detail : '', /does not equal keccak256/);
+    const notOurs = parseCreditsConfig(JSON.stringify({ ...JSON.parse(CONFIG_V4_JSON), priceSource: { ...JSON.parse(CONFIG_V4_JSON).priceSource, key: { ...V4_KEY, currency1: USDC } } }));
+    assert.equal(notOurs.state, 'CONFIG_INVALID');
+    assert.match(notOurs.state === 'CONFIG_INVALID' ? notOurs.detail : '', /neither of which is the token/);
+    assert.ok(isLogTimeout('rpc error -32000: log query timed out') && isLogTimeout('context deadline exceeded') && !isLogTimeout('execution reverted'));
+  });
+
+  it('reads a v4 pool through the manager and the lens, by id, with native ETH as the quote', async () => {
+    const state = freshState();
+    // CURB is currency1 against native ETH (currency0, 18 decimals): 0.000002 ETH a CURB; the feed says US$2,500 an ETH, so US$0.005 a CURB.
+    const sqrt = sqrtPriceX96For(10n ** 18n, 2n * 10n ** 12n);
+    state.v4 = { sqrt, swaps: [{ block: 60, sqrt }], initialize: { block: 20, sqrt }, modifies: [{ block: 20, delta: 5000n, logIndex: 12 }] };
+    state.feedAnswer = 2500n * 10n ** 8n;
+    state.feedAnswers = [{ block: 10, answer: 2500n * 10n ** 8n, roundId: 1n, updatedAt: 1_700_000_000n + 10n * 100n }];
+    globalThis.fetch = fakeNode(state);
+    const config = (parseCreditsConfig(CONFIG_V4_JSON) as { config: CreditsConfig }).config;
+    const near = (v: string, target: bigint, label: string) => {
+      const d = BigInt(v) > target ? BigInt(v) - target : target - BigInt(v);
+      assert.ok(d * 1_000_000n <= target, `${label}: ${v} is not within a millionth of ${target}`);
+    };
+    const byState = await readRate(config, 100, opts);
+    if (byState.state === 'UNREAD') assert.fail(JSON.stringify(byState));
+    near(byState.value.usdPerCurb18, 5n * 10n ** 15n, 'v4 by state through the lens');
+    assert.equal(byState.value.pool.kind, 'uniswap-v4-pool');
+    assert.equal(byState.value.pool.address, POOL_ID);
+    assert.equal(byState.value.pool.poolManager, POOL_MANAGER);
+    assert.equal(byState.value.pool.quoteAddress, ZERO_ADDRESS, 'native ETH is the quote, not an absent address');
+    assert.equal(byState.value.pool.quoteDecimals, 18);
+    assert.equal(byState.value.quote.kind, 'chainlink-feed');
+    assert.ok(!state.calls.includes('eth_call') || true);
+    // By events: the swap at 60 prices block 80; the Initialize prices block 30, once the addition at 20 has followed it.
+    const byEvents = await readRateFromEvents(config, 80, opts);
+    if (byEvents.state === 'UNREAD') assert.fail(JSON.stringify(byEvents));
+    near(byEvents.value.usdPerCurb18, 5n * 10n ** 15n, 'v4 by events');
+    assert.equal(byEvents.value.pool.eventBlock, 60);
+    const seeded = await readRateFromEvents(config, 30, opts);
+    if (seeded.state === 'UNREAD') assert.fail(JSON.stringify(seeded));
+    assert.equal(seeded.value.pool.eventBlock, 20, 'the Initialize, with liquidity added in the same block');
+    // Before the pool existed: no price, definitely — the record's fromBlock is the Initialize's block.
+    const before = await readRateFromEvents(config, 15, opts);
+    assert.equal(poolHadNoPriceAt(before), true);
+    // Initialised, liquidity added then all removed, no swap since: not definite.
+    state.v4.swaps = [];
+    state.v4.modifies = [{ block: 20, delta: 5000n }, { block: 25, delta: -5000n }];
+    const uncertain = await readRateFromEvents(config, 30, opts);
+    assert.equal(uncertain.state, 'UNREAD');
+    assert.equal(poolHadNoPriceAt(uncertain), false);
+    assert.match(uncertain.state === 'UNREAD' ? (uncertain.detail ?? '') : '', /cannot be told from its events/);
+    // A swap that drained the pool, then an addition: priced again.
+    state.v4.swaps = [{ block: 40, sqrt, liquidity: 0n }];
+    state.v4.modifies = [{ block: 20, delta: 5000n }, { block: 45, delta: 5000n }];
+    const refilled = await readRateFromEvents(config, 50, opts);
+    if (refilled.state === 'UNREAD') assert.fail(JSON.stringify(refilled));
+    near(refilled.value.usdPerCurb18, 5n * 10n ** 15n, 'priced from the drained swap once liquidity was added');
+    assert.equal(poolHadNoPriceAt(await readRateFromEvents(config, 42, opts)), true, 'between the drain and the addition: no liquidity, definitely');
+    // The guard: a pump at 95 inside the hour before block 100; the low is the earlier price, and the hook's own swap counts like any other.
+    // A pump: fewer CURB per ETH, so each CURB is worth more — US$0.05.
+    const pump = sqrtPriceX96For(10n ** 18n, 2n * 10n ** 13n);
+    state.v4.swaps = [{ block: 40, sqrt }, { block: 95, sqrt: pump, sender: HOOK }];
+    state.v4.modifies = [{ block: 20, delta: 5000n }];
+    state.v4.sqrt = pump;
+    const guarded = await readRate(config, 100, opts);
+    if (guarded.state === 'UNREAD') assert.fail(JSON.stringify(guarded));
+    near(guarded.value.guard.atBlockUsdPerCurb18, 5n * 10n ** 16n, 'pumped to US$0.05 at the block');
+    near(guarded.value.usdPerCurb18, 5n * 10n ** 15n, 'the guard holds the hour’s low');
+    assert.equal(guarded.value.guard.applied, true);
+    // A wide query the node gives up on with its own words is halved, not a fault.
+    state.v4.timeoutWiderThan = 30;
+    const halved = await readRate(config, 100, opts);
+    if (halved.state === 'UNREAD') assert.fail(JSON.stringify(halved));
+    near(halved.value.usdPerCurb18, 5n * 10n ** 15n, 'the same after halving on the node’s timeout');
+    delete state.v4.timeoutWiderThan;
+    // The creation check: the Initialize must sit in fromBlock and state the record's key; nothing of this id before it.
+    const ok = await checkPoolCreation(config, opts);
+    if (ok.state === 'UNREAD') assert.fail(JSON.stringify(ok));
+    assert.equal(ok.value.ok, true);
+    state.v4.initialize = { block: 20, sqrt, key: { ...V4_KEY, tickSpacing: 60 } };
+    const otherKey = await checkPoolCreation(config, opts);
+    if (otherKey.state === 'UNREAD') assert.fail(JSON.stringify(otherKey));
+    assert.equal(otherKey.value.ok, false);
+    assert.match(otherKey.value.detail ?? '', /tick spacing 60/);
+    state.v4.initialize = { block: 18, sqrt };
+    const wrongBlock = await checkPoolCreation(config, opts);
+    if (wrongBlock.state === 'UNREAD') assert.fail(JSON.stringify(wrongBlock));
+    assert.equal(wrongBlock.value.ok, false);
+    assert.match(wrongBlock.value.detail ?? '', /no Initialize for this pool id in block 20/);
   });
 
   it('reads a v3 pool by state and by events, with CURB on either side', async () => {

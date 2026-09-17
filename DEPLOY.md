@@ -510,7 +510,10 @@ and is reported under `credits`. No token exists; in production it is
   blocks; the public node serves state for about 6,200 blocks (ten minutes)
   and logs for 100,000 blocks in one query.
 - **The rate, every tick.** The pool's `token0()`, `token1()` and its price —
-  `getReserves()` for a pair, `slot0()` for a v3 pool — and the token's
+  `getReserves()` for a pair, `slot0()` for a v3 pool, and for a v4 pool
+  `StateView.getSlot0(id)` and `getLiquidity(id)` with the sides taken from
+  the key the record carries (a v4 pool has no address and no `token0()`;
+  the zero address is native ETH, eighteen decimals) — and the token's
   `decimals()` and `totalSupply()` are read at the head block; the market
   capitalisation is price × supply at that block. Recorded under
   `credits:rate` with the block, or as UNREAD with the reason (an empty pool
@@ -547,13 +550,16 @@ and is reported under `credits`. No token exists; in production it is
   pool definitely had no price — created later (the record's
   `priceSource.fromBlock`, checked by the deployment tool against the
   pool's first log), no price event at or before it back to its creation
-  (a v3 pool's `Initialize` counts once a `Mint` has followed), no
-  liquidity or an empty side — and never above the lowest price the pool
-  showed in the window before it (the guard, about an hour, read from
-  events page by page, the price standing at the window's opening
-  included; more than sixty-four pages is a rate not stated; a v3 pool's
+  (a v3 pool's `Initialize` counts once a `Mint` has followed; a v4
+  pool's once a positive `ModifyLiquidity` has), no liquidity or an empty
+  side — and never above the lowest price the pool showed in the window
+  before it (the guard, about an hour, read from events page by page — a
+  v4 pool's from the PoolManager by `[Swap, id]`, the hook's own swaps
+  weighed like any other — the price standing at the window's opening
+  included; more than sixty-four pages is a rate not stated; an
   `Initialize` counts inside the window too; a page the node does not
-  answer in time is halved like one it refuses). The record's
+  answer in time, or gives up on with its own "log query timed out", is
+  halved like one it refuses). The record's
   `priceSource.fromBlock` is checked against the pool's logs once per pool:
   on a node that serves any width, one query over the span before it; on
   one that caps a query's width, pages walked down from it, run by run,

@@ -49,9 +49,22 @@ export function isTooManyLogs(detail: string | undefined): boolean {
   return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(detail);
 }
 
-/** A page to halve: refused for matching too much or too wide, or not answered in time — a node with no cap on results (dRPC) says "too much" only by taking too long. */
+/**
+ * A node's own way of giving up on a query that matched too much to answer in
+ * its time: a JSON-RPC error, not a transport timeout, so it arrives as
+ * SOURCE_MALFORMED with the node's words. Measured on Robinhood Chain's public
+ * node, 16–17 September 2026, on wide PoolManager queries: -32000 "log query
+ * timed out" and "context deadline exceeded", nondeterministically — the same
+ * window answered and timed out on different attempts. The answer is the
+ * same as for a refusal: halve.
+ */
+export function isLogTimeout(detail: string | undefined): boolean {
+  return detail !== undefined && /log query timed out|context deadline exceeded|query timed? ?out|request timed out/i.test(detail);
+}
+
+/** A page to halve: refused for matching too much or too wide, or not answered in time — by the transport, or by the node's own clock. A node with no cap on results (dRPC) says "too much" only by taking too long. */
 export function halveable(reading: { readonly reason: string; readonly detail?: string }): boolean {
-  return reading.reason === 'SOURCE_TIMEOUT' || isTooManyLogs(reading.detail);
+  return reading.reason === 'SOURCE_TIMEOUT' || isTooManyLogs(reading.detail) || isLogTimeout(reading.detail);
 }
 
 export async function readLogWindow(

@@ -30,6 +30,13 @@
  *                the head; the supply for the capitalisation is read at the
  *                head too, and the record says so.
  *
+ * A Uniswap v4 pool is read the v3 way with two differences (lib/chain/
+ * uniswap-v4.ts): it has no address — its events come from the chain's one
+ * PoolManager with the pool's id as the first indexed topic, and its state
+ * is read through the StateView lens by id — and its liquidity events are
+ * one signed `ModifyLiquidity` instead of Mint and Burn. Native ETH is a
+ * currency with the zero address and eighteen decimals, not an absent one.
+ *
  * The guard. A pool's price at one block can be set by whoever trades in
  * it just before, and a top-up credited at a pumped price would buy more
  * service than the CURB was worth. So the price a top-up is credited at is
@@ -46,7 +53,8 @@
 
 import { decodeAddressWord, decodeInt, decodeUint, formatUnits, words } from '../chain/abi.ts';
 import { keccak256Hex, selector } from '../chain/keccak.ts';
-import { halveable, isTooManyLogs, MIN_PAGE_BLOCKS } from '../chain/logs.ts';
+import { halveable, isLogTimeout, isTooManyLogs, MIN_PAGE_BLOCKS } from '../chain/logs.ts';
+import { decodeCurrencyWord, isNativeCurrency, V4_SELECTORS, V4_TOPICS } from '../chain/uniswap-v4.ts';
 import { readBlockNumber, readLogs, rpcCall, type LogEntry, type RpcOptions } from '../chain/rpc.ts';
 import { isRead, unread, type Reading } from '../doctrine/reading.ts';
 import type { CreditsConfig, PriceSource } from './config.ts';
@@ -129,7 +137,11 @@ export interface Rate {
   readonly token: { readonly address: string; readonly decimals: number; readonly supply: string; readonly supplyAt: 'BLOCK' | 'HEAD' };
   readonly pool: {
     readonly kind: PriceSource['kind'];
+    /** The pool's address — or, for a v4 pool, its 32-byte id. */
     readonly address: string;
+    /** For a v4 pool: the PoolManager its events come from and the lens its state was read through. */
+    readonly poolManager?: string;
+    readonly stateView?: string;
     readonly quoteAddress: string;
     readonly quoteDecimals: number;
     /** For a pair: the reserves. For a v3 pool: the square-root price, Q64.96, and the liquidity. */
@@ -158,6 +170,34 @@ export interface Rate {
 }
 
 const hexBlock = (n: number) => `0x${n.toString(16)}`;
+
+type PoolEvent = 'price' | 'initialize' | 'liquidityAdded' | 'liquidityRemoved';
+
+/**
+ * Where a pool's events are read from and how they are named: a pair or a
+ * v3 pool emits its own, at its own address, under one topic; a v4 pool's
+ * come from the PoolManager under the topic and the pool's id. A v4 pool's
+ * Mint and Burn are one event, ModifyLiquidity, told apart by the sign of
+ * the delta in its data — so both names map to the same query and the
+ * caller reads the sign.
+ */
+function poolQuery(source: PriceSource, event: PoolEvent | null): { readonly address: string; readonly topics: readonly string[] } {
+  if (source.kind === 'uniswap-v4-pool' && source.v4 !== undefined) {
+    const topic = event === null ? null : event === 'price' ? V4_TOPICS.swap : event === 'initialize' ? V4_TOPICS.initialize : V4_TOPICS.modifyLiquidity;
+    return { address: source.v4.poolManager, topics: topic === null ? [] : [topic, source.pair] };
+  }
+  if (source.kind === 'uniswap-v2-pair') return { address: source.pair, topics: event === null ? [] : [TOPICS.sync] };
+  const topic = event === null ? null : event === 'price' ? TOPICS.swap : event === 'initialize' ? TOPICS.initialize : event === 'liquidityAdded' ? TOPICS.mint : TOPICS.burn;
+  return { address: source.pair, topics: topic === null ? [] : [topic] };
+}
+
+/** The sign of a v4 ModifyLiquidity's delta — its third data word — or null for a log that is not one. */
+function liquidityDeltaSign(log: LogEntry): 1 | -1 | 0 | null {
+  if ((log.topics[0] ?? '').toLowerCase() !== V4_TOPICS.modifyLiquidity) return null;
+  const d = words(log.data)[2];
+  const v = d === undefined ? null : decodeInt(d);
+  return v === null ? null : v > 0n ? 1 : v < 0n ? -1 : 0;
+}
 const Q192 = 1n << 192n;
 const byPosition = (a: LogEntry, b: LogEntry) => Number.parseInt(a.blockNumber, 16) - Number.parseInt(b.blockNumber, 16) || Number.parseInt(a.logIndex ?? '0', 16) - Number.parseInt(b.logIndex ?? '0', 16);
 const blockOf = (l: LogEntry) => Number.parseInt(l.blockNumber, 16);
@@ -200,9 +240,9 @@ async function timestampOf(block: number, opts: RpcOptions): Promise<Reading<num
  * until it answers or is narrower than the smallest page, which is then a
  * fault; more pages than GUARD_MAX_PAGES is a fault too, stated as such.
  */
-async function foldEventsInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions, fold: (log: LogEntry) => void, budget: { pages: number }): Promise<Reading<null>> {
+async function foldEventsInRange(address: string, topics: readonly string[], from: number, to: number, opts: RpcOptions, fold: (log: LogEntry) => void, budget: { pages: number }): Promise<Reading<null>> {
   if (budget.pages <= 0) return unread('SOURCE_MALFORMED', { source: null, detail: `more than ${GUARD_MAX_PAGES} pages of events in the window; the desk does not weigh a pool that busy` });
-  const read = await readLogs(address, [topic], from, to, opts);
+  const read = await readLogs(address, topics, from, to, opts);
   if (isRead(read)) {
     budget.pages -= 1;
     for (const log of [...read.value].sort(byPosition)) fold(log);
@@ -211,14 +251,14 @@ async function foldEventsInRange(address: string, topic: string, from: number, t
   const width = to - from + 1;
   if (!halveable(read) || width <= MIN_PAGE_BLOCKS) return read;
   const mid = from + Math.floor(width / 2);
-  const earlier = await foldEventsInRange(address, topic, from, mid - 1, opts, fold, budget);
+  const earlier = await foldEventsInRange(address, topics, from, mid - 1, opts, fold, budget);
   if (!isRead(earlier)) return earlier;
-  return foldEventsInRange(address, topic, mid, to, opts, fold, budget);
+  return foldEventsInRange(address, topics, mid, to, opts, fold, budget);
 }
 
 /** The last log of one topic from one address in a range; a refused range is halved, later half first, since the last event is wanted. */
-async function lastInRange(address: string, topic: string, from: number, to: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
-  const read = await readLogs(address, [topic], from, to, opts);
+async function lastInRange(address: string, topics: readonly string[], from: number, to: number, opts: RpcOptions): Promise<Reading<LogEntry | null>> {
+  const read = await readLogs(address, topics, from, to, opts);
   if (isRead(read)) {
     const last = [...read.value].sort(byPosition).at(-1);
     return { ...read, value: last ?? null };
@@ -226,20 +266,20 @@ async function lastInRange(address: string, topic: string, from: number, to: num
   const width = to - from + 1;
   if (!halveable(read) || width <= MIN_PAGE_BLOCKS) return read;
   const mid = from + Math.floor(width / 2);
-  const later = await lastInRange(address, topic, mid, to, opts);
+  const later = await lastInRange(address, topics, mid, to, opts);
   if (!isRead(later) || later.value !== null) return later;
-  return lastInRange(address, topic, from, mid - 1, opts);
+  return lastInRange(address, topics, from, mid - 1, opts);
 }
 
 /** The last log of one topic from one address at or before `block`, looked for in widening windows and then down to `floor`. Null, VERIFIED, only when there is none in the whole span. */
-async function lastEventBefore(address: string, topic: string, block: number, opts: RpcOptions, floor = 0): Promise<Reading<LogEntry | null>> {
+async function lastEventBefore(address: string, topics: readonly string[], block: number, opts: RpcOptions, floor = 0): Promise<Reading<LogEntry | null>> {
   let to = block;
   let source = '';
   const bottom = Math.max(0, floor);
   for (const width of [...EVENT_WINDOWS, Number.POSITIVE_INFINITY]) {
     const from = Number.isFinite(width) ? Math.max(bottom, block - width) : bottom;
     if (from > to) break;
-    const read = await lastInRange(address, topic, from, to, opts);
+    const read = await lastInRange(address, topics, from, to, opts);
     if (!isRead(read)) return read;
     source = read.source;
     if (read.value !== null) return read;
@@ -269,8 +309,22 @@ export interface RateContext {
 /** The node's ways of saying a block's state is gone (Arbitrum Nitro, geth, erigon). */
 export const STATE_GONE = /metadata is not found|missing trie node|header not found|state (is )?not available|pruned|old block/i;
 
-/** Which side of the pool is CURB, and what the other side is. Constants of the pool; read at the head. */
+/** Which side of the pool is CURB, and what the other side is. Constants of the pool; read at the head — or, for a v4 pool, taken from the key the record carries, since the manager keeps none to ask. */
 async function sides(config: CreditsConfig, source: PriceSource, opts: RpcOptions): Promise<Reading<Sides>> {
+  if (source.kind === 'uniswap-v4-pool' && source.v4 !== undefined) {
+    const decimals = await uintAt(config.token, SEL.decimals, 'latest', 'decimals()', opts);
+    if (!isRead(decimals)) return decimals;
+    const { key } = source.v4;
+    const curbIs0 = key.currency0 === config.token;
+    const quoteAddress = curbIs0 ? key.currency1 : key.currency0;
+    // Native ETH has no contract to ask: eighteen decimals by the chain's definition.
+    const quoteDecimals = isNativeCurrency(quoteAddress) ? { ...decimals, value: 18n } : await uintAt(quoteAddress, SEL.decimals, 'latest', 'quote decimals()', opts);
+    if (!isRead(quoteDecimals)) return quoteDecimals;
+    const dCurb = Number(decimals.value);
+    const dQuote = Number(quoteDecimals.value);
+    if (dCurb > 36 || dQuote > 36) return unread('SOURCE_MALFORMED', { source: decimals.source, detail: 'decimals beyond 36 are not handled' });
+    return { ...decimals, value: { curbIs0, quoteAddress, curbDecimals: dCurb, quoteDecimals: dQuote } };
+  }
   const pool = source.pair;
   const [token0, token1, decimals] = await Promise.all([addressAt(pool, SEL.token0, 'latest', 'token0()', opts), addressAt(pool, SEL.token1, 'latest', 'token1()', opts), uintAt(config.token, SEL.decimals, 'latest', 'decimals()', opts)]);
   if (!isRead(token0)) return token0;
@@ -290,7 +344,7 @@ async function sides(config: CreditsConfig, source: PriceSource, opts: RpcOption
 
 type PoolPrice =
   | { readonly kind: 'uniswap-v2-pair'; readonly reserveCurb: bigint; readonly reserveQuote: bigint; readonly eventBlock?: number }
-  | { readonly kind: 'uniswap-v3-pool'; readonly sqrtPriceX96: bigint; readonly liquidity: bigint; readonly eventBlock?: number };
+  | { readonly kind: 'uniswap-v3-pool' | 'uniswap-v4-pool'; readonly sqrtPriceX96: bigint; readonly liquidity: bigint; readonly eventBlock?: number };
 
 /** Quote units per CURB, scaled by 1e18 and by the decimals gap, from the pool's own figures. Zero means no price. */
 function quotePerCurb18(p: PoolPrice, s: Sides): bigint {
@@ -312,15 +366,19 @@ function decodePoolEvent(source: PriceSource, s: Sides, log: LogEntry): PoolPric
     if (r0 === null || r1 === null) return null;
     return { kind: 'uniswap-v2-pair', reserveCurb: s.curbIs0 ? r0 : r1, reserveQuote: s.curbIs0 ? r1 : r0, eventBlock: blockOf(log) };
   }
-  if ((log.topics[0] ?? '').toLowerCase() === TOPICS.initialize) {
-    // The pool's first price, before any swap; liquidity is not in the event — a Mint at or before the block is checked by the caller.
-    const sqrt0 = w[0] === undefined ? null : decodeUint(w[0]);
-    return sqrt0 === null ? null : { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt0, liquidity: 1n, eventBlock: blockOf(log) };
+  const topic = (log.topics[0] ?? '').toLowerCase();
+  if (topic === TOPICS.initialize || topic === V4_TOPICS.initialize) {
+    // The pool's first price, before any swap; liquidity is not in the event — liquidity added at or before the block is checked by the caller.
+    // v3 carries the price in the first data word; v4 in the fourth, after fee, tickSpacing and hooks.
+    const at = topic === V4_TOPICS.initialize ? w[3] : w[0];
+    const sqrt0 = at === undefined ? null : decodeUint(at);
+    return sqrt0 === null ? null : { kind: source.kind, sqrtPriceX96: sqrt0, liquidity: 1n, eventBlock: blockOf(log) };
   }
+  // A Swap: v3 and v4 both carry the price after it in the third data word and the liquidity in the fourth.
   const sqrt = w[2] === undefined ? null : decodeUint(w[2]);
   const liquidity = w[3] === undefined ? null : decodeUint(w[3]);
   if (sqrt === null || liquidity === null) return null;
-  return { kind: 'uniswap-v3-pool', sqrtPriceX96: sqrt, liquidity, eventBlock: blockOf(log) };
+  return { kind: source.kind, sqrtPriceX96: sqrt, liquidity, eventBlock: blockOf(log) };
 }
 
 /**
@@ -340,27 +398,61 @@ function decodePoolEvent(source: PriceSource, s: Sides, log: LogEntry): PoolPric
  */
 async function lastPriceEventBefore(source: PriceSource, block: number, opts: RpcOptions): Promise<Reading<LogEntry | null> & { readonly liquidityAfter?: 'PRESENT' | 'UNCERTAIN' }> {
   const floor = source.fromBlock ?? 0;
-  if (source.kind === 'uniswap-v2-pair') return lastEventBefore(source.pair, TOPICS.sync, block, opts, floor);
-  const swap = await lastEventBefore(source.pair, TOPICS.swap, block, opts, floor);
+  const price = poolQuery(source, 'price');
+  if (source.kind === 'uniswap-v2-pair') return lastEventBefore(price.address, price.topics, block, opts, floor);
+  const swap = await lastEventBefore(price.address, price.topics, block, opts, floor);
   if (!isRead(swap)) return swap;
+  if (source.kind === 'uniswap-v4-pool') return v4LiquidityAfter(source, swap, block, opts, floor);
   if (swap.value !== null) {
     const w = words(swap.value.data);
     const liquidity = w[3] === undefined ? null : decodeUint(w[3]);
     if (liquidity !== 0n) return swap;
     // The swap left no liquidity: a Mint after it, at or before the block, means there is liquidity again at that price.
-    const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, floor);
+    const added = poolQuery(source, 'liquidityAdded');
+    const mint = await lastEventBefore(added.address, added.topics, block, opts, floor);
     if (!isRead(mint)) return mint;
     return mint.value !== null && byPosition(mint.value, swap.value) > 0 ? { ...swap, liquidityAfter: 'PRESENT' } : swap;
   }
-  const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts, floor);
+  const initQ = poolQuery(source, 'initialize');
+  const init = await lastEventBefore(initQ.address, initQ.topics, block, opts, floor);
   if (!isRead(init) || init.value === null) return init;
-  const [mint, burn] = await Promise.all([lastEventBefore(source.pair, TOPICS.mint, block, opts, floor), lastEventBefore(source.pair, TOPICS.burn, block, opts, floor)]);
+  const added = poolQuery(source, 'liquidityAdded');
+  const removed = poolQuery(source, 'liquidityRemoved');
+  const [mint, burn] = await Promise.all([lastEventBefore(added.address, added.topics, block, opts, floor), lastEventBefore(removed.address, removed.topics, block, opts, floor)]);
   if (!isRead(mint)) return mint;
   if (!isRead(burn)) return burn;
   if (mint.value === null) return { ...init, value: null };
   // Liquidity was added and then some removed, with no swap to say what is left: not a definite reading.
   if (burn.value !== null && byPosition(burn.value, mint.value) > 0) return { ...init, liquidityAfter: 'UNCERTAIN' };
   return init;
+}
+
+/**
+ * The v4 reading of liquidity after the last price event, from the one
+ * signed event: after a Swap that left no liquidity, a later positive delta
+ * means liquidity again; a later negative one, with no swap since, is not
+ * definite. Before any Swap, the Initialize is a price only once a positive
+ * delta has followed it — and a negative delta after that is UNCERTAIN.
+ */
+async function v4LiquidityAfter(source: PriceSource, swap: Reading<LogEntry | null> & { readonly state: 'VERIFIED' | 'STALE' }, block: number, opts: RpcOptions, floor: number): Promise<Reading<LogEntry | null> & { readonly liquidityAfter?: 'PRESENT' | 'UNCERTAIN' }> {
+  const modify = poolQuery(source, 'liquidityAdded');
+  if (swap.value !== null) {
+    const liquidity = words(swap.value.data)[3];
+    if ((liquidity === undefined ? null : decodeUint(liquidity)) !== 0n) return swap;
+    const last = await lastEventBefore(modify.address, modify.topics, block, opts, floor);
+    if (!isRead(last)) return last;
+    if (last.value === null || byPosition(last.value, swap.value) <= 0) return swap;
+    const sign = liquidityDeltaSign(last.value);
+    return sign === 1 ? { ...swap, liquidityAfter: 'PRESENT' } : sign === -1 ? { ...swap, liquidityAfter: 'UNCERTAIN' } : swap;
+  }
+  const initQ = poolQuery(source, 'initialize');
+  const init = await lastEventBefore(initQ.address, initQ.topics, block, opts, floor);
+  if (!isRead(init) || init.value === null) return init;
+  const last = await lastEventBefore(modify.address, modify.topics, block, opts, floor);
+  if (!isRead(last)) return last;
+  if (last.value === null) return { ...init, value: null };
+  const sign = liquidityDeltaSign(last.value);
+  return sign === 1 ? init : { ...init, liquidityAfter: 'UNCERTAIN' };
 }
 
 async function poolPriceByState(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
@@ -372,6 +464,16 @@ async function poolPriceByState(source: PriceSource, s: Sides, block: number, op
     const r1 = w[1] === undefined ? null : decodeUint(w[1]);
     if (r0 === null || r1 === null) return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'getReserves() undecodable' });
     return { ...raw, value: { kind: 'uniswap-v2-pair', reserveCurb: s.curbIs0 ? r0 : r1, reserveQuote: s.curbIs0 ? r1 : r0 } };
+  }
+  if (source.kind === 'uniswap-v4-pool' && source.v4 !== undefined) {
+    const id = source.pair.replace(/^0x/, '');
+    const [raw, liquidity] = await Promise.all([callAt(source.v4.stateView, `${V4_SELECTORS.getSlot0}${id}`, block, 'getSlot0(id)', opts), uintAt(source.v4.stateView, `${V4_SELECTORS.getLiquidity}${id}`, block, 'getLiquidity(id)', opts)]);
+    if (!isRead(raw)) return raw;
+    if (!isRead(liquidity)) return liquidity;
+    const w = words(raw.value);
+    const sqrt = w[0] === undefined ? null : decodeUint(w[0]);
+    if (sqrt === null || w.length < 4) return unread('SOURCE_MALFORMED', { source: raw.source, detail: 'getSlot0(id) undecodable' });
+    return { ...raw, value: { kind: 'uniswap-v4-pool', sqrtPriceX96: sqrt, liquidity: liquidity.value } };
   }
   const [raw, liquidity] = await Promise.all([callAt(source.pair, SEL.slot0, block, 'slot0()', opts), uintAt(source.pair, SEL.liquidity, block, 'liquidity()', opts)]);
   if (!isRead(raw)) return raw;
@@ -391,19 +493,20 @@ async function poolPriceByEvents(source: PriceSource, s: Sides, block: number, o
   if (last.liquidityAfter === 'UNCERTAIN') return unread('FIELD_ABSENT', { source: last.source, detail: `the pool's liquidity at block ${block} cannot be told from its events (liquidity was added and then removed with no swap since); by state only` });
   const price = decodePoolEvent(source, s, last.value);
   if (price === null) return unread('SOURCE_MALFORMED', { source: last.source, detail: 'the pool event is undecodable' });
-  if ((last.value.topics[0] ?? '').toLowerCase() === TOPICS.initialize) {
+  const topic = (last.value.topics[0] ?? '').toLowerCase();
+  if (topic === TOPICS.initialize || topic === V4_TOPICS.initialize) {
     // Priced from the Initialize: the pool has not swapped under the Swap topic the reader knows. If its price by state at the head has moved from that, it swapped under another — a pool of another kind, never priced from its first price.
     const head = await readBlockNumber(opts);
     if (!isRead(head)) return head;
-    const [slot0, sawSwap] = await Promise.all([callAt(source.pair, SEL.slot0, 'latest', 'slot0()', opts), lastEventBefore(source.pair, TOPICS.swap, head.value, opts, source.fromBlock ?? 0)]);
-    if (!isRead(slot0)) return slot0;
+    const priceQ = poolQuery(source, 'price');
+    const [atHead, sawSwap] = await Promise.all([poolPriceByState(source, s, head.value, opts), lastEventBefore(priceQ.address, priceQ.topics, head.value, opts, source.fromBlock ?? 0)]);
+    if (!isRead(atHead)) return atHead;
     if (!isRead(sawSwap)) return sawSwap;
-    const headSqrt = words(slot0.value)[0] === undefined ? null : decodeUint(words(slot0.value)[0]!);
-    if (sawSwap.value === null && headSqrt !== null && price.kind === 'uniswap-v3-pool' && headSqrt !== price.sqrtPriceX96) {
-      return unread('SOURCE_MALFORMED', { source: slot0.source, detail: `the pool's price moved from its Initialize without a Swap the reader recognises; the recorded kind is not this pool's interface` });
+    if (sawSwap.value === null && price.kind !== 'uniswap-v2-pair' && atHead.value.kind !== 'uniswap-v2-pair' && atHead.value.sqrtPriceX96 !== price.sqrtPriceX96) {
+      return unread('SOURCE_MALFORMED', { source: atHead.source, detail: `the pool's price moved from its Initialize without a Swap the reader recognises; the recorded kind is not this pool's interface` });
     }
   }
-  return { ...last, value: price.kind === 'uniswap-v3-pool' && last.liquidityAfter === 'PRESENT' ? { ...price, liquidity: 1n } : price };
+  return { ...last, value: price.kind !== 'uniswap-v2-pair' && last.liquidityAfter === 'PRESENT' ? { ...price, liquidity: 1n } : price };
 }
 
 type FeedAnswer = { readonly answer: bigint; readonly updatedAt: bigint; readonly decimals: number; readonly eventBlock?: number };
@@ -435,7 +538,7 @@ async function feedByEvents(feed: string, block: number, opts: RpcOptions): Prom
   const seen: string[] = [];
   for (let step = 0; step <= FEED_PHASES_BACK; step += 1) {
     seen.push(at);
-    const last = await lastEventBefore(at, TOPICS.answerUpdated, block, opts);
+    const last = await lastEventBefore(at, [TOPICS.answerUpdated], block, opts);
     if (!isRead(last)) return last;
     if (last.value !== null) {
       const answer = last.value.topics[1] === undefined ? null : decodeInt(last.value.topics[1]);
@@ -516,7 +619,7 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   // opened, which is the last event before it, so a quiet pool pumped just
   // before a top-up still shows the price it had for the hour before.
   const windowBlocks = guardWindowFor(config.network.chainId);
-  const topic = source.kind === 'uniswap-v2-pair' ? TOPICS.sync : TOPICS.swap;
+  const priceQ = poolQuery(source, 'price');
   const windowStart = Math.max(0, block - windowBlocks);
   let lowest = atBlock;
   let lowestAtBlock: number | null = null;
@@ -536,17 +639,20 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   const opening = windowStart > 0 ? await lastPriceEventBefore(source, windowStart - 1, opts) : null;
   if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
   if (opening !== null && opening.value !== null && opening.liquidityAfter !== 'UNCERTAIN') weigh(opening.value);
-  if (source.kind === 'uniswap-v3-pool') {
+  if (source.kind !== 'uniswap-v2-pair') {
     // The pool's first price counts too when it was set inside the window and liquidity followed by the block.
-    const init = await lastEventBefore(source.pair, TOPICS.initialize, block, opts, source.fromBlock ?? 0);
+    const initQ = poolQuery(source, 'initialize');
+    const init = await lastEventBefore(initQ.address, initQ.topics, block, opts, source.fromBlock ?? 0);
     if (!isRead(init)) return unread(init.reason, { source: init.source, detail: `the pool's Initialize could not be looked for (${init.detail ?? init.reason}); a rate without its guard is not stated` });
     if (init.value !== null && blockOf(init.value) >= windowStart) {
-      const mint = await lastEventBefore(source.pair, TOPICS.mint, block, opts, source.fromBlock ?? 0);
-      if (!isRead(mint)) return unread(mint.reason, { source: mint.source, detail: `the pool's Mint could not be looked for (${mint.detail ?? mint.reason}); a rate without its guard is not stated` });
-      if (mint.value !== null) weigh(init.value);
+      const added = poolQuery(source, 'liquidityAdded');
+      const mint = await lastEventBefore(added.address, added.topics, block, opts, source.fromBlock ?? 0);
+      if (!isRead(mint)) return unread(mint.reason, { source: mint.source, detail: `the pool's liquidity events could not be looked for (${mint.detail ?? mint.reason}); a rate without its guard is not stated` });
+      // For v4 the one event is signed: only an addition counts as liquidity having followed.
+      if (mint.value !== null && (source.kind !== 'uniswap-v4-pool' || liquidityDeltaSign(mint.value) === 1)) weigh(init.value);
     }
   }
-  const window = await foldEventsInRange(source.pair, topic, windowStart, block, opts, weigh, { pages: GUARD_MAX_PAGES });
+  const window = await foldEventsInRange(priceQ.address, priceQ.topics, windowStart, block, opts, weigh, { pages: GUARD_MAX_PAGES });
   if (!isRead(window)) return unread(window.reason, { source: window.source, detail: `the guard window before block ${block} could not be read (${window.detail ?? window.reason}); a rate without its guard is not stated` });
   const guard: Rate['guard'] = { windowBlocks, samples, lowestAtBlock, atBlockUsdPerCurb18: atBlock.toString(), applied: lowest < atBlock };
 
@@ -559,6 +665,7 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   const poolOut: Rate['pool'] = {
     kind: source.kind,
     address: source.pair,
+    ...(source.v4 === undefined ? {} : { poolManager: source.v4.poolManager, stateView: source.v4.stateView }),
     quoteAddress: s.value.quoteAddress,
     quoteDecimals: s.value.quoteDecimals,
     ...(p.kind === 'uniswap-v2-pair' ? { reserveCurb: p.reserveCurb.toString(), reserveQuote: p.reserveQuote.toString() } : { sqrtPriceX96: p.sqrtPriceX96.toString(), liquidity: p.liquidity.toString() }),
@@ -610,6 +717,29 @@ export interface PoolCreationCheck {
   readonly coveredFrom: number;
   /** The page width the node was last serving, kept so a resumed check does not halve its way down again. */
   readonly pageWidth?: number;
+  /** Why the check failed when it did for a reason other than an earlier log — for a v4 pool, an Initialize at fromBlock that is missing or names another key. */
+  readonly detail?: string;
+}
+
+/**
+ * A v4 pool's key, as its Initialize states it: the currencies in the
+ * second and third topics, the fee, tick spacing and hook in the data. The
+ * record's key must reproduce all five, or the id the record derives names
+ * some other pool than the one whose events will be read.
+ */
+function initializeMatchesKey(log: LogEntry, source: PriceSource): string | null {
+  if (source.v4 === undefined) return 'no v4 key in the record';
+  const { key } = source.v4;
+  const c0 = log.topics[2] === undefined ? null : decodeCurrencyWord(log.topics[2]);
+  const c1 = log.topics[3] === undefined ? null : decodeCurrencyWord(log.topics[3]);
+  const w = words(log.data);
+  const fee = w[0] === undefined ? null : decodeUint(w[0]);
+  const spacing = w[1] === undefined ? null : decodeInt(w[1]);
+  const hooks = w[2] === undefined ? null : decodeCurrencyWord(w[2]);
+  if (c0 === null || c1 === null || fee === null || spacing === null || hooks === null) return 'the Initialize is undecodable';
+  if (c0.toLowerCase() !== key.currency0 || c1.toLowerCase() !== key.currency1) return `the Initialize names currencies ${c0} and ${c1}; the record's key names ${key.currency0} and ${key.currency1}`;
+  if (fee !== BigInt(key.fee) || spacing !== BigInt(key.tickSpacing) || hooks.toLowerCase() !== key.hooks) return `the Initialize states fee ${fee}, tick spacing ${spacing}, hook ${hooks}; the record's key states ${key.fee}, ${key.tickSpacing}, ${key.hooks}`;
+  return null;
 }
 export async function checkPoolCreation(config: CreditsConfig, opts: RpcOptions, progress: { readonly resumeBelow?: number | null; readonly pageWidth?: number | null; readonly deadline?: number } = {}): Promise<Reading<PoolCreationCheck>> {
   const source = config.priceSource;
@@ -620,17 +750,27 @@ export async function checkPoolCreation(config: CreditsConfig, opts: RpcOptions,
   if (top < 0) return { state: 'VERIFIED', value: { ok: true, logBefore: null, coveredFrom: 0 }, ageSeconds: 0, source: 'the record', retrievedAt: now };
   // Pages narrower than this are given up on: a pool with more logs than the node can answer for in a day of blocks is not one whose creation this reads.
   const timedOpts: RpcOptions = { ...opts, timeoutMs: Math.min(opts.timeoutMs ?? 15_000, 8_000) };
+  // A pair or a v3 pool: any log of the pool's address. A v4 pool: only its own Initialize, by id, on the manager — the manager emits other pools' logs by the thousand, and a pool is initialised exactly once, so the one log that can precede fromBlock is that one.
+  const query = poolQuery(source, source.kind === 'uniswap-v4-pool' ? 'initialize' : null);
+  if (source.kind === 'uniswap-v4-pool' && (progress.resumeBelow === undefined || progress.resumeBelow === null)) {
+    // First: the Initialize must sit in fromBlock itself and state the record's key.
+    const at = await readLogs(query.address, query.topics, source.fromBlock, source.fromBlock, timedOpts);
+    if (!isRead(at)) return at;
+    if (at.value.length !== 1) return { ...at, value: { ok: false, logBefore: null, coveredFrom: 0, detail: `${at.value.length === 0 ? 'no' : at.value.length} Initialize for this pool id in block ${source.fromBlock}; fromBlock must be the block the pool was initialised in` } };
+    const mismatch = initializeMatchesKey(at.value[0]!, source);
+    if (mismatch !== null) return { ...at, value: { ok: false, logBefore: null, coveredFrom: 0, detail: mismatch } };
+  }
   let width = top + 1;
   let source_ = 'the node';
   if (progress.pageWidth === undefined || progress.pageWidth === null) {
-    const whole = await readLogs(source.pair, [], 0, top, timedOpts);
+    const whole = await readLogs(query.address, query.topics, 0, top, timedOpts);
     if (isRead(whole)) {
       const first = whole.value.length === 0 ? null : whole.value.map(blockOf).reduce((a, b) => Math.min(a, b));
       return { ...whole, value: { ok: first === null, logBefore: first, coveredFrom: 0 } };
     }
     if (!halveable(whole)) return whole;
     // Refused for matching too much: that is logs before fromBlock, unless the refusal was for the query's width or its time.
-    const widthCapped = whole.reason === 'SOURCE_TIMEOUT' || /block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(whole.detail ?? '');
+    const widthCapped = whole.reason === 'SOURCE_TIMEOUT' || isLogTimeout(whole.detail) || /block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(whole.detail ?? '');
     if (!widthCapped) return { ...whole, state: 'VERIFIED', value: { ok: false, logBefore: top, coveredFrom: 0 }, ageSeconds: 0, retrievedAt: now } as Reading<PoolCreationCheck>;
     source_ = whole.source ?? source_;
   } else {
@@ -640,7 +780,7 @@ export async function checkPoolCreation(config: CreditsConfig, opts: RpcOptions,
   let hi = top;
   for (let i = 0; i < POOL_CHECK_MAX_READS && Date.now() < deadline; i += 1) {
     const lo = Math.max(0, hi - width + 1);
-    const page = await readLogs(source.pair, [], lo, hi, timedOpts);
+    const page = await readLogs(query.address, query.topics, lo, hi, timedOpts);
     if (!isRead(page)) {
       if (!halveable(page) || width <= MIN_PAGE_BLOCKS) return page;
       width = Math.floor(width / 2);
