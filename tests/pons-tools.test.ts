@@ -1,7 +1,11 @@
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { describeError, endpointHost, isUnknownBlock, withOneRetry } from '../contracts/scripts/lib/node.ts';
-import { NATIVE, PONS_V2, factoryAbi, graduatedPoolKey } from '../contracts/scripts/lib/pons-v2.ts';
+import { NATIVE, PONS_V2, graduatedPoolKey } from '../contracts/scripts/lib/pons-v2-facts.ts';
+
+// The ABI module needs viem, which the site does not carry; it is held to its verified text here and typechecked where the tools live (the contracts job).
+const abiSource = readFileSync(new URL('../contracts/scripts/lib/pons-v2.ts', import.meta.url), 'utf8');
 
 const KEYED = 'https://lb.drpc.live/example-key-0123456789abcdef';
 const fail = (why: string): never => {
@@ -69,14 +73,13 @@ describe('what a PONS tool may say about its node', () => {
 
 describe("the venue's interface, as verified", () => {
   it("carries every one of the factory's errors, so a refusal is named", () => {
-    const errors: readonly string[] = factoryAbi.filter((e) => e.type === 'error').map((e) => e.name);
+    const errors = [...abiSource.matchAll(/^  'error (\w+)\(/gm)].map((m) => m[1]!);
     assert.equal(errors.length, 52);
     for (const name of ['LaunchFeeNotPaid', 'LaunchEconomicsMismatch', 'NotWhitelisted', 'CreatorTaxTooHigh', 'PairTokenNotApproved', 'InvalidTokenParams', 'InvalidLaunchConfigId']) assert.ok(errors.includes(name), name);
   });
   it('declares maxCreatorTaxBps as the uint256 it is', () => {
-    const fn = factoryAbi.find((e) => e.type === 'function' && e.name === 'maxCreatorTaxBps');
-    assert.ok(fn && fn.type === 'function');
-    assert.equal(fn.outputs[0]?.type, 'uint256');
+    assert.ok(abiSource.includes("'function maxCreatorTaxBps() view returns (uint256)'"));
+    assert.ok(!abiSource.includes('maxCreatorTaxBps() view returns (uint16)'));
   });
   it('sorts the pool key numerically, native ETH first', () => {
     const token = '0xd1a4e3a035852a3be3f24c2de889a9f17c265f19';
