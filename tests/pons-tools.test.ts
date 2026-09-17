@@ -69,7 +69,7 @@ describe('what a PONS tool may say about its node', () => {
 
 describe("the venue's interface, as verified", () => {
   it("carries every one of the factory's errors, so a refusal is named", () => {
-    const errors = factoryAbi.filter((e) => e.type === 'error').map((e) => e.name);
+    const errors: readonly string[] = factoryAbi.filter((e) => e.type === 'error').map((e) => e.name);
     assert.equal(errors.length, 52);
     for (const name of ['LaunchFeeNotPaid', 'LaunchEconomicsMismatch', 'NotWhitelisted', 'CreatorTaxTooHigh', 'PairTokenNotApproved', 'InvalidTokenParams', 'InvalidLaunchConfigId']) assert.ok(errors.includes(name), name);
   });
