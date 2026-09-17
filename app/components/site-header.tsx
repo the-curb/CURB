@@ -26,7 +26,15 @@ export function SiteHeader() {
       <div className="masthead-rule">
         <div className="tabular flex h-7 items-center justify-between gap-4 border-b border-(--color-rule) px-4 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
           <span className="truncate">A desk on Robinhood Chain · 4663</span>
-          <ThemeToggle />
+          <span className="flex items-center gap-4">
+            <a href={BRAND.links.x} className="hidden hover:text-(--color-paper) sm:inline" target="_blank" rel="noopener noreferrer" aria-label={`${BRAND.name} on X, ${BRAND.links.xHandle}`}>
+              X · {BRAND.links.xHandle}
+            </a>
+            <a href={BRAND.links.github} className="hidden hover:text-(--color-paper) sm:inline" target="_blank" rel="noopener noreferrer" aria-label="Source on GitHub">
+              GitHub
+            </a>
+            <ThemeToggle />
+          </span>
         </div>
 
         <div className="flex h-12 items-center gap-5 px-4 sm:h-14">

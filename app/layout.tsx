@@ -23,6 +23,8 @@ export const metadata: Metadata = {
   title: { default: BRAND.name, template: `%s — ${BRAND.name}` },
   description: BRAND.descriptor,
   metadataBase: new URL(process.env.CURB_SITE_ORIGIN ?? BRAND.origin),
+  openGraph: { siteName: BRAND.name, title: BRAND.name, description: BRAND.descriptor, type: 'website' },
+  twitter: { card: 'summary', site: BRAND.links.xHandle, title: BRAND.name, description: BRAND.descriptor },
 };
 
 /**

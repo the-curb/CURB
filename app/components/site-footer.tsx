@@ -14,7 +14,8 @@ const LINKS: ReadonlyArray<readonly [string, string]> = [
   ['Doctrine', '/doctrine'],
   ['The agents', '/agents'],
   ['State, as data', '/api/state'],
-  ['Source on GitHub', 'https://github.com/the-curb/CURB'],
+  ['Source on GitHub', BRAND.links.github],
+  [`X · ${BRAND.links.xHandle}`, BRAND.links.x],
 ];
 
 /**

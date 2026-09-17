@@ -47,6 +47,12 @@ export const BRAND = {
    * overrides it without a code change.
    */
   origin: 'https://the-curb-production.up.railway.app',
+  /** Where the desk is found off the site: the source, and the one account that speaks for it. */
+  links: {
+    github: 'https://github.com/the-curb/CURB',
+    x: 'https://x.com/thecurb_xyz',
+    xHandle: '@thecurb_xyz',
+  },
   /** Narrative universe: original financial-noir. No licensed characters, ever. */
   universe: {
     city: 'The Curb',

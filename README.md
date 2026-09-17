@@ -1,16 +1,26 @@
-# THE CURB
+<p align="center">
+  <a href="https://the-curb-production.up.railway.app"><img src="docs/images/front.png" alt="THE CURB — the front page: one company, two issuers, one position" width="100%"></a>
+</p>
 
-**One company. Multiple issuers. One position.**
+<h1 align="center">THE CURB</h1>
 
-Mainnet preparation: [the dossier and decision templates](docs/mainnet/PREPARATION.md),
-[the 15 September execution notes](docs/mainnet/EXECUTION-DECISIONS-2026-09-15.md) (proposals until the product owner confirms them),
-[the external facts researched](docs/mainnet/EXTERNAL-FACTS-2026-09-15.md),
-[the release evidence](docs/reviews/MAINNET-PREPARATION-2026-09-13.md) and
-[the repeatable local HTTP/ledger/webhook acceptance](scripts/REHEARSAL.md).
-`npm run mainnet:preflight` reports the evidence still missing for a token launch, a paid beta
-and the position pilot; it stays HELD until real reviews and deployment evidence are recorded, and it authorizes nothing.
+<p align="center"><b>One company. Multiple issuers. One position.</b></p>
 
-Live at **https://the-curb-production.up.railway.app** · [![tick](https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg)](https://github.com/the-curb/CURB/actions/workflows/tick.yml)
+<p align="center">
+  <a href="https://the-curb-production.up.railway.app">Live</a> ·
+  <a href="https://x.com/thecurb_xyz">X · @thecurb_xyz</a> ·
+  <a href="MECHANISM.md">The mechanism</a> ·
+  <a href="DOCTRINE.md">The doctrine</a> ·
+  <a href="docs/decisions/TOKEN.md">The token record</a> ·
+  <a href="DEPLOY.md">Deploy</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/the-curb/CURB/actions/workflows/checks.yml"><img src="https://github.com/the-curb/CURB/actions/workflows/checks.yml/badge.svg" alt="checks"></a>
+  <a href="https://github.com/the-curb/CURB/actions/workflows/tick.yml"><img src="https://github.com/the-curb/CURB/actions/workflows/tick.yml/badge.svg" alt="tick"></a>
+  <a href="https://github.com/the-curb/CURB/actions/workflows/watch.yml"><img src="https://github.com/the-curb/CURB/actions/workflows/watch.yml/badge.svg" alt="watch"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2b2b2b" alt="MIT"></a>
+</p>
 
 A stock-token holder chooses a company and, in the same act, a particular way
 of getting exposure to it: an issuer, a contract, a set of terms and an exit.
@@ -19,55 +29,64 @@ open — one position on one company, formed from several issuers, with the
 composition inspectable, the right to every component recorded, and every
 component withdrawn on its own.
 
-**Stage: mainnet — Robinhood Chain.** The operator's treasury, a 2-of-3 Safe,
-is live on chain since 13 September 2026 (`contracts/evidence/safes/safe.4663.json`);
-the token and the credit desk follow it, and `/services` says `NOT_CONFIGURED`
-until they are configured from the chain — then it reports the desk, its code
-verification, the rate and the receipts as they are read. The position product
-is a prototype: the CompanySeries contract exists and has been exercised on
-local chains and Ethereum forks; no public series deployment or issuer
-integration is approved, and the Robinhood treasury does not make an Ethereum
-series operator. What exists is the mechanism ([MECHANISM.md](MECHANISM.md), rendered at `/mechanism`),
-the ledger model that implements its accounting (`lib/positions/`, tested
-against the blueprint's cases in `tests/positions.test.ts`), a simulation
-of it at `/positions/apple-s1` — illustrative units, no prices, no chain —
-the product's backend (an evidence archive of the issuers' records, daily
-on-chain verification of every address they name, an event index and a
-reconciliation for a series once one is deployed, a product API), a contract
-prototype with fork evidence against both real components on Ethereum
-(including a corporate action across a recorded block), a
-rehearsal and an operational drill on a local chain, the decision records
-the blueprint asks for (`docs/decisions/`, rendered at `/mechanism/decisions`)
-— the series ADRs and remaining operations policy are proposals; the
-treasury signers are recorded — and the token's one function, decided by
-the product owner: a credit desk at `/services`, prices in dollars for the
-history and the fan-out the site keeps, paid in CURB at a rate read from a
-pool at a block, `NOT_CONFIGURED` until a token exists.
-
-Beneath the product is the desk: a multi-agent intelligence desk for stock
-tokens on Robinhood Chain (chain id 4663). Nine agents read the chain and two
-published registries on a schedule, publish what they measured with a source
-and a time on every figure, and apply code-based policy checks for forecast, advice, rating language
-and undeclared figures. These pattern and provenance checks do not prove
-the semantic truth of every sentence. A daily paper,
-*The Curb Gazette*, is composed from the record. The desk is the evidence
-layer a position would stand on; for a new chain it needs new sources and new
-tests, and says so.
-
 Before the American Stock Exchange had a building it was the Curb Market:
 claims traded outside the official floor. A stock token is the same thing
 again. "Curb" is also a limit, which is the other half of the job.
 
-## What the desk watches
+## Where it stands
 
-| District     | Agents                              | What is measured                                                                                                   |
-| ------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| THE FLOOR    | The Bell, Pillar, The Surveyor      | The exchange session; every tokenized-equity feed with two ages kept apart; the issuer's pause flag; market structure on request |
-| THE REGISTRY | The Registrar, The Archivist        | Every stock token the issuer lists, the one beacon they all delegate to, shares-per-token multipliers and staged changes |
-| THE VAULT    | The Tally                           | Transfer flow as an hourly rate sample — never a total the node cannot answer                                      |
-| CHAMBERS     | Counsel, The Warden                 | The published terms, pointed at and watched for change; the three numbers the system cannot fake                   |
-| THE PRESS    | —                                   | The Gazette: composed from the record, its lede narrated by a model under the same policy gate as every agent       |
-| THE CAGE     | The Herald                          | The declared promoter, kept apart, with its disclosure appended by code                                             |
+**Mainnet — Robinhood Chain (4663).** The operator's treasury, a 2-of-3 Safe,
+is live on chain since 13 September 2026
+([`contracts/evidence/safes/safe.4663.json`](contracts/evidence/safes/safe.4663.json)).
+The token and the credit desk follow it: `/services` says `NOT_CONFIGURED`
+until they are configured from the chain, then reports the desk, its code
+verification, the rate and the receipts as they are read. Nothing is sold yet.
+
+The position product is a prototype. The `CompanySeries` contract exists and
+has been exercised on local chains and Ethereum forks — including a corporate
+action across a recorded block — but no public series deployment or issuer
+integration is approved, and the Robinhood treasury does not make an Ethereum
+series operator.
+
+| What exists | Where |
+| --- | --- |
+| The mechanism — the blueprint the product is built to | [MECHANISM.md](MECHANISM.md), rendered at [`/mechanism`](https://the-curb-production.up.railway.app/mechanism) |
+| The ledger model that implements its accounting | `lib/positions/`, tested against the blueprint's cases in `tests/positions.test.ts` |
+| A simulation of one position — illustrative units, no prices, no chain | [`/positions/apple-s1`](https://the-curb-production.up.railway.app/positions/apple-s1) |
+| The product's backend — an evidence archive of the issuers' records, daily on-chain verification of every address they name, an event index and a reconciliation for a series once one is deployed, a product API | `lib/positions/`, `app/api/positions` |
+| The contract prototype, with fork evidence against both real components on Ethereum, a rehearsal and an operational drill on a local chain | [`contracts/`](contracts/) |
+| The decision records the blueprint asks for — the series ADRs and most of the operations policy are proposals; the treasury signers and the token are decided | [`docs/decisions/`](docs/decisions/), rendered at [`/mechanism/decisions`](https://the-curb-production.up.railway.app/mechanism/decisions) |
+| The token's one function, decided by the product owner: prepaid credit at a desk, priced in dollars, paid in CURB at a rate read from a pool at a block | [TOKEN.md](docs/decisions/TOKEN.md), [`/services`](https://the-curb-production.up.railway.app/services) |
+| The mainnet dossier: preparation, external facts, the venue's terms read from primary sources, the execution decisions | [`docs/mainnet/`](docs/mainnet/) |
+
+`npm run mainnet:preflight` reports the evidence still missing for a token
+launch, a paid beta and the position pilot; it stays HELD until real reviews
+and deployment evidence are recorded, and it authorizes nothing.
+
+## The desk beneath it
+
+<p align="center">
+  <a href="https://the-curb-production.up.railway.app/floor"><img src="docs/images/floor.png" alt="The Floor — every price with its age" width="49%"></a>
+  <a href="https://the-curb-production.up.railway.app/gazette"><img src="docs/images/gazette.png" alt="The Curb Gazette — one day's record, set as a paper" width="49%"></a>
+</p>
+
+Beneath the product is a multi-agent intelligence desk for stock tokens on
+Robinhood Chain. Nine agents read the chain and two published registries on a
+schedule, publish what they measured with a source and a time on every figure,
+and pass a code-based policy gate that stops forecast, advice, rating language
+and undeclared figures. These pattern and provenance checks do not prove the
+semantic truth of every sentence. A daily paper, *The Curb Gazette*, is composed
+from the record. The desk is the evidence layer a position would stand on; for
+a new chain it needs new sources and new tests, and says so.
+
+| District | Agents | What is measured |
+| --- | --- | --- |
+| THE FLOOR | The Bell, Pillar, The Surveyor | The exchange session; every tokenized-equity feed with two ages kept apart; the issuer's pause flag; market structure on request |
+| THE REGISTRY | The Registrar, The Archivist | Every stock token the issuer lists, the one beacon they all delegate to, shares-per-token multipliers and staged changes |
+| THE VAULT | The Tally | Transfer flow as an hourly rate sample — never a total the node cannot answer |
+| CHAMBERS | Counsel, The Warden | The published terms, pointed at and watched for change; the three numbers the system cannot fake |
+| THE PRESS | — | The Gazette: composed from the record, its lede narrated by a model under the same policy gate as every agent |
+| THE CAGE | The Herald | The declared promoter, kept apart, with its disclosure appended by code |
 
 Every reading is one of three states — verified, stale, or unread with a reason
 — and an unread reading renders as an absence, never as zero. The rules are in
@@ -91,10 +110,11 @@ npm run verify:store    # the store contract, against the filesystem and Postgre
 node --env-file-if-exists=.env.local scripts/preview.ts pillar   # rehearse one agent, writing nothing
 ```
 
-The scheduler is `POST /api/tick` every five minutes from outside the host;
+The scheduler is `POST /api/tick` every five minutes from outside the host (GitHub's cron, best-effort, so runs land ten to twenty minutes apart);
 [DEPLOY.md](DEPLOY.md) is the runbook — store, app, scheduler, alerting,
 retention, the registries and how to re-capture them, and what is deliberately
-not covered.
+not covered. The app runs on Railway with Postgres beside it and deploys from
+`main`.
 
 ## The contract prototype
 
@@ -105,6 +125,8 @@ held, no admin), the mocks that misbehave on demand, and the blueprint's test
 cases as Solidity tests with fuzz and invariant runs. Unaudited, unreviewed,
 undeployed — the site reports NOT_DEPLOYED until a reviewed deployment record
 is configured, and NOT_CONFIGURED for the credit desk while no token exists.
+The operator's tools for the decided launch venue live in `contracts/scripts/`
+and refuse to send until every check passes.
 
 ```bash
 cd contracts && npm install && npm run build && npm test
