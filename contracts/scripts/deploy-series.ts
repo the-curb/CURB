@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { createPublicClient, createWalletClient, getContractAddress, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { parseArgs } from './lib/args.ts';
+import { describeError, endpointHost } from './lib/node.ts';
 import { safeAbi } from './lib/safe.ts';
 import { validateOperatorSafeExpectation, verifyOperatorSafe, type OperatorSafeExpectation } from './lib/operator-safe.ts';
 import { assertLoopbackRpc } from './lib/local-chain.ts';
@@ -93,7 +94,8 @@ if (!record.name?.trim() || !record.symbol?.trim()) fail('the receipt name and s
 const RPC_ENV: Record<number, string> = { 4663: 'CURB_RPC_URL', 46630: 'CURB_RPC_URL_TESTNET', 1: 'CURB_RPC_URL_ETHEREUM', 11155111: 'CURB_RPC_URL_SEPOLIA', 31337: 'CURB_RPC_URL_LOCAL' };
 const rpcUrl = (RPC_ENV[record.chainId] !== undefined && process.env[RPC_ENV[record.chainId]!]) || record.rpcUrl;
 if (record.chainId === 31337) assertLoopbackRpc(rpcUrl);
-console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ' (from the environment)'}`);
+const host = endpointHost(rpcUrl, fail);
+console.error(`node: ${host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ' (from the environment)'}`);
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
 const pub = createPublicClient({ chain, transport: http(rpcUrl) });
 const erc20 = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)']);
@@ -103,7 +105,7 @@ async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (cause) {
-    return fail(`the node at ${new URL(rpcUrl).host} did not answer ${what}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`);
+    return fail(`the node at ${host} did not answer ${what}: ${describeError(cause, rpcUrl)}; nothing was sent`);
   }
 }
 
@@ -123,7 +125,7 @@ if (record.operatorSafe !== undefined) {
       modules: (address, start, pageSize, blockNumber) => pub.readContract({ address, abi: safeAbi, functionName: 'getModulesPaginated', args: [start, pageSize], blockNumber }),
       storage: (address, slot, blockNumber) => pub.getStorageAt({ address, slot, blockNumber }),
     });
-  } catch (cause) { fail(`the operator Safe could not be verified: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`); }
+  } catch (cause) { fail(`the operator Safe could not be verified: ${describeError(cause, rpcUrl)}`); }
   console.error(`operator Safe: ${record.operator} · ${operatorAsRead.threshold}-of-${operatorAsRead.owners.length} · proxy, singleton, modules, guard and fallback match · block ${operatorAsRead.blockNumber}`);
 } else {
   console.error('local rehearsal only: no public operator Safe verification was requested');
@@ -141,7 +143,7 @@ for (const id of ['A', 'B'] as const) {
   console.error(`component ${id}: ${address} · ${symbol} · ${decimals} decimals · code present`);
 }
 
-try { buildCurrentContracts(); } catch (cause) { fail(`the contracts did not compile: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`); }
+try { buildCurrentContracts(); } catch (cause) { fail(`the contracts did not compile: ${describeError(cause, rpcUrl)}`); }
 const artifact = JSON.parse(readFileSync(new URL('../artifacts/src/CompanySeries.sol/CompanySeries.json', import.meta.url), 'utf8')) as { abi: unknown[]; bytecode: Hex; deployedBytecode: Hex };
 const build = JSON.parse(readFileSync(new URL('../evidence/CompanySeries.build.json', import.meta.url), 'utf8')) as { deployedBytecode: string; creationBytecode?: string; workingTreeClean: boolean; sourceCommit: string | null };
 if (build.deployedBytecode.toLowerCase() !== artifact.deployedBytecode.toLowerCase() || build.creationBytecode?.toLowerCase() !== artifact.bytecode.toLowerCase()) fail('the compiled series does not match both creation and runtime bytecode in its build record; rebuild and record this source before deploying');
@@ -182,7 +184,7 @@ const { hash, receipt } = await journaledDeployment(out, { record, operatorAsRea
   const hash = await wallet.deployContract({ abi: artifact.abi as never, bytecode: artifact.bytecode, args: ctor as never, nonce });
   console.error(`sent ${hash}; recording the hash before waiting for the receipt`);
   return hash;
-}, (hash: Hex) => pub.waitForTransactionReceipt({ hash })).catch((cause: unknown) => fail(`the deployment did not complete: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; if a hash was journaled in ${fileURLToPath(out)}, preserve and reconcile the journal before any second attempt`));
+}, (hash: Hex) => pub.waitForTransactionReceipt({ hash })).catch((cause: unknown) => fail(`the deployment did not complete: ${describeError(cause, rpcUrl)}; if a hash was journaled in ${fileURLToPath(out)}, preserve and reconcile the journal before any second attempt`));
 if (!receipt.contractAddress || receipt.status !== 'success') fail(`the deployment transaction did not succeed: status ${receipt.status}`);
 if (receipt.contractAddress.toLowerCase() !== expectedAddress.toLowerCase()) fail('the receipt address differs from the prepared deployer nonce; the pending journal is retained for investigation');
 const address = receipt.contractAddress!;

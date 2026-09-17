@@ -1,5 +1,5 @@
 {
-  "_": "An example of the launch record pons-launch.ts takes, refused by name. The real one is written from pons-preflight.ts's output (expectedEconomics pinned at a block), names the operator's Safe as the fee recipient, and is reviewed by a person before --send.",
+  "_": "An example of the launch record pons-launch.ts takes, refused by name. The real one is written from pons-preflight.ts's output (launchFeeWei and expectedEconomics pinned at a block), names the operator's Safe as the fee recipient — the one evidence/safes/safe.<chainId>.json records, whose owners and threshold are read again — and is reviewed by a person before --calldata or --send.",
   "network": "robinhood-mainnet",
   "name": "The Curb",
   "symbol": "CURB",
@@ -11,6 +11,7 @@
   "buybackEnabled": false,
   "pairToken": "0x0000000000000000000000000000000000000000",
   "launchConfigId": 0,
+  "launchFeeWei": "0",
   "expectedEconomics": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "reviewedBy": "",

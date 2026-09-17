@@ -16,6 +16,7 @@
 
 import { createPublicClient, http, type Address } from 'viem';
 import { address, parseArgs } from './lib/args.ts';
+import { describeError, endpointHost, isUnknownBlock, withOneRetry } from './lib/node.ts';
 import { NATIVE, PHASES, PONS_V2, curveAbi, erc20Abi, factoryAbi } from './lib/pons-v2.ts';
 
 const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string | null }> = {
@@ -36,13 +37,14 @@ if (!network) fail(`unknown network ${networkName}; one of ${Object.keys(NETWORK
 
 const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [network!.rpc] } } } as const;
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
-console.error(`node: ${new URL(network!.rpc).host}`);
+const host = endpointHost(network!.rpc, fail);
+console.error(`node: ${host}`);
 
 async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   try {
-    return await call();
+    return await withOneRetry(call, isUnknownBlock);
   } catch (cause) {
-    return fail(`the node at ${new URL(network!.rpc).host} did not answer ${what}: ${cause instanceof Error ? [cause.message.split('\n')[0], (cause as { details?: unknown }).details].filter((x) => typeof x === 'string' && x !== '').join(' — ') : 'unknown'}`);
+    return fail(`the node at ${host} did not answer ${what}: ${describeError(cause, network!.rpc)}`);
   }
 }
 /** A read the curve may not answer (its source is not verified): null, said so, never guessed. */

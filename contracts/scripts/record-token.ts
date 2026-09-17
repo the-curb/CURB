@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BaseError, ContractFunctionRevertedError, ContractFunctionZeroDataError, createPublicClient, http, keccak256, parseAbi, type Address, type Hex } from 'viem';
 import { address as checkedAddress, parseArgs } from './lib/args.ts';
+import { describeError, endpointHost } from './lib/node.ts';
 
 /** The public endpoint is what the record names; an operator's own endpoint (which may carry a key) is read through the environment and never written down. */
 const NETWORKS: Record<string, { chainId: number; rpc: string; publicRpc: string; explorer: string | null }> = {
@@ -55,7 +56,7 @@ const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name:
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
 const erc20 = parseAbi(['function name() view returns (string)', 'function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function totalSupply() view returns (uint256)', 'function owner() view returns (address)', 'function paused() view returns (bool)']);
 
-const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(network!.rpc).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`));
+const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${endpointHost(network!.rpc, fail)} did not answer: ${describeError(cause, network!.rpc)}`));
 if (chainId !== network!.chainId) fail(`the node answers chain id ${chainId}; the ${networkName} profile expects ${network!.chainId}`);
 const block = await pub.getBlock();
 const at = { block: Number(block.number), timestamp: new Date(Number(block.timestamp) * 1000).toISOString() };
@@ -69,7 +70,7 @@ const read = async <T,>(fn: 'name' | 'symbol' | 'decimals' | 'totalSupply' | 'ow
   } catch (cause) {
     const reverted = cause instanceof BaseError && (cause.walk((e) => e instanceof ContractFunctionRevertedError || e instanceof ContractFunctionZeroDataError) !== null || /reverted|returned no data|0x/.test(cause.shortMessage));
     if (reverted) return null;
-    return fail(`the node did not answer ${fn}() for ${token}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing is written down`);
+    return fail(`the node did not answer ${fn}() for ${token}: ${describeError(cause, network!.rpc)}; nothing is written down`);
   }
 };
 const [name, symbol, decimals, supply, owner, paused] = await Promise.all([read<string>('name'), read<string>('symbol'), read<number>('decimals'), read<bigint>('totalSupply'), read<Address>('owner'), read<boolean>('paused')]);

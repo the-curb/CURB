@@ -25,8 +25,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createPublicClient, http, parseAbi, type Address, type Hex } from 'viem';
 import { address, parseArgs } from './lib/args.ts';
+import { describeError, endpointHost, isUnknownBlock, withOneRetry } from './lib/node.ts';
 import { NATIVE, PHASES, PONS_V2, factoryAbi, graduatedPoolKey, poolIdOf } from './lib/pons-v2.ts';
-import { V4_TOPICS } from '../../lib/chain/uniswap-v4.ts';
 
 const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string | null }> = {
   'robinhood-mainnet': { chainId: 4663, rpc: process.env.CURB_RPC_URL ?? 'https://rpc.mainnet.chain.robinhood.com', explorer: 'https://robinhoodchain.blockscout.com' },
@@ -46,13 +46,14 @@ if (!network) fail(`unknown network ${networkName}; one of ${Object.keys(NETWORK
 
 const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [network!.rpc] } } } as const;
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
-console.error(`node: ${new URL(network!.rpc).host}`);
+const host = endpointHost(network!.rpc, fail);
+console.error(`node: ${host}`);
 
 async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   try {
-    return await call();
+    return await withOneRetry(call, isUnknownBlock);
   } catch (cause) {
-    return fail(`the node at ${new URL(network!.rpc).host} did not answer ${what}: ${cause instanceof Error ? [cause.message.split('\n')[0], (cause as { details?: unknown }).details].filter((x) => typeof x === 'string' && x !== '').join(' — ') : 'unknown'}`);
+    return fail(`the node at ${host} did not answer ${what}: ${describeError(cause, network!.rpc)}`);
   }
 }
 
@@ -72,7 +73,7 @@ async function newestLogs<T>(what: string, from: bigint, to: bigint, fetch: (fro
       hi = lo - 1n;
     } catch (cause) {
       const m = cause instanceof Error ? [cause.message.split('\n')[0], (cause as { details?: unknown }).details].filter((x) => typeof x === 'string').join(' ') : '';
-      if (!WIDTH_CAP.test(m) || width <= 25n) fail(`the node at ${new URL(network!.rpc).host} would not serve ${what} for blocks ${lo}–${hi}: ${m || 'unknown'}`);
+      if (!WIDTH_CAP.test(m) || width <= 25n) fail(`the node at ${host} would not serve ${what} for blocks ${lo}–${hi}: ${m || 'unknown'}`);
       width = width / 2n;
     }
   }
@@ -100,15 +101,17 @@ if (pair.toLowerCase() !== NATIVE && pair.toLowerCase() !== PONS_V2.usdg.toLower
 const key = graduatedPoolKey(token, pair, info.poolFee, info.tickSpacing, hook as Address);
 const poolId = poolIdOf(key) as Hex;
 
-// 3. The factory's PoolGraduated for the token, then the PoolManager's Initialize for the id in the same block, stating the key.
+// 3. The factory's PoolGraduated for the token, then the PoolManager's Initialize for the id in the same transaction, stating the key.
 const graduatedEvent = parseAbi(['event PoolGraduated(address indexed token, uint256 positionId, uint256 tokenAmount, uint256 pairTokenAmount)'])[0];
 const found = await newestLogs('PoolGraduated for the token', 0n, head, (lo, hi) => pub.getLogs({ address: factory, event: graduatedEvent, args: { token }, fromBlock: lo, toBlock: hi }));
 const graduated = found.logs;
 if (graduated.length !== 1) fail(`${graduated.length === 0 ? 'no' : graduated.length} PoolGraduated for ${token} from the factory${graduated.length === 0 ? ` in blocks ${found.coveredFrom}–${head}` : ''}; expected exactly one`);
 const g = graduated[0]!;
 const initEvent = parseAbi(['event Initialize(bytes32 indexed id, address indexed currency0, address indexed currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96, int24 tick)'])[0];
-const inits = await ask(`getLogs(Initialize, ${poolId.slice(0, 10)}…) in block ${g.blockNumber}`, () => pub.getLogs({ address: poolManager as Address, event: initEvent, args: { id: poolId }, fromBlock: g.blockNumber, toBlock: g.blockNumber }));
-if (inits.length !== 1) fail(`${inits.length === 0 ? 'no' : inits.length} Initialize for pool id ${poolId} in the graduation block ${g.blockNumber}; the key this tool derives (${JSON.stringify(key)}) may not be the pool the factory created — read the block on the explorer`);
+const initsInBlock = await ask(`getLogs(Initialize, ${poolId.slice(0, 10)}…) in block ${g.blockNumber}`, () => pub.getLogs({ address: poolManager as Address, event: initEvent, args: { id: poolId }, fromBlock: g.blockNumber, toBlock: g.blockNumber }));
+// The factory initialises the pool in the call that emits PoolGraduated (createGraduatedPool, verified source): the Initialize is in that transaction, not merely that block.
+const inits = initsInBlock.filter((l) => l.transactionHash === g.transactionHash);
+if (inits.length !== 1) fail(`${inits.length === 0 ? 'no' : inits.length} Initialize for pool id ${poolId} in the graduation transaction ${g.transactionHash}${initsInBlock.length !== inits.length ? ` (${initsInBlock.length} in its block ${g.blockNumber})` : ''}; the key this tool derives (${JSON.stringify(key)}) may not be the pool the factory created — read the transaction on the explorer`);
 const init = inits[0]!.args as { currency0?: Address; currency1?: Address; fee?: number; tickSpacing?: number; hooks?: Address; sqrtPriceX96?: bigint; tick?: number };
 if (String(init.currency0).toLowerCase() !== key.currency0 || String(init.currency1).toLowerCase() !== key.currency1 || Number(init.fee) !== key.fee || Number(init.tickSpacing) !== key.tickSpacing || String(init.hooks).toLowerCase() !== key.hooks) {
   fail(`the Initialize states currencies ${init.currency0}/${init.currency1}, fee ${init.fee}, tick spacing ${init.tickSpacing}, hook ${init.hooks}; the key derived from the factory's record differs — nothing is written`);
@@ -133,7 +136,7 @@ const quote = pair.toLowerCase() === NATIVE ? { kind: 'chainlink-feed' as const,
 const priceSource = { kind: 'uniswap-v4-pool' as const, poolManager: String(poolManager).toLowerCase(), stateView: stateView.toLowerCase(), key, poolId, fromBlock: Number(inits[0]!.blockNumber), quote };
 const graduation = g.args as { positionId?: bigint; tokenAmount?: bigint; pairTokenAmount?: bigint };
 const out = {
-  _: 'The graduated pool as the chain states it: the factory record, the key derived as the factory sorts it, the Initialize in the graduation block stating that key, the lens now. priceSource is what CURB_CREDITS takes; the reviewer signs the desk record with it (LAUNCH.md rows 12–13).',
+  _: `The graduated pool of ${token} as the chain states it: the factory record, the key derived as the factory sorts it, the Initialize in the graduation transaction stating that key, the lens now. priceSource is what a desk record for this token would take (LAUNCH.md rows 12–13); the desk's own record names The Curb's token, and a pool read for any other token is a rehearsal of the tool, nothing of The Curb's.`,
   chainId,
   token,
   readAt: new Date().toISOString(),

@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { createPublicClient, createWalletClient, http, keccak256, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { address, parseArgs, unsigned } from './lib/args.ts';
+import { describeError, endpointHost } from './lib/node.ts';
 import { SAFE_1_4_1, factoryAbi, planCreation, safeAbi } from './lib/safe.ts';
 
 const NETWORKS: Record<string, { chainId: number; rpc: string; explorer: string | null }> = {
@@ -66,14 +67,15 @@ if (send && existsSync(evidence)) fail(`${fileURLToPath(evidence)} already exist
 
 const chain = { id: network!.chainId, name: networkName, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [network!.rpc] } } } as const;
 const pub = createPublicClient({ chain, transport: http(network!.rpc) });
-console.error(`node: ${new URL(network!.rpc).host}`);
+const host = endpointHost(network!.rpc, fail);
+console.error(`node: ${host}`);
 
 /** A node call that failed is a refusal naming the host, never a stack trace carrying a keyed URL. */
 async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (cause) {
-    return fail(`the node at ${new URL(network!.rpc).host} did not answer ${what}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`);
+    return fail(`the node at ${host} did not answer ${what}: ${describeError(cause, network!.rpc)}; nothing was sent`);
   }
 }
 
@@ -98,7 +100,7 @@ try {
   const { result } = await pub.simulateContract({ address: SAFE_1_4_1.proxyFactory, abi: factoryAbi, functionName: 'createProxyWithNonce', args: [SAFE_1_4_1.singletonL2, initializer, saltNonce], account: owners[0] });
   simulated = result as Address;
 } catch (cause) {
-  fail(`the node refused to simulate the creation: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}`);
+  fail(`the node refused to simulate the creation: ${describeError(cause, network!.rpc)}`);
 }
 if (simulated!.toLowerCase() !== predicted.toLowerCase()) fail(`the simulation gave ${simulated}, the prediction ${predicted}; the factory is not the one this tool knows`);
 

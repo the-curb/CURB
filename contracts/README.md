@@ -131,12 +131,15 @@ Four tools, three of them read-only:
 
 - `node scripts/pons-preflight.ts [--launcher 0x…] [--pair 0x…]` — the venue's
   live terms at one block, written to `evidence/pons/preflight.4663.<block>.json`
-  with the `expectedEconomics` digest a launch record pins.
-- `node scripts/pons-launch.ts <launch.json> [--calldata] [--send --reviewed]` —
+  with the `launchFeeWei` and the `expectedEconomics` digest a launch record pins.
+- `node scripts/pons-launch.ts <launch.json> [--calldata --reviewed | --send --reviewed | --receipt <hash>]` —
   the launch, by the desk's deployment discipline: the record checked against
-  the token record, the venue read again in the block it sends, a simulation
-  first, the key only from the shell, the receipt and the factory's record read
-  back and compared, `evidence/pons/launch.4663.json` written.
+  the token record and the recorded Safe, the venue read again in one block
+  just before the send (the pinned fee and digest must be unchanged), a
+  simulation first, the key only from the shell, the intent journaled before
+  anything is broadcast or printed for the Safe, the receipt and the factory's
+  record read back and compared field by field, `evidence/pons/launch.4663.json`
+  written; an existing journal is never sent over.
 - `node scripts/pons-status.ts <token>` — the launch's phase and, on the curve,
   the curve's own figures; the desk reads none of it.
 - `node scripts/pons-pool.ts <token>` — after graduation: the pool the factory

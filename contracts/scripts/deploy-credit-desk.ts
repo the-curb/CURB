@@ -37,6 +37,7 @@ import { execFileSync } from 'node:child_process';
 import { createPublicClient, createWalletClient, getContractAddress, http, parseAbi, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { parseArgs } from './lib/args.ts';
+import { describeError, endpointHost } from './lib/node.ts';
 import { safeAbi } from './lib/safe.ts';
 import { validateOperatorSafeExpectation, verifyOperatorSafe, type OperatorSafeExpectation } from './lib/operator-safe.ts';
 import { assertLoopbackRpc } from './lib/local-chain.ts';
@@ -92,7 +93,7 @@ async function logBefore(address: Address, top: number, topics: readonly Hex[] =
   } catch (cause) {
     const m = message(cause);
     if (CONTENT_CAP.test(m) && !WIDTH_CAP.test(m) && !NODE_TIMEOUT.test(m)) return { block: top, coveredFrom: 0 };
-    if (!WIDTH_CAP.test(m) && !NODE_TIMEOUT.test(m)) fail(`the node at ${new URL(rpcUrl).host} would not serve the pool's logs for blocks 0–${top}: ${m}`);
+    if (!WIDTH_CAP.test(m) && !NODE_TIMEOUT.test(m)) fail(`the node at ${host} would not serve the pool's logs for blocks 0–${top}: ${m}`);
   }
   let width = top + 1;
   let hi = top;
@@ -105,7 +106,7 @@ async function logBefore(address: Address, top: number, topics: readonly Hex[] =
       hi = lo - 1;
     } catch (cause) {
       const m = message(cause);
-      if (width <= 25) fail(`the node at ${new URL(rpcUrl).host} would not serve the pool's logs for blocks ${lo}–${hi}: ${m}`);
+      if (width <= 25) fail(`the node at ${host} would not serve the pool's logs for blocks ${lo}–${hi}: ${m}`);
       width = Math.floor(width / 2);
     }
   }
@@ -117,7 +118,7 @@ async function ask<T>(what: string, call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (cause) {
-    return fail(`the node at ${new URL(rpcUrl).host} did not answer ${what}: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`);
+    return fail(`the node at ${host} did not answer ${what}: ${describeError(cause, rpcUrl)}; nothing was sent`);
   }
 }
 // Strict: a misspelt --dry-run is a refusal, never a real deployment.
@@ -180,16 +181,17 @@ if (record.chainId !== 31337 || record.treasurySafe != null) {
 /** The operator's own endpoint for the profile, read from the environment like every other tool and the site (lib/chain/networks.ts); the record keeps naming the public one, and a keyed URL is never printed. */
 const RPC_ENV: Record<string, string> = { 'robinhood-mainnet': 'CURB_RPC_URL', 'robinhood-testnet': 'CURB_RPC_URL_TESTNET', 'ethereum-mainnet': 'CURB_RPC_URL_ETHEREUM', 'ethereum-sepolia': 'CURB_RPC_URL_SEPOLIA', 'hardhat-local': 'CURB_RPC_URL_LOCAL' };
 const rpcUrl = process.env[RPC_ENV[record.network]!] || record.rpcUrl;
+const host = endpointHost(rpcUrl, fail);
 if (record.chainId === 31337) {
   try { assertLoopbackRpc(rpcUrl); } catch { fail('a local-chain rehearsal requires an uncredentialed loopback RPC'); }
 }
-console.error(`node: ${new URL(rpcUrl).host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ` (${RPC_ENV[record.network]} from the environment)`}`);
+console.error(`node: ${host}${rpcUrl === record.rpcUrl ? ' (the record’s)' : ` (${RPC_ENV[record.network]} from the environment)`}`);
 const chain = { id: record.chainId, name: `chain ${record.chainId}`, nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } } as const;
 const pub = createPublicClient({ chain, transport: http(rpcUrl) });
 const erc20 = parseAbi(['function symbol() view returns (string)', 'function decimals() view returns (uint8)', 'function totalSupply() view returns (uint256)']);
 
 // ── the chain ─────────────────────────────────────────────────────────────
-const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${new URL(rpcUrl).host} did not answer: ${cause instanceof Error ? cause.message.split('\n')[0] : 'unknown'}; nothing was sent`));
+const chainId = await pub.getChainId().catch((cause: unknown) => fail(`the node at ${host} did not answer: ${describeError(cause, rpcUrl)}; nothing was sent`));
 if (chainId !== record.chainId) fail(`the node answers chain id ${chainId}; the record says ${record.chainId}`);
 let treasuryAsRead = null;
 if (record.treasurySafe != null) {

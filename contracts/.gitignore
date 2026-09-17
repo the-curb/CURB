@@ -15,3 +15,4 @@ node.log
 *.log
 evidence/safes/safe.31337.json
 safe-created.json
+evidence/pons/*.31337.*
