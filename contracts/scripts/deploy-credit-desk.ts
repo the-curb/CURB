@@ -81,7 +81,8 @@ const CONTENT_CAP = /exceeds limit|too many|query returned more than|response si
 /** The node's own way of giving up on a query that matched too much (Robinhood Chain's public node on wide PoolManager queries, 17 September 2026): halved, like a width cap. */
 const NODE_TIMEOUT = /log query timed out|context deadline exceeded|query timed? ?out/i;
 async function logBefore(address: Address, top: number, topics: readonly Hex[] = []): Promise<{ block: number | null; coveredFrom: number }> {
-  const message = (cause: unknown) => (cause instanceof Error ? cause.message.split('\n')[0]! : 'unknown');
+  // viem puts the node's own words in `details`, not on the message's first line (which is its own summary); both are read, the URL-carrying meta lines are not.
+  const message = (cause: unknown) => (cause instanceof Error ? [cause.message.split('\n')[0]!, (cause as { details?: unknown }).details].filter((x): x is string => typeof x === 'string' && x !== '').join(' — ') : 'unknown');
   const earliest = (logs: { blockNumber: bigint | null }[]) => logs.map((l) => Number(l.blockNumber)).reduce((a, b) => Math.min(a, b));
   // A pair or a v3 pool: any log of its address. A v4 pool: its own Initialize by id on the manager, which emits every pool's logs and would otherwise answer thousands.
   const query = topics.length === 0 ? {} : { event: { type: 'event' as const, name: 'Initialize', inputs: [{ type: 'bytes32', name: 'id', indexed: true }, { type: 'address', name: 'currency0', indexed: true }, { type: 'address', name: 'currency1', indexed: true }, { type: 'uint24', name: 'fee' }, { type: 'int24', name: 'tickSpacing' }, { type: 'address', name: 'hooks' }, { type: 'uint160', name: 'sqrtPriceX96' }, { type: 'int24', name: 'tick' }] }, args: { id: topics[1] } };
@@ -160,7 +161,9 @@ if (record.priceSource !== null) {
     if ('error' in checked) fail(`priceSource.${checked.error}`);
     if (checked.key.currency0 !== record.token.toLowerCase() && checked.key.currency1 !== record.token.toLowerCase()) fail(`priceSource.key names ${checked.key.currency0} and ${checked.key.currency1}, neither of which is the token`);
     v4PoolId = poolIdOf(checked.key) as Hex;
-    if (ps.poolId !== undefined && ps.poolId.toLowerCase() !== v4PoolId) fail(`priceSource.poolId ${ps.poolId} is not keccak256 of the encoded key (${v4PoolId}); the key and the id name different pools`);
+    if (ps.poolId !== undefined && ps.poolId !== null && (typeof ps.poolId !== 'string' || ps.poolId.toLowerCase() !== v4PoolId)) fail(`priceSource.poolId ${String(ps.poolId)} is not keccak256 of the encoded key (${v4PoolId}); the key and the id name different pools`);
+    const quoteCurrency = checked.key.currency0 === record.token.toLowerCase() ? checked.key.currency1 : checked.key.currency0;
+    if (/^0x0{40}$/.test(quoteCurrency) && ps.quote.kind === 'usd-stable') fail('the quote currency is native ETH, which is not a dollar: priceSource.quote must be a chainlink-feed for ETH / USD');
     if (typeof ps.fromBlock !== 'number' || !Number.isInteger(ps.fromBlock) || ps.fromBlock < 0) fail('a uniswap-v4-pool needs priceSource.fromBlock: the block of its Initialize, read from the chain');
   } else {
     if ((ps.kind !== 'uniswap-v2-pair' && ps.kind !== 'uniswap-v3-pool') || !isAddress(ps.pair)) fail('priceSource must be a uniswap-v2-pair or a uniswap-v3-pool with the pool address, a uniswap-v4-pool with its key, or null until the pool exists');
@@ -246,13 +249,16 @@ if (record.priceSource !== null && record.priceSource.kind === 'uniswap-v4-pool'
     pub.readContract({ address: ps.stateView, abi: lensAbi, functionName: 'getLiquidity', args: [v4PoolId] }).catch(() => null),
   ]);
   if (slot0 === null || liquidity === null) fail(`the StateView does not answer getSlot0/getLiquidity for pool id ${v4PoolId}`);
+  const sqrtNow = (slot0 as readonly [bigint, number, number, number])[0];
+  if (sqrtNow === 0n) fail(`the pool ${v4PoolId} has no price yet (sqrtPriceX96 0); it is not read until it has one`);
+  if ((liquidity as bigint) === 0n) fail(`the pool ${v4PoolId} holds no liquidity now; a price nobody can trade at is not a price, and the record is not sent until it has some`);
   if (ps.quote.kind === 'chainlink-feed') {
     const feedAbi = parseAbi(['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)']);
     const [fd, round] = await Promise.all([pub.readContract({ address: ps.quote.feed, abi: feedAbi, functionName: 'decimals' }).catch(() => null), pub.readContract({ address: ps.quote.feed, abi: feedAbi, functionName: 'latestRoundData' }).catch(() => null)]);
     if (fd === null || round === null) fail(`the feed at ${ps.quote.feed} does not answer decimals() and latestRoundData()`);
   }
   const quoteSide = key.currency0.toLowerCase() === record.token.toLowerCase() ? key.currency1 : key.currency0;
-  console.error(`pool: v4 id ${v4PoolId} in manager ${ps.poolManager} · initialised in block ${ps.fromBlock} (sqrtPriceX96 ${init.sqrtPriceX96}) · fee ${key.fee} · tick spacing ${key.tickSpacing} · hook ${key.hooks} · holds the token against ${quoteSide}${/^0x0{40}$/i.test(quoteSide) ? ' (native ETH)' : ''} · liquidity now ${liquidity} · quote ${ps.quote.kind}`);
+  console.error(`pool: v4 id ${v4PoolId} in manager ${ps.poolManager} · initialised in block ${ps.fromBlock} (sqrtPriceX96 ${init.sqrtPriceX96}) · fee ${key.fee} · tick spacing ${key.tickSpacing} · hook ${key.hooks} · holds the token against ${quoteSide}${/^0x0{40}$/i.test(quoteSide) ? ' (native ETH)' : ''} · sqrtPriceX96 now ${sqrtNow} · liquidity now ${liquidity} · quote ${ps.quote.kind}`);
 } else if (record.priceSource !== null && record.priceSource.kind !== 'uniswap-v4-pool') {
   const v23 = record.priceSource;
   const pairCode = await ask('getCode(pool)', () => pub.getCode({ address: v23.pair }));

@@ -191,12 +191,37 @@ function poolQuery(source: PriceSource, event: PoolEvent | null): { readonly add
   return { address: source.pair, topics: topic === null ? [] : [topic] };
 }
 
-/** The sign of a v4 ModifyLiquidity's delta — its third data word — or null for a log that is not one. */
-function liquidityDeltaSign(log: LogEntry): 1 | -1 | 0 | null {
+/** A v4 ModifyLiquidity's signed delta — its third data word — or null for a log that is not one. */
+function liquidityDelta(log: LogEntry): bigint | null {
   if ((log.topics[0] ?? '').toLowerCase() !== V4_TOPICS.modifyLiquidity) return null;
   const d = words(log.data)[2];
-  const v = d === undefined ? null : decodeInt(d);
-  return v === null ? null : v > 0n ? 1 : v < 0n ? -1 : 0;
+  return d === undefined ? null : decodeInt(d);
+}
+
+/**
+ * What a v4 pool's liquidity events say, summed: the net of every signed
+ * delta at or before a block, after a given position (a swap) or from the
+ * pool's creation. The sum is what matters, never the last event's sign — a
+ * dust position added and removed leaves the sum where it was, and reading
+ * the last sign instead let anyone make the reader call a pool with its
+ * graduation position still in place "uncertain". A zero delta (a fee
+ * collection) adds nothing and is not a removal.
+ */
+async function v4NetDelta(source: PriceSource, after: LogEntry | null, block: number, opts: RpcOptions, floor: number): Promise<Reading<{ readonly net: bigint; readonly events: number }>> {
+  const modify = poolQuery(source, 'liquidityAdded');
+  let net = 0n;
+  let events = 0;
+  const fold = (log: LogEntry) => {
+    if (after !== null && byPosition(log, after) <= 0) return;
+    const d = liquidityDelta(log);
+    if (d === null) return;
+    net += d;
+    events += 1;
+  };
+  const from = after === null ? floor : Math.max(floor, blockOf(after));
+  const read = await foldEventsInRange(modify.address, modify.topics, from, block, opts, fold, { pages: GUARD_MAX_PAGES });
+  if (!isRead(read)) return read;
+  return { ...read, value: { net, events } };
 }
 const Q192 = 1n << 192n;
 const byPosition = (a: LogEntry, b: LogEntry) => Number.parseInt(a.blockNumber, 16) - Number.parseInt(b.blockNumber, 16) || Number.parseInt(a.logIndex ?? '0', 16) - Number.parseInt(b.logIndex ?? '0', 16);
@@ -307,7 +332,7 @@ export interface RateContext {
 }
 
 /** The node's ways of saying a block's state is gone (Arbitrum Nitro, geth, erigon). */
-export const STATE_GONE = /metadata is not found|missing trie node|header not found|state (is )?not available|pruned|old block/i;
+export const STATE_GONE = /metadata is not found|missing trie node|header not found|state (is )?not available|historical state|state \S+ is not available|pruned|old block/i;
 
 /** Which side of the pool is CURB, and what the other side is. Constants of the pool; read at the head — or, for a v4 pool, taken from the key the record carries, since the manager keeps none to ask. */
 async function sides(config: CreditsConfig, source: PriceSource, opts: RpcOptions): Promise<Reading<Sides>> {
@@ -435,24 +460,23 @@ async function lastPriceEventBefore(source: PriceSource, block: number, opts: Rp
  * delta has followed it — and a negative delta after that is UNCERTAIN.
  */
 async function v4LiquidityAfter(source: PriceSource, swap: Reading<LogEntry | null> & { readonly state: 'VERIFIED' | 'STALE' }, block: number, opts: RpcOptions, floor: number): Promise<Reading<LogEntry | null> & { readonly liquidityAfter?: 'PRESENT' | 'UNCERTAIN' }> {
-  const modify = poolQuery(source, 'liquidityAdded');
   if (swap.value !== null) {
     const liquidity = words(swap.value.data)[3];
     if ((liquidity === undefined ? null : decodeUint(liquidity)) !== 0n) return swap;
-    const last = await lastEventBefore(modify.address, modify.topics, block, opts, floor);
-    if (!isRead(last)) return last;
-    if (last.value === null || byPosition(last.value, swap.value) <= 0) return swap;
-    const sign = liquidityDeltaSign(last.value);
-    return sign === 1 ? { ...swap, liquidityAfter: 'PRESENT' } : sign === -1 ? { ...swap, liquidityAfter: 'UNCERTAIN' } : swap;
+    // The swap left no liquidity: what was added since, net of what was removed, says whether there is some again at that price.
+    const since = await v4NetDelta(source, swap.value, block, opts, floor);
+    if (!isRead(since)) return since;
+    if (since.value.events === 0 || since.value.net === 0n) return swap;
+    return since.value.net > 0n ? { ...swap, liquidityAfter: 'PRESENT' } : { ...swap, liquidityAfter: 'UNCERTAIN' };
   }
   const initQ = poolQuery(source, 'initialize');
   const init = await lastEventBefore(initQ.address, initQ.topics, block, opts, floor);
   if (!isRead(init) || init.value === null) return init;
-  const last = await lastEventBefore(modify.address, modify.topics, block, opts, floor);
-  if (!isRead(last)) return last;
-  if (last.value === null) return { ...init, value: null };
-  const sign = liquidityDeltaSign(last.value);
-  return sign === 1 ? init : { ...init, liquidityAfter: 'UNCERTAIN' };
+  const all = await v4NetDelta(source, null, block, opts, floor);
+  if (!isRead(all)) return all;
+  if (all.value.events === 0) return { ...init, value: null };
+  // Added and, net, still there: the first price stands. Added and removed again, with no swap to say what is left: not definite.
+  return all.value.net > 0n ? init : { ...init, liquidityAfter: 'UNCERTAIN' };
 }
 
 async function poolPriceByState(source: PriceSource, s: Sides, block: number, opts: RpcOptions): Promise<Reading<PoolPrice>> {
@@ -638,18 +662,25 @@ async function assemble(config: CreditsConfig, block: number, basis: Rate['basis
   };
   const opening = windowStart > 0 ? await lastPriceEventBefore(source, windowStart - 1, opts) : null;
   if (opening !== null && !isRead(opening)) return unread(opening.reason, { source: opening.source, detail: `the price at the opening of the guard window before block ${block} could not be read (${opening.detail ?? opening.reason}); a rate without its guard is not stated` });
-  if (opening !== null && opening.value !== null && opening.liquidityAfter !== 'UNCERTAIN') weigh(opening.value);
-  if (source.kind !== 'uniswap-v2-pair') {
-    // The pool's first price counts too when it was set inside the window and liquidity followed by the block.
+  // The opening price is weighed even when its liquidity by events is uncertain: a guard sample can only lower the credit, and leaving it out is what a dust add-and-remove before a pump would want.
+  if (opening !== null && opening.value !== null) weigh(opening.value);
+  // The pool's first price counts too when it was set inside the window and liquidity followed by the block. A v4 pool's Initialize is its fromBlock, so when that is known to lie before the window there is nothing to look for.
+  if (source.kind !== 'uniswap-v2-pair' && !(source.kind === 'uniswap-v4-pool' && source.fromBlock !== null && source.fromBlock < windowStart)) {
     const initQ = poolQuery(source, 'initialize');
     const init = await lastEventBefore(initQ.address, initQ.topics, block, opts, source.fromBlock ?? 0);
     if (!isRead(init)) return unread(init.reason, { source: init.source, detail: `the pool's Initialize could not be looked for (${init.detail ?? init.reason}); a rate without its guard is not stated` });
     if (init.value !== null && blockOf(init.value) >= windowStart) {
-      const added = poolQuery(source, 'liquidityAdded');
-      const mint = await lastEventBefore(added.address, added.topics, block, opts, source.fromBlock ?? 0);
-      if (!isRead(mint)) return unread(mint.reason, { source: mint.source, detail: `the pool's liquidity events could not be looked for (${mint.detail ?? mint.reason}); a rate without its guard is not stated` });
-      // For v4 the one event is signed: only an addition counts as liquidity having followed.
-      if (mint.value !== null && (source.kind !== 'uniswap-v4-pool' || liquidityDeltaSign(mint.value) === 1)) weigh(init.value);
+      if (source.kind === 'uniswap-v4-pool') {
+        // Signed deltas: liquidity followed when their sum at or before the block is positive — a dust position added and removed changes nothing.
+        const net = await v4NetDelta(source, null, block, opts, source.fromBlock ?? 0);
+        if (!isRead(net)) return unread(net.reason, { source: net.source, detail: `the pool's liquidity events could not be looked for (${net.detail ?? net.reason}); a rate without its guard is not stated` });
+        if (net.value.net > 0n) weigh(init.value);
+      } else {
+        const added = poolQuery(source, 'liquidityAdded');
+        const mint = await lastEventBefore(added.address, added.topics, block, opts, source.fromBlock ?? 0);
+        if (!isRead(mint)) return unread(mint.reason, { source: mint.source, detail: `the pool's Mint could not be looked for (${mint.detail ?? mint.reason}); a rate without its guard is not stated` });
+        if (mint.value !== null) weigh(init.value);
+      }
     }
   }
   const window = await foldEventsInRange(priceQ.address, priceQ.topics, windowStart, block, opts, weigh, { pages: GUARD_MAX_PAGES });

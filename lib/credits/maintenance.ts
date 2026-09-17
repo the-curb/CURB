@@ -34,7 +34,11 @@ export const POOL_KEY = 'credits:pool';
 
 export interface PoolCheck {
   readonly pair: string;
+  /** For a v4 pool: the manager the id was checked in — a record moved to another manager is checked again. */
+  readonly poolManager?: string;
   readonly fromBlock: number | null;
+  /** Why the check failed, when for a reason other than an earlier log: for a v4 pool, an Initialize at fromBlock that is missing or names another key. */
+  readonly detail?: string;
   /** A log of the pool before fromBlock, when one was found. */
   readonly logBefore: number | null;
   /** How far below fromBlock the check read; 0 is the whole span. */
@@ -57,12 +61,12 @@ async function poolCheck(store: Store, config: CreditsConfig, opts: RpcOptions, 
   const kept = await store.snapshots(POOL_KEY);
   const row = kept.state === 'UNREAD' ? undefined : kept.value.find((s) => s.key === POOL_KEY);
   const before = row?.payload as unknown as PoolCheck | undefined;
-  const same = before !== undefined && before.pair === source.pair && before.fromBlock === source.fromBlock;
+  const same = before !== undefined && before.pair === source.pair && before.fromBlock === source.fromBlock && (before.poolManager ?? null) === (source.v4?.poolManager ?? null);
   if (same && before.ok !== null) return { check: before, detail: null };
   // A check in progress for this pool resumes below where it stopped.
   const read = await checkPoolCreation(config, opts, { resumeBelow: same ? before.coveredFrom : null, pageWidth: same ? (before.pageWidth ?? null) : null });
   if (!isRead(read)) return { check: same ? before : null, detail: `the pool's logs before fromBlock could not be read this run (${read.reason}${read.detail ? ` — ${read.detail}` : ''}); tried again next run` };
-  const check: PoolCheck = { pair: source.pair, fromBlock: source.fromBlock, logBefore: read.value.logBefore, coveredFrom: read.value.coveredFrom, ok: read.value.ok, checkedAt: now.toISOString(), ...(read.value.pageWidth === undefined ? {} : { pageWidth: read.value.pageWidth }) };
+  const check: PoolCheck = { pair: source.pair, ...(source.v4 === undefined ? {} : { poolManager: source.v4.poolManager }), fromBlock: source.fromBlock, logBefore: read.value.logBefore, coveredFrom: read.value.coveredFrom, ok: read.value.ok, checkedAt: now.toISOString(), ...(read.value.pageWidth === undefined ? {} : { pageWidth: read.value.pageWidth }), ...(read.value.detail === undefined ? {} : { detail: read.value.detail }) };
   await store.writeSnapshots([{ key: POOL_KEY, observedAt: now.toISOString(), payload: { ...check } }]);
   return { check, detail: check.ok === null ? `the pool's logs before fromBlock are read down to block ${check.coveredFrom} so far; the rest next run` : null };
 }
@@ -150,7 +154,7 @@ export async function runCredits(store: Store, now: Date, conditions: readonly C
     if (poolWrong) {
       const loaded = await loadCreditsIndex(store, config);
       waiting = loaded.state.unpriced.length;
-      report = { state: 'HELD', fromBlock: null, toBlock: null, head: isRead(head) ? head.value.number : null, rolledBackFrom: null, newTopUps: 0, credited: [], unpriced: waiting, unreadRanges: [], recorded: false, detail: `priceSource.fromBlock ${pool.check!.fromBlock} is later than a log the pool emitted in block ${pool.check!.logBefore}; the configuration is wrong and nothing is credited until it is corrected (the deployment tool's dry run reads the creation block)` };
+      report = { state: 'HELD', fromBlock: null, toBlock: null, head: isRead(head) ? head.value.number : null, rolledBackFrom: null, newTopUps: 0, credited: [], unpriced: waiting, unreadRanges: [], recorded: false, detail: pool.check!.logBefore !== null ? `priceSource.fromBlock ${pool.check!.fromBlock} is later than a log the pool emitted in block ${pool.check!.logBefore}; the configuration is wrong and nothing is credited until it is corrected (the deployment tool's dry run reads the creation block)` : `the pool's creation check failed: ${pool.check!.detail ?? 'no reason recorded'}; the configuration is wrong and nothing is credited until it is corrected (the deployment tool's dry run reads the Initialize)` };
     } else if (code.state === 'MATCHES') {
       // The pricing gets what is left of the run's time, less what the fan-out needs.
       const synced = await syncTopUps(store, config, opts, now, undefined, Math.min(deadline - 12_000, Date.now() + 25_000));

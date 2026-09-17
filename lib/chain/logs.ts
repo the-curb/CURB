@@ -46,7 +46,8 @@ export interface LogWindow {
  * kind is answered by halving.
  */
 export function isTooManyLogs(detail: string | undefined): boolean {
-  return detail !== undefined && /exceeds limit|too many|query returned more than|response size|block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(detail);
+  // "too many requests" is a quota on the caller, answered elsewhere (the transport's fallback and demotion), never by halving.
+  return detail !== undefined && /exceeds limit|too many(?! requests)|query returned more than|response size|block range|ranges? over \d+ blocks|range too (?:large|wide)|narrower (?:fromBlock|range)/i.test(detail);
 }
 
 /**

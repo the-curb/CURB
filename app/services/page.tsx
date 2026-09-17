@@ -387,7 +387,7 @@ export default async function ServicesPage() {
             {status.state !== 'CONFIGURED'
               ? 'No token, credit desk or pool is configured here. '
               : status.config.priceSource === null
-                ? `A desk is configured on ${status.config.network.label} and no pool is recorded yet: top-ups are indexed and wait, unpriced, for one. `
+                ? `A desk is configured on ${status.config.network.label} and no pool is recorded yet: top-ups are indexed and wait, unpriced, for one. While the token trades only on its launch curve, the desk does not read that curve and quotes nothing; a top-up sent now is credited at the pool's price at the first successful read after the pool is recorded — which may be far from the curve's price — and if no pool ever exists the CURB sits at the treasury and the credit never prices. `
                 : `A desk and a pool are configured on ${status.config.network.label}; what the sections above show is what was read from them. `}
             A launchpad&rsquo;s terms are not assumed here. The <Link href="/mechanism/decisions/assumptions" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">assumption register</Link> says what is assumed meanwhile, and none of it is stated as fact on this page.
           </p>

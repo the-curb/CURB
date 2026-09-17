@@ -149,7 +149,12 @@ function fakeNode(state: NodeState) {
         if (address === POOL_MANAGER) {
           // The manager answers by [topic, id] only; a query without the id would be every pool's events, which the reader never asks for.
           const id = (q.topics[1] ?? '').toLowerCase();
-          if (state.v4 === null || id !== POOL_ID) { result = []; break; }
+          if (state.v4 === null) { result = []; break; }
+          if (id !== POOL_ID) {
+            // Another pool in the same manager: its swaps exist and are answered for its own id only.
+            result = topic === V4_TOPICS.swap ? (state.v4.otherPools ?? []).filter((e) => e.id === id && within(e.block)).map((e) => logOf(POOL_MANAGER, e.block, [V4_TOPICS.swap, e.id, hexWord(0n)], `0x${word(0n)}${word(0n)}${word(1n)}${word(1n)}${word(0n)}${word(0n)}`)) : [];
+            break;
+          }
           if (state.v4.timeoutWiderThan !== undefined && to - from + 1 > state.v4.timeoutWiderThan) {
             // Robinhood Chain's public node, 17 September 2026: a wide query on the manager gives up with the node's own words, HTTP 200.
             error = { code: -32000, message: 'log query timed out' };
@@ -566,7 +571,12 @@ describe('the credit desk, site side', () => {
     assert.equal(byState.value.pool.quoteAddress, ZERO_ADDRESS, 'native ETH is the quote, not an absent address');
     assert.equal(byState.value.pool.quoteDecimals, 18);
     assert.equal(byState.value.quote.kind, 'chainlink-feed');
-    assert.ok(!state.calls.includes('eth_call') || true);
+    // Another pool's swap in the same manager, at a wild price, is not this pool's: every query names the id.
+    state.v4.otherPools = [{ block: 99, id: '0x' + 'ab'.repeat(32) }];
+    const filtered = await readRate(config, 100, opts);
+    if (filtered.state === 'UNREAD') assert.fail(JSON.stringify(filtered));
+    near(filtered.value.usdPerCurb18, 5n * 10n ** 15n, 'the other pool’s swap did not enter the guard');
+    assert.equal(filtered.value.guard.samples, 2, 'the opening and this pool’s one swap');
     // By events: the swap at 60 prices block 80; the Initialize prices block 30, once the addition at 20 has followed it.
     const byEvents = await readRateFromEvents(config, 80, opts);
     if (byEvents.state === 'UNREAD') assert.fail(JSON.stringify(byEvents));
@@ -623,6 +633,76 @@ describe('the credit desk, site side', () => {
     if (wrongBlock.state === 'UNREAD') assert.fail(JSON.stringify(wrongBlock));
     assert.equal(wrongBlock.value.ok, false);
     assert.match(wrongBlock.value.detail ?? '', /no Initialize for this pool id in block 20/);
+  });
+
+  it('weighs a v4 pool’s liquidity by the net of its signed deltas, so dust added and removed changes nothing', async () => {
+    const state = freshState();
+    const sqrt = sqrtPriceX96For(10n ** 18n, 2n * 10n ** 12n);
+    const pump = sqrtPriceX96For(10n ** 18n, 2n * 10n ** 13n);
+    state.feedAnswer = 2500n * 10n ** 8n;
+    state.feedAnswers = [{ block: 10, answer: 2500n * 10n ** 8n, roundId: 1n, updatedAt: 1_700_000_000n + 10n * 100n }];
+    globalThis.fetch = fakeNode(state);
+    // The record's fromBlock is the Initialize's block: 65 for the in-window case, 20 for the rest.
+    const configAt = (fromBlock: number) => (parseCreditsConfig(CONFIG_V4_JSON.replace('"fromBlock":20', `"fromBlock":${fromBlock}`)) as { config: CreditsConfig }).config;
+    const near = (v: string, target: bigint, label: string) => {
+      const d = BigInt(v) > target ? BigInt(v) - target : target - BigInt(v);
+      assert.ok(d * 1_000_000n <= target, `${label}: ${v} is not within a millionth of ${target}`);
+    };
+    // The pool's first hour: initialised at 65 with its graduation position, a dust position added at 70 and removed at 75, one buy at 80 that pumps the price; a top-up at 85.
+    state.v4 = { sqrt: pump, liquidity: 5000n, swaps: [{ block: 80, sqrt: pump, liquidity: 5000n }], initialize: { block: 65, sqrt }, modifies: [{ block: 65, delta: 5000n }, { block: 70, delta: 100n }, { block: 75, delta: -100n }] };
+    const inWindow = await readRate(configAt(65), 85, opts);
+    if (inWindow.state === 'UNREAD') assert.fail(JSON.stringify(inWindow));
+    near(inWindow.value.guard.atBlockUsdPerCurb18, 5n * 10n ** 16n, 'pumped at the block');
+    near(inWindow.value.usdPerCurb18, 5n * 10n ** 15n, 'the Initialize price inside the window is the guard’s low, dust or no dust');
+    assert.equal(inWindow.value.guard.applied, true);
+    assert.equal(inWindow.value.guard.samples, 2);
+    // The same with the Initialize before the window: it is the opening price, weighed although the last delta before the window is negative.
+    const beforeWindow = { ...state.v4, initialize: { block: 20, sqrt }, modifies: [{ block: 20, delta: 5000n }, { block: 30, delta: 100n }, { block: 35, delta: -100n }] };
+    state.v4 = beforeWindow;
+    const opening = await readRate(configAt(20), 85, opts);
+    if (opening.state === 'UNREAD') assert.fail(JSON.stringify(opening));
+    near(opening.value.usdPerCurb18, 5n * 10n ** 15n, 'the opening price stands although a dust position was removed');
+    assert.equal(opening.value.guard.applied, true);
+    // A dust pair in the block before the pump changes nothing either.
+    state.v4 = { ...state.v4, modifies: [{ block: 20, delta: 5000n }, { block: 79, delta: 1n, logIndex: 1 }, { block: 79, delta: -1n, logIndex: 2 }] };
+    const dust = await readRate(configAt(20), 85, opts);
+    if (dust.state === 'UNREAD') assert.fail(JSON.stringify(dust));
+    near(dust.value.usdPerCurb18, 5n * 10n ** 15n, 'a +1/−1 pair before the pump is not a removal');
+    // A zero delta — a fee collection — after the graduation position is not a removal: the first price still stands by events.
+    state.v4 = { sqrt, liquidity: 5000n, swaps: [], initialize: { block: 20, sqrt }, modifies: [{ block: 20, delta: 5000n }, { block: 25, delta: 0n }] };
+    const collected = await readRateFromEvents(configAt(20), 30, opts);
+    if (collected.state === 'UNREAD') assert.fail(JSON.stringify(collected));
+    assert.equal(collected.value.pool.eventBlock, 20);
+    // Added and then all of it removed, no swap since: not definite — the sum is what says so.
+    state.v4.modifies = [{ block: 20, delta: 5000n }, { block: 25, delta: -5000n }];
+    const removed = await readRateFromEvents(configAt(20), 30, opts);
+    assert.equal(removed.state, 'UNREAD');
+    assert.equal(poolHadNoPriceAt(removed), false);
+    // Drained by a swap, then a dust pair: still no liquidity, definitely; then a real addition: priced again.
+    state.v4.swaps = [{ block: 40, sqrt, liquidity: 0n }];
+    state.v4.modifies = [{ block: 20, delta: 5000n }, { block: 42, delta: 1n, logIndex: 1 }, { block: 42, delta: -1n, logIndex: 2 }];
+    assert.equal(poolHadNoPriceAt(await readRateFromEvents(configAt(20), 45, opts)), true, 'a dust pair after the drain is not liquidity');
+    state.v4.modifies = [{ block: 20, delta: 5000n }, { block: 42, delta: 1n, logIndex: 1 }, { block: 42, delta: -1n, logIndex: 2 }, { block: 44, delta: 300n }];
+    const back = await readRateFromEvents(configAt(20), 45, opts);
+    if (back.state === 'UNREAD') assert.fail(JSON.stringify(back));
+    assert.equal(back.value.pool.eventBlock, 40);
+  });
+
+  it('refuses a v4 record that would price native ETH as a dollar, or that has no Initialize block', () => {
+    const base = JSON.parse(CONFIG_V4_JSON);
+    const usdEth = parseCreditsConfig(JSON.stringify({ ...base, priceSource: { ...base.priceSource, quote: { kind: 'usd-stable' } } }));
+    assert.equal(usdEth.state, 'CONFIG_INVALID');
+    assert.match(usdEth.state === 'CONFIG_INVALID' ? usdEth.detail : '', /native ETH, which is not a dollar/);
+    const { fromBlock: _dropped, ...withoutFromBlock } = base.priceSource;
+    const noInit = parseCreditsConfig(JSON.stringify({ ...base, priceSource: withoutFromBlock }));
+    assert.equal(noInit.state, 'CONFIG_INVALID');
+    assert.match(noInit.state === 'CONFIG_INVALID' ? noInit.detail : '', /Initialize/);
+    const dynamicFee = parseCreditsConfig(JSON.stringify({ ...base, priceSource: { ...base.priceSource, key: { ...V4_KEY, fee: 0x800000 } } }));
+    assert.equal(dynamicFee.state, 'CONFIG_INVALID');
+    assert.match(dynamicFee.state === 'CONFIG_INVALID' ? dynamicFee.detail : '', /dynamic-fee flag/);
+    // An ERC-20 quote with CURB as currency0 is a valid key the other way round: the token sorts lower than the quote.
+    const erc20 = parseCreditsConfig(JSON.stringify({ ...base, priceSource: { ...base.priceSource, key: { currency0: CURB, currency1: USDC, fee: 0, tickSpacing: 200, hooks: HOOK }, quote: { kind: 'usd-stable' } } }));
+    assert.equal(erc20.state, 'CONFIGURED');
   });
 
   it('reads a v3 pool by state and by events, with CURB on either side', async () => {

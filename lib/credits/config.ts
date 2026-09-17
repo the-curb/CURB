@@ -123,6 +123,10 @@ export function parseCreditsConfig(raw: string | undefined): CreditsStatus {
     const id = poolIdOf(checked.key);
     if (ps.poolId !== undefined && ps.poolId !== null && (typeof ps.poolId !== 'string' || ps.poolId.toLowerCase() !== id)) return { state: 'CONFIG_INVALID', detail: `priceSource.poolId does not equal keccak256 of the encoded key (${id}); the key names one pool and the id another` };
     if (ps.pair !== undefined && ps.pair !== null && (typeof ps.pair !== 'string' || ps.pair.toLowerCase() !== id)) return { state: 'CONFIG_INVALID', detail: 'priceSource.pair, when given for a v4 pool, must be the pool id derived from the key' };
+    if (!Number.isInteger(ps.fromBlock) || (ps.fromBlock as number) < 0) return { state: 'CONFIG_INVALID', detail: 'a uniswap-v4-pool needs priceSource.fromBlock: the block of its Initialize on the PoolManager, read from the chain' };
+    const quoteCurrency = checked.key.currency0 === token ? checked.key.currency1 : checked.key.currency0;
+    const q4 = ps.quote as Record<string, unknown> | undefined;
+    if (/^0x0{40}$/.test(quoteCurrency) && q4?.kind === 'usd-stable') return { state: 'CONFIG_INVALID', detail: 'the quote currency is native ETH, which is not a dollar: priceSource.quote must be a chainlink-feed for ETH / USD' };
     pair = id;
     v4 = { poolManager: ps.poolManager.toLowerCase(), stateView: ps.stateView.toLowerCase(), key: checked.key };
   } else {

@@ -94,7 +94,8 @@ export function validatePoolKey(raw: unknown): { readonly key: V4PoolKey } | { r
   const c1 = k.currency1.toLowerCase();
   if (c0 === c1) return { error: 'key.currency0 and key.currency1 are the same' };
   if (BigInt(c0) >= BigInt(c1)) return { error: 'key.currency0 must be numerically lower than key.currency1 — the manager sorts them and a key in the other order names no pool' };
-  if (!Number.isInteger(k.fee) || (k.fee as number) < 0 || (k.fee as number) > 0x800000) return { error: 'key.fee must be an integer from 0 to 8388608' };
+  // A static fee is at most 100% in hundredths of a basis point; 0x800000 is the dynamic-fee flag, under which a hook sets the fee per swap and the reader cannot state what a trade paid.
+  if (!Number.isInteger(k.fee) || (k.fee as number) < 0 || (k.fee as number) > 1_000_000) return { error: (k.fee as number) === 0x800000 ? 'key.fee 8388608 is the dynamic-fee flag: a pool whose fee a hook sets per swap is not read' : 'key.fee must be an integer from 0 to 1000000' };
   if (!Number.isInteger(k.tickSpacing) || (k.tickSpacing as number) <= 0 || (k.tickSpacing as number) > 32767) return { error: 'key.tickSpacing must be a positive integer no larger than 32767' };
   if (!isAddress(k.hooks)) return { error: 'key.hooks must be a 20-byte hex address (the zero address for no hook)' };
   return { key: { currency0: c0, currency1: c1, fee: k.fee as number, tickSpacing: k.tickSpacing as number, hooks: k.hooks.toLowerCase() } };
