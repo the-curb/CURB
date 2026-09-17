@@ -88,7 +88,7 @@ export default async function Home() {
 
       <div className="px-3 sm:px-4">
         {/* ── THE FRONT ────────────────────────────────────────────────────── */}
-        <HeroSection figure="position" caption={`one company · two issuers · ${WORKED_EXAMPLE.q.A} A + ${WORKED_EXAMPLE.q.B} B to a lot · claims per component`}>
+        <HeroSection figure="position" caption={`one company · two issuers · ${WORKED_EXAMPLE.q.A} A + ${WORKED_EXAMPLE.q.B} B to a lot, illustrative · claims per component`}>
           <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <div className="cell flex items-center p-6 sm:p-10 md:row-span-2">
               <h1 className="display text-[2.25rem] text-(--color-paper) sm:text-[2.6rem] md:text-[clamp(2.2rem,4.2vw,4.5rem)]">

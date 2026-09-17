@@ -28,7 +28,7 @@ export const DECISIONS: readonly DecisionRecord[] = [
   { slug: 'adr-004-per-component-stops', file: 'ADR-004-per-component-stops.md', title: 'Stops are per operation and per component', asks: 'what the operator can stop, and that a stop moves nothing', backlog: 'R06' },
   { slug: 'adr-005-no-sweep-claims-to-holder', file: 'ADR-005-no-sweep-claims-to-holder.md', title: 'Nothing is swept; a claim is paid only to its holder', asks: 'no rescue function, no third-party payee, effects before transfer', backlog: 'R06' },
   { slug: 'adr-006-lots-and-cap', file: 'ADR-006-lots-and-cap.md', title: 'Units per lot, decimals, lot size and the cap', asks: 'the method for choosing q, a receipt of 0 decimals, a cap that counts reserved liability', backlog: 'R05' },
-  { slug: 'operations', file: 'OPERATIONS.md', title: 'Operator policy', asks: 'signers and quorum, what each action needs, rotation, logging, limits on pausing', backlog: 'O01' },
+  { slug: 'operations', file: 'OPERATIONS.md', title: 'Operator policy', asks: 'signers and quorum, what each action needs, rotation, logging, limits on pausing — the signers and the Robinhood Chain Safe decided 13 September 2026, the incident response owner and targets 17 September; the rest proposed', backlog: 'O01', status: 'partly decided' },
   { slug: 'runbook', file: 'RUNBOOK.md', title: 'Runbook', asks: 'the incident order, the rehearsed incidents, lost access and keys, what is never said', backlog: 'O03' },
   { slug: 'costs', file: 'COSTS.md', title: 'Cost against the baseline', asks: 'the measured gas of a round trip with both real components, the method with its variables left as variables, and what the comparison cannot say', backlog: 'B01' },
   { slug: 'deployment', file: 'DEPLOYMENT.md', title: 'Deployment plan', asks: 'what has to be true first, the reviewed record, the steps, the two verifications, and what there is no plan for', backlog: 'G02' },
@@ -52,6 +52,24 @@ export function statusOf(record: DecisionRecord): DecisionStatus {
 
 export function decisionBySlug(slug: string): DecisionRecord | null {
   return DECISIONS.find((d) => d.slug === slug) ?? null;
+}
+
+/** Where the repository's files are read by a person: the same commit the site is built from is what main holds. */
+export const SOURCE_TREE = 'https://github.com/the-curb/CURB/blob/main';
+
+/**
+ * The records link to one another and to the mainnet dossier by file name.
+ * A sibling record becomes its page here; a dossier file (docs/mainnet/…)
+ * becomes its source on GitHub, since the dossier is a working file the site
+ * does not render; anything else is left for the parser to show as text.
+ */
+export function resolveRecordLinks(source: string): string {
+  return source.replace(/\]\(((?:\.\.\/mainnet\/|docs\/mainnet\/)?)([A-Za-z0-9._-]+\.md)(#[A-Za-z0-9._-]+)?\)/g, (whole, dir: string, file: string, anchor: string | undefined) => {
+    const hash = anchor ?? '';
+    if (dir !== '') return `](${SOURCE_TREE}/docs/mainnet/${file}${hash})`;
+    const target = DECISIONS.find((d) => d.file === file);
+    return target ? `](/mechanism/decisions/${target.slug}${hash})` : whole;
+  });
 }
 
 const DIR = () => path.join(/*turbopackIgnore: true*/ process.cwd(), 'docs', 'decisions');

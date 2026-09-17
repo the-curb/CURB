@@ -43,7 +43,7 @@ function narrate(session: SessionState, blockToken: string | null): string {
   const chainLine =
     blockToken === null
       ? 'The chain was not reachable on this run, so its height is shown as absent rather than guessed.'
-      : `Robinhood Chain stood at block ${blockToken} when this was read, and it has not paused.`;
+      : `Robinhood Chain answered block ${blockToken} when this was read; whether it is advancing is the Pillar's reading, from the head's age, not this one.`;
 
   if (session.phase === 'REGULAR') {
     return [
@@ -113,7 +113,7 @@ export const bellProducer: Producer = async ({ now, store }): Promise<ProducerRe
 
   return {
     publication: {
-      headline: `${phase} · ${session.calendarDay}`,
+      headline: `${phase} · exchange day ${session.calendarDay} ET`,
       body: narrate(session, blockToken),
       figures,
       readings: { 'block height': block },

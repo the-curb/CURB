@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import Link from 'next/link';
+import { DECISIONS, resolveRecordLinks, statusOf } from '@/lib/docs/decisions';
 import { APPLE_S1, GATES } from '@/lib/positions/series';
 import { parseMarkdown, type Block } from '@/lib/docs/markdown';
 import { BlockView, Contents } from '../components/markdown-view';
@@ -21,7 +22,7 @@ export default async function MechanismPage() {
   let blocks: Block[] | null = null;
   let fault: string | null = null;
   try {
-    blocks = parseMarkdown(await fs.readFile(DOC, 'utf8'));
+    blocks = parseMarkdown(resolveRecordLinks(await fs.readFile(DOC, 'utf8')));
   } catch (cause) {
     fault = cause instanceof Error ? cause.message : 'unknown failure';
   }
@@ -47,7 +48,7 @@ export default async function MechanismPage() {
           <Link href="/mechanism/decisions" className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
             decision records
           </Link>
-          , all proposed and none decided.
+          : {DECISIONS.filter((d) => statusOf(d) === 'proposed').length} proposed{DECISIONS.some((d) => statusOf(d) === 'partly decided') ? `, ${DECISIONS.filter((d) => statusOf(d) === 'partly decided').length} partly decided` : ''} and {DECISIONS.filter((d) => statusOf(d) === 'decided').length} decided (the token record, by the product owner, 12 September 2026).
         </p>
       </header>
 

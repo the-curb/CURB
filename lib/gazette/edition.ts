@@ -44,6 +44,12 @@ export interface NotRead {
   readonly detail: string | null;
 }
 
+export interface StoppedByPolicy {
+  readonly agent: AgentSpec;
+  readonly at: string;
+  readonly breaches: readonly { readonly rule: string; readonly matched: string }[];
+}
+
 export interface SourceOfRecord {
   readonly source: string;
   /** How many declared figures cited it that day. */
@@ -64,6 +70,8 @@ export interface Edition {
   readonly sources: readonly SourceOfRecord[];
   readonly ledger: Ledger;
   readonly blockedOutputs: number;
+  /** Each output the policy gate kept back that day: who, when, and the rule with the text that tripped it. */
+  readonly stoppedByPolicy: readonly StoppedByPolicy[];
   /** True while the day is still being recorded; the edition will grow. */
   readonly isToday: boolean;
   readonly composedAt: string;
@@ -99,11 +107,15 @@ function districtOrder(district: string): number {
   return index === -1 ? BRAND.universe.districts.length : index;
 }
 
-/** Latest run per agent among the ones that did not publish. */
+/**
+ * Latest run per agent among the ones that could not complete a reading. A run
+ * the policy gate stopped is not one of them — the reading was complete and
+ * the text was kept back — so it is counted with the blocked outputs instead.
+ */
 function collectNotRead(heartbeats: readonly HeartbeatRecord[]): NotRead[] {
   const latest = new Map<AgentId, HeartbeatRecord>();
   for (const h of heartbeats) {
-    if (h.outcome === 'PUBLISHED' || h.outcome === 'NOTHING_TO_SAY') continue;
+    if (h.outcome === 'PUBLISHED' || h.outcome === 'NOTHING_TO_SAY' || h.outcome === 'POLICY_BLOCKED') continue;
     const held = latest.get(h.agentId);
     if (!held || h.runAt > held.runAt) latest.set(h.agentId, h);
   }
@@ -187,6 +199,13 @@ function standfirst(
   return parts.join(' ');
 }
 
+/** The Bell's headline carries the exchange's calendar day (ET), which is not the paper's UTC day; filings from before the clock was named are read the same way. */
+function nameTheClock(agentId: string, headline: string): string {
+  if (agentId !== 'bell') return headline;
+  const old = /^(.+) · (\d{4}-\d{2}-\d{2})$/.exec(headline);
+  return old ? `${old[1]} · exchange day ${old[2]} ET` : headline;
+}
+
 function chooseHeadline(sections: readonly EditionSection[], day: string): string {
   for (const id of LEAD_ORDER) {
     const lead = sections.find((s) => s.agent.id === id);
@@ -215,7 +234,7 @@ export function composeEdition(record: DayRecord, now: Date = new Date()): Editi
       return {
         district: agent.district,
         agent,
-        headline: p.headline,
+        headline: nameTheClock(p.agentId, p.headline),
         body: p.body,
         figures: p.figures,
         publishedAt: p.publishedAt,
@@ -243,6 +262,9 @@ export function composeEdition(record: DayRecord, now: Date = new Date()): Editi
     sources: collectSources(record.publications),
     ledger,
     blockedOutputs: record.blocks.length,
+    stoppedByPolicy: [...record.blocks]
+      .map((b) => ({ agent: AGENT_BY_ID[b.agentId], at: b.blockedAt, breaches: b.breaches.map((x) => ({ rule: x.rule, matched: x.matched })) }))
+      .sort((a, b) => a.at.localeCompare(b.at)),
     isToday,
     composedAt: now.toISOString(),
   };

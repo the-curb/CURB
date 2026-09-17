@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DECISIONS, decisionBySlug, readDecision, statusOf } from '@/lib/docs/decisions';
+import { DECISIONS, decisionBySlug, readDecision, resolveRecordLinks, statusOf } from '@/lib/docs/decisions';
 import { parseMarkdown } from '@/lib/docs/markdown';
 import { BlockView } from '../../../components/markdown-view';
 
@@ -13,13 +13,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 /** A link to another record by its file name becomes a link to its page; anything else is left to the parser's own rules. */
-function resolveRecordLinks(source: string): string {
-  return source.replace(/\]\(([A-Za-z0-9._-]+\.md)\)/g, (whole, file: string) => {
-    const target = DECISIONS.find((d) => d.file === file);
-    return target ? `](/mechanism/decisions/${target.slug})` : whole;
-  });
-}
-
 export default async function DecisionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const record = decisionBySlug(slug);

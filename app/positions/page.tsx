@@ -15,7 +15,7 @@ export default function PositionsPage() {
     <main className="px-3 py-8 sm:px-4 sm:py-10">
       <header className="mb-8 px-1">
         <div className="kicker">
-          <b>The position</b> · one available, in design
+          <b>The position</b> · one described, in design
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
           One company. Multiple issuers. <em className="text-(--color-paper-dim)">One position.</em>

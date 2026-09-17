@@ -1,6 +1,7 @@
 import { DeskNav } from '../components/desk-nav';
 import { ABSENT_GLYPH, describeAge } from '@/lib/doctrine/reading';
 import { composeFlow, composeSeries, FLOW_SERIES, type Flow, type FlowSeries } from '@/lib/vault/flow';
+import { STOCK_TOKENS } from '@/lib/chain/stock-tokens';
 import { getStoreAsync } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ function SeriesPanel({ series }: { series: FlowSeries }) {
       <div className="flex items-baseline justify-between gap-4">
         <h3 className="text-[11px] uppercase tracking-[0.24em] text-(--color-brass)">{series.label}</h3>
         <span className="text-[10px] uppercase tracking-[0.14em] text-(--color-paper-faint)">
-          {series.kind === 'settlement' ? 'settlement asset' : 'all 194 tokens'}
+          {series.kind === 'settlement' ? 'settlement asset' : `all ${STOCK_TOKENS.length} tokens at capture`}
         </span>
       </div>
       {series.unreadBecause !== null ? (
@@ -110,9 +111,10 @@ export default async function VaultPage() {
           Flow, as a rate. Sampled every hour for about a minute of chain time.
         </h1>
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
-          The public node refuses any query that matches more than ten thousand logs and this chain produces hundreds of
-          transfers a second, so an hour cannot be totalled from here. What can be read is a sample, and a sample is a
-          rate. Each bar is one sample; the day is the shape they make.
+          The Tally reads a sample of about five hundred blocks each hour — sized so the public node, the fallback
+          endpoint, which refuses any query matching more than ten thousand logs, can answer it — and this chain produces
+          hundreds of transfers a second, so an hour is not totalled from here. What can be read is a sample, and a sample
+          is a rate. Each bar is one sample; the day is the shape they make.
         </p>
         <p className="mt-3 text-[11px] uppercase tracking-[0.18em]" style={{ color: state.colour }} title={state.means}>
           ● {state.label}

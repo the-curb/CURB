@@ -237,6 +237,31 @@ export default async function EditionPage(props: { params: Params }) {
             </div>
           </section>
 
+          {/* ── Stopped by policy ──────────────────────────────────────── */}
+          {edition.stoppedByPolicy.length > 0 ? (
+            <section className="mb-12">
+              <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
+                Stopped by policy
+              </h2>
+              <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
+                <p className="mb-3 text-xs leading-relaxed text-(--color-paper-faint)">
+                  The reading was complete; the gate kept the text back, and the text is kept. A block is not a failed reading.
+                </p>
+                <ul className="space-y-3">
+                  {edition.stoppedByPolicy.map((s) => (
+                    <li key={`${s.agent.id}-${s.at}`} className="text-sm">
+                      <span className="text-(--color-paper)">{s.agent.name}</span>
+                      <span className="ml-3 text-[10px] text-(--color-paper-faint)">{s.at.slice(11, 16)} UTC</span>
+                      <p className="mt-1 text-xs leading-relaxed text-(--color-paper-faint)">
+                        {s.breaches.map((b) => `${b.rule.replace(/_/g, ' ').toLowerCase()}: “${b.matched}”`).join(' · ')}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
+
           {/* ── Sources of record ──────────────────────────────────────── */}
           <section className="mb-12">
             <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">

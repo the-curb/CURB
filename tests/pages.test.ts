@@ -139,6 +139,25 @@ describe('the Registry roll', () => {
 });
 
 describe('the markdown renderer', () => {
+  it('parses emphasis, code inside bold, and leaves a relative link as text', () => {
+    assert.deepEqual(parseInline('see *this* and **`x` bold** then [t](../mainnet/F.md) and 2 * 3 * 4'), [
+      { kind: 'text', text: 'see ' },
+      { kind: 'em', text: 'this' },
+      { kind: 'text', text: ' and ' },
+      { kind: 'strong', text: '`x` bold', inlines: [{ kind: 'code', text: 'x' }, { kind: 'text', text: ' bold' }] },
+      { kind: 'text', text: ' then [t](../mainnet/F.md) and 2 * 3 * 4' },
+    ]);
+  });
+
+  it('parses a numbered list as an ordered list', () => {
+    const blocks = parseMarkdown(['1. **First.** one', '2. second', '   wrapped', '', '- a'].join('\n'));
+    assert.deepEqual(blocks.map((b) => b.kind), ['list', 'list']);
+    const ordered = blocks[0]!;
+    const bullets = blocks[1]!;
+    assert.ok(ordered.kind === 'list' && ordered.ordered === true && ordered.items.length === 2);
+    assert.ok(bullets.kind === 'list' && bullets.ordered === undefined);
+  });
+
   it('parses inline code and bold, nothing nested', () => {
     assert.deepEqual(parseInline('a `b` **c** d'), [
       { kind: 'text', text: 'a ' },

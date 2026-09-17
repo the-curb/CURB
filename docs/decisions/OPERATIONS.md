@@ -1,6 +1,6 @@
 # Operator policy — proposed
 
-**Status:** Proposed, 12 September 2026. Not decided. Awaits operations and a reviewer (blueprint O01). **Treasury signers and the Robinhood Chain Safe creation were recorded on 13 September 2026 (below). The remaining operator policy is still proposed. A Safe on the candidate Ethereum chain has not been verified.** This page states what the operator would be allowed to do and how, so that the authority can be reviewed before anyone holds it.
+**Status:** Partly decided. Proposed 12 September 2026; awaits operations and a reviewer (blueprint O01). **Decided by the product owner: the treasury signers and the Robinhood Chain Safe (13 September 2026, below; register A4), and the incident response owner, the response time and the recovery objective (17 September 2026, the section on incident response, dossier D08). The remaining operator policy — quorum rules per action, rotation, logging, the limits on pausing, the Ethereum operator verification — is still proposed. A Safe on the candidate Ethereum chain has not been verified.** This page states what the operator would be allowed to do and how, so that the authority can be reviewed before anyone holds it.
 
 ## The operator
 

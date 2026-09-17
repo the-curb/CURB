@@ -208,6 +208,20 @@ describe('the ledger', () => {
     assert.equal(e.ledger.PRODUCER_FAILED, 0);
     assert.equal(e.blockedOutputs, 1);
     assert.match(e.standfirst, /1 output was stopped by policy/);
+    // A policy block is a complete reading the gate kept back, not a reading that failed: counted once, in its own list.
+    assert.equal(e.notRead.length, 0);
+    assert.doesNotMatch(e.standfirst, /could not complete a reading/);
+    assert.deepEqual(e.stoppedByPolicy.map((s) => [s.agent.id, s.at.slice(11, 16)]), [['tally', '10:00']]);
+  });
+
+  it("names the Bell's clock, so the exchange day (ET) is not read as the paper's UTC day", () => {
+    const e = composeEdition({ ...empty, publications: [pub('bell', '10:00', 'CLOSED · 2026-09-10')], heartbeats: [beat('bell', '10:00', 'PUBLISHED')] }, NOW);
+    assert.equal(e.headline, 'CLOSED · exchange day 2026-09-10 ET');
+    assert.equal(e.sections[0]!.headline, 'CLOSED · exchange day 2026-09-10 ET');
+    const named = composeEdition({ ...empty, publications: [pub('bell', '10:00', 'REGULAR · exchange day 2026-09-11 ET')], heartbeats: [beat('bell', '10:00', 'PUBLISHED')] }, NOW);
+    assert.equal(named.headline, 'REGULAR · exchange day 2026-09-11 ET');
+    const other = composeEdition({ ...empty, publications: [pub('tally', '10:00', 'Tally · 2026-09-11')], heartbeats: [beat('tally', '10:00', 'PUBLISHED')] }, NOW);
+    assert.equal(other.headline, 'Tally · 2026-09-11');
   });
 });
 

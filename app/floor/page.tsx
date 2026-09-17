@@ -228,7 +228,7 @@ export default async function FloorPage() {
           The Floor · the book
         </h2>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
-          Every tokenized-equity feed on Robinhood Chain, as the Pillar last read it: the price,
+          Every tokenized-equity feed in the vendor&rsquo;s directory for Robinhood Chain, as the Pillar last read it: the price,
           how long since the oracle published it, how long since we read it, and the two flags
           that decide whether the price means what it appears to mean.
         </p>
@@ -240,7 +240,7 @@ export default async function FloorPage() {
       {/* ── THE WARDEN ────────────────────────────────────────────────────── */}
       <Panel
         title="The Warden · operations"
-        note="Three numbers that cannot be faked, printed when they look bad. Sources reached counts what answered on the last run of each agent, against what a healthy run expects."
+        note="Three numbers that cannot be faked, printed when they look bad — and, from the record, the count of outputs the policy gate kept back. Sources reached counts what answered on the last run of each agent, against what a healthy run expects."
       >
         {health === null ? (
           <p
@@ -416,6 +416,10 @@ export default async function FloorPage() {
         <Row label="Sequencer uptime feed">
           <Absent why={SEQUENCER_FEED.reason} />
         </Row>
+        <p className="mt-4 text-[11px] leading-relaxed text-(--color-paper-faint)">
+          Directory: {FEED_COVERAGE.directory}, read {FEED_COVERAGE.observedAt}, {FEED_COVERAGE.verifiedOnChain} verified on chain at block{' '}
+          {FEED_COVERAGE.observedAtBlock.toLocaleString('en-US')}. Registry: {STOCK_TOKEN_COVERAGE.registry}, read {STOCK_TOKEN_COVERAGE.observedAt}.
+        </p>
         <Row label="Chain head, as last read">
           {chainHead === null ? (
             <Absent why="the Pillar has not sampled the chain head into this store yet" />

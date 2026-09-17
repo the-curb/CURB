@@ -22,8 +22,14 @@ export function Inlines({ inlines }: { inlines: readonly Inline[] }) {
           case 'strong':
             return (
               <strong key={i} className="font-medium text-(--color-paper)">
-                {inline.text}
+                {inline.inlines ? <Inlines inlines={inline.inlines} /> : inline.text}
               </strong>
+            );
+          case 'em':
+            return (
+              <em key={i} className="italic">
+                {inline.text}
+              </em>
             );
           case 'link':
             return inline.url.startsWith('http') ? (
@@ -74,8 +80,8 @@ export function BlockView({ block }: { block: Block }) {
       return (
         <ul className="mt-4 max-w-3xl space-y-2">
           {block.items.map((item, i) => (
-            <li key={i} className="grid grid-cols-[1.25rem_minmax(0,1fr)] text-base leading-relaxed text-(--color-paper-dim)">
-              <span className="text-(--color-accent)">—</span>
+            <li key={i} className="grid grid-cols-[1.75rem_minmax(0,1fr)] text-base leading-relaxed text-(--color-paper-dim)">
+              <span className="tabular text-(--color-accent)">{block.ordered ? `${i + 1}.` : '—'}</span>
               <span>
                 <Inlines inlines={item} />
               </span>

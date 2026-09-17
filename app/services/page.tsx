@@ -196,7 +196,7 @@ export default async function ServicesPage() {
       <section className="mt-10 cells grid-cols-1 md:grid-cols-2">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>The desk and the treasury</b> · verification attempted every tick
+            <b>The desk and the treasury</b> · {status.state === 'CONFIGURED' ? 'verification attempted every tick' : 'nothing to verify while no desk is configured'}
           </div>
           {status.state !== 'CONFIGURED' ? (
             <p className="mt-3 text-sm leading-relaxed text-(--color-paper-faint)">
@@ -380,8 +380,12 @@ export default async function ServicesPage() {
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-[13px] leading-relaxed text-(--color-paper-dim)">
             <li>The services, the key store, the top-up indexer and the price reader exist first — this page, <span className="tabular">/api/credits</span>, the paid endpoints, <span className="tabular">contracts/src/CreditDesk.sol</span> with its tests — rehearsed on a local chain with a mock token and a mock pool.</li>
             <li>The credit desk contract is reviewed with the series contract.</li>
-            <li>The token launches; its address, decimals and supply are read from the chain; the desk is deployed pointing at the token and the operator multisig; the pool is recorded when it exists. Until then this page says NOT CONFIGURED.</li>
-            <li>If a launch raises anything, the budget is published first: the independent review, the legal read, infrastructure, a logged reserve. The split is in <Link href="/mechanism/decisions/token" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">the record</Link>.</li>
+            <li>The funding source, the venue&rsquo;s reviewed mechanics and the approved budget are recorded before any sale. The venue is decided (PONS v2 on Robinhood Chain, against native ETH, 17 September 2026); no funding source or launch approval is recorded today.</li>
+            <li>The token launches; its address, decimals and supply are read from the chain and checked against the reviewed terms.</li>
+            <li>The desk is deployed pointing at the token and the operator multisig, from a reviewed record, after a dry run; its source is verified on the explorer.</li>
+            <li>The pool is recorded when it exists, and the operator tests one small top-up to their own key. Until then this page says NOT CONFIGURED.</li>
+            <li>Public top-up invitations and the paid beta are decided separately, after that. If a launch raises anything, the budget is published first: the independent review, the legal read, infrastructure, a logged reserve. The split is in <Link href="/mechanism/decisions/token" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">the record</Link>.</li>
+            <li>The interviews run with the people who arrive; a holder of the token is not a better interviewee than anyone else.</li>
           </ol>
           <p className="mt-4 text-[12px] leading-relaxed text-(--color-paper-faint)">
             {status.state !== 'CONFIGURED'

@@ -136,10 +136,10 @@ export default async function RegistryPage() {
           <div className="mt-6 grid gap-x-12 sm:grid-cols-2">
             <div>
               <Row label="Checked"><span className="tabular text-xs">{describeAge(drift.checkedAgeSeconds)} ago</span></Row>
-              <Row label="Tokens listed today · captured">
+              <Row label="Tokens listed at last check · captured">
                 <span className="tabular">{drift.tokensListed ?? ABSENT_GLYPH} · {STOCK_TOKEN_COVERAGE.tokensInRegistry}</span>
               </Row>
-              <Row label="Feeds listed today · captured">
+              <Row label="Feeds listed at last check · captured">
                 <span className="tabular">{drift.feedsListed ?? ABSENT_GLYPH} · {FEED_COVERAGE.capturedHere}</span>
               </Row>
             </div>
@@ -251,7 +251,8 @@ export default async function RegistryPage() {
         <p className="mt-6 text-xs leading-relaxed text-(--color-paper-faint)">
           Registry: {STOCK_TOKENS_SOURCE.url}, read {STOCK_TOKENS_SOURCE.retrievedAt}, {STOCK_TOKENS_SOURCE.onThisChain} of{' '}
           {STOCK_TOKENS_SOURCE.listed} listed assets deployed on this chain, every one verified on chain at block{' '}
-          {STOCK_TOKENS_SOURCE.verifiedAtBlock}. Feeds: {FEED_COVERAGE.directory}. Nothing here is an endorsement or a
+          {STOCK_TOKENS_SOURCE.verifiedAtBlock}. Feeds: {FEED_COVERAGE.directory}, read {FEED_COVERAGE.observedAt},{' '}
+          {FEED_COVERAGE.capturedHere} of {FEED_COVERAGE.listedByDirectory} feeds verified on chain at block {FEED_COVERAGE.observedAtBlock}. Nothing here is an endorsement or a
           listing; it is what two sources said and what the chain answered.
         </p>
       </section>
