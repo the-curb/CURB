@@ -1,0 +1,45 @@
+{
+  "_": "The graduated pool as the chain states it: the factory record, the key derived as the factory sorts it, the Initialize in the graduation block stating that key, the lens now. priceSource is what CURB_CREDITS takes; the reviewer signs the desk record with it (LAUNCH.md rows 12–13).",
+  "chainId": 4663,
+  "token": "0xD1A4E3a035852A3bE3F24C2de889A9f17C265f19",
+  "readAt": "2026-09-17T06:13:43.505Z",
+  "head": 65143475,
+  "graduation": {
+    "block": 64802239,
+    "transactionHash": "0x34072a399b6241c7d01f832b50646d7980cdaa0d49d655c43eb20e10261c5b75",
+    "positionId": "2808850",
+    "tokenAmount": "204081632653061227641260585",
+    "pairTokenAmount": "4200000000000000227"
+  },
+  "initialize": {
+    "block": 64802239,
+    "sqrtPriceX96": "552276925551777196258358801355119",
+    "tick": 176998
+  },
+  "now": {
+    "sqrtPriceX96": "2376697580734793989352683237378542",
+    "tick": 206188,
+    "protocolFee": 0,
+    "lpFee": 0,
+    "liquidity": "29277002188455996397858"
+  },
+  "priceSource": {
+    "kind": "uniswap-v4-pool",
+    "poolManager": "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    "stateView": "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b",
+    "key": {
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0xd1a4e3a035852a3be3f24c2de889a9f17c265f19",
+      "fee": 0,
+      "tickSpacing": 200,
+      "hooks": "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044"
+    },
+    "poolId": "0x4f47eea24582afa4cf17db257891c8681f27f31e128c1e81de617d7371bd130f",
+    "fromBlock": 64802239,
+    "quote": {
+      "kind": "chainlink-feed",
+      "feed": "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9"
+    }
+  },
+  "explorer": "https://robinhoodchain.blockscout.com/tx/0x34072a399b6241c7d01f832b50646d7980cdaa0d49d655c43eb20e10261c5b75"
+}

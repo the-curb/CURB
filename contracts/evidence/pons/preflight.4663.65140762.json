@@ -1,0 +1,43 @@
+{
+  "_": "PONS v2 terms as the chain answered them; every one is editable by the venue and is read again in the block a launch is sent",
+  "network": "robinhood-mainnet",
+  "chainId": 4663,
+  "block": 65140762,
+  "readAt": "2026-09-17T06:09:05.980Z",
+  "factory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+  "hook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+  "locker": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "factoryOwner": "0x263ed295dAFaE1d9AAdD6E56c4B6F9f38eE019Dd",
+  "launchEnabled": true,
+  "launcher": {
+    "address": "0x4E69723F9Ba9fA2C9842d77b240b2C0F601ac219",
+    "canLaunch": true,
+    "whitelisted": false
+  },
+  "launchFeeWei": "500000000000000",
+  "launchConfig": {
+    "id": 0,
+    "supply": "1000000000000000000000000000",
+    "curveFeeBps": "100",
+    "phantomQuote": "1680000000000000000",
+    "graduationThreshold": "4200000000000000000",
+    "poolFee": 0,
+    "tickSpacing": 200,
+    "enabled": true
+  },
+  "pair": {
+    "kind": "native-eth",
+    "address": "0x0000000000000000000000000000000000000000",
+    "decimals": 18,
+    "phantomQuote": "0",
+    "graduationThreshold": "0"
+  },
+  "expectedEconomics": "0xa9fc75d4203a33fe660e8fa32c74c3aa41c1fda4bf23d3a39b6bc22a1f8b1ca7",
+  "maxCreatorTaxBps": 1000,
+  "snipeTax": {
+    "seconds": "3",
+    "startBps": "9900"
+  },
+  "graduationRescueDelaySeconds": "604800"
+}

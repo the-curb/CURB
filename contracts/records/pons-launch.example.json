@@ -1,0 +1,18 @@
+{
+  "_": "An example of the launch record pons-launch.ts takes, refused by name. The real one is written from pons-preflight.ts's output (expectedEconomics pinned at a block), names the operator's Safe as the fee recipient, and is reviewed by a person before --send.",
+  "network": "robinhood-mainnet",
+  "name": "The Curb",
+  "symbol": "CURB",
+  "logo": "",
+  "description": "Prepaid credit for The Curb's data services, priced in dollars and paid in CURB at the pool's rate (thecurb.io/services).",
+  "socials": { "twitter": "", "telegram": "", "discord": "", "website": "https://the-curb-production.up.railway.app", "farcaster": "" },
+  "creatorFeeRecipient": "0x4E69723F9Ba9fA2C9842d77b240b2C0F601ac219",
+  "creatorTaxBps": 0,
+  "buybackEnabled": false,
+  "pairToken": "0x0000000000000000000000000000000000000000",
+  "launchConfigId": 0,
+  "expectedEconomics": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "reviewedBy": "",
+  "reviewedAt": ""
+}

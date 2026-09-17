@@ -123,6 +123,27 @@ threshold back from the new Safe, refuses if they are not what was asked,
 and writes `evidence/safes/safe.<chainId>.json`. Rehearsed in CI on the
 local chain after `safe-rehearsal.ts` has put Safe's code there.
 
+## The venue: PONS v2
+
+The CURB token launches on PONS v2 on Robinhood Chain (decided 17 September
+2026; the venue as read is docs/mainnet/EXTERNAL-FACTS-2026-09-17-PONS-V2.md).
+Four tools, three of them read-only:
+
+- `node scripts/pons-preflight.ts [--launcher 0x…] [--pair 0x…]` — the venue's
+  live terms at one block, written to `evidence/pons/preflight.4663.<block>.json`
+  with the `expectedEconomics` digest a launch record pins.
+- `node scripts/pons-launch.ts <launch.json> [--calldata] [--send --reviewed]` —
+  the launch, by the desk's deployment discipline: the record checked against
+  the token record, the venue read again in the block it sends, a simulation
+  first, the key only from the shell, the receipt and the factory's record read
+  back and compared, `evidence/pons/launch.4663.json` written.
+- `node scripts/pons-status.ts <token>` — the launch's phase and, on the curve,
+  the curve's own figures; the desk reads none of it.
+- `node scripts/pons-pool.ts <token>` — after graduation: the pool the factory
+  created, checked three ways against the chain, and the `priceSource` the
+  desk's record takes. Rehearsed against a third party's graduated launch on
+  17 September 2026 (`evidence/pons/README.md`).
+
 ## The recorded build (G02)
 
 `npm run record:build` writes the compiled runtime bytecode, where its
