@@ -18,6 +18,7 @@ const SECTIONS: ReadonlyArray<readonly [string, string]> = [
   ['Gazette', '/gazette'],
   ['Services', '/services'],
   ['Doctrine', '/doctrine'],
+  ['How to', '/guide'],
 ];
 
 export function SiteHeader() {

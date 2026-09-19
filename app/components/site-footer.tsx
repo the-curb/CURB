@@ -3,6 +3,7 @@ import { BRAND } from '@/lib/brand';
 import { Mark } from './mark';
 
 const LINKS: ReadonlyArray<readonly [string, string]> = [
+  ['How to use it', '/guide'],
   ['Positions', '/positions'],
   ['Mechanism', '/mechanism'],
   ['The Floor', '/floor'],
