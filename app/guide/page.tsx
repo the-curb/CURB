@@ -310,10 +310,14 @@ export default async function GuidePage() {
           </Step>
           <Step n={5} title="Register a webhook for alerts" state={deskOpen ? <State tone="live">open</State> : <State tone="wait">nothing credited yet</State>}>
             <p>
-              {alert?.what} — {dollars(alert?.cents ?? 0)} a delivery, registering free. Cancel it the same way; deliveries stop with the
-              cancellation, and what was delivered stays on the key&rsquo;s page.
+              Name a webhook and the tokens you hold (or none, for every token). You are told when one of them has a multiplier
+              change staged and when it takes effect, when its issuer sets the pause flag, when its price is past heartbeat while
+              the exchange is open — and of the issuer&rsquo;s and the chain&rsquo;s events, which concern every token: the beacon moving,
+              the registry drifting, a terms page changing, the head stalling. Once when raised, once when cleared.{' '}
+              {dollars(alert?.cents ?? 0)} a delivery; registering and cancelling are free. The catalogue is on the{' '}
+              <A href="/services#alerts">services page</A>.
             </p>
-            <Block>{`curl -s -X POST -H "x-curb-key: curb_…" -H "content-type: application/json" \\\n  -d '{"url":"https://example.com/curb"}' ${origin}/api/subscriptions`}</Block>
+            <Block>{`curl -s -X POST -H "x-curb-key: curb_…" -H "content-type: application/json" \\\n  -d '{"url":"https://example.com/curb","tokens":["AAPL","TSLA"]}' ${origin}/api/subscriptions`}</Block>
           </Step>
           <Step n={6} title="Check a balance" state={<State tone="live">works today</State>}>
             <p>

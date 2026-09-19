@@ -14,7 +14,7 @@ export const RELEASE_REQUIREMENTS = [
   { id: 'issuer-eligibility', phases: ['position-pilot'], needs: 'G2: written rights/access review for contract holder, receipt, users and claims.' },
   { id: 'component-acquisition', phases: ['position-pilot'], needs: 'G3: permitted acquisition, wrapper issuance/limits and corporate-action evidence.' },
   { id: 'series-operator', phases: ['position-pilot'], needs: 'G5: Ethereum Safe, permits, incident process and two-step role transfer rehearsed.' },
-  { id: 'lots-and-user-economics', phases: ['position-pilot'], needs: 'G6: actual lot/cap, full cost comparison and genuine user research outcome.' },
+  { id: 'lots-and-user-economics', phases: ['position-pilot'], needs: 'G6: actual lot/cap and full cost comparison; user research replaced by observed use at the product owner’s decision of 20 September 2026 (INTERVIEWS.md), carried as a decision, not evidence.' },
 ] as const;
 export type ReleasePhase = 'token-launch' | 'paid-beta' | 'position-pilot';
 export interface ApprovalEvidence {

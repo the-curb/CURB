@@ -334,6 +334,8 @@ Fuzz and invariant tests vary the number of holders, the order of mint, allocati
 
 ## 15. Validation and the measure of success
 
+**Decided by the product owner, 20 September 2026: the interviews below are not held.** The section stays as written so the stop rule and the comprehension test remain on the record; what stands in for the conversations is observed use — the desk's readers, the alert subscriptions paid for once the desk is configured, and whether holders keep their two tokens once a receipt exists with its cost and risk in front of them. The stop rule at the end of this section is read against that use. The risk is carried openly: the position proceeds without a prospective user having been asked ([the interview guide](docs/decisions/INTERVIEWS.md)).
+
 Figures here are **proposed experiment targets**, not industry benchmarks or research already done. Start with 10–15 relevant prospective users, holders and a few integrators. Ask them to describe their last experience managing issuer exposure; do not ask whether the idea sounds interesting. Never offer a token allocation in exchange for choosing the product.
 
 Show three options with disclosed costs: one representation of a share; two representations in the user's own wallet; one Curb receipt. The Curb offer tested is exactly the MVP: direct component deposit, fixed lot, nontransferable receipt, per-component exit. Interest in a future tradable or collateralisable receipt is recorded as a separate hypothesis. Rotate the order so the Curb never gets the position advantage. Record reasons, task time, misunderstandings, willingness to pay and recurring needs.

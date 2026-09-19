@@ -8,7 +8,7 @@ export const BRAND = {
   /** Technical slug: package name, cookie prefix, storage keys. */
   slug: 'the-curb',
   /** One line, used in the meta description and the masthead. */
-  descriptor: 'One company. Multiple issuers. One position.',
+  descriptor: 'Every price with its age. Every issuer with its terms.',
   /**
    * The thesis. A stock-token holder chooses a company and, in the same act,
    * a particular way of getting exposure to it — an issuer, a contract, a set

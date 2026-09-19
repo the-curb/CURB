@@ -4,10 +4,11 @@
 
 <h1 align="center">THE CURB</h1>
 
-<p align="center"><b>One company. Multiple issuers. One position.</b></p>
+<p align="center"><b>Every price with its age. Every issuer with its terms.</b></p>
 
 <p align="center">
   <a href="https://the-curb-production.up.railway.app">Live</a> ·
+  <a href="https://the-curb-production.up.railway.app/guide">How to use it</a> ·
   <a href="https://x.com/thecurb_xyz">X · @thecurb_xyz</a> ·
   <a href="MECHANISM.md">The mechanism</a> ·
   <a href="DOCTRINE.md">The doctrine</a> ·
@@ -22,12 +23,25 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2b2b2b" alt="MIT"></a>
 </p>
 
-A stock-token holder chooses a company and, in the same act, a particular way
-of getting exposure to it: an issuer, a contract, a set of terms and an exit.
-THE CURB is being built as the place where that second choice is made in the
-open — one position on one company, formed from several issuers, with the
-composition inspectable, the right to every component recorded, and every
-component withdrawn on its own.
+THE CURB is a data desk for stock tokens on Robinhood Chain (4663). Nine
+agents read the chain and the issuers' registries on a schedule and publish
+what they measured — with a source and a time on every figure, and an honest
+absence where they could not look. Every price with both of its ages; every
+token with its multiplier and its issuer's pause flag; the beacon they all
+delegate to; the terms, watched for change; a daily paper composed from the
+record. Free to read, as pages and as JSON.
+
+What it sells is one thing: **alerts**. A key the chain has credited names a
+webhook and the tokens it holds, and is told — once when raised, once when
+cleared — when a multiplier change is staged and when it takes effect, when
+the issuer sets the pause flag, when a price is past its heartbeat in session,
+when the beacon moves, when a terms page changes. Paid per delivery in
+prepaid credit; the credit is bought in CURB at a rate read from a pool.
+
+Beneath the desk, what it is building toward: **one company, multiple
+issuers, one position** — a company position formed from several stock-token
+issuers, its composition inspectable, the right to every component recorded,
+each component withdrawn on its own. A prototype today.
 
 Before the American Stock Exchange had a building it was the Curb Market:
 claims traded outside the official floor. A stock token is the same thing
@@ -63,21 +77,19 @@ series operator.
 launch, a paid beta and the position pilot; it stays HELD until real reviews
 and deployment evidence are recorded, and it authorizes nothing.
 
-## The desk beneath it
+## The desk
 
 <p align="center">
   <a href="https://the-curb-production.up.railway.app/floor"><img src="docs/images/floor.png" alt="The Floor — every price with its age" width="49%"></a>
   <a href="https://the-curb-production.up.railway.app/gazette"><img src="docs/images/gazette.png" alt="The Curb Gazette — one day's record, set as a paper" width="49%"></a>
 </p>
 
-Beneath the product is a multi-agent intelligence desk for stock tokens on
-Robinhood Chain. Nine agents read the chain and two published registries on a
-schedule, publish what they measured with a source and a time on every figure,
-and pass a code-based policy gate that stops forecast, advice, rating language
-and undeclared figures. These pattern and provenance checks do not prove the
-semantic truth of every sentence. A daily paper, *The Curb Gazette*, is composed
-from the record. The desk is the evidence layer a position would stand on; for
-a new chain it needs new sources and new tests, and says so.
+Every agent's output passes a code-based policy gate that stops forecast,
+advice, rating language and undeclared figures; what the gate stops is kept
+and printed as such. These pattern and provenance checks do not prove the
+semantic truth of every sentence. A daily paper, *The Curb Gazette*, is
+composed from the record. The desk is the evidence layer the position would
+stand on; for a new chain it needs new sources and new tests, and says so.
 
 | District | Agents | What is measured |
 | --- | --- | --- |

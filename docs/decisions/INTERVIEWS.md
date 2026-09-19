@@ -1,5 +1,7 @@
 # The interview guide and the comprehension test — ready to run, not run
 
+**Decided by the product owner, 20 September 2026: the interviews are not held.** The guide stays on the record as the instrument it is, and is not run. What stands in place of the conversations is observed use — the desk's readers, the alert subscriptions people pay for once the desk is configured, and whether holders keep their two tokens once a receipt exists with its cost and risk in front of them — with the risk named: the position product proceeds without a prospective user having been asked, and the register's G6 carries that as a decision, not as evidence. The blueprint's stop rule (MECHANISM §15) is kept and read against use instead of interviews.
+
 **Status:** Prepared 12 September 2026. Blueprint R04 asks for ten to fifteen conversations with people who already hold stock tokens, against the baseline of two tokens in a wallet; B02 asks whether people understand the in-kind, fixed-lot, nontransferable offer and would choose it again. Neither has been done. This page is the instrument, so that the result — when there is one — is comparable across interviews and cannot be steered.
 
 **Order of the conversations, decided by the product owner on 17 September 2026 (the dossier's D05):** the first three people to talk to are data integrators — the desk's actual buyers, who would pay for its history and fan-out over the API — and they come before the position-holder conversations below, which follow the desk's first paying use rather than precede it. The beta is three keys.

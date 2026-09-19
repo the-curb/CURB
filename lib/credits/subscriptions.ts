@@ -15,7 +15,8 @@
 
 import { randomBytes } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
-import { composeMessage, deliver, transition, type Condition, type Delivery } from '../ops/alerts.ts';
+import { CONDITION_KINDS, DEFAULT_KINDS, composeMessage, deliver, matchesFilter, transition, type Condition, type ConditionFilter, type ConditionKind, type Delivery } from '../ops/alerts.ts';
+import { STOCK_TOKENS } from '../chain/stock-tokens.ts';
 import type { Store } from '../store/types.ts';
 import { charge, keyAccount } from './keys.ts';
 import { serviceById } from './prices.ts';
@@ -52,6 +53,8 @@ export interface Subscription {
   readonly url: string;
   readonly createdAt: string;
   readonly cancelledAt: string | null;
+  /** What this subscription is told of: which kinds, and which tokens for the token kind. Fixed when made; a different filter is a new subscription. */
+  readonly filter: ConditionFilter;
   /** The condition ids this subscription was last told were active; its next message is the change from these. */
   readonly lastActive: readonly string[];
   readonly lastDelivery: { readonly at: string; readonly state: Delivery['state']; readonly detail: string | null; readonly charged: boolean } | null;
@@ -144,6 +147,7 @@ function subOf(payload: Readonly<Record<string, unknown>>, version: number): Sub
     url: payload.url,
     createdAt: payload.createdAt,
     cancelledAt: typeof payload.cancelledAt === 'string' ? payload.cancelledAt : null,
+    filter: filterOf(payload.filter),
     lastActive: Array.isArray(payload.lastActive) ? (payload.lastActive as unknown[]).filter((x): x is string => typeof x === 'string') : [],
     lastDelivery: payload.lastDelivery && typeof payload.lastDelivery === 'object' ? (payload.lastDelivery as Subscription['lastDelivery']) : null,
     deliveries: typeof payload.deliveries === 'number' ? payload.deliveries : 0,
@@ -159,7 +163,44 @@ export async function subscriptionsOf(store: Store, keyHash: string | null): Pro
 
 export type CreateOutcome = { readonly ok: true; readonly subscription: Subscription } | { readonly ok: false; readonly error: string; readonly detail: string; readonly status: number };
 
-export async function createSubscription(store: Store, keyHash: string, url: string, now: Date): Promise<CreateOutcome> {
+/** A row written before filters existed, or one whose filter cannot be read, is told what a holder is told by default. */
+function filterOf(raw: unknown): ConditionFilter {
+  const p = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const kinds = Array.isArray(p.kinds) ? (p.kinds as unknown[]).filter((k): k is ConditionKind => typeof k === 'string' && (CONDITION_KINDS as readonly string[]).includes(k)) : [];
+  const tokens = Array.isArray(p.tokens) ? (p.tokens as unknown[]).filter((t): t is string => typeof t === 'string') : [];
+  return { kinds: kinds.length > 0 ? kinds : DEFAULT_KINDS, tokens };
+}
+
+export type FilterInput = { readonly kinds?: unknown; readonly tokens?: unknown };
+
+/**
+ * The filter a request asked for, checked: kinds from the catalogue, tokens
+ * as tickers the capture holds (case does not matter). Nothing is guessed —
+ * a ticker the desk does not watch is refused with the reason, since a
+ * subscription that silently watched nothing would be paid for nothing.
+ */
+export function parseFilter(input: FilterInput): { ok: true; filter: ConditionFilter } | { ok: false; detail: string } {
+  const kindsRaw = input.kinds === undefined ? [] : Array.isArray(input.kinds) ? input.kinds : null;
+  const tokensRaw = input.tokens === undefined ? [] : Array.isArray(input.tokens) ? input.tokens : null;
+  if (kindsRaw === null) return { ok: false, detail: `kinds must be a list from: ${CONDITION_KINDS.join(', ')}` };
+  if (tokensRaw === null) return { ok: false, detail: 'tokens must be a list of tickers, e.g. ["AAPL", "TSLA"]' };
+  const kinds: ConditionKind[] = [];
+  for (const k of kindsRaw) {
+    if (typeof k !== 'string' || !(CONDITION_KINDS as readonly string[]).includes(k)) return { ok: false, detail: `unknown kind ${JSON.stringify(k)}; the kinds are ${CONDITION_KINDS.join(', ')}` };
+    if (!kinds.includes(k as ConditionKind)) kinds.push(k as ConditionKind);
+  }
+  const tokens: string[] = [];
+  for (const t of tokensRaw) {
+    if (typeof t !== 'string') return { ok: false, detail: 'tokens must be tickers as strings' };
+    const ticker = t.trim().toUpperCase();
+    if (!STOCK_TOKENS.some((s) => s.ticker === ticker)) return { ok: false, detail: `the desk does not watch a token with ticker ${JSON.stringify(t)}; the tickers it watches are at /api/registry` };
+    if (!tokens.includes(ticker)) tokens.push(ticker);
+  }
+  if (tokens.length > 50) return { ok: false, detail: 'at most fifty tickers on one subscription; leave tokens empty for every token' };
+  return { ok: true, filter: { kinds: kinds.length > 0 ? kinds : DEFAULT_KINDS, tokens } };
+}
+
+export async function createSubscription(store: Store, keyHash: string, url: string, now: Date, filter: ConditionFilter = { kinds: DEFAULT_KINDS, tokens: [] }): Promise<CreateOutcome> {
   const fault = webhookFault(url);
   if (fault !== null) return { ok: false, error: 'WEBHOOK_REFUSED', detail: fault, status: 400 };
   const account = await keyAccount(store, keyHash);
@@ -180,7 +221,7 @@ export async function createSubscription(store: Store, keyHash: string, url: str
     const taken = await store.writeSnapshotIf({ key: subKeyRow(keyHash), observedAt: now.toISOString(), payload: { live: ledger.live + 1, total: ledger.total + 1, urls: [...ledger.urls, url] } }, row === undefined ? null : (row.version ?? 0));
     if (taken.state === 'CONFLICT') continue;
     if (taken.state === 'FAILED') return { ok: false, error: 'NOT_RECORDED', detail: taken.reason, status: 503 };
-    const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0, version: 0 };
+    const subscription: Subscription = { id: randomBytes(16).toString('hex'), keyHash, url, filter, createdAt: now.toISOString(), cancelledAt: null, lastActive: [], lastDelivery: null, deliveries: 0, version: 0 };
     const { version: _v, ...subRowPayload } = subscription;
     const written = await store.writeSnapshotIf({ key: subRow(subscription.id), observedAt: now.toISOString(), payload: { ...subRowPayload } }, null);
     // A row the store did not take leaves the ledger one ahead — a stricter cap, never a looser one; said so.
@@ -268,11 +309,12 @@ export async function fanOut(
   if (conditions === null) return empty;
   const all = await subscriptionsOf(store, null);
   if (all.storeFault !== null) return { ...empty, failed: [{ id: '*', reason: all.storeFault }] };
-  const currentIds = conditions.map((c) => c.id);
+  // Each subscription sees the conditions its filter admits, and nothing else: its transition, its message and its record are of that set.
+  const forSub = (s: Subscription): Condition[] => conditions.filter((c) => matchesFilter(s.filter, c));
   // The ones told longest ago go first, so a subscription the last run's budget did not reach is first in line, not last again.
   const live = all.subscriptions
     .filter((s) => s.cancelledAt === null)
-    .map((s) => ({ sub: s, t: transition(s.lastActive, conditions) }))
+    .map((s) => ({ sub: s, t: transition(s.lastActive, forSub(s)) }))
     .filter(({ t }) => t.raised.length > 0 || t.cleared.length > 0)
     .sort((a, b) => (a.sub.lastDelivery?.at ?? a.sub.createdAt).localeCompare(b.sub.lastDelivery?.at ?? b.sub.createdAt) || a.sub.createdAt.localeCompare(b.sub.createdAt));
   const skipped: { id: string; reason: string }[] = [];
@@ -356,7 +398,7 @@ export async function fanOut(
     // Told first, charged second: a row write that fails leaves a delivery
     // uncharged, which is the desk's loss, never a subscriber charged twice
     // for the same change.
-    const told = await write(sub.id, { lastActive: currentIds, deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the charge follows', charged: false } });
+    const told = await write(sub.id, { lastActive: t.active.map((c) => c.id), deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the charge follows', charged: false } });
     if (!told) {
       untold.push({ id: sub.id, reason: 'delivered, but the row could not be marked told; not charged, told again next tick' });
       continue;

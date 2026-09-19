@@ -18,6 +18,7 @@
  */
 
 import { AGENTS } from '../agents/registry.ts';
+import { STOCK_TOKENS } from '../chain/stock-tokens.ts';
 import { systemHealth, type AgentHealth } from '../agents/health.ts';
 import type { HeartbeatRecord, PublicationRecord, SnapshotRecord, Store } from '../store/types.ts';
 import { composeBoard } from '../floor/board.ts';
@@ -30,6 +31,70 @@ export interface Condition {
   readonly id: string;
   readonly severity: 'DARK' | 'STALE' | 'NOTE';
   readonly text: string;
+}
+
+/**
+ * What a condition is about, for the person who pays to be told. A holder
+ * of a stock token wants the token's own events and the issuer's; the
+ * desk's plumbing — its store, its index, its agents — is the operator's,
+ * and is not what a subscription buys unless it asks for it.
+ */
+export type ConditionKind = 'token' | 'issuer' | 'chain' | 'desk';
+export const CONDITION_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'chain', 'desk'];
+/** What a subscription that names no kinds is told: everything a holder would want, nothing about the desk's own plumbing. */
+export const DEFAULT_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'chain'];
+
+export const KIND_CATALOGUE: Readonly<Record<ConditionKind, { readonly what: string; readonly examples: readonly string[] }>> = {
+  token: {
+    what: 'one token: a staged multiplier change and the day it takes effect; the issuer’s oracle pause flag; a price past its heartbeat while the exchange is open; a feed that no longer describes itself as recorded',
+    examples: ['token:rh-aapl:MULTIPLIER_PENDING', 'feed:rh-aapl-usd:PAUSED', 'feed:rh-aapl-usd:STALE_IN_SESSION', 'feed:rh-aapl-usd:DRIFT'],
+  },
+  issuer: {
+    what: 'every token at once: the beacon they all delegate to pointing somewhere new or holding different code; the issuer’s registry listing tokens or feeds the capture does not hold; an issuer document a series depends on changing or going away',
+    examples: ['beacon:implementation:CHANGED', 'beacon:code:DIFFERS', 'capture:tokens:DRIFT', 'evidence:<source>:CHANGED'],
+  },
+  chain: { what: 'the chain’s head not advancing', examples: ['chain:head:STALLED'] },
+  desk: { what: 'the desk’s own plumbing: its store, its agents, its credit index and its series reconciliation — the operator’s concern, sent only when asked for', examples: ['system:reporting:NONE', 'credits:index:BEHIND', 'positions:<series>:DISAGREEMENT'] },
+};
+
+/** The kind a condition id belongs to. Pure, and total: an id nobody classified is the desk’s. */
+export function kindOf(id: string): ConditionKind {
+  if (id.startsWith('feed:') || id.startsWith('token:')) return 'token';
+  if (id.startsWith('beacon:') || id.startsWith('capture:') || id.startsWith('evidence:')) return 'issuer';
+  if (id.startsWith('chain:')) return 'chain';
+  return 'desk';
+}
+
+/** The ticker a token condition is about, or null for a condition about no one token. */
+export function tickerOf(id: string): string | null {
+  const m = /^(feed|token):([^:]+):/.exec(id);
+  if (!m) return null;
+  const key = m[2]!;
+  const token = m[1] === 'token' ? STOCK_TOKENS.find((t) => t.key === key) : STOCK_TOKENS.find((t) => t.feedKey === key);
+  return token?.ticker ?? null;
+}
+
+export interface ConditionFilter {
+  readonly kinds: readonly ConditionKind[];
+  /** Tickers, upper-case; empty means every token. Applies to token conditions only — an issuer event concerns every token. */
+  readonly tokens: readonly string[];
+}
+
+/** Whether a subscription with this filter is told of this condition. Pure. */
+export function matchesFilter(filter: ConditionFilter, condition: Condition): boolean {
+  const kind = kindOf(condition.id);
+  if (!filter.kinds.includes(kind)) return false;
+  if (kind !== 'token' || filter.tokens.length === 0) return true;
+  const ticker = tickerOf(condition.id);
+  return ticker !== null && filter.tokens.includes(ticker);
+}
+
+/** A raw multiplier (18 decimals) as a person reads it, six places. */
+function multiplierText(raw: string): string {
+  if (!/^[0-9]+$/.test(raw)) return raw;
+  const whole = raw.length > 18 ? raw.slice(0, -18) : '0';
+  const frac = raw.padStart(19, '0').slice(-18, -12);
+  return `${whole}.${frac}`;
 }
 
 const ALERTING_HEALTH: ReadonlySet<AgentHealth> = new Set(['ABSENT', 'DEGRADED', 'STALE']);
@@ -47,6 +112,8 @@ export function deriveConditions(input: {
   readonly driftSnapshot?: SnapshotRecord | null;
   /** The position product's snapshots (`positions:` and `evidence:…:latest`), when the store has them. */
   readonly positionSnapshots?: readonly SnapshotRecord[] | null;
+  /** The Archivist's `token:` snapshots, when the store has them: a staged multiplier is a condition until it takes effect. */
+  readonly tokenSnapshots?: readonly SnapshotRecord[] | null;
   readonly now: Date;
 }): Condition[] {
   const out: Condition[] = [];
@@ -92,6 +159,18 @@ export function deriveConditions(input: {
         out.push({ id: `feed:${row.key}:STALE_IN_SESSION`, severity: 'STALE', text: `${row.label}: past its published heartbeat while the exchange was open` });
       }
     }
+  }
+
+  // A multiplier the issuer has staged is the one event a holder cannot see
+  // coming from a price: it holds from the day it is staged to the day it
+  // takes effect, and clearing it says the change happened.
+  for (const s of input.tokenSnapshots ?? []) {
+    const p = s.payload;
+    if (!s.key.startsWith('token:') || typeof p.pendingRaw !== 'string' || typeof p.key !== 'string') continue;
+    const ticker = typeof p.ticker === 'string' ? p.ticker : p.key;
+    const from = typeof p.multiplierRaw === 'string' ? multiplierText(p.multiplierRaw) : '—';
+    const at = typeof p.pendingEffectiveAt === 'string' ? ` on ${p.pendingEffectiveAt.slice(0, 10)}` : '';
+    out.push({ id: `token:${p.key}:MULTIPLIER_PENDING`, severity: 'NOTE', text: `${ticker}: the issuer has staged a multiplier change, ${from} → ${multiplierText(p.pendingRaw)}, taking effect${at || ' at a time not yet published'}; read ${typeof p.retrievedAt === 'string' ? p.retrievedAt : s.observedAt}` });
   }
 
   // The capture against the world, as the Registrar last checked it. A token
@@ -346,7 +425,7 @@ export function transitionId(t: Transition): string {
  * changes since their own last delivery, independent of the operator's.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode, tokens] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
@@ -357,9 +436,11 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     store.snapshots('evidence:'),
     store.snapshots('credits:run'),
     store.snapshots('credits:code'),
+    store.snapshots('token:'),
   ]);
 
   const current = deriveConditions({
+    tokenSnapshots: tokens.state === 'UNREAD' ? null : tokens.value,
     heartbeats: heartbeats.state === 'UNREAD' ? null : heartbeats.value,
     feedSnapshots: feedSnapshots.state === 'UNREAD' ? null : feedSnapshots.value,
     feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,

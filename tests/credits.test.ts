@@ -1151,7 +1151,7 @@ describe('the credit desk, site side', () => {
     assert.ok(sub.ok);
     const post = async () => ({ state: 'SENT', status: 204 }) as const;
     const resolve = async () => ['93.184.216.34'];
-    const x: Condition = { id: 'x', severity: 'DARK', text: 'x is dark' };
+    const x: Condition = { id: 'chain:head:STALLED', severity: 'DARK', text: 'x is dark' };
     failSubWrites = true;
     const run = await fanOut(store, new Date(), [x], post, resolve);
     assert.equal(run.delivered, 1);
@@ -1248,7 +1248,7 @@ describe('the credit desk, site side', () => {
     assert.ok(sub.ok);
     const post = async () => ({ state: 'SENT', status: 204 }) as const;
     const resolve = async () => ['93.184.216.34'];
-    const x: Condition = { id: 'x', severity: 'DARK', text: 'x is dark' };
+    const x: Condition = { id: 'chain:head:STALLED', severity: 'DARK', text: 'x is dark' };
 
     // The cancellation lands as the fan-out writes: the write finds the row moved, reads it cancelled, and writes nothing; no charge.
     cancelDuring = { keyHash: hash, id: sub.ok ? sub.subscription.id : '' };
@@ -1534,8 +1534,8 @@ describe('the credit desk, site side', () => {
       posted.push({ webhook, message, pinTo });
       return webhook.endsWith('/b') ? ({ state: 'FAILED', reason: 'HTTP 500' } as const) : ({ state: 'SENT', status: 204 } as const);
     };
-    const x: Condition = { id: 'x', severity: 'DARK', text: 'x is dark' };
-    const y: Condition = { id: 'y', severity: 'NOTE', text: 'y is noted' };
+    const x: Condition = { id: 'chain:head:STALLED', severity: 'DARK', text: 'x is dark' };
+    const y: Condition = { id: 'feed:rh-aapl-usd:PAUSED', severity: 'NOTE', text: 'y is noted' };
     const first = await fanOut(store, new Date(), [x], post, resolve);
     assert.equal(first.considered, 4);
     assert.equal(first.delivered, 1, 'a delivered, b failed, c short, d resolves inward');
@@ -1565,7 +1565,7 @@ describe('the credit desk, site side', () => {
     const third = await fanOut(store, new Date(), [y], post, resolve);
     assert.equal(third.delivered, 1);
     const toA = posted.filter((w) => w.webhook.endsWith('/a')).at(-1)!;
-    assert.match(toA.message, /RAISED[\s\S]*y is noted[\s\S]*CLEARED[\s\S]*x/);
+    assert.match(toA.message, /RAISED[\s\S]*y is noted[\s\S]*CLEARED[\s\S]*chain:head:STALLED/);
     assert.equal((await keyAccount(store, rich)).balanceCents, '1980');
 
     // Nothing to tell: nothing considered.
@@ -1579,7 +1579,7 @@ describe('the credit desk, site side', () => {
     const delivered = mine.subscriptions.find((s) => s.url.endsWith('/a'))!;
     assert.equal(delivered.deliveries, 2);
     assert.equal(delivered.lastDelivery?.charged, true);
-    assert.deepEqual(delivered.lastActive, ['y']);
+    assert.deepEqual(delivered.lastActive, ['feed:rh-aapl-usd:PAUSED']);
   });
 
   it('runs on the tick: NOT_CONFIGURED without a record; with one, the rate at the head is recorded with its block', async () => {

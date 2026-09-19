@@ -11,6 +11,8 @@ import { getStoreAsync } from '@/lib/store';
 import { launchStatus } from '@/lib/launch/status';
 import { rateHistory } from '@/lib/launch/evidence';
 import { CreditDesk } from '../components/credit-desk';
+import { BRAND } from '@/lib/brand';
+import { DEFAULT_KINDS, KIND_CATALOGUE } from '@/lib/ops/alerts';
 
 /** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
 function Addr({ address, href }: { address: string; href: string | null }) {
@@ -359,6 +361,50 @@ export default async function ServicesPage() {
               </li>
             ))}
           </ol>
+        </div>
+        <div id="alerts" className="cell p-6 sm:p-8 md:col-span-2">
+          <div className="kicker">
+            <b>Alerts</b> · what the desk watches for you · {status.state === 'CONFIGURED' ? 'open' : 'not yet — no key can be credited until the desk is configured'}
+          </div>
+          <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-(--color-paper-dim)">
+            The desk computes its conditions after every tick and posts each change to a webhook a key registered — once when a
+            condition is raised, once when it clears, never again while it holds. A subscription names the tokens it holds, or none
+            for every token; it is told of its tokens&rsquo; own events and of the issuer&rsquo;s and the chain&rsquo;s, and not of the desk&rsquo;s
+            plumbing unless it asks. Each delivery is charged at the listed price; registering and cancelling are free.
+          </p>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+            {(['token', 'issuer', 'chain'] as const).map((kind) => (
+              <div key={kind}>
+                <dt className="kicker">{kind}{DEFAULT_KINDS.includes(kind) ? ' · by default' : ''}</dt>
+                <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-dim)">{KIND_CATALOGUE[kind].what}</dd>
+              </div>
+            ))}
+          </dl>
+          <pre className="tabular mt-4 overflow-x-auto border border-(--color-rule) bg-(--color-ink) p-4 text-[12px] leading-relaxed text-(--color-paper)">{`POST ${BRAND.origin}/api/subscriptions
+x-curb-key: curb_…
+{ "url": "https://example.com/curb", "tokens": ["AAPL", "TSLA"] }        # kinds default to token, issuer, chain; add "kinds": ["desk"] for the plumbing
+GET  ${BRAND.origin}/api/subscriptions                                     # yours, live and cancelled, with the last delivery of each
+DELETE ${BRAND.origin}/api/subscriptions   { "id": "…" }`}</pre>
+        </div>
+        <div className="cell p-6 sm:p-8">
+          <div className="kicker">
+            <b>Why CURB, and not a dollar</b>
+          </div>
+          <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-dim)">
+            The desk prices in dollars and could take a dollar stablecoin. It takes CURB for one reason, said plainly: a launch
+            is how this work is paid for — the independent review, the legal read, the infrastructure, a logged reserve, in
+            the published split — and a pool gives the desk a public rate it reads at a block instead of a price it types. A
+            holder of CURB gets nothing for holding it: no share of fees, no buyback, no vote, no place in line. The token is
+            the prepaid credit and the funding, and nothing else, and if that trade is not worth it to you the desk is free to
+            read.
+          </p>
+          <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-faint)">
+            The venue, decided 17 September 2026, is a bonding-curve launchpad on Robinhood Chain (PONS v2), chosen because it
+            exists on this chain and its terms could be read from the contract: its first holders will be traders of that curve,
+            with a 99% tax on the first three seconds and graduation into a Uniswap v4 pool at 4.2 ETH raised. None of that
+            changes what a credit is or what a call costs; the desk reads the pool it graduates into and nothing about who
+            trades there.
+          </p>
         </div>
         <div className="cell p-6 sm:p-8">
           <div className="kicker">

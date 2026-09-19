@@ -6,12 +6,15 @@ import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { describeAge } from '@/lib/doctrine/reading';
 import { FEED_COVERAGE, STOCK_TOKEN_COVERAGE } from '@/lib/chain/feeds';
 import { composeBoard } from '@/lib/floor/board';
-import { APPLE_S1, GATES, PROMISES, STEPS, WORKED_EXAMPLE } from '@/lib/positions/series';
+import { APPLE_S1, GATES, PROMISES, STEPS } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
 import { launchStatus } from '@/lib/launch/status';
+import { creditsStatus } from '@/lib/credits/config';
+import { SERVICES } from '@/lib/credits/prices';
+import { KIND_CATALOGUE } from '@/lib/ops/alerts';
 import { HeroSection } from './components/hero-figure';
 import { StackSection } from './components/stack-figure';
-import { CardsFigure, ClocksFigure, DotsFigure } from './components/figures';
+import { CardsFigure, DotsFigure } from './components/figures';
 import { Mark } from './components/mark';
 import { Tape } from './components/tape';
 
@@ -36,13 +39,6 @@ const DISTRICTS = [
 ];
 
 const PIPELINE = ['PRODUCE', 'PROVENANCE', 'POLICY', 'PUBLISH', 'HEARTBEAT'];
-
-const EXAMPLE_ROWS: readonly { state: string; row: readonly [string, string, string, string, string] }[] = [
-  { state: 'Before Alice exits', row: ['100', '1,000', '0', '2,000', '0'] },
-  { state: 'After Alice allocates 25 lots', row: ['75', '750', '250', '1,500', '500'] },
-  { state: 'A halts · Alice claims B', row: ['75', '750', '250', '1,500', '0'] },
-  { state: 'Bob mints 10 lots', row: ['85', '850', '250', '1,700', '0'] },
-];
 
 /** A section's running head: its numeral in the second ink, its title, and a note. */
 function Kicker({ n, title, note }: { n: string; title: string; note?: string }) {
@@ -74,6 +70,9 @@ export default async function Home() {
   const byId = new Map(health?.statuses.map((s) => [s.id, s]) ?? []);
   const gatesPassed = GATES.filter((g) => g.status === 'PASSED').length;
   const [a, b] = APPLE_S1.components;
+  const deskOpen = creditsStatus().state === 'CONFIGURED';
+  const alertCents = SERVICES.find((x) => x.id === 'alert-delivery')?.cents ?? 0;
+  const alertPrice = `US${(alertCents / 100).toFixed(2)}`;
 
   const liveLine =
     board === null
@@ -88,237 +87,124 @@ export default async function Home() {
 
       <div className="px-3 sm:px-4">
         {/* ── THE FRONT ────────────────────────────────────────────────────── */}
-        <HeroSection figure="position" caption={`one company · two issuers · ${WORKED_EXAMPLE.q.A} A + ${WORKED_EXAMPLE.q.B} B to a lot, illustrative · claims per component`}>
+        <HeroSection figure="clocks" caption="24 hours of chain · 6½ hours of exchange · two clocks, drawn solid">
           <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
             <div className="cell flex items-center p-6 sm:p-10 md:row-span-2">
               <h1 className="display text-[2.25rem] text-(--color-paper) sm:text-[2.6rem] md:text-[clamp(2.2rem,4.2vw,4.5rem)]">
-                One company.
+                Every price has an age.
                 <br />
-                Multiple issuers.
+                Every issuer has terms.
                 <br />
-                <em className="text-(--color-paper-dim)">One position.</em>
+                <em className="text-(--color-paper-dim)">The desk reads both.</em>
               </h1>
             </div>
             <div className="cell p-6 sm:p-8">
               <p className="text-lg leading-relaxed text-(--color-paper)">
-                {BRAND.name} is building a way to combine stock-token exposure from multiple issuers into one disclosed position,
-                with the right to every component recorded and withdrawn <strong className="font-bold">component by component</strong>.
+                {BRAND.name} is a data desk for stock tokens on Robinhood Chain: nine agents read the chain and the issuers&rsquo;
+                registries on a schedule and publish what they measured —{' '}
+                <strong className="font-bold">with a source and a time on every figure</strong>, and an honest absence where they
+                could not look. Free to read. Alerts for what changes.
               </p>
+              <p className="tabular mt-4 text-[12px] text-(--color-paper-faint)">{liveLine}</p>
               <p className="kicker mt-5" style={{ color: launch.step === 'NOTHING' ? 'var(--color-state-stale)' : 'var(--color-state-live)' }}>
                 <b>Stage</b> · mainnet · {launch.chain}
               </p>
               <p className="mt-1.5 text-[13px] leading-relaxed text-(--color-paper-dim)" title={launch.treasury === null ? undefined : `treasury ${launch.treasury.address}`}>
                 {launch.line}
               </p>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-(--color-paper-dim)">{APPLE_S1.stageLine} The deposit is in kind, the receipt cannot be transferred, and exit is per component.</p>
             </div>
             <div className="cell flex flex-wrap items-center justify-between gap-x-8 gap-y-4 px-6 py-6 sm:px-8">
-              <Lead href={`/positions/${APPLE_S1.id}`}>Try the simulation</Lead>
-              <Link href="/mechanism" className="kicker hover:text-(--color-paper)">
-                Read the mechanism
+              <Lead href="/floor">Open the Floor</Lead>
+              <Link href="/guide" className="kicker hover:text-(--color-paper)">
+                How to use it
               </Link>
             </div>
           </div>
         </HeroSection>
 
-        {/* ── № 01 THE POSITION ────────────────────────────────────────────── */}
-        <Kicker n="01" title="The position" note="Three steps, one ledger." />
+        {/* ── № 01 THE DESK ────────────────────────────────────────────────── */}
+        <Kicker n="01" title="The desk" note={BRAND.desk.line} />
+        <section>
+          <div className="cells grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div className="cell p-6 sm:p-8">
+              <h2 className="display text-4xl text-(--color-paper) sm:text-5xl">
+                A price <em className="text-(--color-paper-dim)">has an age.</em>
+              </h2>
+              <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
+                A stock token is a price with conditions around it: an oracle that published at some moment, an exchange that was
+                open or closed, a pause flag the issuer can set, a multiplier the issuer can stage, a registry that can move. Most
+                places print the price. The desk prints the conditions.
+              </p>
+            </div>
+            <div className="cells !border-0 grid-cols-1 sm:grid-cols-2">
+              {[
+                ['Feeds priced', board === null ? null : `${board.counts.priced} / ${board.counts.equity}`, 'tokenized-equity feeds with a price, of those the vendor lists'],
+                ['Sampled', board === null || board.sampleAgeSeconds === null ? null : `${describeAge(board.sampleAgeSeconds)} ago`, 'the Pillar’s last read of every feed, in one block'],
+                ['Past heartbeat', board === null ? null : String(board.counts.pastHeartbeat), 'prices older than the oracle’s own promise'],
+                ['Paused by the issuer', board === null ? null : String(board.counts.paused), 'feeds whose pause flag is set; each holds its last value'],
+              ].map(([label, value, what]) => (
+                <div key={label} className="cell p-6 sm:p-8">
+                  <div className="kicker">{label}</div>
+                  <div className="display mt-2 text-3xl text-(--color-paper)">{value ?? <span className="text-(--color-paper-faint)">—</span>}</div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-(--color-paper-faint)">{value === null ? 'not read; shown as absent, not as zero' : what}</p>
+                </div>
+              ))}
+              <div className="cell flex flex-wrap items-center justify-between gap-x-8 gap-y-4 p-6 sm:col-span-2 sm:p-8">
+                <Lead href="/floor">Open the Floor</Lead>
+                <Link href="/registry" className="kicker hover:text-(--color-paper)">
+                  The Registry →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── № 02 THE ALERTS ──────────────────────────────────────────────── */}
+        <Kicker n="02" title="The alerts" note={deskOpen ? 'Open · paid per delivery' : 'Not yet · the desk is not configured'} />
         <section>
           <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <div className="cell p-6 sm:p-8">
               <h2 className="display text-4xl text-(--color-paper) sm:text-5xl">
-                A symbol names the company. <em className="text-(--color-paper-dim)">The issuer names the exposure.</em>
+                Be told <em className="text-(--color-paper-dim)">when it changes.</em>
               </h2>
               <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
-                A stock-token holder chooses a company and, in the same act, a particular way of getting exposure to it. Behind
-                similar symbols sit different issuers, contracts, corporate-action rules and exits. {BRAND.name} is where that
-                second choice is made in the open: keep the company, split the position across issuers that are disclosed plainly.
+                A holder cannot watch a multiplier, a pause flag, a beacon and a terms page all day. The desk does, every tick, and
+                posts each change to a webhook you name — once when it is raised, once when it clears — for the tokens you hold or
+                for all of them. {alertPrice} a delivery, from prepaid credit; registering is free.
               </p>
-              <p className="mt-4 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
-                When one component is obstructed, the ledger still shows what can be transferred and what remains a claim. Every
-                position still carries the risk of the company, the issuers and the contracts used.
+              <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
+                {deskOpen
+                  ? 'The desk is configured: make a key, top it up, and register a webhook on the services page.'
+                  : 'Until the token and the desk are configured from the chain, nothing can be credited, so nothing is delivered; the guide says exactly what waits.'}
               </p>
+              <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3">
+                <Lead href="/services">The services</Lead>
+                <Link href="/guide#services" className="kicker hover:text-(--color-paper)">
+                  Step by step
+                </Link>
+              </div>
             </div>
             <div className="cells !border-0 grid-cols-1 sm:grid-cols-3">
-              {STEPS.map((step, i) => (
-                <div key={step.title} className="cell p-6 sm:p-8">
+              {(['token', 'issuer', 'chain'] as const).map((kind, i) => (
+                <div key={kind} className="cell p-6 sm:p-8">
                   <span className="tabular text-sm text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
-                  <h3 className="display mt-2 text-2xl text-(--color-paper)">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-(--color-paper-dim)">{step.body}</p>
+                  <h3 className="display mt-2 text-2xl text-(--color-paper)">{kind === 'token' ? 'One token' : kind === 'issuer' ? 'The issuer' : 'The chain'}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-paper-dim)">{KIND_CATALOGUE[kind].what.replace(/^(one token|every token at once): /, (m) => m.charAt(0).toUpperCase() + m.slice(1))}</p>
                 </div>
               ))}
               <div className="cell p-6 sm:col-span-3 sm:p-8">
                 <div className="kicker">
-                  <b>First series</b> · {APPLE_S1.company} · candidates, read on chain, not admitted
+                  <b>One request</b> · a webhook, the tokens you hold, from a key the chain has credited
                 </div>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  {[a, b].map((c) => (
-                    <div key={c.id} className="text-[13px] leading-relaxed">
-                      <span className="tabular text-(--color-accent)">{c.id}</span>{' '}
-                      <span className="text-(--color-paper)">{c.instrument.split(' — ')[0]}</span>
-                      <span className="text-(--color-paper-faint)">
-                        {' '}
-                        · {c.issuer.split(' — ')[0]} · {c.chain}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
-                  <Link href={`/positions/${APPLE_S1.id}`} className="kicker hover:text-(--color-paper)">
-                    See the components →
-                  </Link>
-                  <span className="tabular text-[11px] text-(--color-paper-faint)">
-                    gates passed {gatesPassed} / {GATES.length}
-                  </span>
-                </div>
+                <pre className="tabular mt-3 overflow-x-auto text-[12px] leading-relaxed text-(--color-paper-dim)">{`POST ${BRAND.origin}/api/subscriptions   x-curb-key: curb_…
+{ "url": "https://example.com/curb", "tokens": ["AAPL", "TSLA"] }`}</pre>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── № 02 THE LEDGER ──────────────────────────────────────────────── */}
-        <Kicker n="02" title="The ledger" note="Rights are counted in units, not priced." />
-        <section>
-          <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-            <div className="cell p-6 sm:p-8">
-              <div className="kicker">
-                The worked example · illustrative units · one lot = {WORKED_EXAMPLE.q.A} A + {WORKED_EXAMPLE.q.B} B
-              </div>
-              <div className="mt-4 overflow-x-auto">
-                <table className="tabular w-full min-w-[34rem] border-collapse text-[12px]">
-                  <thead>
-                    <tr className="kicker text-left">
-                      <th className="pb-2 pr-4 font-normal">State</th>
-                      <th className="pb-2 pr-4 text-right font-normal">Receipts</th>
-                      <th className="pb-2 pr-4 text-right font-normal">A active</th>
-                      <th className="pb-2 pr-4 text-right font-normal">A reserved</th>
-                      <th className="pb-2 pr-4 text-right font-normal">B active</th>
-                      <th className="pb-2 text-right font-normal">B reserved</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {EXAMPLE_ROWS.map((r) => (
-                      <tr key={r.state} className="border-t border-(--color-rule)">
-                        <td className="py-2 pr-4 text-(--color-paper)">{r.state}</td>
-                        {r.row.map((v, i) => (
-                          <td key={i} className="py-2 pr-4 text-right text-(--color-paper-dim) last:pr-0">
-                            {v}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-4 text-[13px] leading-relaxed text-(--color-paper-dim)">
-                Bob’s deposit backs Bob’s lots. Alice keeps her claim on 250 A while A is halted, and her B has already left.
-                While A is halted Bob cannot deposit A, so his mint fails whole — the last row happens only once A moves again.
-                The same table is reproduced, row by row, by the tests in the repository.
-              </p>
-            </div>
-            <div className="cell flex flex-col justify-between gap-8 p-6 sm:p-8">
-              <div>
-                <h2 className="display text-4xl text-(--color-paper) sm:text-5xl">
-                  Both arrive, <em className="text-(--color-paper-dim)">or neither does.</em>
-                </h2>
-                <ul className="mt-6 space-y-2">
-                  {APPLE_S1.rules.slice(1, 6).map((r) => (
-                    <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
-                      <span className="text-(--color-accent)">—</span>
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <Lead href={`/positions/${APPLE_S1.id}`}>Run the ledger yourself</Lead>
-            </div>
-          </div>
-        </section>
-
-        {/* ── № 03 WHAT WE SAY ─────────────────────────────────────────────── */}
-        <Kicker n="03" title="What we will say" note="And the baseline this has to beat." />
-        <section>
-          <div className="cells grid-cols-1 md:grid-cols-3">
-            <div className="cell p-6 sm:p-8">
-              <div className="kicker">
-                <b>Testable</b> · promised
-              </div>
-              <ul className="mt-3 space-y-3">
-                {PROMISES.testable.map((r) => (
-                  <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-base leading-relaxed text-(--color-paper)">
-                    <span className="text-(--color-accent)">—</span>
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="cell p-6 sm:p-8">
-              <div className="kicker">
-                <b>Unsupported</b> · never said
-              </div>
-              <ul className="mt-3 space-y-1.5">
-                {PROMISES.unsupported.map((r) => (
-                  <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-faint)">
-                    <span>×</span>
-                    <span className="line-through decoration-(--color-rule-2)">{r}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="cell p-6 sm:p-8">
-              <div className="kicker">
-                <b>The baseline</b> · two tokens in one wallet
-              </div>
-              <p className="mt-3 text-base leading-relaxed text-(--color-paper-dim)">
-                Holding token A and token B yourself already splits issuer exposure, with no Curb contract in between. That is
-                a valid alternative, and it is the comparison every test is run against. A receipt has to earn its place with
-                something measurable: consistent lots, a ledger another application can read, fewer steps, or an integration
-                that can accept one position.
-              </p>
-              <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-faint)">
-                If people prefer the two tokens after full information, the receipt thesis stops. That outcome is written into
-                the plan, not around it.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── № 04 THE DESK ────────────────────────────────────────────────── */}
-        <Kicker n="04" title="The desk beneath it" note={BRAND.desk.line} />
-        <section>
-          <div className="cells grid-cols-1">
-            <div className="cell ledger relative hidden overflow-hidden sm:block" style={{ height: 'clamp(200px, 26vw + 60px, 400px)' }}>
-              <ClocksFigure ease={1} />
-              <div className="pointer-events-none absolute bottom-3 left-4 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
-                24 hours of chain · 6½ hours of exchange · drawn solid
-              </div>
-            </div>
-            <div className="cells !border-0 grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-              <div className="cell p-6 sm:p-8">
-                <h2 className="display text-4xl text-(--color-paper) sm:text-5xl">
-                  A price <em className="text-(--color-paper-dim)">has an age.</em>
-                </h2>
-              </div>
-              <div className="cell p-6 sm:p-8">
-                <p className="text-base leading-relaxed text-(--color-paper-dim)">
-                  Every component a series would hold is a stock token with conditions around it: an oracle that published at some
-                  moment, an exchange that was open or closed, a pause flag, a multiplier, a registry that can move. A desk of
-                  nine agents already reads Robinhood Chain and two published registries on a schedule and prints what it
-                  measured — <strong className="font-bold text-(--color-paper)">with a source and a time on every figure</strong>, and an
-                  honest absence where it could not look. It is the evidence layer the position would stand on; for a new chain it
-                  needs new sources and new tests, and it says so.
-                </p>
-                <p className="tabular mt-4 text-[12px] text-(--color-paper-faint)">{liveLine}</p>
-                <div className="mt-6">
-                  <Lead href="/floor">Open the Floor</Lead>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── № 05 THE DISTRICTS ───────────────────────────────────────────── */}
-        <Kicker n="05" title="The districts" note="Six parts of one record." />
+        {/* ── № 03 THE DISTRICTS ───────────────────────────────────────────── */}
+        <Kicker n="03" title="The districts" note="Six parts of one record." />
         <StackSection
           aside={
             <div className="cells !border-t-0 grid-cols-1">
@@ -349,8 +235,8 @@ export default async function Home() {
           </div>
         </StackSection>
 
-        {/* ── № 06 THE REGISTRIES ──────────────────────────────────────────── */}
-        <Kicker n="06" title="The registries" note="Captured with a hash and a block." />
+        {/* ── № 04 THE REGISTRIES ──────────────────────────────────────────── */}
+        <Kicker n="04" title="The registries" note="Captured with a hash and a block." />
         <section>
           <div className="cells grid-cols-1">
             <div className="cell hidden overflow-hidden sm:block" style={{ height: '34vh' }}>
@@ -382,8 +268,8 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ── № 07 THE PRESS ───────────────────────────────────────────────── */}
-        <Kicker n="07" title="The press" note={BRAND.paper.cadence} />
+        {/* ── № 05 THE PRESS ───────────────────────────────────────────────── */}
+        <Kicker n="05" title="The press" note={BRAND.paper.cadence} />
         <section>
           <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="cell relative overflow-hidden" style={{ minHeight: '52vh' }}>
@@ -449,6 +335,116 @@ export default async function Home() {
                   Meet the agents
                 </Link>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── № 06 THE POSITION ───────────────────────────────────────────── */}
+        <Kicker n="06" title="The position · what comes next" note="One company. Multiple issuers. One position." />
+        <section>
+          <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+            <div className="cell p-6 sm:p-8">
+              <h2 className="display text-4xl text-(--color-paper) sm:text-5xl">
+                One company. Multiple issuers. <em className="text-(--color-paper-dim)">One position.</em>
+              </h2>
+              <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
+                A stock-token holder chooses a company and, in the same act, a particular way of getting exposure to it. Behind
+                similar symbols sit different issuers, contracts, corporate-action rules and exits. {BRAND.name} is where that
+                second choice is made in the open: keep the company, split the position across issuers that are disclosed plainly.
+              </p>
+              <p className="mt-4 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
+                When one component is obstructed, the ledger still shows what can be transferred and what remains a claim. Every
+                position still carries the risk of the company, the issuers and the contracts used.
+              </p>
+              <p className="mt-4 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
+                {APPLE_S1.stageLine} The deposit is in kind, the receipt cannot be transferred, and exit is per component. The
+                desk above is the evidence layer it stands on.
+              </p>
+              <div className="mt-6">
+                <Lead href={`/positions/${APPLE_S1.id}`}>Try the simulation</Lead>
+              </div>
+            </div>
+            <div className="cells !border-0 grid-cols-1 sm:grid-cols-3">
+              {STEPS.map((step, i) => (
+                <div key={step.title} className="cell p-6 sm:p-8">
+                  <span className="tabular text-sm text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
+                  <h3 className="display mt-2 text-2xl text-(--color-paper)">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-paper-dim)">{step.body}</p>
+                </div>
+              ))}
+              <div className="cell p-6 sm:col-span-3 sm:p-8">
+                <div className="kicker">
+                  <b>First series</b> · {APPLE_S1.company} · candidates, read on chain, not admitted
+                </div>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {[a, b].map((c) => (
+                    <div key={c.id} className="text-[13px] leading-relaxed">
+                      <span className="tabular text-(--color-accent)">{c.id}</span>{' '}
+                      <span className="text-(--color-paper)">{c.instrument.split(' — ')[0]}</span>
+                      <span className="text-(--color-paper-faint)">
+                        {' '}
+                        · {c.issuer.split(' — ')[0]} · {c.chain}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
+                  <Link href={`/positions/${APPLE_S1.id}`} className="kicker hover:text-(--color-paper)">
+                    See the components →
+                  </Link>
+                  <span className="tabular text-[11px] text-(--color-paper-faint)">
+                    gates passed {gatesPassed} / {GATES.length}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── № 07 WHAT WE SAY ─────────────────────────────────────────────── */}
+        <Kicker n="07" title="What we will say" note="And the baseline this has to beat." />
+        <section>
+          <div className="cells grid-cols-1 md:grid-cols-3">
+            <div className="cell p-6 sm:p-8">
+              <div className="kicker">
+                <b>Testable</b> · promised
+              </div>
+              <ul className="mt-3 space-y-3">
+                {PROMISES.testable.map((r) => (
+                  <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-base leading-relaxed text-(--color-paper)">
+                    <span className="text-(--color-accent)">—</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="cell p-6 sm:p-8">
+              <div className="kicker">
+                <b>Unsupported</b> · never said
+              </div>
+              <ul className="mt-3 space-y-1.5">
+                {PROMISES.unsupported.map((r) => (
+                  <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-faint)">
+                    <span>×</span>
+                    <span className="line-through decoration-(--color-rule-2)">{r}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="cell p-6 sm:p-8">
+              <div className="kicker">
+                <b>The baseline</b> · two tokens in one wallet
+              </div>
+              <p className="mt-3 text-base leading-relaxed text-(--color-paper-dim)">
+                Holding token A and token B yourself already splits issuer exposure, with no Curb contract in between. That is
+                a valid alternative, and it is the comparison every test is run against. A receipt has to earn its place with
+                something measurable: consistent lots, a ledger another application can read, fewer steps, or an integration
+                that can accept one position.
+              </p>
+              <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-faint)">
+                If holders keep the two tokens once the receipt exists and its cost and risk are in front of them, the receipt
+                thesis stops. That outcome is written into the plan, not around it.
+              </p>
             </div>
           </div>
         </section>

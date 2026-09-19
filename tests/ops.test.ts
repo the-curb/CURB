@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { composeMessage, deriveConditions, runAlerts, transition, ALERT_STATE_KEY, type Condition } from '../lib/ops/alerts.ts';
+import { composeMessage, deriveConditions, runAlerts, transition, ALERT_STATE_KEY, CONDITION_KINDS, DEFAULT_KINDS, KIND_CATALOGUE, kindOf, matchesFilter, tickerOf, type Condition } from '../lib/ops/alerts.ts';
+import { parseFilter } from '../lib/credits/subscriptions.ts';
 import { maintainRetention, PRUNE_STATE_KEY } from '../lib/ops/maintenance.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
 import type { HeartbeatRecord, SnapshotRecord } from '../lib/store/types.ts';
@@ -153,5 +154,69 @@ describe('runAlerts and maintainRetention against a real store', () => {
     assert.equal(nextDay.state, 'PRUNED');
     const state = await store.snapshots(PRUNE_STATE_KEY);
     assert.equal(state.state === 'VERIFIED' ? state.value.length : -1, 1);
+  });
+});
+
+describe('what a holder subscribes to', () => {
+  it('classifies every condition, and names the ticker of a token condition', () => {
+    assert.equal(kindOf('feed:rh-aapl-usd:PAUSED'), 'token');
+    assert.equal(kindOf('token:rh-aapl:MULTIPLIER_PENDING'), 'token');
+    assert.equal(kindOf('beacon:implementation:CHANGED'), 'issuer');
+    assert.equal(kindOf('evidence:page:A:products-apple-xstock:CHANGED'), 'issuer');
+    assert.equal(kindOf('chain:head:STALLED'), 'chain');
+    assert.equal(kindOf('credits:index:BEHIND'), 'desk');
+    assert.equal(kindOf('anything:else'), 'desk');
+    assert.equal(tickerOf('feed:rh-aapl-usd:STALE_IN_SESSION'), 'AAPL');
+    assert.equal(tickerOf('token:rh-aapl:MULTIPLIER_PENDING'), 'AAPL');
+    assert.equal(tickerOf('feed:no-such-feed:PAUSED'), null);
+    assert.equal(tickerOf('beacon:code:DIFFERS'), null);
+    for (const kind of CONDITION_KINDS) assert.ok(KIND_CATALOGUE[kind].what.length > 0 && KIND_CATALOGUE[kind].examples.length > 0);
+    assert.deepEqual(DEFAULT_KINDS, ['token', 'issuer', 'chain'], "a holder's default is not the desk's plumbing");
+  });
+
+  it('delivers by the filter: kinds, and tickers for the token kind only', () => {
+    const paused: Condition = { id: 'feed:rh-aapl-usd:PAUSED', severity: 'STALE', text: 'AAPL paused' };
+    const tsla: Condition = { id: 'feed:rh-tsla-usd:PAUSED', severity: 'STALE', text: 'TSLA paused' };
+    const beacon: Condition = { id: 'beacon:code:DIFFERS', severity: 'DARK', text: 'beacon' };
+    const plumbing: Condition = { id: 'credits:index:BEHIND', severity: 'NOTE', text: 'index' };
+    const holder = { kinds: DEFAULT_KINDS, tokens: [] };
+    assert.ok(matchesFilter(holder, paused) && matchesFilter(holder, beacon) && !matchesFilter(holder, plumbing));
+    const apple = { kinds: DEFAULT_KINDS, tokens: ['AAPL'] };
+    assert.ok(matchesFilter(apple, paused), 'its token');
+    assert.ok(!matchesFilter(apple, tsla), 'another token');
+    assert.ok(matchesFilter(apple, beacon), 'an issuer event concerns every token, whatever the token list');
+    const operator = { kinds: ['desk' as const], tokens: [] };
+    assert.ok(matchesFilter(operator, plumbing) && !matchesFilter(operator, paused));
+  });
+
+  it('checks a requested filter against the catalogue and the capture', () => {
+    const ok = parseFilter({ tokens: ['aapl', 'TSLA', 'AAPL'] });
+    assert.ok(ok.ok && ok.filter.tokens.join() === 'AAPL,TSLA' && ok.filter.kinds === DEFAULT_KINDS);
+    const unknown = parseFilter({ tokens: ['ZZZZ'] });
+    assert.ok(!unknown.ok && /does not watch a token with ticker "ZZZZ"/.test(unknown.detail));
+    const badKind = parseFilter({ kinds: ['weather'] });
+    assert.ok(!badKind.ok && /unknown kind "weather"/.test(badKind.detail));
+    const notList = parseFilter({ kinds: 'token' });
+    assert.ok(!notList.ok);
+    const empty = parseFilter({});
+    assert.ok(empty.ok && empty.filter.tokens.length === 0 && empty.filter.kinds === DEFAULT_KINDS);
+  });
+
+  it('raises a staged multiplier as a condition, from the Archivist’s snapshot, until it takes effect', () => {
+    const staged: SnapshotRecord = {
+      key: 'token:rh-aapl',
+      observedAt: NOW.toISOString(),
+      payload: { key: 'rh-aapl', ticker: 'AAPL', multiplierRaw: '1000566080061092436', pendingRaw: '1001200000000000000', pendingEffectiveAt: '2026-09-25T00:30:00.000Z', retrievedAt: NOW.toISOString() },
+    };
+    const settled: SnapshotRecord = { key: 'token:rh-tsla', observedAt: NOW.toISOString(), payload: { key: 'rh-tsla', ticker: 'TSLA', multiplierRaw: '1000000000000000000', pendingRaw: null } };
+    const out = deriveConditions({ heartbeats: [beat('bell', 1)], feedSnapshots: [], lastRegistrar: null, tokenSnapshots: [staged, settled], now: NOW });
+    const c = out.find((x) => x.id === 'token:rh-aapl:MULTIPLIER_PENDING');
+    assert.ok(c, out.map((x) => x.id).join());
+    assert.equal(c.severity, 'NOTE');
+    assert.match(c.text, /AAPL: the issuer has staged a multiplier change, 1\.000566 → 1\.001200, taking effect on 2026-09-25/);
+    assert.ok(!out.some((x) => x.id === 'token:rh-tsla:MULTIPLIER_PENDING'));
+    // Once the change took effect the snapshot has no pending value: the condition clears, and the clearing is the delivery that says it happened.
+    const after = deriveConditions({ heartbeats: [beat('bell', 1)], feedSnapshots: [], lastRegistrar: null, tokenSnapshots: [{ ...staged, payload: { ...staged.payload, multiplierRaw: '1001200000000000000', pendingRaw: null } }], now: NOW });
+    assert.deepEqual(transition(out.map((x) => x.id), after).cleared, ['token:rh-aapl:MULTIPLIER_PENDING']);
   });
 });

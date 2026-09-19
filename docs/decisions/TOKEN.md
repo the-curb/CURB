@@ -47,6 +47,12 @@ The token itself is read the same way: address, decimals and supply from the cha
 
 Proposals on research priorities — which issuer to file next, which candidate to verify — and nothing else. A vote never changes a holder's balance, takes claim reserves, replaces a series' components, or declares an issuer safe because many tokens said so (§16). No vote is proposed for the launch; this line is here so no one reads a launch as a governance promise.
 
+## Why CURB, and not a dollar
+
+Asked plainly on 20 September 2026 and answered the same day by the product owner. The desk prices in dollars and could take a dollar stablecoin at the desk; USDG exists on the chain. It takes CURB for one reason: a launch is how this work is paid for — the independent review, the legal read, the infrastructure and a logged reserve, in the split under *Proceeds* — and a pool gives the desk a public rate it reads at a block rather than a price it types. A holder of CURB is owed nothing for holding it: no share of fees, no buyback, no vote, no place in line, no discount. The token is the prepaid credit and the funding, and nothing else; whoever finds that trade not worth it reads the desk free.
+
+**The venue, for what it is.** PONS v2 (decided 17 September 2026, *the chain* below) is a bonding-curve launchpad. It was chosen because it exists on Robinhood Chain and its terms could be read from the verified contract rather than a page: as read at block 67,311,913 — a launch fee of 0.0005 ETH, a curve fee of 1%, a 99% tax on buys in the first three seconds, graduation into a Uniswap v4 pool at 4.2 ETH raised, a one-week rescue delay (`contracts/evidence/pons/preflight.4663.67311913.json`). Its first holders will be traders of that curve, who arrive for a price, not for credit; none of that changes what a credit is or what a call costs, and the desk reads the pool the curve graduates into and nothing about who trades there. That mismatch is stated here so it is not discovered.
+
 ## What the token does not do
 
 The eight claims the desk refuses for the position it refuses for the token. CURB is not capital protected, can be frozen by whoever controls the chain it lives on, is not the same as holding anything, is not automatically safer, is not always sellable at any reference value, does not earn more, does not make issuers independent, and is not first of its kind. In addition:

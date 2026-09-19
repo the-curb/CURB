@@ -1,7 +1,7 @@
 import { creditsStatus } from '@/lib/credits/config';
 import { presentedKey } from '@/lib/credits/guard';
 import { isKey, keyHashOf } from '@/lib/credits/keys';
-import { cancelSubscription, createSubscription, subscriptionsOf } from '@/lib/credits/subscriptions';
+import { cancelSubscription, createSubscription, parseFilter, subscriptionsOf } from '@/lib/credits/subscriptions';
 import { getStoreAsync } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -35,15 +35,21 @@ export async function GET(request: Request): Promise<Response> {
   return Response.json({ observedAt: new Date().toISOString(), keyHash: k.hash, subscriptions: mine.subscriptions, storeFault: mine.storeFault }, { status: mine.storeFault === null ? 200 : 503, headers: NO_STORE });
 }
 
-/** Register a webhook: `{ "url": "https://…" }`. Each delivery is charged at the listed price; registering is free. */
+/**
+ * Register a webhook: `{ "url": "https://…", "kinds"?: ["token","issuer","chain","desk"], "tokens"?: ["AAPL", …] }`.
+ * Without kinds, a holder's default: token, issuer and chain events, not the desk's plumbing; without tokens, every token.
+ * Each delivery is charged at the listed price; registering is free.
+ */
 export async function POST(request: Request): Promise<Response> {
   const k = keyOf(request);
   if ('response' in k) return k.response;
   const body = await bodyOf(request);
   const url = typeof body?.url === 'string' ? body.url.trim() : '';
-  if (url === '') return Response.json({ error: 'URL_REQUIRED', detail: 'send JSON: { "url": "https://…" }' }, { status: 400, headers: NO_STORE });
+  if (url === '') return Response.json({ error: 'URL_REQUIRED', detail: 'send JSON: { "url": "https://…", "tokens": ["AAPL"] }' }, { status: 400, headers: NO_STORE });
+  const filter = parseFilter({ kinds: body?.kinds, tokens: body?.tokens });
+  if (!filter.ok) return Response.json({ error: 'FILTER_REFUSED', detail: filter.detail }, { status: 400, headers: NO_STORE });
   const store = await getStoreAsync();
-  const outcome = await createSubscription(store, k.hash, url, new Date());
+  const outcome = await createSubscription(store, k.hash, url, new Date(), filter.filter);
   if (!outcome.ok) return Response.json({ error: outcome.error, detail: outcome.detail }, { status: outcome.status, headers: NO_STORE });
   return Response.json({ observedAt: new Date().toISOString(), subscription: outcome.subscription }, { status: 201, headers: NO_STORE });
 }
