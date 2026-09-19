@@ -1,0 +1,19 @@
+{
+  "_": "The CURB launch record for PONS v2 on Robinhood Chain, drafted 19 September 2026 from pons-preflight.ts's read at block 67,311,913 (evidence/pons/preflight.4663.67311913.json): the fee and the economics digest pinned there, the operator's Safe as the fee recipient, native ETH as the pair, no creator tax, no buyback — as the token record decides. Not reviewed: reviewedBy and reviewedAt are empty until a person has read it against docs/decisions/TOKEN.md and the venue's terms, and the tool refuses it until then.",
+  "network": "robinhood-mainnet",
+  "name": "The Curb",
+  "symbol": "CURB",
+  "logo": "",
+  "description": "Prepaid credit for The Curb's data services, priced in dollars and paid in CURB at the pool's rate. Not a deposit, not an investment, not a claim on anything; not refundable. the-curb-production.up.railway.app/services",
+  "socials": { "twitter": "https://x.com/thecurb_xyz", "telegram": "", "discord": "", "website": "https://the-curb-production.up.railway.app", "farcaster": "" },
+  "creatorFeeRecipient": "0x4E69723F9Ba9fA2C9842d77b240b2C0F601ac219",
+  "creatorTaxBps": 0,
+  "buybackEnabled": false,
+  "pairToken": "0x0000000000000000000000000000000000000000",
+  "launchConfigId": 0,
+  "launchFeeWei": "500000000000000",
+  "expectedEconomics": "0xa9fc75d4203a33fe660e8fa32c74c3aa41c1fda4bf23d3a39b6bc22a1f8b1ca7",
+  "salt": "0x4c630d74842be859794b17cc2bff24bffb0938392265d089c0ddb7f5a23bf1e9",
+  "reviewedBy": "",
+  "reviewedAt": ""
+}
