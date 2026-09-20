@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { composeMessage, deriveConditions, runAlerts, transition, ALERT_STATE_KEY, CONDITION_KINDS, DEFAULT_KINDS, KIND_CATALOGUE, kindOf, matchesFilter, tickerOf, type Condition } from '../lib/ops/alerts.ts';
+import { composeMessage, deriveConditions, runAlerts, transition, ALERT_STATE_KEY, CONDITION_KINDS, DEFAULT_KINDS, KIND_CATALOGUE, WIDE_BASIS_BPS, kindOf, matchesFilter, tickerOf, type Condition } from '../lib/ops/alerts.ts';
 import { parseFilter } from '../lib/credits/subscriptions.ts';
 import { maintainRetention, PRUNE_STATE_KEY } from '../lib/ops/maintenance.ts';
 import { FileSystemStore } from '../lib/store/fs.ts';
@@ -157,21 +157,67 @@ describe('runAlerts and maintainRetention against a real store', () => {
   });
 });
 
+describe('the market conditions', () => {
+  const healthy = { pauseFlag: 'CLEAR', identity: 'MATCHES', pastHeartbeat: false };
+  const pool = (key: string, payload: Record<string, unknown>): SnapshotRecord => ({ key: `pool:${key}`, observedAt: NOW.toISOString(), payload });
+  const derive = (poolSnapshots: readonly SnapshotRecord[]) =>
+    deriveConditions({
+      heartbeats: [beat('bell', 1)],
+      feedSnapshots: [feed('rh-nvda-usd', healthy)],
+      poolSnapshots,
+      lastRegistrar: null,
+      now: NOW,
+    }).map((c) => c.id);
+
+  it('says nothing about a market inside every published band', () => {
+    assert.deepEqual(derive([pool('rh-nvda-usd', { basisBps: -40, depthUsd: 2_000_000, priceInQuote: 218, venueLabel: 'v3 0.05% against USDG' })]), []);
+  });
+
+  it('names the band a difference crossed, and never which way it closes', () => {
+    const conditions = deriveConditions({
+      heartbeats: [beat('bell', 1)],
+      feedSnapshots: [feed('rh-nvda-usd', healthy)],
+      poolSnapshots: [pool('rh-nvda-usd', { basisBps: -276, depthUsd: 2_000_000, priceInQuote: 218, venueLabel: 'v3 0.05% against USDG' })],
+      lastRegistrar: null,
+      now: NOW,
+    });
+    const wide = conditions.find((c) => c.id === 'market:rh-nvda-usd:BASIS_WIDE');
+    assert.ok(wide, conditions.map((c) => c.id).join());
+    assert.match(wide.text, /276 bp below/);
+    assert.match(wide.text, new RegExp(String(WIDE_BASIS_BPS) + ' bp band'));
+    assert.doesNotMatch(wide.text, /cheap|dear|opportunity|should|expect/i);
+  });
+
+  it('flags a book too thin to leave at the size it published', () => {
+    assert.ok(derive([pool('rh-nvda-usd', { basisBps: -10, depthUsd: 1.68, priceInQuote: 218, venueLabel: 'v4 1% against USDG' })]).includes('market:rh-nvda-usd:THIN'));
+  });
+
+  it('flags a ticker whose every pool has gone empty', () => {
+    assert.ok(derive([pool('rh-nvda-usd', { basisBps: null, depthUsd: null, priceInQuote: null, venueLabel: 'v3 1% against USDG' })]).includes('market:rh-nvda-usd:NO_MARKET'));
+  });
+
+  it('stays silent when the Specialist has not read at all', () => {
+    assert.deepEqual(derive([]), []);
+  });
+});
+
 describe('what a holder subscribes to', () => {
   it('classifies every condition, and names the ticker of a token condition', () => {
     assert.equal(kindOf('feed:rh-aapl-usd:PAUSED'), 'token');
     assert.equal(kindOf('token:rh-aapl:MULTIPLIER_PENDING'), 'token');
     assert.equal(kindOf('beacon:implementation:CHANGED'), 'issuer');
     assert.equal(kindOf('evidence:page:A:products-apple-xstock:CHANGED'), 'issuer');
+    assert.equal(kindOf('market:rh-aapl-usd:BASIS_WIDE'), 'market');
     assert.equal(kindOf('chain:head:STALLED'), 'chain');
     assert.equal(kindOf('credits:index:BEHIND'), 'desk');
     assert.equal(kindOf('anything:else'), 'desk');
     assert.equal(tickerOf('feed:rh-aapl-usd:STALE_IN_SESSION'), 'AAPL');
     assert.equal(tickerOf('token:rh-aapl:MULTIPLIER_PENDING'), 'AAPL');
+    assert.equal(tickerOf('market:rh-nvda-usd:THIN'), 'NVDA');
     assert.equal(tickerOf('feed:no-such-feed:PAUSED'), null);
     assert.equal(tickerOf('beacon:code:DIFFERS'), null);
     for (const kind of CONDITION_KINDS) assert.ok(KIND_CATALOGUE[kind].what.length > 0 && KIND_CATALOGUE[kind].examples.length > 0);
-    assert.deepEqual(DEFAULT_KINDS, ['token', 'issuer', 'chain'], "a holder's default is not the desk's plumbing");
+    assert.deepEqual(DEFAULT_KINDS, ['token', 'issuer', 'market', 'chain'], "a holder's default is not the desk's plumbing");
   });
 
   it('delivers by the filter: kinds, and tickers for the token kind only', () => {

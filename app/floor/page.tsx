@@ -85,7 +85,7 @@ export default async function FloorPage() {
   const session = readSession(now);
   const store = await getStoreAsync();
 
-  const [heartbeatsRead, publicationsRead, countsRead, feedSnapshots, headSnapshots] = await Promise.all([
+  const [heartbeatsRead, publicationsRead, countsRead, feedSnapshots, headSnapshots, poolSnapshots] = await Promise.all([
     store.latestHeartbeats(),
     store.recentPublications(6),
     // The store's own count of blocked outputs, not the length of a bounded
@@ -95,6 +95,7 @@ export default async function FloorPage() {
     store.recordCounts(),
     store.snapshots('feed:'),
     store.snapshots('chain:head'),
+    store.snapshots('pool:'),
   ]);
   // The chain head as the Pillar last read it. Checked field by field: it is stored JSON.
   const headRow = headSnapshots.state === 'UNREAD' ? null : (headSnapshots.value.find((sn) => sn.key === 'chain:head') ?? null);
@@ -110,7 +111,7 @@ export default async function FloorPage() {
 
   /**
    * Null means the store would not answer. Rendering an empty roster here would
-   * paint nine agents as never-observed, which reads as a young system rather
+   * paint every agent as never-observed, which reads as a young system rather
    * than a blind one — the exact substitution this page exists to refuse.
    */
   const heartbeats = heartbeatsRead.state === 'UNREAD' ? null : heartbeatsRead.value;
@@ -121,7 +122,7 @@ export default async function FloorPage() {
     heartbeatsRead.state === 'UNREAD'
       ? `${heartbeatsRead.reason}${heartbeatsRead.detail ? ` — ${heartbeatsRead.detail}` : ''}`
       : null;
-  const board = feedSnapshots.state === 'UNREAD' ? null : composeBoard(feedSnapshots.value, now);
+  const board = feedSnapshots.state === 'UNREAD' ? null : composeBoard(feedSnapshots.value, now, poolSnapshots.state === 'UNREAD' ? [] : poolSnapshots.value);
   const boardFault =
     feedSnapshots.state === 'UNREAD'
       ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}`
@@ -230,7 +231,12 @@ export default async function FloorPage() {
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">
           Every tokenized-equity feed in the vendor&rsquo;s directory for Robinhood Chain, as the Pillar last read it: the price,
           how long since the oracle published it, how long since we read it, and the two flags
-          that decide whether the price means what it appears to mean.
+          that decide whether the price means what it appears to mean. Beside each one, what the
+          token actually trades at on this chain — the Specialist&rsquo;s deepest pool with liquidity
+          in force, the distance between the two prices, and the size that moves that pool one
+          percent. The size is a bound over state the pool has already published, never a quote,
+          and a * marks one computed from the current tick alone. Which way a distance closes is
+          not stated here.
         </p>
         <div className="mt-6">
           <FloorBoard board={board} unreadable={boardFault} />

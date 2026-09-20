@@ -23,13 +23,14 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2b2b2b" alt="MIT"></a>
 </p>
 
-THE CURB is a data desk for stock tokens on Robinhood Chain (4663). Nine
-agents read the chain and the issuers' registries on a schedule and publish
-what they measured — with a source and a time on every figure, and an honest
-absence where they could not look. Every price with both of its ages; every
-token with its multiplier and its issuer's pause flag; the beacon they all
-delegate to; the terms, watched for change; a daily paper composed from the
-record. Free to read, as pages and as JSON.
+THE CURB is a data desk for stock tokens on Robinhood Chain (4663). Ten
+agents read the chain, the pools trading on it and the issuers' registries on
+a schedule and publish what they measured — with a source and a time on every
+figure, and an honest absence where they could not look. Every price with both
+of its ages, and beside it what the token actually trades at on this chain and
+how far the two are apart; every token with its multiplier and its issuer's
+pause flag; the beacon they all delegate to; the terms, watched for change; a
+daily paper composed from the record. Free to read, as pages and as JSON.
 
 What it sells is one thing: **alerts**. A key the chain has credited names a
 webhook and the tokens it holds, and is told — once when raised, once when

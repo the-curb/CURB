@@ -22,6 +22,7 @@ import { STOCK_TOKENS } from '../chain/stock-tokens.ts';
 import { systemHealth, type AgentHealth } from '../agents/health.ts';
 import type { HeartbeatRecord, PublicationRecord, SnapshotRecord, Store } from '../store/types.ts';
 import { composeBoard } from '../floor/board.ts';
+import { describeAge } from '../doctrine/reading.ts';
 import { BRAND } from '../brand.ts';
 import { request } from '../chain/transport.ts';
 import { createHash } from 'node:crypto';
@@ -39,10 +40,10 @@ export interface Condition {
  * desk's plumbing — its store, its index, its agents — is the operator's,
  * and is not what a subscription buys unless it asks for it.
  */
-export type ConditionKind = 'token' | 'issuer' | 'chain' | 'desk';
-export const CONDITION_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'chain', 'desk'];
+export type ConditionKind = 'token' | 'issuer' | 'market' | 'chain' | 'desk';
+export const CONDITION_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'market', 'chain', 'desk'];
 /** What a subscription that names no kinds is told: everything a holder would want, nothing about the desk's own plumbing. */
-export const DEFAULT_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'chain'];
+export const DEFAULT_KINDS: readonly ConditionKind[] = ['token', 'issuer', 'market', 'chain'];
 
 export const KIND_CATALOGUE: Readonly<Record<ConditionKind, { readonly what: string; readonly examples: readonly string[] }>> = {
   token: {
@@ -53,6 +54,10 @@ export const KIND_CATALOGUE: Readonly<Record<ConditionKind, { readonly what: str
     what: 'every token at once: the beacon they all delegate to pointing somewhere new or holding different code; the issuer’s registry listing tokens or feeds the capture does not hold; an issuer document a series depends on changing or going away',
     examples: ['beacon:implementation:CHANGED', 'beacon:code:DIFFERS', 'capture:tokens:DRIFT', 'evidence:<source>:CHANGED'],
   },
+  market: {
+    what: 'where the token trades on this chain against what the oracle last printed: a difference past the published band, a book too thin to leave at the size stated, and a ticker whose every pool has gone empty. What is sent is the measurement and the band it crossed — never which way it closes, and never what to do about it',
+    examples: ['market:rh-aapl-usd:BASIS_WIDE', 'market:rh-aapl-usd:THIN', 'market:rh-aapl-usd:NO_MARKET'],
+  },
   chain: { what: 'the chain’s head not advancing', examples: ['chain:head:STALLED'] },
   desk: { what: 'the desk’s own plumbing: its store, its agents, its credit index and its series reconciliation — the operator’s concern, sent only when asked for', examples: ['system:reporting:NONE', 'credits:index:BEHIND', 'positions:<series>:DISAGREEMENT'] },
 };
@@ -61,13 +66,14 @@ export const KIND_CATALOGUE: Readonly<Record<ConditionKind, { readonly what: str
 export function kindOf(id: string): ConditionKind {
   if (id.startsWith('feed:') || id.startsWith('token:')) return 'token';
   if (id.startsWith('beacon:') || id.startsWith('capture:') || id.startsWith('evidence:')) return 'issuer';
+  if (id.startsWith('market:')) return 'market';
   if (id.startsWith('chain:')) return 'chain';
   return 'desk';
 }
 
 /** The ticker a token condition is about, or null for a condition about no one token. */
 export function tickerOf(id: string): string | null {
-  const m = /^(feed|token):([^:]+):/.exec(id);
+  const m = /^(feed|token|market):([^:]+):/.exec(id);
   if (!m) return null;
   const key = m[2]!;
   const token = m[1] === 'token' ? STOCK_TOKENS.find((t) => t.key === key) : STOCK_TOKENS.find((t) => t.feedKey === key);
@@ -114,6 +120,8 @@ export function deriveConditions(input: {
   readonly positionSnapshots?: readonly SnapshotRecord[] | null;
   /** The Archivist's `token:` snapshots, when the store has them: a staged multiplier is a condition until it takes effect. */
   readonly tokenSnapshots?: readonly SnapshotRecord[] | null;
+  /** The Specialist's `pool:` snapshots, when the store has them: what the token trades at here, beside what the oracle last printed. */
+  readonly poolSnapshots?: readonly SnapshotRecord[] | null;
   readonly now: Date;
 }): Condition[] {
   const out: Condition[] = [];
@@ -148,7 +156,7 @@ export function deriveConditions(input: {
       const age = typeof head.payload.ageSeconds === 'number' ? ` — head was ${Math.round(head.payload.ageSeconds)}s old at the sample` : '';
       out.push({ id: 'chain:head:STALLED', severity: 'DARK', text: `the chain head had stopped advancing when the Pillar last read it${age}; blocks were not being produced` });
     }
-    const board = composeBoard(feedSnapshots, now);
+    const board = composeBoard(feedSnapshots, now, input.poolSnapshots ?? []);
     if (board.sampleState === 'ABSENT') {
       out.push({ id: 'board:sample:ABSENT', severity: 'DARK', text: 'the Pillar has not sampled the feeds within its absence threshold; the board is a memory' });
     }
@@ -157,6 +165,38 @@ export function deriveConditions(input: {
       if (row.identity === 'DRIFT') out.push({ id: `feed:${row.key}:DRIFT`, severity: 'DARK', text: `${row.label}: the feed no longer describes itself as recorded; its price is withheld` });
       if (row.pastHeartbeat === true && row.sessionAtSample === 'REGULAR') {
         out.push({ id: `feed:${row.key}:STALE_IN_SESSION`, severity: 'STALE', text: `${row.label}: past its published heartbeat while the exchange was open` });
+      }
+
+      // Where the token trades, against what the oracle last printed.
+      //
+      // Each of these is a measurement crossing a line this desk published in
+      // advance, in the same shape as "past its published heartbeat". None of
+      // them says the difference is wide in any sense but the stated one, none
+      // says which way it closes, and none says what to do. A holder is told
+      // the number and the band it crossed; the rest is theirs.
+      const m = row.market;
+      if (m === null) continue;
+      if (m.basisBps !== null && Math.abs(m.basisBps) >= WIDE_BASIS_BPS) {
+        const sign = m.basisBps > 0 ? 'above' : 'below';
+        out.push({
+          id: `market:${row.key}:BASIS_WIDE`,
+          severity: 'NOTE',
+          text: `${row.label}: the deepest pool on this chain is ${Math.abs(Math.round(m.basisBps))} bp ${sign} the feed's last answer, past the ${WIDE_BASIS_BPS} bp band. The feed answer was ${describeAge(row.feedAgeSeconds ?? 0)} old${row.sessionAtSample === 'REGULAR' ? ' with the exchange open' : ' with the exchange shut'}`,
+        });
+      }
+      if (m.depthUsd !== null && m.depthUsd < THIN_DEPTH_USD) {
+        out.push({
+          id: `market:${row.key}:THIN`,
+          severity: 'STALE',
+          text: `${row.label}: about ${Math.round(m.depthUsd).toLocaleString('en-US')} dollars moves its deepest pool one percent, under the ${THIN_DEPTH_USD.toLocaleString('en-US')} band. A bound over published state, not a quote`,
+        });
+      }
+      if (m.priceInQuote === null && m.venueLabel !== null) {
+        out.push({
+          id: `market:${row.key}:NO_MARKET`,
+          severity: 'DARK',
+          text: `${row.label}: every pool this ticker has answered and none held liquidity in force. An empty pool still reports the price it was left at; there is no market behind it`,
+        });
       }
     }
   }
@@ -211,6 +251,19 @@ export function deriveConditions(input: {
 }
 
 /** How long a change in the evidence or a drift on chain stays a condition, so a person has time to read it. */
+/**
+ * The bands the market conditions cross, published here so a subscriber knows
+ * the line before it is crossed rather than after.
+ *
+ * Neither is a judgement. Two hundred basis points is not "wide" in any sense
+ * except that this desk said two hundred; five thousand dollars is not "thin"
+ * except against the same declaration. They exist so a holder is told once when
+ * a measurement passes a stated line and once when it comes back, instead of
+ * being sent every reading of a number that moves all day.
+ */
+export const WIDE_BASIS_BPS = 200;
+export const THIN_DEPTH_USD = 5_000;
+
 export const CHANGE_WINDOW_SECONDS = 48 * 3600;
 
 /**
@@ -425,7 +478,7 @@ export function transitionId(t: Transition): string {
  * changes since their own last delivery, independent of the operator's.
  */
 export async function runAlerts(store: Store, now: Date, webhook?: string): Promise<AlertRun> {
-  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode, tokens] = await Promise.all([
+  const [heartbeats, feedSnapshots, registrar, state, head, drift, positions, evidence, creditsRun, creditsCode, tokens, pools] = await Promise.all([
     store.latestHeartbeats(),
     store.snapshots('feed:'),
     store.publicationsByAgent('registrar', 1),
@@ -437,10 +490,12 @@ export async function runAlerts(store: Store, now: Date, webhook?: string): Prom
     store.snapshots('credits:run'),
     store.snapshots('credits:code'),
     store.snapshots('token:'),
+    store.snapshots('pool:'),
   ]);
 
   const current = deriveConditions({
     tokenSnapshots: tokens.state === 'UNREAD' ? null : tokens.value,
+    poolSnapshots: pools.state === 'UNREAD' ? null : pools.value,
     heartbeats: heartbeats.state === 'UNREAD' ? null : heartbeats.value,
     feedSnapshots: feedSnapshots.state === 'UNREAD' ? null : feedSnapshots.value,
     feedSnapshotsFault: feedSnapshots.state === 'UNREAD' ? `${feedSnapshots.reason}${feedSnapshots.detail ? ` — ${feedSnapshots.detail}` : ''}` : null,

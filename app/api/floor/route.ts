@@ -10,7 +10,7 @@ import { getStoreAsync } from '@/lib/store';
 export async function GET(): Promise<Response> {
   const now = new Date();
   const store = await getStoreAsync();
-  const snapshots = await store.snapshots('feed:');
+  const [snapshots, poolSnapshots] = await Promise.all([store.snapshots('feed:'), store.snapshots('pool:')]);
 
   if (snapshots.state === 'UNREAD') {
     return Response.json(
@@ -25,7 +25,7 @@ export async function GET(): Promise<Response> {
     );
   }
 
-  const board = composeBoard(snapshots.value, now);
+  const board = composeBoard(snapshots.value, now, poolSnapshots.state === 'UNREAD' ? [] : poolSnapshots.value);
   return Response.json(
     {
       observedAt: now.toISOString(),

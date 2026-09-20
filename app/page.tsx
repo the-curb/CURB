@@ -11,7 +11,16 @@ import { getStoreAsync } from '@/lib/store';
 import { launchStatus } from '@/lib/launch/status';
 import { creditsStatus } from '@/lib/credits/config';
 import { SERVICES } from '@/lib/credits/prices';
-import { KIND_CATALOGUE } from '@/lib/ops/alerts';
+import { DEFAULT_KINDS, KIND_CATALOGUE, type ConditionKind } from '@/lib/ops/alerts';
+
+/** A heading for each kind a subscription can name. Keyed so a new kind will not compile without one. */
+const KIND_TITLE: Record<ConditionKind, string> = {
+  token: 'One token',
+  issuer: 'The issuer',
+  market: 'The market',
+  chain: 'The chain',
+  desk: 'The desk',
+};
 import { HeroSection } from './components/hero-figure';
 import { StackSection } from './components/stack-figure';
 import { CardsFigure, DotsFigure } from './components/figures';
@@ -64,9 +73,9 @@ function Lead({ href, children }: { href: string; children: React.ReactNode }) {
 export default async function Home() {
   const now = new Date();
   const store = await getStoreAsync();
-  const [heartbeats, feeds, launch] = await Promise.all([store.latestHeartbeats(), store.snapshots('feed:'), launchStatus(store)]);
+  const [heartbeats, feeds, pools, launch] = await Promise.all([store.latestHeartbeats(), store.snapshots('feed:'), store.snapshots('pool:'), launchStatus(store)]);
   const health = heartbeats.state === 'UNREAD' ? null : systemHealth(heartbeats.value, now);
-  const board = feeds.state === 'UNREAD' ? null : composeBoard(feeds.value, now);
+  const board = feeds.state === 'UNREAD' ? null : composeBoard(feeds.value, now, pools.state === 'UNREAD' ? [] : pools.value);
   const byId = new Map(health?.statuses.map((s) => [s.id, s]) ?? []);
   const gatesPassed = GATES.filter((g) => g.status === 'PASSED').length;
   const [a, b] = APPLE_S1.components;
@@ -100,7 +109,7 @@ export default async function Home() {
             </div>
             <div className="cell p-6 sm:p-8">
               <p className="text-lg leading-relaxed text-(--color-paper)">
-                {BRAND.name} is a data desk for stock tokens on Robinhood Chain: nine agents read the chain and the issuers&rsquo;
+                {BRAND.name} is a data desk for stock tokens on Robinhood Chain: ten agents read the chain and the issuers&rsquo;
                 registries on a schedule and publish what they measured —{' '}
                 <strong className="font-bold">with a source and a time on every figure</strong>, and an honest absence where they
                 could not look. Free to read. Alerts for what changes.
@@ -139,6 +148,8 @@ export default async function Home() {
             <div className="cells !border-0 grid-cols-1 sm:grid-cols-2">
               {[
                 ['Feeds priced', board === null ? null : `${board.counts.priced} / ${board.counts.equity}`, 'tokenized-equity feeds with a price, of those the vendor lists'],
+                ['Priced both sides', board === null ? null : `${board.counts.withBasis} / ${board.counts.equity}`, 'tickers carrying an oracle answer and a pool with liquidity in force'],
+                ['Widest basis', board === null || board.widestBasisBps === null ? null : `${board.widestBasisBps > 0 ? '+' : board.widestBasisBps < 0 ? '−' : ''}${Math.abs(Math.round(board.widestBasisBps)).toLocaleString('en-US')} bp`, 'the largest distance between a pool and its feed. Which way it closes is not stated'],
                 ['Sampled', board === null || board.sampleAgeSeconds === null ? null : `${describeAge(board.sampleAgeSeconds)} ago`, 'the Pillar’s last read of every feed, in one block'],
                 ['Past heartbeat', board === null ? null : String(board.counts.pastHeartbeat), 'prices older than the oracle’s own promise'],
                 ['Paused by the issuer', board === null ? null : String(board.counts.paused), 'feeds whose pause flag is set; each holds its last value'],
@@ -184,15 +195,16 @@ export default async function Home() {
                 </Link>
               </div>
             </div>
-            <div className="cells !border-0 grid-cols-1 sm:grid-cols-3">
-              {(['token', 'issuer', 'chain'] as const).map((kind, i) => (
+            <div className="cells !border-0 grid-cols-1 sm:grid-cols-2">
+              {/* Derived from DEFAULT_KINDS, so a kind cannot be added to the product without appearing here. */}
+              {DEFAULT_KINDS.map((kind, i) => (
                 <div key={kind} className="cell p-6 sm:p-8">
                   <span className="tabular text-sm text-(--color-accent)">{String(i + 1).padStart(2, '0')}</span>
-                  <h3 className="display mt-2 text-2xl text-(--color-paper)">{kind === 'token' ? 'One token' : kind === 'issuer' ? 'The issuer' : 'The chain'}</h3>
+                  <h3 className="display mt-2 text-2xl text-(--color-paper)">{KIND_TITLE[kind]}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-(--color-paper-dim)">{KIND_CATALOGUE[kind].what.replace(/^(one token|every token at once): /, (m) => m.charAt(0).toUpperCase() + m.slice(1))}</p>
                 </div>
               ))}
-              <div className="cell p-6 sm:col-span-3 sm:p-8">
+              <div className="cell p-6 sm:col-span-2 sm:p-8">
                 <div className="kicker">
                   <b>One request</b> · a webhook, the tokens you hold, from a key the chain has credited
                 </div>

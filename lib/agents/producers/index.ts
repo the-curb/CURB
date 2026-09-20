@@ -2,6 +2,7 @@ import type { ProducerTable } from '../runtime.ts';
 import { bellProducer } from './bell.ts';
 import { registrarProducer } from './registrar.ts';
 import { pillarProducer } from './pillar.ts';
+import { specialistProducer } from './specialist.ts';
 import { surveyorProducer } from './surveyor.ts';
 import { wardenProducer } from './warden.ts';
 import { archivistProducer } from './archivist.ts';
@@ -18,6 +19,7 @@ export const PRODUCERS: ProducerTable = {
   bell: bellProducer,
   registrar: registrarProducer,
   pillar: pillarProducer,
+  specialist: specialistProducer,
   surveyor: surveyorProducer,
   warden: wardenProducer,
   archivist: archivistProducer,

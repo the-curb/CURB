@@ -1,5 +1,5 @@
 /**
- * Nine agents, one job each. What each of them refuses to do is as defined as
+ * Ten agents, one job each. What each of them refuses to do is as defined as
  * what it does, and the refusal is enforced in `doctrine/policy.ts`, not in a
  * prompt.
  *
@@ -17,6 +17,7 @@ export type AgentId =
   | 'registrar'
   | 'bell'
   | 'pillar'
+  | 'specialist'
   | 'archivist'
   | 'surveyor'
   | 'counsel'
@@ -114,6 +115,32 @@ export const AGENTS: readonly AgentSpec[] = [
       'The issuer oracle pause flag on the stock token each feed prices',
       'Crypto feeds in rotation',
       'Feed heartbeat and deviation threshold, as the vendor directory publishes them',
+    ],
+  },
+  {
+    id: 'specialist',
+    name: 'THE SPECIALIST',
+    district: 'THE FLOOR',
+    role: 'The price on this chain, and the distance to the feed',
+    line: 'The oracle says what it was worth when the market shut. The pool says what it is now. I print both, and the gap.',
+    posture: 'MEASURES',
+    // The same cadence as the Pillar. A basis is a difference between two
+    // reads; reading one side four times as often does not make the pair
+    // fresher, it only makes the pair's age harder to state honestly.
+    intervalSeconds: 15 * 60,
+    // Every pool in the captured book. A test pins this to the capture, so the
+    // number cannot drift from what the producer actually asks.
+    sourcesExpected: 258,
+    // More than half the book. Below that the market is not described; the run
+    // says it could not look.
+    minimumSources: 130,
+    refusal:
+      'Publishes the pool’s mid and the size that moves it one percent, computed from published state. Never calls a difference cheap or dear, never says which way it closes, and never quotes a size it did not compute from the book.',
+    reads: [
+      'Every pool the v2 and v3 factories admit to for a priced stock token — reserves, or slot0 and liquidity',
+      'Every v4 pool whose id recomputes from a captured key — getSlot0 and getLiquidity through the StateView lens',
+      'The Pillar’s own feed record for the reference price, so the basis is the distance from what the Floor shows and not from a second reading of the same oracle',
+      'The session, so a difference measured across a shut exchange is printed as one',
     ],
   },
   {

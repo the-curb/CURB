@@ -210,6 +210,30 @@ hold for any year.
 number" but "has this number been refreshed against an open market since it was
 taken".
 
+### Two prices, two ages, one distance
+
+`lib/market/basis.ts`, `lib/agents/producers/specialist.ts`
+
+The oracle says what a share was worth when the exchange last printed. The pool
+says what the token is worth on this chain right now. Both are published, with
+the age of each, and so is the distance between them — signed, in basis points
+of the reference. Nothing says whether that distance is wide, whether it is
+worth anything, or which way it closes. Over a shut weekend most of it is not a
+mispricing at all: it is the chain trading with no exchange to check against,
+and the run says the market was shut rather than leaving a reader to assume.
+
+The reference is the Pillar's own snapshot, never a second reading of the same
+oracle. Two agents reading one feed a minute apart would publish two numbers
+both claiming to be the reference, and the difference between them would be
+nobody's measurement. An unread feed therefore makes an unread basis, which is
+the correct answer and not a zero.
+
+A pool with no liquidity still answers with a price — whatever it was
+initialised at, or wherever the last trade left it. One abandoned pool on this
+chain reports a mid of 3.4 × 10^50. That number is a memory, not a market: a
+ticker whose every pool is empty goes unpriced with the reason, and never
+carries the leftover.
+
 ### Declared blind spots
 
 Published in the API response and on the page, not buried here:
@@ -237,6 +261,11 @@ downstream trusts the answer.
 - Forecasts price, return or direction.
 - Declares a token safe, backed, or a scam.
 - Decides that a reader is eligible.
+- Quotes a fill. Uniswap ships a quoter on this chain and no agent calls it.
+  What is published instead is a bound computed from state a pool has already
+  published — the size that moves the mid one percent against the liquidity in
+  force — because a fill is an execution question and those are not answered
+  here. `lib/chain/venues.ts`, `QUOTER_NOT_USED`.
 
-Eight of the nine agents measure and one promotes — and the promoter's disclosure
+Nine of the ten agents measure and one promotes — and the promoter's disclosure
 is appended by code, on every output, not by its own good manners.

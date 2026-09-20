@@ -55,7 +55,7 @@ export function SiteFooter() {
               exit is a cash redemption, and no CURB token is a condition of any of it.
             </p>
             <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
-              Beneath it, a desk of nine agents reads Robinhood Chain and two published registries on a schedule, publishes what
+              Beneath it, a desk of ten agents reads Robinhood Chain, its pools and two published registries on a schedule, publishes what
               it measured with a source and a time on every figure, and refuses — in code, not in a prompt — to forecast, advise,
               rate, or print a number it did not read. {BRAND.desk.line}
             </p>

@@ -97,7 +97,79 @@ function Identity({ row }: { row: BoardRow }) {
   }
 }
 
-function Rows({ rows }: { rows: readonly BoardRow[] }) {
+/**
+ * The three market cells: what the token trades at here, how far that is from
+ * the feed, and what it takes to move it.
+ *
+ * Each is an absence when the Specialist could not read it, and the em dash
+ * carries the reason. A market that was not read must never be drawn as a
+ * market that agrees with the exchange.
+ */
+function Market({ row }: { row: BoardRow }) {
+  const m = row.market;
+  const dash = (why: string) => (
+    <span className="absent" title={why}>
+      {ABSENT_GLYPH}
+    </span>
+  );
+
+  return (
+    <>
+      <td className="py-2 pr-4 text-right align-baseline">
+        {m === null || m.priceUsd === null ? (
+          dash(
+            m === null
+              ? 'the Specialist has not read a pool for this ticker'
+              : m.priceInQuote === null
+                ? 'no pool with liquidity in force was found for this ticker'
+                : `the pool's mid is ${m.priceInQuote} ${m.quoteLabel ?? 'in its quote asset'}, and the Pillar has not read a dollar price for that asset`,
+          )
+        ) : (
+          <span
+            className="tabular text-sm text-(--color-paper)"
+            title={`${m.venueLabel ?? 'pool'} · sampled ${describeAge(m.sampleAgeSeconds)} ago`}
+          >
+            {m.priceUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        )}
+      </td>
+      <td className="py-2 pr-4 text-right align-baseline">
+        {m === null || m.basisBps === null ? (
+          dash('a difference needs both a pool price and a feed price; one of them was not read')
+        ) : (
+          <span
+            className="tabular text-sm"
+            style={{ color: Math.abs(m.basisBps) >= 100 ? 'var(--color-state-stale)' : 'var(--color-paper-dim)' }}
+            title="the pool's mid against the feed's last answer, in basis points of the feed. Which way it closes is not stated."
+          >
+            {`${m.basisBps > 0 ? '+' : m.basisBps < 0 ? '−' : ''}${Math.abs(Math.round(m.basisBps)).toLocaleString('en-US')}`}
+          </span>
+        )}
+      </td>
+      <td className="py-2 pr-4 text-right align-baseline text-xs text-(--color-paper-dim)">
+        {m === null || m.depthUsd === null ? (
+          dash('no size could be computed: the pool published no liquidity in force, or its quote asset has no dollar price')
+        ) : (
+          <span
+            className="tabular"
+            title={
+              m.depthIsExact
+                ? 'the reserves are the whole book, so this size is exact arithmetic over all of it'
+                : 'the liquidity at the current tick only. A move that leaves that tick meets liquidity this figure cannot see. Not a quote.'
+            }
+          >
+            {m.depthUsd < 1_000
+              ? m.depthUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : Math.round(m.depthUsd).toLocaleString('en-US')}
+            {m.depthIsExact ? '' : '*'}
+          </span>
+        )}
+      </td>
+    </>
+  );
+}
+
+function Rows({ rows, market = false }: { rows: readonly BoardRow[]; market?: boolean }) {
   return (
     <>
       {rows.map((row) => (
@@ -116,6 +188,7 @@ function Rows({ rows }: { rows: readonly BoardRow[] }) {
               <span className="tabular text-sm text-(--color-paper)">{row.price}</span>
             )}
           </td>
+          {market ? <Market row={row} /> : null}
           <td className="py-2 pr-4 text-right align-baseline text-xs text-(--color-paper-dim)">
             <Age seconds={row.feedAgeSeconds} why={row.notPricedBecause ?? 'no round was read'} />
           </td>
@@ -137,12 +210,27 @@ function Rows({ rows }: { rows: readonly BoardRow[] }) {
   );
 }
 
-function Head() {
+function Head({ market = false }: { market?: boolean }) {
   return (
     <thead>
       <tr className="text-left text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
         <th className="pb-2 pr-4 font-normal">Feed</th>
-        <th className="pb-2 pr-4 text-right font-normal">Price · USD</th>
+        <th className="pb-2 pr-4 text-right font-normal" title="what the oracle last published for the underlying">
+          Feed · USD
+        </th>
+        {market ? (
+          <>
+            <th className="pb-2 pr-4 text-right font-normal" title="the deepest pool on this chain with liquidity in force, in dollars">
+              On chain · USD
+            </th>
+            <th className="pb-2 pr-4 text-right font-normal" title="the pool against the feed, in basis points of the feed">
+              Basis · bp
+            </th>
+            <th className="pb-2 pr-4 text-right font-normal" title="the size that moves that mid one percent. A bound over published state, never a quote. * marks a figure computed from the current tick only.">
+              Moves 1% · USD
+            </th>
+          </>
+        ) : null}
         <th className="pb-2 pr-4 text-right font-normal" title="how long since the oracle last published">
           Feed updated
         </th>
@@ -178,6 +266,22 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
         <span className="tabular text-[11px] text-(--color-paper-faint)">
           {board.counts.priced} of {board.counts.equity} equity feeds priced · {board.counts.pastHeartbeat} past heartbeat ·{' '}
           {board.counts.paused} paused · {board.counts.drift} identity changed
+          {board.counts.withBasis > 0 ? (
+            <>
+              {' · '}
+              <span title="tickers carrying a price on both sides: an oracle answer and a pool with liquidity in force">
+                {board.counts.withBasis} priced both sides
+              </span>
+              {board.widestBasisBps === null ? null : (
+                <>
+                  {' · widest '}
+                  <span title="the largest difference on this board, with its sign. Which way it closes is not stated.">
+                    {`${board.widestBasisBps > 0 ? '+' : board.widestBasisBps < 0 ? '−' : ''}${Math.abs(Math.round(board.widestBasisBps)).toLocaleString('en-US')} bp`}
+                  </span>
+                </>
+              )}
+            </>
+          ) : null}
         </span>
       </div>
 
@@ -197,9 +301,9 @@ export function FloorBoard({ board, unreadable }: { board: Board | null; unreada
         <>
           <div className="mt-6 overflow-x-auto">
             <table className="w-full min-w-[40rem] border-collapse">
-              <Head />
+              <Head market />
               <tbody>
-                <Rows rows={board.equity} />
+                <Rows rows={board.equity} market />
               </tbody>
             </table>
           </div>

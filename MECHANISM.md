@@ -227,7 +227,7 @@ The MVP uses one series contract with the receipt built in, and no permissionles
 
 The interface and data services keep the existing Next.js, TypeScript, React and Postgres stack; Solidity and Foundry are the proposed choices for the contract and its tests. The backend never holds a holder's private key. A model may compose explanations from facts the checker has already accepted; it decides no balance, no binding price, no recipient and no claim amount.
 
-**The desk's role.** The Registrar supplies component identity and authority changes; the Archivist, corporate-action context; Pillar and the Bell, price and session context; the Tally and the Warden, reconciliation; Counsel archives document changes for a human to review; the Gazette publishes verified changes. Those agents need new sources and tests for a new chain. A source reading *read* does not mean safe, legal for every holder, or backed by reserves the Curb has audited. The MVP takes the deterministic functions it needs; nine agents do not have to become nine new services.
+**The desk's role.** The Registrar supplies component identity and authority changes; the Archivist, corporate-action context; Pillar and the Bell, price and session context; the Specialist, what the token trades at on this chain and how far that is from the feed; the Tally and the Warden, reconciliation; Counsel archives document changes for a human to review; the Gazette publishes verified changes. Those agents need new sources and tests for a new chain. A source reading *read* does not mean safe, legal for every holder, or backed by reserves the Curb has audited. The MVP takes the deterministic functions it needs; ten agents do not have to become ten new services.
 
 ## 10. Data, API and events
 

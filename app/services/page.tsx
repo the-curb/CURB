@@ -373,7 +373,7 @@ export default async function ServicesPage() {
             plumbing unless it asks. Each delivery is charged at the listed price; registering and cancelling are free.
           </p>
           <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-            {(['token', 'issuer', 'chain'] as const).map((kind) => (
+            {DEFAULT_KINDS.map((kind) => (
               <div key={kind}>
                 <dt className="kicker">{kind}{DEFAULT_KINDS.includes(kind) ? ' · by default' : ''}</dt>
                 <dd className="mt-1 text-[12px] leading-relaxed text-(--color-paper-dim)">{KIND_CATALOGUE[kind].what}</dd>

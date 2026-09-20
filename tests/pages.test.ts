@@ -84,8 +84,99 @@ describe('the Floor board', () => {
     );
     assert.equal(board.equity.length, 3);
     assert.equal(board.crypto.length, 1);
-    assert.deepEqual(board.counts, { equity: 3, priced: 2, pastHeartbeat: 1, paused: 1, drift: 1, unread: 1 });
+    assert.deepEqual(board.counts, {
+      equity: 3,
+      priced: 2,
+      pastHeartbeat: 1,
+      paused: 1,
+      drift: 1,
+      unread: 1,
+      withMarket: 0,
+      withBasis: 0,
+    });
     assert.deepEqual(board.equity.map((r) => r.label), ['RH-AAPL-USD', 'RH-NVDA-USD', 'RH-TSLA-USD']);
+  });
+
+  describe('the market half', () => {
+    const poolSnapshot = (key: string, ageMinutes: number, payload: Record<string, unknown>): SnapshotRecord => ({
+      key: `pool:${key}`,
+      observedAt: new Date(NOW.getTime() - ageMinutes * 60_000).toISOString(),
+      payload,
+    });
+
+    const market = {
+      ticker: 'NVDA',
+      priceUsd: 218.44,
+      priceInQuote: 218.66,
+      quoteLabel: 'USDG',
+      basisBps: -180.2,
+      depthUsd: 2_157_117,
+      depthIsExact: false,
+      venueLabel: 'v3 0.05% against USDG',
+      poolsReadForTicker: 9,
+    };
+
+    it('joins a pool to its feed on the feed key, and keeps the two ages apart', () => {
+      const board = composeBoard(
+        [feedSnapshot('rh-nvda-usd', 1, priced)],
+        NOW,
+        [poolSnapshot('rh-nvda-usd', 7, market)],
+      );
+      const row = board.equity[0]!;
+      assert.equal(row.market?.priceUsd, 218.44);
+      assert.equal(row.market?.venueLabel, 'v3 0.05% against USDG');
+      // The feed was sampled a minute ago and the pool seven minutes ago. Two
+      // statements about "now", and the board must tell them apart.
+      assert.equal(row.sampleAgeSeconds, 60);
+      assert.equal(row.market?.sampleAgeSeconds, 420);
+      assert.deepEqual(
+        { withMarket: board.counts.withMarket, withBasis: board.counts.withBasis },
+        { withMarket: 1, withBasis: 1 },
+      );
+    });
+
+    it('leaves a feed with no pool reading absent rather than agreeing with itself', () => {
+      const board = composeBoard([feedSnapshot('rh-aapl-usd', 1, priced)], NOW, []);
+      assert.equal(board.equity[0]!.market, null);
+      assert.equal(board.widestBasisBps, null);
+      assert.equal(board.counts.withBasis, 0);
+    });
+
+    it('carries a mid with no dollar price as a mid, not as nothing', () => {
+      const board = composeBoard(
+        [feedSnapshot('rh-clsk-usd', 1, priced)],
+        NOW,
+        [poolSnapshot('rh-clsk-usd', 1, { ...market, priceUsd: null, basisBps: null, depthUsd: null, quoteLabel: 'native ETH' })],
+      );
+      const m = board.equity[0]!.market;
+      assert.equal(m?.priceUsd, null);
+      assert.equal(m?.priceInQuote, 218.66);
+      assert.equal(m?.quoteLabel, 'native ETH');
+      assert.equal(board.counts.withMarket, 0, 'a mid with no dollar price is not a dollar price');
+    });
+
+    it('reports the widest difference with its sign, not the largest absolute', () => {
+      const board = composeBoard(
+        [feedSnapshot('rh-nvda-usd', 1, priced), feedSnapshot('rh-rklb-usd', 1, priced)],
+        NOW,
+        [
+          poolSnapshot('rh-nvda-usd', 1, { ...market, basisBps: -272.4 }),
+          poolSnapshot('rh-rklb-usd', 1, { ...market, basisBps: 81.3 }),
+        ],
+      );
+      assert.equal(board.widestBasisBps, -272.4);
+    });
+
+    it('ignores a payload that is not shaped like a reading', () => {
+      const board = composeBoard(
+        [feedSnapshot('rh-nvda-usd', 1, priced)],
+        NOW,
+        [poolSnapshot('rh-nvda-usd', 1, { priceUsd: 'two hundred', basisBps: null, depthUsd: [] })],
+      );
+      assert.equal(board.equity[0]!.market?.priceUsd, null);
+      assert.equal(board.equity[0]!.market?.depthUsd, null);
+      assert.equal(board.counts.withBasis, 0);
+    });
   });
 });
 

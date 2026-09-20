@@ -147,7 +147,7 @@ export default async function GuidePage() {
       <Section
         id="read"
         title="1 · Read the desk"
-        lede="Nine agents read Robinhood Chain and two published registries on a schedule and publish what they measured. Each page is one district of the record; every figure carries where it came from and when it was read, and a figure that could not be read is shown as an absence — never as zero."
+        lede="Ten agents read Robinhood Chain, the pools trading on it and two published registries on a schedule and publish what they measured. Each page is one district of the record; every figure carries where it came from and when it was read, and a figure that could not be read is shown as an absence — never as zero."
         state={<State tone="live">open · no key, no wallet, no account</State>}
       >
         <Steps>
