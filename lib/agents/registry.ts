@@ -140,6 +140,7 @@ export const AGENTS: readonly AgentSpec[] = [
       'Every pool the v2 and v3 factories admit to for a priced stock token — reserves, or slot0 and liquidity',
       'Every v4 pool whose id recomputes from a captured key — getSlot0 and getLiquidity through the StateView lens',
       'The Pillar’s own feed record for the reference price, so the basis is the distance from what the Floor shows and not from a second reading of the same oracle',
+      'The Pillar’s record for the asset each pool quotes against — USDG / USD or ETH / USD — which is what turns a mid into dollars. The Pillar samples the crypto feeds in rotation, so on a young store a mid can be read with no dollar price beside it, and the run says so',
       'The session, so a difference measured across a shut exchange is printed as one',
     ],
   },

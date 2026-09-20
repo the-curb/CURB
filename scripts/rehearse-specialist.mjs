@@ -19,7 +19,7 @@ for (const id of ['pillar', 'specialist']) {
   const record = await runAgent(AGENT_BY_ID[id], PRODUCERS[id], { store });
   console.log('='.repeat(72));
   console.log(`${AGENT_BY_ID[id].name} — ${record.outcome} · sources ${record.heartbeat.sourcesReached}/${AGENT_BY_ID[id].sourcesExpected}`);
-  if (record.heartbeat.note) console.log(`note: ${record.heartbeat.note}`);
+  if (record.heartbeat.detail) console.log(`why: ${record.heartbeat.detail}`);
   if (record.publication) {
     console.log('-'.repeat(72));
     console.log(record.publication.headline);

@@ -167,6 +167,19 @@ describe('the Floor board', () => {
       assert.equal(board.widestBasisBps, -272.4);
     });
 
+    it('draws a ticker whose pools all emptied as an absence with its reason', () => {
+      const board = composeBoard(
+        [feedSnapshot('rh-rgti-usd', 1, priced)],
+        NOW,
+        [poolSnapshot('rh-rgti-usd', 1, { ...market, priceUsd: null, priceInQuote: null, basisBps: null, depthUsd: null, notPricedBecause: 'every pool listed for this ticker answered and none held liquidity in force' })],
+      );
+      const m = board.equity[0]!.market;
+      assert.equal(m?.priceUsd, null);
+      assert.match(m?.notPricedBecause ?? '', /none held liquidity in force/);
+      assert.equal(board.counts.withMarket, 0);
+      assert.equal(board.counts.withBasis, 0);
+    });
+
     it('ignores a payload that is not shaped like a reading', () => {
       const board = composeBoard(
         [feedSnapshot('rh-nvda-usd', 1, priced)],

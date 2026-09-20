@@ -193,7 +193,11 @@ describe('the market conditions', () => {
   });
 
   it('flags a ticker whose every pool has gone empty', () => {
-    assert.ok(derive([pool('rh-nvda-usd', { basisBps: null, depthUsd: null, priceInQuote: null, venueLabel: 'v3 1% against USDG' })]).includes('market:rh-nvda-usd:NO_MARKET'));
+    // The Specialist writes this row on purpose rather than omitting the
+    // ticker, so a price that no longer exists cannot sit on the board.
+    const ids = derive([pool('rh-nvda-usd', { basisBps: null, depthUsd: null, priceInQuote: null, venueLabel: 'v3 1% against USDG', notPricedBecause: 'every pool listed for this ticker answered and none held liquidity in force' })]);
+    assert.ok(ids.includes('market:rh-nvda-usd:NO_MARKET'), ids.join());
+    assert.ok(!ids.includes('market:rh-nvda-usd:BASIS_WIDE'), 'no basis exists to be wide');
   });
 
   it('stays silent when the Specialist has not read at all', () => {

@@ -72,6 +72,22 @@ export const LAST_FILING_KEY = 'specialist:last-filing';
 /** How many tickers the narration names. The rest are a count. */
 const NAMED = 6;
 
+/**
+ * The floor under which a pool is not a market.
+ *
+ * Zero liquidity was never the whole problem. A pool holding a few cents of
+ * liquidity publishes a mid and a computable bound, and that mid is noise: the
+ * first production run put RGTI on the board at 418 dollars against a feed of
+ * 15.74 — two hundred and fifty thousand basis points — from a pool a dollar
+ * would have moved through. A book that cannot absorb one hundred dollars
+ * without moving one percent is not a price anybody could act on, and stating a
+ * difference against it would be arithmetic dressed as a measurement.
+ *
+ * A hundred dollars is a declaration, not a discovery. It is published here and
+ * on the page for the same reason the bands are: so a reader knows the line.
+ */
+export const MARKET_FLOOR_USD = 100;
+
 const SEL = {
   slot0: selector('slot0()'),
   liquidity: selector('liquidity()'),
@@ -198,7 +214,10 @@ export function deepestByTicker(readings: readonly PoolReading[]): {
   };
   for (const r of readings) {
     seen.add(r.pool.ticker);
+    // Not a market: no liquidity in force, or a book too small for its mid to
+    // mean anything. Both are recorded on the ticker and neither prices it.
     if (!r.hasMarket) continue;
+    if (r.depthUsd !== null && r.depthUsd < MARKET_FLOOR_USD) continue;
     const held = best.get(r.pool.ticker);
     if (held === undefined || better(r, held)) best.set(r.pool.ticker, r);
   }
@@ -336,6 +355,52 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
 
   const observations: ObservationRecord[] = [];
   const snapshots: SnapshotRecord[] = [];
+
+  // A ticker that lost its market must be written as one, not left behind.
+  //
+  // Two things go wrong if these are simply omitted. The board keeps whatever
+  // `pool:` row was written the last time the ticker had liquidity, so a price
+  // that no longer exists stays on the page indefinitely — the absence rendered
+  // as a value, which is the one bug this whole system exists to prevent. And
+  // nothing downstream can tell "the pool emptied" from "the Specialist has not
+  // looked yet", so a holder who can no longer leave a position is never told.
+  for (const ticker of withoutMarket) {
+    const any = readings.find((r) => r.pool.ticker === ticker);
+    if (any === undefined) continue;
+    const p = any.pool;
+    snapshots.push({
+      key: `pool:${p.feedKey}`,
+      observedAt: retrievedAt,
+      payload: {
+        ticker,
+        feedKey: p.feedKey,
+        source: `${network.label} · every pool listed for ${ticker} in the captured book`,
+        venue: p.venue,
+        venueLabel: venueLabel(p),
+        poolKey: p.key,
+        address: p.address,
+        poolId: p.poolId,
+        fee: p.fee,
+        quoteLabel: p.quoteLabel,
+        // Every figure absent, with the reason beside them. The mid these pools
+        // still report is whatever they were left at, and is not carried.
+        priceInQuote: null,
+        priceUsd: null,
+        depthQuote: null,
+        depthUsd: null,
+        depthIsExact: null,
+        basisBps: null,
+        referenceUsd: references.get(p.feedKey)?.priceUsd ?? null,
+        referenceAgeSeconds: references.get(p.feedKey)?.feedAgeSeconds ?? null,
+        sessionAtSample: session.phase,
+        poolsReadForTicker: readings.filter((r) => r.pool.ticker === ticker).length,
+        notPricedBecause: `every pool listed for this ticker answered and none of them is a market: each held no liquidity in force, or a book under the published -dollar floor. A pool that thin still reports a mid, and that mid is a memory rather than a price, so none is carried here.`,
+        sqrtPriceX96: null,
+        liquidity: null,
+      },
+    });
+  }
+
   for (const row of rows) {
     const p = row.reading.pool;
     const source = `${network.label} · ${venueLabel(p)}`;
@@ -421,6 +486,14 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
   // must not be filed as one — the note is what an operator reads to tell the
   // two apart.
   if (priced.length === 0) {
+    // Which half was missing decides what an operator fixes, so the note says
+    // which. A ticker with no reference needs its own equity feed read; a
+    // ticker with a mid and no dollars needs the feed for the asset its pool
+    // quotes in — USDG/USD or ETH/USD — which the Pillar samples in rotation
+    // and may not have reached yet on a young store.
+    const missingQuotes = [
+      ...new Set(rows.filter((r) => r.reading.priceUsd === null).map((r) => r.reading.pool.quoteFeedKey)),
+    ].sort();
     return {
       publication: null,
       sourcesReached,
@@ -430,7 +503,9 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
       note:
         rows.length === 0
           ? `${sourcesReached} of ${STOCK_POOLS.length} pools answered but none carried a readable mid, so no ticker was priced`
-          : `${rows.length} tickers carried a pool price and none carried a reference: the Pillar's feed record held no usable answer for them, so every basis this run is absent rather than zero`,
+          : missingQuotes.length > 0
+            ? `${rows.length} tickers carried a pool mid and none could be stated in dollars: the Pillar's record holds no price for ${missingQuotes.join(' or ')}, the feed the pools quote against. Every mid is in the record; every basis is absent rather than zero`
+            : `${rows.length} tickers carried a pool price and none carried a reference: the Pillar's record held no usable answer for their own equity feeds, so every basis this run is absent rather than zero`,
     };
   }
 

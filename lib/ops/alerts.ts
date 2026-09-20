@@ -191,7 +191,7 @@ export function deriveConditions(input: {
           text: `${row.label}: about ${Math.round(m.depthUsd).toLocaleString('en-US')} dollars moves its deepest pool one percent, under the ${THIN_DEPTH_USD.toLocaleString('en-US')} band. A bound over published state, not a quote`,
         });
       }
-      if (m.priceInQuote === null && m.venueLabel !== null) {
+      if (m.notPricedBecause !== null) {
         out.push({
           id: `market:${row.key}:NO_MARKET`,
           severity: 'DARK',

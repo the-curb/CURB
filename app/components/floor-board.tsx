@@ -120,7 +120,9 @@ function Market({ row }: { row: BoardRow }) {
           dash(
             m === null
               ? 'the Specialist has not read a pool for this ticker'
-              : m.priceInQuote === null
+              : m.notPricedBecause !== null
+                ? m.notPricedBecause
+                : m.priceInQuote === null
                 ? 'no pool with liquidity in force was found for this ticker'
                 : `the pool's mid is ${m.priceInQuote} ${m.quoteLabel ?? 'in its quote asset'}, and the Pillar has not read a dollar price for that asset`,
           )

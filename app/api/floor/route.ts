@@ -35,6 +35,10 @@ export async function GET(): Promise<Response> {
       sampledAt: board.sampledAt,
       sampleAgeSeconds: board.sampleAgeSeconds,
       counts: board.counts,
+      /** The largest difference between a pool and its feed, signed. Null when none exists — never zero. */
+      widestBasisBps: board.widestBasisBps,
+      /** When the Specialist last read the pools, which is not when the Pillar last read the feeds. */
+      marketSampledAt: board.marketSampledAt,
       coverage: {
         feedsListed: FEED_COVERAGE.listedByDirectory,
         feedsCaptured: FEED_COVERAGE.capturedHere,

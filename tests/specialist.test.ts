@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import {
+  MARKET_FLOOR_USD,
   MATERIAL_MOVE_BPS,
   deepestByTicker,
   reducePool,
@@ -158,6 +159,33 @@ describe('choosing the pool that describes the ticker', () => {
     const { best, withoutMarket } = deepestByTicker([absurd]);
     assert.equal(best.size, 0, 'a pool with no book must not price anything');
     assert.deepEqual(withoutMarket, ['RGTI']);
+  });
+
+  it('refuses a book too small for its mid to mean anything', () => {
+    // The bug production found: RGTI priced at 418 dollars against a feed of
+    // 15.74, from a native-ETH pool a dollar would have moved through.
+    const dust = reading({
+      pool: pool({ key: 'rgti-eth-v4', ticker: 'RGTI', feedKey: 'rh-rgti-usd', quoteLabel: 'native ETH' }),
+      priceInQuote: 418.26,
+      priceUsd: 418.26,
+      depthQuote: 0.0001,
+      depthUsd: 0.31,
+      hasMarket: true,
+    });
+    const { best, withoutMarket } = deepestByTicker([dust]);
+    assert.equal(best.size, 0, 'a book under the floor must not price a ticker');
+    assert.deepEqual(withoutMarket, ['RGTI']);
+  });
+
+  it('keeps a book exactly at the floor', () => {
+    const atFloor = reading({ pool: pool({ key: 'at-floor' }), depthUsd: MARKET_FLOOR_USD });
+    assert.equal(deepestByTicker([atFloor]).best.size, 1);
+  });
+
+  it('takes a real market over a dust pool even when the dust one is listed first', () => {
+    const dust = reading({ pool: pool({ key: 'dust' }), depthUsd: 2, priceUsd: 418 });
+    const real = reading({ pool: pool({ key: 'real' }), depthUsd: 50_000, priceUsd: 15.6 });
+    assert.equal(deepestByTicker([dust, real]).best.get('NVDA')?.pool.key, 'real');
   });
 
   it('prefers the deeper of two real markets', () => {

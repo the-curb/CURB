@@ -68,6 +68,8 @@ export interface MarketRow {
   readonly depthIsExact: boolean | null;
   readonly venueLabel: string | null;
   readonly poolsRead: number | null;
+  /** Set when every pool this ticker has was read and none held liquidity in force. */
+  readonly notPricedBecause: string | null;
   readonly sampleAgeSeconds: number;
   readonly sampledAt: string;
 }
@@ -116,6 +118,7 @@ export function marketOf(snapshot: SnapshotRecord, now: Date): MarketRow {
     depthIsExact: bool(p.depthIsExact),
     venueLabel: str(p.venueLabel),
     poolsRead: num(p.poolsReadForTicker),
+    notPricedBecause: str(p.notPricedBecause),
     sampleAgeSeconds: Math.max(0, Math.round((now.getTime() - new Date(snapshot.observedAt).getTime()) / 1000)),
     sampledAt: snapshot.observedAt,
   };
