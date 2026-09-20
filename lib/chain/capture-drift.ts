@@ -18,6 +18,7 @@ import { getText } from './transport.ts';
 import { read, unread, type Reading } from '../doctrine/reading.ts';
 import { STOCK_TOKENS, STOCK_TOKENS_SOURCE } from './stock-tokens.ts';
 import { FEED_DIRECTORY, FEED_DIRECTORY_SOURCE } from './feed-directory.ts';
+import { STOCK_POOLS } from './stock-pools.ts';
 import { activeNetwork } from './networks.ts';
 
 export interface ListedToken {
@@ -124,4 +125,44 @@ export async function fetchListedFeeds(intervalSeconds: number): Promise<Reading
     const aborted = cause instanceof Error && cause.name === 'AbortError';
     return unread(aborted ? 'SOURCE_TIMEOUT' : 'SOURCE_UNREACHABLE', { source, detail: cause instanceof Error ? cause.message : 'unknown transport failure' });
   }
+}
+
+/**
+ * The pool book against the venues, joined by the key the discovery names.
+ *
+ * A pool added since the capture is a market the Specialist does not read: the
+ * desk goes on pricing a ticker from the second-deepest book, or not pricing it
+ * at all, and nothing in any figure it publishes is wrong — which is exactly
+ * why this has to be measured rather than noticed. A pool the factories no
+ * longer admit to is one the Specialist still probes every fifteen minutes and
+ * counts as a source that did not answer.
+ *
+ * Pure: it takes what discovery found and returns the difference. The fix is
+ * `scripts/capture-stock-pools.ts --write`, never a hand edit.
+ */
+export interface PoolDrift {
+  readonly discovered: number;
+  readonly captured: number;
+  /** Found at the venues, absent from the book. Not read by the Specialist until re-captured. */
+  readonly added: readonly { readonly key: string; readonly ticker: string; readonly venue: string }[];
+  /** In the book, no longer found. Still probed on every run, and counted as unanswered. */
+  readonly removed: readonly { readonly key: string; readonly ticker: string; readonly venue: string }[];
+  /** Tickers that gained their first pool since the capture: the desk could price them and does not. */
+  readonly tickersGained: readonly string[];
+}
+
+export function diffPools(discovered: readonly { readonly key: string; readonly ticker: string; readonly venue: string }[]): PoolDrift {
+  const found = new Map(discovered.map((p) => [p.key, p]));
+  const captured = new Map(STOCK_POOLS.map((p) => [p.key, p]));
+  const added = discovered.filter((p) => !captured.has(p.key)).map((p) => ({ key: p.key, ticker: p.ticker, venue: p.venue }));
+  const removed = STOCK_POOLS.filter((p) => !found.has(p.key)).map((p) => ({ key: p.key, ticker: p.ticker, venue: p.venue }));
+  const capturedTickers = new Set(STOCK_POOLS.map((p) => p.ticker));
+  const tickersGained = [...new Set(added.map((p) => p.ticker))].filter((t) => !capturedTickers.has(t)).sort();
+  return {
+    discovered: discovered.length,
+    captured: STOCK_POOLS.length,
+    added: added.sort((a, b) => a.key.localeCompare(b.key)),
+    removed: removed.sort((a, b) => a.key.localeCompare(b.key)),
+    tickersGained,
+  };
 }

@@ -60,10 +60,11 @@ export const AGENTS: readonly AgentSpec[] = [
     line: 'I do not decide what it is. I tell you what the chain says about it.',
     posture: 'MEASURES',
     intervalSeconds: 24 * HOURS,
-    // Seven groups: the stock-token beacon; code, metadata, supply and proxy
-    // shape for the one contract under audit; and the issuer's live registry
-    // and the vendor's live directory, each checked against its capture.
-    sourcesExpected: 7,
+    // Eight groups: the stock-token beacon; code, metadata, supply and proxy
+    // shape for the one contract under audit; the issuer's live registry and
+    // the vendor's live directory, each checked against its capture; and the
+    // venues themselves, whose pools are diffed against the captured book.
+    sourcesExpected: 8,
     minimumSources: 3,
     refusal:
       'Reports what was found. Never says a token is backed, safe, or a scam — in either direction.',
@@ -74,6 +75,7 @@ export const AGENTS: readonly AgentSpec[] = [
       'Pause, freeze and transfer-restriction state',
       'Decimals, total supply, issuer metadata',
       'The issuer registry and the vendor feed directory as published today, against the captured copies — what was added, removed or moved since capture',
+      'The v2 and v3 factories and the v4 StateView, asked the same way the pool capture asked them, so a pool that opened or closed since is a reported condition rather than a file somebody remembers to re-run',
     ],
   },
   {

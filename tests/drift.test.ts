@@ -1,8 +1,9 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { diffFeeds, diffTokens } from '../lib/chain/capture-drift.ts';
-import { deriveConditions } from '../lib/ops/alerts.ts';
+import { diffFeeds, diffPools, diffTokens } from '../lib/chain/capture-drift.ts';
+import { DEFAULT_KINDS, deriveConditions, kindOf } from '../lib/ops/alerts.ts';
 import { STOCK_TOKENS } from '../lib/chain/stock-tokens.ts';
+import { STOCK_POOLS } from '../lib/chain/stock-pools.ts';
 import { FEED_DIRECTORY } from '../lib/chain/feed-directory.ts';
 import { AGENT_BY_ID } from '../lib/agents/registry.ts';
 
@@ -71,6 +72,83 @@ describe('drift as a condition', () => {
   });
 
   it('is declared in the Registrar’s sources', () => {
-    assert.equal(AGENT_BY_ID.registrar.sourcesExpected, 7);
+    assert.equal(AGENT_BY_ID.registrar.sourcesExpected, 8);
+  });
+});
+
+describe('the pool book against the venues', () => {
+  const asDiscovered = (p: { key: string; ticker: string; venue: string }) => p;
+  const book = STOCK_POOLS.map((p) => asDiscovered({ key: p.key, ticker: p.ticker, venue: p.venue }));
+
+  it('finds nothing when the venues still hold exactly the captured book', () => {
+    const drift = diffPools(book);
+    assert.equal(drift.discovered, STOCK_POOLS.length);
+    assert.equal(drift.captured, STOCK_POOLS.length);
+    assert.deepEqual(drift.added, []);
+    assert.deepEqual(drift.removed, []);
+    assert.deepEqual(drift.tickersGained, []);
+  });
+
+  it('names a pool that opened since the capture, which the Specialist does not read', () => {
+    const drift = diffPools([...book, asDiscovered({ key: 'nvda-usdg-v3-3000-new', ticker: 'NVDA', venue: 'v3' })]);
+    assert.equal(drift.added.length, 1);
+    assert.equal(drift.added[0]!.key, 'nvda-usdg-v3-3000-new');
+    assert.deepEqual(drift.removed, []);
+    // NVDA already had pools, so this is a deeper book, not a new ticker.
+    assert.deepEqual(drift.tickersGained, []);
+  });
+
+  it('separates a ticker that gained its first pool from one that merely gained another', () => {
+    const fresh = diffPools([...book, asDiscovered({ key: 'zzzz-usdg-v3-500', ticker: 'ZZZZ', venue: 'v3' })]);
+    assert.deepEqual(fresh.tickersGained, ['ZZZZ']);
+  });
+
+  it('names a pool the factories no longer admit to, which is still probed every run', () => {
+    const drift = diffPools(book.slice(1));
+    assert.equal(drift.removed.length, 1);
+    assert.equal(drift.removed[0]!.key, STOCK_POOLS[0]!.key);
+    assert.deepEqual(drift.added, []);
+  });
+
+  it('reports a book read as empty as every pool gone, never as agreement', () => {
+    const drift = diffPools([]);
+    assert.equal(drift.discovered, 0);
+    assert.equal(drift.removed.length, STOCK_POOLS.length);
+  });
+
+  it('raises a note, not a darkness: the figures published from the old book are still right', () => {
+    const conditions = deriveConditions({
+      heartbeats: [],
+      feedSnapshots: [],
+      lastRegistrar: null,
+      driftSnapshot: {
+        key: 'capture:drift',
+        observedAt: NOW.toISOString(),
+        payload: { poolsAdded: ['nvda-usdg-v3-3000-new'], poolsRemoved: [], poolTickersGained: ['ZZZZ'] },
+      },
+      now: NOW,
+    });
+    const pools = conditions.find((c) => c.id === 'capture:pools:DRIFT');
+    assert.ok(pools, conditions.map((c) => c.id).join());
+    assert.equal(pools.severity, 'NOTE');
+    assert.match(pools.text, /1 open and not captured/);
+    assert.match(pools.text, /a first pool for ZZZZ/);
+    assert.match(pools.text, /capture-stock-pools\.ts --write/);
+  });
+
+  it('says nothing while the book and the venues agree', () => {
+    const conditions = deriveConditions({
+      heartbeats: [],
+      feedSnapshots: [],
+      lastRegistrar: null,
+      driftSnapshot: { key: 'capture:drift', observedAt: NOW.toISOString(), payload: { poolsAdded: [], poolsRemoved: [], poolTickersGained: [] } },
+      now: NOW,
+    });
+    assert.equal(conditions.some((c) => c.id === 'capture:pools:DRIFT'), false);
+  });
+
+  it('is the issuer’s kind, so a holder is told without asking for the plumbing', () => {
+    assert.equal(kindOf('capture:pools:DRIFT'), 'issuer');
+    assert.ok(DEFAULT_KINDS.includes('issuer'));
   });
 });

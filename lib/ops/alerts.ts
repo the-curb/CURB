@@ -51,8 +51,8 @@ export const KIND_CATALOGUE: Readonly<Record<ConditionKind, { readonly what: str
     examples: ['token:rh-aapl:MULTIPLIER_PENDING', 'feed:rh-aapl-usd:PAUSED', 'feed:rh-aapl-usd:STALE_IN_SESSION', 'feed:rh-aapl-usd:DRIFT'],
   },
   issuer: {
-    what: 'every token at once: the beacon they all delegate to pointing somewhere new or holding different code; the issuer’s registry listing tokens or feeds the capture does not hold; an issuer document a series depends on changing or going away',
-    examples: ['beacon:implementation:CHANGED', 'beacon:code:DIFFERS', 'capture:tokens:DRIFT', 'evidence:<source>:CHANGED'],
+    what: 'every token at once: the beacon they all delegate to pointing somewhere new or holding different code; the issuer’s registry listing tokens or feeds the capture does not hold; a pool open at the venues that the captured book does not; an issuer document a series depends on changing or going away',
+    examples: ['beacon:implementation:CHANGED', 'beacon:code:DIFFERS', 'capture:tokens:DRIFT', 'capture:pools:DRIFT', 'evidence:<source>:CHANGED'],
   },
   market: {
     what: 'where the token trades on this chain against what the oracle last printed: a difference past the published band, a book too thin to leave at the size stated, and a ticker whose every pool has gone empty. What is sent is the measurement and the band it crossed — never which way it closes, and never what to do about it',
@@ -232,6 +232,21 @@ export function deriveConditions(input: {
     }
     if (feedsAdded.length > 0 || feedsRemoved.length > 0) {
       out.push({ id: 'capture:feeds:DRIFT', severity: 'NOTE', text: `the vendor's feed directory no longer matches the capture — added: ${feedsAdded.join(', ') || 'none'}; removed: ${feedsRemoved.join(', ') || 'none'} — re-capture with scripts/capture-feeds.ts` });
+    }
+    // Not dark: every figure the Specialist publishes from the book it has is
+    // still right. What is stale is the book, and a ticker priced from a
+    // shallower market than exists is a quieter kind of wrong than a bad number
+    // — which is exactly why it has to be reported rather than noticed.
+    const poolsAdded = list(drift.payload.poolsAdded);
+    const poolsRemoved = list(drift.payload.poolsRemoved);
+    const gained = list(drift.payload.poolTickersGained);
+    if (poolsAdded.length > 0 || poolsRemoved.length > 0) {
+      const first = gained.length > 0 ? `; a first pool for ${gained.join(', ')}` : '';
+      out.push({
+        id: 'capture:pools:DRIFT',
+        severity: 'NOTE',
+        text: `the venues no longer match the pool book — ${poolsAdded.length} open and not captured, ${poolsRemoved.length} captured and no longer found${first} — re-capture with scripts/capture-stock-pools.ts --write`,
+      });
     }
   }
 

@@ -36,7 +36,9 @@ import { keccak256, selector, toHex } from '../../chain/keccak.ts';
 import { TOKENS, UNKNOWABLE_FROM_CHAIN } from '../../chain/tokens.ts';
 import { STOCK_TOKENS, STOCK_TOKEN_BEACON, STOCK_TOKENS_SOURCE } from '../../chain/stock-tokens.ts';
 import { FEED_DIRECTORY_SOURCE } from '../../chain/feed-directory.ts';
-import { diffFeeds, diffTokens, fetchListedFeeds, fetchListedTokens } from '../../chain/capture-drift.ts';
+import { diffFeeds, diffPools, diffTokens, fetchListedFeeds, fetchListedTokens } from '../../chain/capture-drift.ts';
+import { discoverStockPools } from '../../chain/pool-discovery.ts';
+import { STOCK_POOLS_SOURCE } from '../../chain/stock-pools.ts';
 import type { SnapshotRecord } from '../../store/types.ts';
 
 const INTERVAL = 24 * 3600;
@@ -131,6 +133,11 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
   ]);
   // The two live sources the captures came from, for the drift check below.
   const [listedTokens, listedFeeds] = await Promise.all([fetchListedTokens(INTERVAL), fetchListedFeeds(INTERVAL)]);
+  // The venues, asked the same way the capture asked them. About 1,400 subcalls
+  // over six batches on a daily cadence — the price of the pool book being a
+  // measurement against the chain rather than a file somebody remembers to
+  // re-run. The Specialist reads the book; this is what says the book is stale.
+  const pools = await discoverStockPools({ intervalSeconds: INTERVAL, timeoutMs: 90_000 });
   // The implementation's code, hashed, so a beacon that still names the same
   // address but has different bytes behind it is caught as well.
   const beaconImplAddress = isRead(beaconImpl) ? decodeAddressWord(beaconImpl.value) : null;
@@ -343,6 +350,29 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
   } else {
     couldNotCheck.push(whyUnread(listedFeeds, "the vendor's live feed directory") + ' Whether feeds were added or removed since capture is not known.');
   }
+  // The pool book against the venues. A probe the node did not answer is not
+  // a pool that went away, so a run that could not look says so instead of
+  // reporting an emptier chain than it read.
+  if (pools.probesUnread === 0) {
+    sourcesReached += 1;
+    const drift = diffPools(pools.pools);
+    const src = network.label + ' · the v2 and v3 factories and the v4 StateView';
+    figures.push({ token: String(drift.discovered), source: src, retrievedAt: now.toISOString() });
+    Object.assign(driftPayload, { poolsDiscovered: drift.discovered, poolsCaptured: drift.captured, poolsAdded: drift.added.map((p) => p.key), poolsRemoved: drift.removed.map((p) => p.key), poolTickersGained: drift.tickersGained, poolsCapturedAt: STOCK_POOLS_SOURCE.observedAt });
+    const clean = drift.added.length === 0 && drift.removed.length === 0;
+    capture.push(
+      clean
+        ? '— The venues admit to ' + drift.discovered + ' pools for the priced stock tokens today and the book holds ' + literal(drift.captured) + ': the same set, nothing opened, nothing gone.'
+        : '— The venues admit to ' + drift.discovered + ' pools for the priced stock tokens today; the book holds ' + literal(drift.captured) + '.'
+          + (drift.added.length > 0 ? ' Open and NOT captured (' + literal(drift.added.length) + '): ' + drift.added.map((p) => p.key).join(', ') + ' — the Specialist does not read them, so a ticker may be priced from a shallower book than exists.' : '')
+          + (drift.tickersGained.length > 0 ? ' Tickers that gained their first pool: ' + drift.tickersGained.join(', ') + '.' : '')
+          + (drift.removed.length > 0 ? ' Captured and no longer found (' + literal(drift.removed.length) + '): ' + drift.removed.map((p) => p.key).join(', ') + ' — still probed every fifteen minutes and counted as a source that did not answer.' : '')
+          + ' The remedy is scripts/capture-stock-pools.ts --write, not a hand edit.',
+    );
+  } else {
+    couldNotCheck.push(literal(pools.probesUnread) + ' of ' + literal(pools.probesMade) + ' venue probes went unanswered, so the pool book was not diffed against the chain this run. A probe with no answer is not a pool that closed.');
+  }
+
   snapshots.push({ key: 'capture:drift', observedAt: now.toISOString(), payload: driftPayload });
 
   // A failure line carries whatever the source said, and what a source says can
