@@ -394,7 +394,7 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
         referenceAgeSeconds: references.get(p.feedKey)?.feedAgeSeconds ?? null,
         sessionAtSample: session.phase,
         poolsReadForTicker: readings.filter((r) => r.pool.ticker === ticker).length,
-        notPricedBecause: `every pool listed for this ticker answered and none of them is a market: each held no liquidity in force, or a book under the published -dollar floor. A pool that thin still reports a mid, and that mid is a memory rather than a price, so none is carried here.`,
+        notPricedBecause: `every pool listed for this ticker answered and none of them is a market: each held no liquidity in force, or a book under the published floor of ${MARKET_FLOOR_USD} dollars. A pool that thin still reports a mid, and that mid is a memory rather than a price, so none is carried here.`,
         sqrtPriceX96: null,
         liquidity: null,
       },
