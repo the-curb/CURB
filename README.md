@@ -32,12 +32,15 @@ how far the two are apart; every token with its multiplier and its issuer's
 pause flag; the beacon they all delegate to; the terms, watched for change; a
 daily paper composed from the record. Free to read, as pages and as JSON.
 
-What it sells is one thing: **alerts**. A key the chain has credited names a
+What it offers is one thing, and it is **free**: **alerts**. A key names a
 webhook and the tokens it holds, and is told — once when raised, once when
 cleared — when a multiplier change is staged and when it takes effect, when
 the issuer sets the pause flag, when a price is past its heartbeat in session,
-when the beacon moves, when a terms page changes. Paid per delivery in
-prepaid credit; the credit is bought in CURB at a rate read from a pool.
+when a pool drifts past the published band from its feed or its book goes thin,
+when the beacon moves, when a terms page changes. No credit, no wallet, no
+top-up: the key is only a name, so the right changes reach the right place.
+Decided 20 September 2026 and enforced in one file (lib/credits/access.ts),
+which the guard, the routes and every page read.
 
 Beneath the desk, what it is building toward: **one company, multiple
 issuers, one position** — a company position formed from several stock-token

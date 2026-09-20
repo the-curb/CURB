@@ -10,7 +10,6 @@ import { APPLE_S1, GATES, PROMISES, STEPS } from '@/lib/positions/series';
 import { getStoreAsync } from '@/lib/store';
 import { launchStatus } from '@/lib/launch/status';
 import { creditsStatus } from '@/lib/credits/config';
-import { SERVICES } from '@/lib/credits/prices';
 import { DEFAULT_KINDS, KIND_CATALOGUE, type ConditionKind } from '@/lib/ops/alerts';
 
 /** A heading for each kind a subscription can name. Keyed so a new kind will not compile without one. */
@@ -79,9 +78,6 @@ export default async function Home() {
   const byId = new Map(health?.statuses.map((s) => [s.id, s]) ?? []);
   const gatesPassed = GATES.filter((g) => g.status === 'PASSED').length;
   const [a, b] = APPLE_S1.components;
-  const deskOpen = creditsStatus().state === 'CONFIGURED';
-  const alertCents = SERVICES.find((x) => x.id === 'alert-delivery')?.cents ?? 0;
-  const alertPrice = `US${(alertCents / 100).toFixed(2)}`;
 
   const liveLine =
     board === null
@@ -171,7 +167,7 @@ export default async function Home() {
         </section>
 
         {/* ── № 02 THE ALERTS ──────────────────────────────────────────────── */}
-        <Kicker n="02" title="The alerts" note={deskOpen ? 'Open · paid per delivery' : 'Not yet · the desk is not configured'} />
+        <Kicker n="02" title="The alerts" note="Open · free to use" />
         <section>
           <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <div className="cell p-6 sm:p-8">
@@ -181,12 +177,12 @@ export default async function Home() {
               <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
                 A holder cannot watch a multiplier, a pause flag, a beacon and a terms page all day. The desk does, every tick, and
                 posts each change to a webhook you name — once when it is raised, once when it clears — for the tokens you hold or
-                for all of them. {alertPrice} a delivery, from prepaid credit; registering is free.
+                for all of them. Free: no key to fund, no credit, no wallet.
               </p>
               <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
-                {deskOpen
-                  ? 'The desk is configured: make a key, top it up, and register a webhook on the services page.'
-                  : 'Until the token and the desk are configured from the chain, nothing can be credited, so nothing is delivered; the guide says exactly what waits.'}
+                Raise a key in your browser on the services page and register a webhook with it. The key names your
+                subscription so the right changes reach the right place; it is never charged, and nothing is looked up about
+                it on chain.
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-3">
                 <Lead href="/services">The services</Lead>

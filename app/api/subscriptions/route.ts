@@ -1,4 +1,5 @@
 import { creditsStatus } from '@/lib/credits/config';
+import { isFree, KEY_IS_IDENTITY_ONLY } from '@/lib/credits/access';
 import { presentedKey } from '@/lib/credits/guard';
 import { isKey, keyHashOf } from '@/lib/credits/keys';
 import { cancelSubscription, createSubscription, parseFilter, subscriptionsOf } from '@/lib/credits/subscriptions';
@@ -9,10 +10,18 @@ export const dynamic = 'force-dynamic';
 const NO_STORE = { 'cache-control': 'no-store' } as const;
 
 function keyOf(request: Request): { hash: string } | { response: Response } {
-  const status = creditsStatus();
-  if (status.state !== 'CONFIGURED') return { response: Response.json({ error: 'CREDITS_NOT_CONFIGURED', state: status.state, detail: status.detail }, { status: 503, headers: NO_STORE }) };
+  // A key is still required here, and while the desk is free that is the only
+  // thing it is: the name a subscription belongs to, so the right webhook gets
+  // the right changes and only its owner can cancel it. It is raised in the
+  // browser or at POST /api/keys, it needs no top-up, and the desk's credit
+  // configuration is not consulted — there is nothing to configure where
+  // nothing is sold.
+  if (!isFree()) {
+    const status = creditsStatus();
+    if (status.state !== 'CONFIGURED') return { response: Response.json({ error: 'CREDITS_NOT_CONFIGURED', state: status.state, detail: status.detail }, { status: 503, headers: NO_STORE }) };
+  }
   const key = presentedKey(request) ?? '';
-  if (key === '') return { response: Response.json({ error: 'KEY_REQUIRED', detail: 'send the key in an x-curb-key header (or Authorization: Bearer)' }, { status: 401, headers: NO_STORE }) };
+  if (key === '') return { response: Response.json({ error: 'KEY_REQUIRED', detail: isFree() ? `send the key in an x-curb-key header (or Authorization: Bearer). ${KEY_IS_IDENTITY_ONLY}` : 'send the key in an x-curb-key header (or Authorization: Bearer)' }, { status: 401, headers: NO_STORE }) };
   if (!isKey(key)) return { response: Response.json({ error: 'KEY_MALFORMED', detail: 'a key is curb_ followed by 43 characters of base64url' }, { status: 401, headers: NO_STORE }) };
   return { hash: keyHashOf(key) };
 }
@@ -38,7 +47,7 @@ export async function GET(request: Request): Promise<Response> {
 /**
  * Register a webhook: `{ "url": "https://…", "kinds"?: ["token","issuer","chain","desk"], "tokens"?: ["AAPL", …] }`.
  * Without kinds, a holder's default: token, issuer and chain events, not the desk's plumbing; without tokens, every token.
- * Each delivery is charged at the listed price; registering is free.
+ * Registering is free, and so is every delivery: see lib/credits/access.ts.
  */
 export async function POST(request: Request): Promise<Response> {
   const k = keyOf(request);

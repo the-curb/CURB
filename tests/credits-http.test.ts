@@ -226,12 +226,12 @@ describe('every top-up invitation follows the quote evidence', () => {
         if (status.state !== 'CONFIGURED') throw new Error('bad case');
         process.env.CURB_CREDITS = JSON.stringify({ ...status.config, network: status.config.network.id });
         const api = await response(store, status);
-        const created = await newKeyResponse(status, store, NOW);
+        const created = await newKeyResponse(status, store, NOW, 'PAID');
         assert.equal(created.status, 201, name); assert.equal(created.headers.get('cache-control'), 'no-store');
         const body = await created.json();
         assert.equal(isKey(body.key), true); assert.equal(body.keyHash, keyHashOf(body.key));
         assert.deepEqual(body.quoteReadiness, api.quoteReadiness, name); assert.deepEqual(body.topUp, api.topUp, name);
-        const unpaid = await admit(request, store, 'journal-day', NOW);
+        const unpaid = await admit(request, store, 'journal-day', NOW, 'PAID');
         assert.equal(unpaid.ok, false);
         if (unpaid.ok) throw new Error('unfunded key admitted');
         assert.equal(unpaid.response.status, 402);
@@ -256,15 +256,15 @@ describe('every top-up invitation follows the quote evidence', () => {
       process.env.CURB_CREDITS = JSON.stringify({ ...CONFIG, network: CONFIG.network.id });
       const store = storeFor(null, null, 'credits:index', [{ key: topUpsRow(hash), observedAt: AT, payload: { hash, creditedCents: '2000', topUps: [] } }]);
       assert.equal((await response(store)).topUp, null);
-      const admission = await admit(new Request('http://127.0.0.1/api/paid', { headers: { 'x-curb-key': key } }), store, 'journal-day', NOW);
+      const admission = await admit(new Request('http://127.0.0.1/api/paid', { headers: { 'x-curb-key': key } }), store, 'journal-day', NOW, 'PAID');
       assert.equal(admission.ok, true);
       if (!admission.ok) throw new Error('funded key refused');
-      assert.equal(admission.account.balanceCents, '2000'); assert.equal(admission.account.pendingState, 'NOT_REQUESTED');
+      assert.equal(admission.account!.balanceCents, '2000'); assert.equal(admission.account!.pendingState, 'NOT_REQUESTED');
     } finally { if (prior === undefined) delete process.env.CURB_CREDITS; else process.env.CURB_CREDITS = prior; }
   });
 
   it('can create a key with no configuration while withholding payment instructions', async () => {
-    const body = await (await newKeyResponse({ state: 'NOT_CONFIGURED', detail: 'no desk configured' }, storeFor(null, null), NOW)).json();
+    const body = await (await newKeyResponse({ state: 'NOT_CONFIGURED', detail: 'no desk configured' }, storeFor(null, null), NOW, 'PAID')).json();
     assert.equal(isKey(body.key), true); assert.equal(body.topUp, null); assert.equal(body.topUpHeld, 'no desk configured');
     assert.deepEqual(body.quoteReadiness, { codeCurrent: false, rateCurrent: false, maxReadAgeSeconds: 1800 });
   });

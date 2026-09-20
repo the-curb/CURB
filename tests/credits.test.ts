@@ -1153,7 +1153,7 @@ describe('the credit desk, site side', () => {
     const resolve = async () => ['93.184.216.34'];
     const x: Condition = { id: 'chain:head:STALLED', severity: 'DARK', text: 'x is dark' };
     failSubWrites = true;
-    const run = await fanOut(store, new Date(), [x], post, resolve);
+    const run = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(run.delivered, 1);
     assert.equal(run.charged, 0, 'delivered but the row would not say so: not charged');
     assert.equal(run.failed.length, 0, 'the webhook did accept it: not a webhook failure');
@@ -1161,11 +1161,11 @@ describe('the credit desk, site side', () => {
     assert.equal((await keyAccount(store, hash)).balanceCents, '2000');
     // The rows take writes again: the same change is told again (the row never said it was) and charged once.
     failSubWrites = false;
-    const again = await fanOut(store, new Date(), [x], post, resolve);
+    const again = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(again.delivered, 1);
     assert.equal(again.charged, 1);
     assert.equal((await keyAccount(store, hash)).balanceCents, '1990');
-    const third = await fanOut(store, new Date(), [x], post, resolve);
+    const third = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(third.considered, 0, 'told, charged, done');
   });
 
@@ -1252,21 +1252,21 @@ describe('the credit desk, site side', () => {
 
     // The cancellation lands as the fan-out writes: the write finds the row moved, reads it cancelled, and writes nothing; no charge.
     cancelDuring = { keyHash: hash, id: sub.ok ? sub.subscription.id : '' };
-    const raced = await fanOut(store, new Date(), [x], post, resolve);
+    const raced = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(raced.delivered, 1, 'the post had gone out before the cancellation landed');
     assert.equal(raced.charged, 0);
     assert.equal(raced.untold.length, 1);
     const mine = await subscriptionsOf(store, hash);
     assert.notEqual(mine.subscriptions[0]!.cancelledAt, null, 'the cancellation stands');
     assert.equal((await keyAccount(store, hash)).balanceCents, '2000');
-    const again = await fanOut(store, new Date(), [x], post, resolve);
+    const again = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(again.considered, 0, 'a cancelled subscription is not delivered to');
 
     // A key spent down between the admission and the charge: told, delivered, not charged — counted as the desk's loss, and a condition names it.
     const sub2 = await createSubscription(store, hash, 'https://hooks.example.com/b', new Date());
     assert.ok(sub2.ok);
     starveDuring = hash;
-    const starved = await fanOut(store, new Date(), [x], post, resolve);
+    const starved = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(starved.delivered, 1);
     assert.equal(starved.charged, 0);
     assert.equal(starved.uncharged.length, 1);
@@ -1368,7 +1368,7 @@ describe('the credit desk, site side', () => {
           return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
         },
       }) as Store;
-      const result = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': key } }), store, 'journal-day', 'uncertain response');
+      const result = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': key } }), store, 'journal-day', 'uncertain response', new Date(), 'PAID');
       assert.equal(result.ok, false);
       if (!result.ok) {
         assert.equal(result.response.status, 503);
@@ -1390,18 +1390,18 @@ describe('the credit desk, site side', () => {
     const hash = keyHashOf(key);
     const req = (headers: Record<string, string> = {}) => new Request('https://the-curb.test/api/x', { headers });
 
-    const unsold = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    const unsold = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(unsold.ok, false);
     if (!unsold.ok) assert.equal(unsold.response.status, 503);
 
     process.env[CREDITS_ENV] = CONFIG_JSON;
-    const noKey = await gate(req(), store, 'journal-day', 'ref');
+    const noKey = await gate(req(), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(noKey.ok === false ? noKey.response.status : 0, 401);
-    const badKey = await gate(req({ 'x-curb-key': 'curb_nope' }), store, 'journal-day', 'ref');
+    const badKey = await gate(req({ 'x-curb-key': 'curb_nope' }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(badKey.ok === false ? badKey.response.status : 0, 401);
 
     // Before any tick has verified the desk's code, the 402 names no way to pay: a top-up to an unverified desk is not invited.
-    const unverified = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    const unverified = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(unverified.ok, false);
     if (!unverified.ok) {
       const body = (await unverified.response.json()) as Record<string, unknown>;
@@ -1422,7 +1422,7 @@ describe('the credit desk, site side', () => {
         guard: { windowBlocks: 40, samples: 1, lowestAtBlock: 90, atBlockUsdPerCurb18: '1000000000000000000', applied: false },
       } } },
     ]);
-    const unfunded = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    const unfunded = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(unfunded.ok, false);
     if (!unfunded.ok) {
       assert.equal(unfunded.response.status, 402);
@@ -1441,7 +1441,7 @@ describe('the credit desk, site side', () => {
     // Credited below the minimum: still refused, with what is missing.
     const credit = (cents: string, n: number) => ({ transactionHash: `0x${String(n).repeat(64).slice(0, 64)}`, logIndex: 0, blockNumber: 42, payer: PAYER, amount: '1', usdPerCurb18: '1', ratedAtBlock: 42, basis: 'TOP_UP_BLOCK', cents, creditedAt: new Date().toISOString() });
     await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '1500', topUps: [credit('1500', 1)] } }]);
-    const below = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    const below = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(below.ok, false);
     if (!below.ok) {
       const body = (await below.response.json()) as Record<string, unknown>;
@@ -1452,30 +1452,30 @@ describe('the credit desk, site side', () => {
 
     // At the minimum: admitted without a charge, then charged when there is an answer, and the balance is on the account.
     await store.writeSnapshots([{ key: topUpsRow(hash), observedAt: new Date().toISOString(), payload: { hash, creditedCents: '2010', topUps: [credit('1500', 1), credit('510', 2)] } }]);
-    const admitted = await admit(req({ authorization: `Bearer ${key}` }), store, 'evidence-versions');
+    const admitted = await admit(req({ authorization: `Bearer ${key}` }), store, 'evidence-versions', new Date(), 'PAID');
     assert.equal(admitted.ok, true);
     if (admitted.ok) {
       assert.equal(admitted.cents, 5);
-      assert.equal(admitted.account.balanceCents, '2010', 'admission charges nothing');
+      assert.equal(admitted.account!.balanceCents, '2010', 'admission charges nothing');
     }
     const beforeSettle = await store.snapshots(spendRow(hash));
     assert.equal(beforeSettle.state === 'UNREAD' ? -1 : beforeSettle.value.length, 0, 'no spend row before settlement');
-    const settled = await settle(store, hash, 'evidence-versions', 'apple-s1 · xstocks:AAPLx');
+    const settled = await settle(store, hash, 'evidence-versions', 'apple-s1 · xstocks:AAPLx', new Date(), 'PAID');
     assert.equal(settled.ok, true);
     if (settled.ok) {
-      assert.equal(settled.account.balanceCents, '2005');
-      assert.equal(settled.account.chargeCount, 1);
-      assert.equal(settled.account.charges[0]!.ref, 'apple-s1 · xstocks:AAPLx');
+      assert.equal(settled.account!.balanceCents, '2005');
+      assert.equal(settled.account!.chargeCount, 1);
+      assert.equal(settled.account!.charges[0]!.ref, 'apple-s1 · xstocks:AAPLx');
     }
     const spend = await store.snapshots(spendRow(hash));
     assert.equal(spend.state === 'UNREAD' ? null : spend.value[0]?.payload.spentCents, '5');
-    const both = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'apple-s1 · 2026-09-12');
+    const both = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'apple-s1 · 2026-09-12', new Date(), 'PAID');
     assert.equal(both.ok, true);
-    if (both.ok) assert.equal(both.account.balanceCents, '2000');
+    if (both.ok) assert.equal(both.account!.balanceCents, '2000');
 
     // Spend it down to less than a call: refused as INSUFFICIENT, nothing served.
     await store.writeSnapshots([{ key: spendRow(hash), observedAt: new Date().toISOString(), payload: { hash, spentCents: '2008', count: 3, charges: [] } }]);
-    const short = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref');
+    const short = await gate(req({ 'x-curb-key': key }), store, 'journal-day', 'ref', new Date(), 'PAID');
     assert.equal(short.ok, false);
     if (!short.ok) {
       const body = (await short.response.json()) as Record<string, unknown>;
@@ -1517,16 +1517,16 @@ describe('the credit desk, site side', () => {
     await credit(poor, '2000');
     await store.writeSnapshots([{ key: spendRow(poor), observedAt: new Date().toISOString(), payload: { hash: poor, spentCents: '1995', count: 1, charges: [] } }]);
 
-    const refused = await createSubscription(store, keyHashOf(newKey()), 'https://hooks.example.com/a', new Date());
+    const refused = await createSubscription(store, keyHashOf(newKey()), 'https://hooks.example.com/a', new Date(), undefined, 'PAID');
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.equal(refused.error, 'UNFUNDED');
-    const a = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date());
-    const b = await createSubscription(store, rich, 'https://hooks.example.com/b', new Date());
-    const c = await createSubscription(store, poor, 'https://hooks.example.com/c', new Date());
-    const d = await createSubscription(store, rich, 'https://inward.example.com/d', new Date());
+    const a = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date(), undefined, 'PAID');
+    const b = await createSubscription(store, rich, 'https://hooks.example.com/b', new Date(), undefined, 'PAID');
+    const c = await createSubscription(store, poor, 'https://hooks.example.com/c', new Date(), undefined, 'PAID');
+    const d = await createSubscription(store, rich, 'https://inward.example.com/d', new Date(), undefined, 'PAID');
     assert.ok(a.ok && b.ok && c.ok && d.ok);
     const resolve = async (hostname: string) => (hostname === 'inward.example.com' ? ['10.0.0.7'] : ['93.184.216.34']);
-    const dup = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date());
+    const dup = await createSubscription(store, rich, 'https://hooks.example.com/a', new Date(), undefined, 'PAID');
     assert.equal(dup.ok === false ? dup.error : '', 'ALREADY_SUBSCRIBED');
 
     const posted: { webhook: string; message: string; pinTo: readonly string[] }[] = [];
@@ -1536,7 +1536,7 @@ describe('the credit desk, site side', () => {
     };
     const x: Condition = { id: 'chain:head:STALLED', severity: 'DARK', text: 'x is dark' };
     const y: Condition = { id: 'feed:rh-aapl-usd:PAUSED', severity: 'NOTE', text: 'y is noted' };
-    const first = await fanOut(store, new Date(), [x], post, resolve);
+    const first = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(first.considered, 4);
     assert.equal(first.delivered, 1, 'a delivered, b failed, c short, d resolves inward');
     assert.equal(first.charged, 1);
@@ -1555,23 +1555,23 @@ describe('the credit desk, site side', () => {
     assert.equal((await keyAccount(store, poor)).balanceCents, '5');
 
     // The same set again: a was told; b is tried again and fails again; c is still short. Nothing new is charged.
-    const second = await fanOut(store, new Date(), [x], post, resolve);
+    const second = await fanOut(store, new Date(), [x], post, resolve, undefined, 'PAID');
     assert.equal(second.delivered, 0);
     assert.equal(second.charged, 0);
     assert.equal((await keyAccount(store, rich)).balanceCents, '1990');
     assert.equal(posted.filter((w) => w.webhook.endsWith('/a')).length, 1);
 
     // The set moves: x clears, y is raised. a is told exactly that; b, never told, is told x cleared and y raised from nothing — and fails again.
-    const third = await fanOut(store, new Date(), [y], post, resolve);
+    const third = await fanOut(store, new Date(), [y], post, resolve, undefined, 'PAID');
     assert.equal(third.delivered, 1);
     const toA = posted.filter((w) => w.webhook.endsWith('/a')).at(-1)!;
     assert.match(toA.message, /RAISED[\s\S]*y is noted[\s\S]*CLEARED[\s\S]*chain:head:STALLED/);
     assert.equal((await keyAccount(store, rich)).balanceCents, '1980');
 
     // Nothing to tell: nothing considered.
-    const nothing = await fanOut(store, new Date(), null, post, resolve);
+    const nothing = await fanOut(store, new Date(), null, post, resolve, undefined, 'PAID');
     assert.equal(nothing.considered, 0);
-    const same = await fanOut(store, new Date(), [y], post, resolve);
+    const same = await fanOut(store, new Date(), [y], post, resolve, undefined, 'PAID');
     assert.equal(same.considered, 3, 'b, c and d still have a change they were never told of; a does not');
 
     const mine = await subscriptionsOf(store, rich);

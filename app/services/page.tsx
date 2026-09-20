@@ -13,6 +13,7 @@ import { rateHistory } from '@/lib/launch/evidence';
 import { CreditDesk } from '../components/credit-desk';
 import { BRAND } from '@/lib/brand';
 import { DEFAULT_KINDS, KIND_CATALOGUE } from '@/lib/ops/alerts';
+import { ACCESS, ACCESS_NOTICE, ACCESS_TITLE } from '@/lib/credits/access';
 
 /** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
 function Addr({ address, href }: { address: string; href: string | null }) {
@@ -59,16 +60,16 @@ export default async function ServicesPage() {
         <div className="kicker">
           <b>Services</b> · the credit desk · <Link href="/mechanism/decisions/token" className="hover:text-(--color-paper)">the token record</Link> · decided by {TERMS_DECISION.by}, {TERMS_DECISION.on}
         </div>
-        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Prices in dollars. Payment in CURB, at whatever a CURB is when the payment is mined — or the lowest it was in the hour before.</h1>
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Free to use. Every service on this page answers an ordinary request, and nothing is charged for any of them.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
-          A CURB paid to the credit desk is a prepaid unit of a service that exists today, and nothing else. The desk reads the token&rsquo;s price from a pool at a block, states the market capitalisation that price implies, and credits a key in dollars at the rate at the block its top-up was mined, or the lowest the pool showed in the window before it, whichever is lower. Nothing here is a condition of forming, holding or claiming a position.
+          {ACCESS_NOTICE[ACCESS.mode]} Decided by {ACCESS.decidedBy} on {ACCESS.decidedOn}: {ACCESS.why} The prices below are kept and published, because what a call <em>would</em> cost is a fact worth being able to read — but no endpoint consults them, and the guard that would have charged returns before it looks (<code>lib/credits/access.ts</code>). Nothing here is a condition of forming, holding or claiming a position.
         </p>
       </header>
 
       <section className="cells grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>The price list</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · {NOTICE_DAYS} days&rsquo; notice of any change
+            <b>{ACCESS_TITLE[ACCESS.mode]}</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · not charged while the desk is free
           </div>
           <table className="mt-4 w-full table-fixed text-[13px] wrap-anywhere">
             <colgroup><col className="w-[22%]" /><col className="w-[53%]" /><col className="w-[25%]" /></colgroup>
@@ -364,13 +365,13 @@ export default async function ServicesPage() {
         </div>
         <div id="alerts" className="cell p-6 sm:p-8 md:col-span-2">
           <div className="kicker">
-            <b>Alerts</b> · what the desk watches for you · {status.state === 'CONFIGURED' ? 'open' : 'not yet — no key can be credited until the desk is configured'}
+            <b>Alerts</b> · what the desk watches for you · open, and free
           </div>
           <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-(--color-paper-dim)">
             The desk computes its conditions after every tick and posts each change to a webhook a key registered — once when a
             condition is raised, once when it clears, never again while it holds. A subscription names the tokens it holds, or none
             for every token; it is told of its tokens&rsquo; own events and of the issuer&rsquo;s and the chain&rsquo;s, and not of the desk&rsquo;s
-            plumbing unless it asks. Each delivery is charged at the listed price; registering and cancelling are free.
+            plumbing unless it asks. Registering, cancelling and every delivery are free. A key is raised in your browser or at POST /api/keys and needs no top-up: it names your subscription so the right webhook gets the right changes, and it is never charged.
           </p>
           <dl className="mt-4 grid gap-4 sm:grid-cols-3">
             {DEFAULT_KINDS.map((kind) => (
@@ -388,22 +389,22 @@ DELETE ${BRAND.origin}/api/subscriptions   { "id": "…" }`}</pre>
         </div>
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>Why CURB, and not a dollar</b>
+            <b>Then what is the token for</b>
           </div>
           <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-dim)">
-            The desk prices in dollars and could take a dollar stablecoin. It takes CURB for one reason, said plainly: a launch
-            is how this work is paid for — the independent review, the legal read, the infrastructure, a logged reserve, in
-            the published split — and a pool gives the desk a public rate it reads at a block instead of a price it types. A
-            holder of CURB gets nothing for holding it: no share of fees, no buyback, no vote, no place in line. The token is
-            the prepaid credit and the funding, and nothing else, and if that trade is not worth it to you the desk is free to
-            read.
+            Funding the work, and nothing else. It was designed as prepaid credit and the machinery for that is built, tested
+            and kept — the contract, the indexer, the rate read from a pool at a block, the receipts — but as of {ACCESS.decidedOn}
+            it no longer stands between a reader and an answer. A launch is how the independent review, the legal read, the
+            infrastructure and a logged reserve get paid for, in the published split. A holder of CURB still gets nothing for
+            holding it: no share of fees, no buyback, no vote, no place in line, and now not even a discount, because there is
+            nothing to discount. If that is not worth it to you, nothing is lost: the desk is free to read either way.
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-(--color-paper-faint)">
             The venue, decided 17 September 2026, is a bonding-curve launchpad on Robinhood Chain (PONS v2), chosen because it
             exists on this chain and its terms could be read from the contract: its first holders will be traders of that curve,
             with a 99% tax on the first three seconds and graduation into a Uniswap v4 pool at 4.2 ETH raised. None of that
-            changes what a credit is or what a call costs; the desk reads the pool it graduates into and nothing about who
-            trades there.
+            changes what this desk answers or who it answers: no call consults a balance. The desk reads the pool it graduates
+            into and nothing about who trades there.
           </p>
         </div>
         <div className="cell p-6 sm:p-8">

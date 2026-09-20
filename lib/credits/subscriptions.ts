@@ -1,8 +1,9 @@
 /**
  * Webhook subscriptions: a key registers a URL; each time the desk's
  * conditions change, a message in the operator's own form — what was
- * raised, what cleared, what stays — is posted there and the key is charged
- * one delivery. Each subscription keeps the set it was last told of, so it
+ * raised, what cleared, what stays — is posted there. While the desk is free
+ * nothing is charged for it (lib/credits/access.ts); under PAID the key is
+ * charged one delivery. Each subscription keeps the set it was last told of, so it
  * is told exactly its own changes since, whether or not the operator's
  * webhook was reachable: a delivery that failed is not charged and is not
  * marked as told. A subscription whose key cannot pay is skipped, and the
@@ -20,6 +21,7 @@ import { STOCK_TOKENS } from '../chain/stock-tokens.ts';
 import type { Store } from '../store/types.ts';
 import { charge, keyAccount } from './keys.ts';
 import { serviceById } from './prices.ts';
+import { ACCESS, isFree, type AccessMode } from './access.ts';
 
 export const SUB_PREFIX = 'credits:sub:';
 export const subRow = (id: string) => `${SUB_PREFIX}${id}`;
@@ -200,13 +202,18 @@ export function parseFilter(input: FilterInput): { ok: true; filter: ConditionFi
   return { ok: true, filter: { kinds: kinds.length > 0 ? kinds : DEFAULT_KINDS, tokens } };
 }
 
-export async function createSubscription(store: Store, keyHash: string, url: string, now: Date, filter: ConditionFilter = { kinds: DEFAULT_KINDS, tokens: [] }): Promise<CreateOutcome> {
+export async function createSubscription(store: Store, keyHash: string, url: string, now: Date, filter: ConditionFilter = { kinds: DEFAULT_KINDS, tokens: [] }, mode: AccessMode = ACCESS.mode): Promise<CreateOutcome> {
   const fault = webhookFault(url);
   if (fault !== null) return { ok: false, error: 'WEBHOOK_REFUSED', detail: fault, status: 400 };
-  const account = await keyAccount(store, keyHash);
-  if (account.storeFault !== null) return { ok: false, error: 'STORE_UNREADABLE', detail: account.storeFault, status: 503 };
-  if (account.status === 'UNFUNDED') return { ok: false, error: 'UNFUNDED', detail: 'the chain has credited nothing to this key hash', status: 402 };
-  if (account.status === 'BELOW_MINIMUM') return { ok: false, error: 'BELOW_MINIMUM', detail: `the key opens once ${account.minimumOpenCents} cents have been credited; ${account.creditedCents} have`, status: 402 };
+  // Free: a key is a name, so there is no account for it to be short in. The
+  // caps below still hold — they bound how much of the desk's own fan-out
+  // budget one subscriber may take, which is a question money never answered.
+  if (!isFree(mode)) {
+    const account = await keyAccount(store, keyHash);
+    if (account.storeFault !== null) return { ok: false, error: 'STORE_UNREADABLE', detail: account.storeFault, status: 503 };
+    if (account.status === 'UNFUNDED') return { ok: false, error: 'UNFUNDED', detail: 'the chain has credited nothing to this key hash', status: 402 };
+    if (account.status === 'BELOW_MINIMUM') return { ok: false, error: 'BELOW_MINIMUM', detail: `the key opens once ${account.minimumOpenCents} cents have been credited; ${account.creditedCents} have`, status: 402 };
+  }
   // The caps and the same-URL rule are enforced on the key's ledger row by a
   // conditional write, so two requests at once cannot both pass them; the
   // subscription row is written after the ledger took this one.
@@ -303,8 +310,10 @@ export async function fanOut(
   post: (message: string, webhook: string, pinTo: readonly string[]) => Promise<Delivery> = (m, w, pin) => deliver(m, w, WEBHOOK_TIMEOUT_MS, pin),
   resolve: Resolver = resolveAll,
   deadline: number = Date.now() + FAN_OUT_BUDGET_MS,
+  mode: AccessMode = ACCESS.mode,
 ): Promise<FanOutReport> {
   const service = serviceById('alert-delivery')!;
+  const free = isFree(mode);
   const empty: FanOutReport = { considered: 0, delivered: 0, charged: 0, skipped: [], failed: [], uncharged: [], untold: [], deferred: 0 };
   if (conditions === null) return empty;
   const all = await subscriptionsOf(store, null);
@@ -363,16 +372,21 @@ export async function fanOut(
       deferred += 1;
       continue;
     }
-    const account = await keyAccount(store, sub.keyHash, { pending: false });
-    if (account.storeFault !== null) {
-      // Not a fact about the key: nothing is written on the row, and the subscription is tried again next tick.
-      skipped.push({ id: sub.id, reason: 'STORE_UNREADABLE' });
-      continue;
-    }
-    if (account.status !== 'OPEN' || BigInt(account.balanceCents) < BigInt(service.cents)) {
-      skipped.push({ id: sub.id, reason: account.status !== 'OPEN' ? account.status : 'INSUFFICIENT' });
-      await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'NOTHING_TO_SEND', detail: `not delivered: the key is ${account.status === 'OPEN' ? 'short' : account.status.toLowerCase()}`, charged: false } });
-      continue;
+    // Free: the key's balance is not consulted, because there is none and the
+    // delivery does not depend on one. The only reasons a change now goes
+    // undelivered are reasons about the webhook or the store, never money.
+    if (!free) {
+      const account = await keyAccount(store, sub.keyHash, { pending: false });
+      if (account.storeFault !== null) {
+        // Not a fact about the key: nothing is written on the row, and the subscription is tried again next tick.
+        skipped.push({ id: sub.id, reason: 'STORE_UNREADABLE' });
+        continue;
+      }
+      if (account.status !== 'OPEN' || BigInt(account.balanceCents) < BigInt(service.cents)) {
+        skipped.push({ id: sub.id, reason: account.status !== 'OPEN' ? account.status : 'INSUFFICIENT' });
+        await write(sub.id, { lastDelivery: { at: now.toISOString(), state: 'NOTHING_TO_SEND', detail: `not delivered: the key is ${account.status === 'OPEN' ? 'short' : account.status.toLowerCase()}`, charged: false } });
+        continue;
+      }
     }
     const checked = await deliveryCheck(sub.url, resolve);
     if (checked.fault !== null) {
@@ -401,6 +415,13 @@ export async function fanOut(
     const told = await write(sub.id, { lastActive: t.active.map((c) => c.id), deliveries: sub.deliveries + 1, lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the charge follows', charged: false } });
     if (!told) {
       untold.push({ id: sub.id, reason: 'delivered, but the row could not be marked told; not charged, told again next tick' });
+      continue;
+    }
+    if (free) {
+      // Nothing is charged and nothing is written to the spend record. The row
+      // says delivered and not charged, which is the truth: it was not billed,
+      // rather than billed at nothing.
+      await writeAny(sub.id, { lastDelivery: { at: now.toISOString(), state: 'SENT', detail: 'delivered; the desk is free to use, so nothing was charged', charged: false } });
       continue;
     }
     const paid = await charge(store, sub.keyHash, service.id, service.cents, `alert delivery · ${t.raised.length} raised, ${t.cleared.length} cleared`, now);

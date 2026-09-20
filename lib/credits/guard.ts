@@ -19,11 +19,12 @@ import { creditsStatus } from './config.ts';
 import { charge, isKey, keyAccount, keyHashOf, type KeyAccount } from './keys.ts';
 import { topUpReadiness } from './top-up.ts';
 import { serviceById, type ServiceId } from './prices.ts';
+import { ACCESS, isFree, type AccessMode } from './access.ts';
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
 
-export type Admission = { readonly ok: true; readonly hash: string; readonly account: KeyAccount; readonly cents: number } | { readonly ok: false; readonly response: Response };
-export type Settlement = { readonly ok: true; readonly account: KeyAccount } | { readonly ok: false; readonly response: Response };
+export type Admission = { readonly ok: true; readonly hash: string | null; readonly account: KeyAccount | null; readonly cents: number } | { readonly ok: false; readonly response: Response };
+export type Settlement = { readonly ok: true; readonly account: KeyAccount | null } | { readonly ok: false; readonly response: Response };
 
 /** The key a request presents: `x-curb-key`, or `Authorization: Bearer`; null when neither is sent. */
 export function presentedKey(request: Request): string | null {
@@ -58,10 +59,17 @@ async function cannotPay(store: Store, status: string, detail: string, account: 
   return Response.json(body, { status: httpStatus, headers: NO_STORE });
 }
 
-/** Configured, keyed, and able to pay — without charging yet. */
-export async function admit(request: Request, store: Store, serviceId: ServiceId, now = new Date()): Promise<Admission> {
+/** Free, or configured and keyed and able to pay — without charging yet. */
+export async function admit(request: Request, store: Store, serviceId: ServiceId, now = new Date(), mode: AccessMode = ACCESS.mode): Promise<Admission> {
   const service = serviceById(serviceId);
   if (service === null) return { ok: false, response: Response.json({ error: 'SERVICE_UNKNOWN' }, { status: 500, headers: NO_STORE }) };
+
+  // Free: the answer is owed to anyone who asks. No key is demanded, no account
+  // is read, and the desk's own credit configuration is not a condition —
+  // there is nothing to configure where nothing is sold. This branch is the
+  // whole enforcement behind the word "free" on every page, and there is no
+  // second path to an answer that could disagree with it.
+  if (isFree(mode)) return { ok: true, hash: null, account: null, cents: 0 };
 
   const status = creditsStatus();
   if (status.state !== 'CONFIGURED') {
@@ -91,7 +99,11 @@ export async function admit(request: Request, store: Store, serviceId: ServiceId
 }
 
 /** The charge, once there is an answer to give. Refused with the figures if the balance moved meanwhile. */
-export async function settle(store: Store, hash: string, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<Settlement> {
+export async function settle(store: Store, hash: string | null, serviceId: ServiceId, ref: string, now: Date = new Date(), mode: AccessMode = ACCESS.mode): Promise<Settlement> {
+  // Nothing to settle, and nothing written: a free call leaves no charge row,
+  // because a charge of zero in the record would read as a call that was
+  // billed and happened to be free rather than one that was never billed.
+  if (isFree(mode) || hash === null) return { ok: true, account: null };
   const service = serviceById(serviceId)!;
   const outcome = await charge(store, hash, service.id, service.cents, ref, now);
   if (outcome.ok) return { ok: true, account: outcome.account };
@@ -99,14 +111,19 @@ export async function settle(store: Store, hash: string, serviceId: ServiceId, r
 }
 
 /** Admit and settle in one step, for a call whose answer needs nothing from the store. */
-export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date()): Promise<Settlement & { readonly hash?: string }> {
-  const a = await admit(request, store, serviceId, now);
+export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date(), mode: AccessMode = ACCESS.mode): Promise<Settlement & { readonly hash?: string | null }> {
+  const a = await admit(request, store, serviceId, now, mode);
   if (!a.ok) return a;
-  const s = await settle(store, a.hash, serviceId, ref, now);
+  const s = await settle(store, a.hash, serviceId, ref, now, mode);
   return s.ok ? { ...s, hash: a.hash } : s;
 }
 
 /** The headers a paid answer carries: what the call cost and what is left. */
-export function paidHeaders(account: KeyAccount, cents: number): Record<string, string> {
-  return { 'cache-control': 'no-store', 'x-curb-charged-cents': String(cents), 'x-curb-balance-cents': account.balanceCents };
+export function paidHeaders(account: KeyAccount | null, cents: number): Record<string, string> {
+  // A free answer says so in the same header a charged one uses, rather than
+  // omitting it: a caller reading zero knows it was not charged, where a
+  // missing header only tells them the desk did not say.
+  return account === null
+    ? { 'cache-control': 'no-store', 'x-curb-charged-cents': '0', 'x-curb-access': 'FREE' }
+    : { 'cache-control': 'no-store', 'x-curb-charged-cents': String(cents), 'x-curb-balance-cents': account.balanceCents };
 }

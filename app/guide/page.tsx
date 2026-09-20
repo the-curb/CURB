@@ -271,17 +271,16 @@ export default async function GuidePage() {
       {/* ── 4 · The services ──────────────────────────────────────────── */}
       <Section
         id="services"
-        title="4 · Pay for a service"
-        lede="The desk sells prepaid credit for services that exist, priced in dollars and paid in CURB at a rate read from a pool at a block. A key is made in your browser and never sent; the chain credits its hash; a call presents the key. Registering is free, reading a balance is free; only the listed prices are charged."
-        state={deskOpen ? <State tone="live">open</State> : <State tone="wait">not yet · {credits.state === 'NOT_CONFIGURED' ? 'no token, no desk, no pool' : 'configuration invalid'}</State>}
+        title="4 · Use a service"
+        lede="Free to use. Every service answers an ordinary request and nothing is charged for any of them. A key is still made in your browser and never sent, but it is only a name: it says whose webhook a subscription is, so the right changes reach the right place. It needs no top-up and nothing about it is looked up on chain."
+        state={<State tone="live">open · free</State>}
       >
         <Steps>
           <Step n={1} title="Make a key" state={<State tone="live">works today</State>}>
             <p>
               On <A href="/services">Services</A>, press <em>Make a key</em>: thirty-two random bytes from your browser, shown once as{' '}
-              <Code>curb_…</Code>, and its SHA-256 hash, the <Code>bytes32</Code> the chain will credit. Copy the key. The desk stores neither — a
-              lost key is a lost balance, exactly as with a lost private key. Without a browser: <Code>POST {origin}/api/keys</Code> returns a fresh
-              pair and records nothing.
+              <Code>curb_…</Code>, and its SHA-256 hash. Copy the key. The desk stores neither, and while it is free a lost key costs
+              nothing — raise another. Without a browser: <Code>POST {origin}/api/keys</Code> returns a fresh pair and records nothing.
             </p>
           </Step>
           <Step n={2} title="Get a quote" state={deskOpen ? <State tone="live">open</State> : <State tone="wait">no pool to read</State>}>

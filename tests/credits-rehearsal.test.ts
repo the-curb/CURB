@@ -111,9 +111,9 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.equal((await keyAccount(store, record.keyHash)).creditedCents, '2500');
 
       // A paid call with the key: charged, answered, the balance moved by the listed price.
-      const paid = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': record.key } }), store, 'evidence-versions', 'apple-s1 · rehearsal');
+      const paid = await gate(new Request('https://the-curb.test/api/x', { headers: { 'x-curb-key': record.key } }), store, 'evidence-versions', 'apple-s1 · rehearsal', new Date(), 'PAID');
       assert.equal(paid.ok, true);
-      if (paid.ok) assert.equal(paid.account.balanceCents, '2495');
+      if (paid.ok) assert.equal(paid.account!.balanceCents, '2495');
     } finally {
       if (before === undefined) delete process.env[CREDITS_ENV];
       else process.env[CREDITS_ENV] = before;
@@ -186,7 +186,7 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.equal(partial.toOpenCents, '500');
       assert.equal(partial.status, 'BELOW_MINIMUM');
       assert.equal(partial.topUps[0]?.transactionHash, firstHash.toLowerCase());
-      const refused = await admit(request, store, 'evidence-versions');
+      const refused = await admit(request, store, 'evidence-versions', new Date(), 'PAID');
       assert.equal(refused.ok, false);
       if (!refused.ok) {
         assert.equal(refused.response.status, 402);
@@ -202,17 +202,17 @@ describe('the credit desk, rehearsed on a local chain', () => {
       assert.equal(opened.balanceCents, '2000', 'opening consumes none of the prepaid balance');
       assert.deepEqual(opened.topUps.map((u) => u.transactionHash), [firstHash, secondHash].map((h) => h.toLowerCase()));
 
-      const admitted = await admit(request, store, 'evidence-versions');
+      const admitted = await admit(request, store, 'evidence-versions', new Date(), 'PAID');
       assert.equal(admitted.ok, true);
       assert.equal((await keyAccount(store, hash)).spentCents, '0', 'admission is not a debit');
       const answer = await receipts(store);
       assert.equal(answer.storeFault, null);
       assert.equal(answer.topUps, priorReceipts.topUps + 2);
       assert.equal(BigInt(answer.cents), BigInt(priorReceipts.cents) + 2000n);
-      const settled = await settle(store, hash, 'evidence-versions', 'apple-s1 · local acceptance');
+      const settled = await settle(store, hash, 'evidence-versions', 'apple-s1 · local acceptance', new Date(), 'PAID');
       assert.equal(settled.ok, true);
       if (settled.ok) {
-        assert.equal(settled.account.balanceCents, '1995');
+        assert.equal(settled.account!.balanceCents, '1995');
         assert.equal(paidHeaders(settled.account, 5)['x-curb-charged-cents'], '5');
       }
       const charged = await keyAccount(store, hash);
@@ -234,12 +234,12 @@ describe('the credit desk, rehearsed on a local chain', () => {
         return webhook.endsWith('/success') ? { state: 'SENT' as const, status: 204 } : { state: 'FAILED' as const, reason: 'simulated receiver unavailable' };
       };
       const resolve = async () => ['93.184.216.34'];
-      const delivery = await fanOut(store, new Date(), [condition], post, resolve);
+      const delivery = await fanOut(store, new Date(), [condition], post, resolve, undefined, 'PAID');
       assert.equal(delivery.delivered, 1);
       assert.equal(delivery.charged, 1);
       assert.equal(delivery.failed.length, 1);
       assert.equal((await keyAccount(store, hash)).balanceCents, '1985');
-      const same = await fanOut(store, new Date(), [condition], post, resolve);
+      const same = await fanOut(store, new Date(), [condition], post, resolve, undefined, 'PAID');
       assert.equal(same.charged, 0);
       assert.equal(sent.filter((s) => s.endsWith('/success')).length, 1);
       const subscriptions = await subscriptionsOf(store, hash);
@@ -248,14 +248,14 @@ describe('the credit desk, rehearsed on a local chain', () => {
       // Consume the remaining prepaid balance at the unchanged five-cent price.
       // No synthetic balance write is used to force the insufficient-funds case.
       for (let i = 0; i < 397; i += 1) {
-        const paid = await gate(request, store, 'evidence-versions', `local acceptance usage ${i}`);
+        const paid = await gate(request, store, 'evidence-versions', `local acceptance usage ${i}`, new Date(), 'PAID');
         assert.equal(paid.ok, true, `paid call ${i}`);
       }
       const exhausted = await keyAccount(store, hash);
       assert.equal(exhausted.status, 'OPEN', 'the opening minimum is cumulative, not a minimum remaining balance');
       assert.equal(exhausted.balanceCents, '0');
       assert.equal(exhausted.spentCents, '2000');
-      const noBalance = await gate(request, store, 'evidence-versions', 'must not be billed');
+      const noBalance = await gate(request, store, 'evidence-versions', 'must not be billed', new Date(), 'PAID');
       assert.equal(noBalance.ok, false);
       if (!noBalance.ok) {
         assert.equal(noBalance.response.status, 402);
