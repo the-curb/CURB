@@ -132,7 +132,7 @@ export async function acceptance({ stage, base, databaseUrl, rpcUrl, fixture, de
       ids.push(body.subscription.id);
     }
     check('Two webhook subscriptions register through real HTTP without charging', (await account()).balanceCents === '2485');
-    const condition = { id: 'rehearsal:sample', severity: 'NOTE', text: 'Local rehearsal condition only' };
+    const condition = { id: 'feed:rh-aapl-usd:PAUSED', severity: 'NOTE', text: 'Local rehearsal condition only: a token event, the kind a holder is told of by default' };
     const first = await fanOut(store, new Date(), [condition], post, resolve);
     check('Real HTTP webhook delivery succeeds once and reports the 503 failure', first.delivered === 1 && first.charged === 1 && first.failed.length === 1 && received.length === 2);
     check('Successful webhook costs ten cents; failed delivery costs zero', (await account()).balanceCents === '2475');

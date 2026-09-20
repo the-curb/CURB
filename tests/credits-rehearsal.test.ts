@@ -227,7 +227,7 @@ describe('the credit desk, rehearsed on a local chain', () => {
       const success = await createSubscription(store, hash, 'https://hooks.example.com/success', new Date());
       const failure = await createSubscription(store, hash, 'https://hooks.example.com/failure', new Date());
       assert.ok(success.ok && failure.ok);
-      const condition: Condition = { id: 'acceptance:sample', severity: 'NOTE', text: 'local acceptance condition' };
+      const condition: Condition = { id: 'feed:rh-aapl-usd:PAUSED', severity: 'NOTE', text: 'local acceptance condition: a token event, the kind a holder is told of by default' };
       const sent: string[] = [];
       const post = async (_message: string, webhook: string) => {
         sent.push(webhook);
