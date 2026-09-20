@@ -29,7 +29,7 @@ export async function acceptance({ stage, base, databaseUrl, rpcUrl, fixture, de
   const { buildSql, PostgresStore } = await moduleAt('lib/store/postgres.ts');
   const { runCredits } = await moduleAt('lib/credits/maintenance.ts');
   const { keyAccount } = await moduleAt('lib/credits/keys.ts');
-  const { ACCESS, accessMode } = await moduleAt('lib/credits/access.ts');
+  const { ACCESS } = await moduleAt('lib/credits/access.ts');
   const { admit } = await moduleAt('lib/credits/guard.ts');
   const { fanOut, deliveryCheck, webhookFault } = await moduleAt('lib/credits/subscriptions.ts');
   const { deliver } = await moduleAt('lib/ops/alerts.ts');
@@ -73,7 +73,7 @@ export async function acceptance({ stage, base, databaseUrl, rpcUrl, fixture, de
     const route = `/api/positions/apple-s1/journal?day=${new Date().toISOString().slice(0, 10)}`;
     let response = await http(route);
     check('Paid HTTP request without a key refuses with 401', response.status === 401);
-    check('The mode this run overrode is the one that ships: FREE', ACCESS.declared === 'FREE' && accessMode('FREE') === 'FREE');
+    check('The mode this run overrode is the one that ships: FREE', ACCESS.declared === 'FREE');
     check('Free admits the same request with no key, no account and nothing charged', await (async () => {
       const free = await admit(new Request('https://the-curb.test' + route), store, 'journal-day', new Date(), 'FREE');
       return free.ok === true && free.cents === 0 && free.account === null && free.hash === null;

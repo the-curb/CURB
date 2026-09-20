@@ -139,7 +139,10 @@ try {
   if (!Number.isInteger(suite.tests) || suite.tests === 0 || suite.passed !== suite.tests || suite.failed !== 0 || suite.skipped !== 0) throw new Error('The complete application suite did not pass every test without skips');
   await run('Build sanitized production Next application', ['node_modules/next/dist/bin/next', 'build'], stage);
   const appPort = await unusedPort(), base = `http://127.0.0.1:${appPort}`;
-  const appEnv = { ...local, CURB_POSTGRES_URL: databaseUrl.href, CURB_CREDITS: JSON.stringify(fixture.credits), CURB_SERIES_DEPLOYMENTS: JSON.stringify(deployments), CURB_POSITIONS_NETWORK: 'hardhat-local' };
+  // The application under acceptance runs PAID: the ledger, the debits and the
+  // receipts only exist in that mode, and the shipped decision (FREE) is
+  // asserted inside the acceptance rather than assumed by leaving it unset.
+  const appEnv = { ...local, CURB_ACCESS: 'PAID', CURB_POSTGRES_URL: databaseUrl.href, CURB_CREDITS: JSON.stringify(fixture.credits), CURB_SERIES_DEPLOYMENTS: JSON.stringify(deployments), CURB_POSITIONS_NETWORK: 'hardhat-local' };
   const app = tracked(['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(appPort)], stage, appEnv);
   await waitReady(async () => (await fetch(`${base}/api/subscriptions`, { redirect: 'error', signal: AbortSignal.timeout(2_000) })).status === 401, app.child, 30_000);
   console.log('Verify real HTTP, on-chain indexing, Postgres debits and local webhook delivery');
