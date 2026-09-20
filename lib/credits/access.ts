@@ -22,19 +22,35 @@
 
 export type AccessMode = 'FREE' | 'PAID';
 
+/**
+ * The environment variable an operator may set to run a deployment in the
+ * other mode. It is not a back door around the declaration: the pages read the
+ * same function the guard does, so whichever mode a deployment is in, what it
+ * says and what it does are the same thing. Unset — and it is unset in
+ * production — the declared mode below is what runs.
+ */
+export const ACCESS_ENV = 'CURB_ACCESS';
+
 export const ACCESS = {
-  mode: 'FREE' as AccessMode,
+  /** The decision. What runs, unless a deployment sets ACCESS_ENV. */
+  declared: 'FREE' as AccessMode,
   decidedBy: 'the product owner',
   decidedOn: '2026-09-20',
   why: 'A desk nobody can read is not a desk. Use comes first; how the work is paid for is a separate question and is not answered by charging the reader.',
 } as const;
 
-/** The mode in force. Callers may pass one explicitly; only the tests do. */
-export function accessMode(mode: AccessMode = ACCESS.mode): AccessMode {
-  return mode;
+/**
+ * The mode in force: what a caller asked for, else what this deployment is set
+ * to, else the declared decision. One function, read by the guard and by every
+ * page, so the two cannot disagree.
+ */
+export function accessMode(mode?: AccessMode): AccessMode {
+  if (mode !== undefined) return mode;
+  const raw = process.env[ACCESS_ENV];
+  return raw === 'PAID' || raw === 'FREE' ? raw : ACCESS.declared;
 }
 
-export function isFree(mode: AccessMode = ACCESS.mode): boolean {
+export function isFree(mode?: AccessMode): boolean {
   return accessMode(mode) === 'FREE';
 }
 

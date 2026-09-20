@@ -21,7 +21,7 @@ import { STOCK_TOKENS } from '../chain/stock-tokens.ts';
 import type { Store } from '../store/types.ts';
 import { charge, keyAccount } from './keys.ts';
 import { serviceById } from './prices.ts';
-import { ACCESS, isFree, type AccessMode } from './access.ts';
+import { accessMode, isFree, type AccessMode } from './access.ts';
 
 export const SUB_PREFIX = 'credits:sub:';
 export const subRow = (id: string) => `${SUB_PREFIX}${id}`;
@@ -202,7 +202,7 @@ export function parseFilter(input: FilterInput): { ok: true; filter: ConditionFi
   return { ok: true, filter: { kinds: kinds.length > 0 ? kinds : DEFAULT_KINDS, tokens } };
 }
 
-export async function createSubscription(store: Store, keyHash: string, url: string, now: Date, filter: ConditionFilter = { kinds: DEFAULT_KINDS, tokens: [] }, mode: AccessMode = ACCESS.mode): Promise<CreateOutcome> {
+export async function createSubscription(store: Store, keyHash: string, url: string, now: Date, filter: ConditionFilter = { kinds: DEFAULT_KINDS, tokens: [] }, mode?: AccessMode): Promise<CreateOutcome> {
   const fault = webhookFault(url);
   if (fault !== null) return { ok: false, error: 'WEBHOOK_REFUSED', detail: fault, status: 400 };
   // Free: a key is a name, so there is no account for it to be short in. The
@@ -310,7 +310,7 @@ export async function fanOut(
   post: (message: string, webhook: string, pinTo: readonly string[]) => Promise<Delivery> = (m, w, pin) => deliver(m, w, WEBHOOK_TIMEOUT_MS, pin),
   resolve: Resolver = resolveAll,
   deadline: number = Date.now() + FAN_OUT_BUDGET_MS,
-  mode: AccessMode = ACCESS.mode,
+  mode?: AccessMode,
 ): Promise<FanOutReport> {
   const service = serviceById('alert-delivery')!;
   const free = isFree(mode);

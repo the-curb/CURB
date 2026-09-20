@@ -20,11 +20,17 @@ export async function acceptance({ stage, base, databaseUrl, rpcUrl, fixture, de
     return body.result;
   };
   assert.equal(await rpc('eth_chainId'), '0x7a69');
-  Object.assign(process.env, { CURB_CREDITS: JSON.stringify(fixture.credits), CURB_RPC_URL_LOCAL: rpcUrl, CURB_POSITIONS_NETWORK: 'hardhat-local', CURB_SERIES_DEPLOYMENTS: JSON.stringify(deployments), CURB_POSTGRES_URL: database.href });
+  // The shipped default is FREE (lib/credits/access.ts). This acceptance run
+  // exercises the ledger end to end over real HTTP, which only exists in the
+  // other mode, so it asks for PAID explicitly — and checks below that the
+  // decision it overrode is still the one that ships.
+  Object.assign(process.env, { CURB_ACCESS: 'PAID', CURB_CREDITS: JSON.stringify(fixture.credits), CURB_RPC_URL_LOCAL: rpcUrl, CURB_POSITIONS_NETWORK: 'hardhat-local', CURB_SERIES_DEPLOYMENTS: JSON.stringify(deployments), CURB_POSTGRES_URL: database.href });
   const moduleAt = relative => import(pathToFileURL(path.join(stage, relative)).href);
   const { buildSql, PostgresStore } = await moduleAt('lib/store/postgres.ts');
   const { runCredits } = await moduleAt('lib/credits/maintenance.ts');
   const { keyAccount } = await moduleAt('lib/credits/keys.ts');
+  const { ACCESS, accessMode } = await moduleAt('lib/credits/access.ts');
+  const { admit } = await moduleAt('lib/credits/guard.ts');
   const { fanOut, deliveryCheck, webhookFault } = await moduleAt('lib/credits/subscriptions.ts');
   const { deliver } = await moduleAt('lib/ops/alerts.ts');
   const { syncIndex, reduceLedger } = await moduleAt('lib/positions/index.ts');
@@ -67,6 +73,11 @@ export async function acceptance({ stage, base, databaseUrl, rpcUrl, fixture, de
     const route = `/api/positions/apple-s1/journal?day=${new Date().toISOString().slice(0, 10)}`;
     let response = await http(route);
     check('Paid HTTP request without a key refuses with 401', response.status === 401);
+    check('The mode this run overrode is the one that ships: FREE', ACCESS.declared === 'FREE' && accessMode('FREE') === 'FREE');
+    check('Free admits the same request with no key, no account and nothing charged', await (async () => {
+      const free = await admit(new Request('https://the-curb.test' + route), store, 'journal-day', new Date(), 'FREE');
+      return free.ok === true && free.cents === 0 && free.account === null && free.hash === null;
+    })());
     response = await http('/api/positions/apple-s1/journal?day=2026-02-31', { headers: auth });
     check('Invalid day refuses with 400 before charging', response.status === 400);
     check('Refused requests do not debit the Postgres ledger', (await account()).balanceCents === before.balanceCents);

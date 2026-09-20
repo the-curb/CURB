@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ACCESS, ACCESS_NOTICE, ACCESS_TITLE, isFree } from '../lib/credits/access.ts';
+import { ACCESS, ACCESS_ENV, ACCESS_NOTICE, ACCESS_TITLE, accessMode, isFree } from '../lib/credits/access.ts';
 import { admit, paidHeaders, settle } from '../lib/credits/guard.ts';
 import { newKeyResponse } from '../lib/credits/key-api.ts';
 import { newKey } from '../lib/credits/keys.ts';
@@ -27,11 +27,28 @@ const req = (headers: Record<string, string> = {}) => new Request('https://the-c
 
 describe('the decision', () => {
   it('is FREE, and says who decided it and when', () => {
-    assert.equal(ACCESS.mode, 'FREE');
+    assert.equal(ACCESS.declared, 'FREE');
+    assert.equal(accessMode(), 'FREE');
     assert.equal(isFree(), true);
     assert.match(ACCESS.decidedOn, /^\d{4}-\d{2}-\d{2}$/);
     assert.ok(ACCESS.decidedBy.length > 0);
     assert.ok(ACCESS.why.length > 0);
+  });
+
+  it('lets a deployment run the other mode, and then says so everywhere at once', () => {
+    const before = process.env[ACCESS_ENV];
+    try {
+      process.env[ACCESS_ENV] = 'PAID';
+      assert.equal(accessMode(), 'PAID', 'the guard would still be free');
+      assert.equal(isFree(), false);
+      // The declaration does not move: what changed is what this deployment runs.
+      assert.equal(ACCESS.declared, 'FREE');
+      process.env[ACCESS_ENV] = 'nonsense';
+      assert.equal(accessMode(), 'FREE', 'an unreadable setting falls back to the decision, never to charging');
+    } finally {
+      if (before === undefined) delete process.env[ACCESS_ENV];
+      else process.env[ACCESS_ENV] = before;
+    }
   });
 
   it('carries a sentence and a heading for both modes, so no page invents its own', () => {

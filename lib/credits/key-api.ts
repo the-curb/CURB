@@ -3,10 +3,10 @@ import type { CreditsStatus } from './config.ts';
 import { newKey, keyHashOf } from './keys.ts';
 import { MINIMUM_OPEN_CENTS } from './prices.ts';
 import { topUpReadiness } from './top-up.ts';
-import { ACCESS, isFree, KEY_IS_IDENTITY_ONLY, type AccessMode } from './access.ts';
+import { isFree, KEY_IS_IDENTITY_ONLY, type AccessMode } from './access.ts';
 
 /** Stateless key creation still succeeds while payment invitations are held. */
-export async function newKeyResponse(status: CreditsStatus, store: Store, now = new Date(), mode: AccessMode = ACCESS.mode): Promise<Response> {
+export async function newKeyResponse(status: CreditsStatus, store: Store, now = new Date(), mode?: AccessMode): Promise<Response> {
   const key = newKey();
   // While the desk is free a key is a name, not an account: it says whose
   // webhook a subscription belongs to and nothing else. The top-up fields

@@ -19,7 +19,7 @@ import { creditsStatus } from './config.ts';
 import { charge, isKey, keyAccount, keyHashOf, type KeyAccount } from './keys.ts';
 import { topUpReadiness } from './top-up.ts';
 import { serviceById, type ServiceId } from './prices.ts';
-import { ACCESS, isFree, type AccessMode } from './access.ts';
+import { accessMode, isFree, type AccessMode } from './access.ts';
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
 
@@ -60,7 +60,7 @@ async function cannotPay(store: Store, status: string, detail: string, account: 
 }
 
 /** Free, or configured and keyed and able to pay — without charging yet. */
-export async function admit(request: Request, store: Store, serviceId: ServiceId, now = new Date(), mode: AccessMode = ACCESS.mode): Promise<Admission> {
+export async function admit(request: Request, store: Store, serviceId: ServiceId, now = new Date(), mode?: AccessMode): Promise<Admission> {
   const service = serviceById(serviceId);
   if (service === null) return { ok: false, response: Response.json({ error: 'SERVICE_UNKNOWN' }, { status: 500, headers: NO_STORE }) };
 
@@ -99,7 +99,7 @@ export async function admit(request: Request, store: Store, serviceId: ServiceId
 }
 
 /** The charge, once there is an answer to give. Refused with the figures if the balance moved meanwhile. */
-export async function settle(store: Store, hash: string | null, serviceId: ServiceId, ref: string, now: Date = new Date(), mode: AccessMode = ACCESS.mode): Promise<Settlement> {
+export async function settle(store: Store, hash: string | null, serviceId: ServiceId, ref: string, now: Date = new Date(), mode?: AccessMode): Promise<Settlement> {
   // Nothing to settle, and nothing written: a free call leaves no charge row,
   // because a charge of zero in the record would read as a call that was
   // billed and happened to be free rather than one that was never billed.
@@ -111,7 +111,7 @@ export async function settle(store: Store, hash: string | null, serviceId: Servi
 }
 
 /** Admit and settle in one step, for a call whose answer needs nothing from the store. */
-export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date(), mode: AccessMode = ACCESS.mode): Promise<Settlement & { readonly hash?: string | null }> {
+export async function gate(request: Request, store: Store, serviceId: ServiceId, ref: string, now: Date = new Date(), mode?: AccessMode): Promise<Settlement & { readonly hash?: string | null }> {
   const a = await admit(request, store, serviceId, now, mode);
   if (!a.ok) return a;
   const s = await settle(store, a.hash, serviceId, ref, now, mode);

@@ -13,7 +13,7 @@ import { rateHistory } from '@/lib/launch/evidence';
 import { CreditDesk } from '../components/credit-desk';
 import { BRAND } from '@/lib/brand';
 import { DEFAULT_KINDS, KIND_CATALOGUE } from '@/lib/ops/alerts';
-import { ACCESS, ACCESS_NOTICE, ACCESS_TITLE } from '@/lib/credits/access';
+import { ACCESS, ACCESS_NOTICE, ACCESS_TITLE, accessMode } from '@/lib/credits/access';
 
 /** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
 function Addr({ address, href }: { address: string; href: string | null }) {
@@ -62,14 +62,14 @@ export default async function ServicesPage() {
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">Free to use. Every service on this page answers an ordinary request, and nothing is charged for any of them.</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
-          {ACCESS_NOTICE[ACCESS.mode]} Decided by {ACCESS.decidedBy} on {ACCESS.decidedOn}: {ACCESS.why} The prices below are kept and published, because what a call <em>would</em> cost is a fact worth being able to read — but no endpoint consults them, and the guard that would have charged returns before it looks (<code>lib/credits/access.ts</code>). Nothing here is a condition of forming, holding or claiming a position.
+          {ACCESS_NOTICE[accessMode()]} Decided by {ACCESS.decidedBy} on {ACCESS.decidedOn}: {ACCESS.why} The prices below are kept and published, because what a call <em>would</em> cost is a fact worth being able to read — but no endpoint consults them, and the guard that would have charged returns before it looks (<code>lib/credits/access.ts</code>). Nothing here is a condition of forming, holding or claiming a position.
         </p>
       </header>
 
       <section className="cells grid-cols-1 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
-            <b>{ACCESS_TITLE[ACCESS.mode]}</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · not charged while the desk is free
+            <b>{ACCESS_TITLE[accessMode()]}</b> · US dollars · {PRICES_STATUS} by {PRICES_DECISION.by}, {PRICES_DECISION.on} · not charged while the desk is free
           </div>
           <table className="mt-4 w-full table-fixed text-[13px] wrap-anywhere">
             <colgroup><col className="w-[22%]" /><col className="w-[53%]" /><col className="w-[25%]" /></colgroup>
