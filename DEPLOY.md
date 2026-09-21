@@ -220,6 +220,15 @@ the deployment changes.
    time. The service's region is in its settings; the store's is in its own.
    (`vercel.json`, the earlier region pin, was removed at the cutover on 16 September 2026.)
 
+**Closing the site without stopping the machine.** Set `CURB_SITE_CLOSED=1`
+on the app service and every page answers one plain notice (503, `noindex`)
+and every API route answers 503 `CLOSED` — except `/api/tick`, `/api/desk`,
+`/api/health` and `/api/state`, which the scheduler, the operator, Railway's
+healthcheck and the outside watch depend on (`lib/ops/closed.ts`, applied by
+`proxy.ts`). The desk keeps ticking, so its record has no gap. `/api/state`
+stays readable by anyone who knows the path. Remove the variable, or set it to
+anything but `1`, to open the site again.
+
 **The tick holds a lock for its maintenance.** Alerts, retention, the
 position product's backend and the credit desk run only when the tick held
 the agents' run lock and can take a second one for this part; a tick that
