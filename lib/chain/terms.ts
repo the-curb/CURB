@@ -88,10 +88,10 @@ export const NEVER_DETERMINED = [
   // forbids. The gate does not distinguish use from mention, and that is the
   // safer failure: an exception for refusal wording would need context judged,
   // which is the thing this system took out of prompts and put into code.
-  'Whether any instrument described here may lawfully be held or transferred by a given reader. That turns on jurisdiction, on status, and on the issuer’s own checks — the issuer decides it, and nothing here does.',
-  'What your rights are as a holder. The issuer’s published terms say; this system can point at them and quote them, and it does not interpret them.',
+  'Whether you may lawfully hold or transfer any instrument here. That depends on jurisdiction, status and the issuer’s checks; the issuer decides.',
+  'What your rights are as a holder. The issuer’s terms say; this page points at them and does not interpret them.',
   'Any tax consequence, in either direction.',
-  'Whether a wallet signature identifies you. It proves control of a key. It is not identity verification and it is not a substitute for any check an issuer requires.',
+  'Whether a wallet signature identifies you. It proves control of a key, not identity, and replaces no issuer check.',
 ] as const;
 
 export function readSources(): readonly TermsSource[] {

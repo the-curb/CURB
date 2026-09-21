@@ -95,7 +95,7 @@ export default async function ServicesPage() {
     [C.token.steps.review, C.token.state.notDone, C.token.details.review],
     [C.token.steps.desk, deskState, status.state === 'CONFIGURED' ? `Desk ${status.config.desk} on ${status.config.network.label}.` : 'No token or desk is configured here.'],
     [C.token.steps.rate, rateState, rateDetail],
-    [C.token.steps.interviews, C.token.state.notDone, C.token.details.interviews],
+    [C.token.steps.interviews, C.token.state.notHeld, C.token.details.interviews],
   ];
 
   const priceRows = (

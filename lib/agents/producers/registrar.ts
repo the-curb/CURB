@@ -171,12 +171,12 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
     checked.push(
       same
         ? `— The stock-token beacon at ${STOCK_TOKEN_BEACON.address} points at implementation ${beaconImplAddress}, the same one recorded when the registry was captured. Every one of the ${stockCount} stock tokens in the issuer's registry delegates to this beacon, so this one read describes the code behind all of them.`
-        : `— The stock-token beacon at ${STOCK_TOKEN_BEACON.address} has CHANGED its implementation: it now points at ${beaconImplAddress}, recorded at capture as ${STOCK_TOKEN_BEACON.observedImplementation}. Every one of the ${stockCount} stock tokens changed code in that same transaction, and every finding recorded against the previous implementation describes code that is no longer running.`,
+        : `— The stock-token beacon at ${STOCK_TOKEN_BEACON.address} has CHANGED its implementation: now ${beaconImplAddress}, captured as ${STOCK_TOKEN_BEACON.observedImplementation}. All ${stockCount} stock tokens changed code at once; earlier findings describe code no longer running.`,
     );
     if (codeHash === null) {
       couldNotCheck.push(`— implementation code: could not be read, so whether the bytes behind that address match the recorded hash is not established.`);
     } else if (same && !sameCode) {
-      checked.push('— The implementation address is unchanged but the code hash behind it DIFFERS from the one recorded at capture. Code at a fixed address changing is not what an upgrade normally looks like; treat every stock token as running unreviewed code.');
+      checked.push('— Same implementation address, but its code hash DIFFERS from capture. That is not a normal upgrade; treat every stock token as running unreviewed code.');
     } else if (same) {
       checked.push('— The implementation code hashes to the value recorded at capture.');
     }
@@ -210,7 +210,7 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
       checked.push('— Decimals differ from the value recorded for this address. Every amount derived from the older figure is wrong.');
     }
     if (symbol.value !== subject.symbol) {
-      checked.push(`— The symbol differs from the one recorded for this address ("${subject.symbol}"). A token that has renamed itself is a token whose identity needs re-establishing before anything else here is relied on.`);
+      checked.push(`— The symbol differs from the one recorded for this address ("${subject.symbol}"). A renamed token needs its identity re-established before anything here is relied on.`);
     }
   } else {
     for (const [reading, label] of [[name, 'name()'], [symbol, 'symbol()'], [decimals, 'decimals()']] as const) {
@@ -251,7 +251,7 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
         checked.push(
           state.pattern === 'transparent'
             ? `— Upgradeable proxy. The implementation slot points at ${state.implementation}, and the admin slot is set, which is the transparent pattern.`
-            : `— Upgradeable proxy. The implementation slot points at ${state.implementation}, and the admin slot is empty, which is the pattern where the upgrade function lives in the implementation itself.`,
+            : `— Upgradeable proxy. The implementation slot points at ${state.implementation}; the admin slot is empty, so the upgrade function lives in the implementation.`,
         );
         if (subject.tripwire.kind === 'implementation') {
           const changed = state.implementation!.toLowerCase() !== subject.tripwire.implementation.toLowerCase();
@@ -261,11 +261,11 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
               : '— The implementation is the same one recorded when this address was last checked by hand.',
           );
         } else {
-          checked.push('— This address was recorded as a beacon proxy and now carries an implementation slot of its own. Its shape has changed; the recorded tripwire no longer applies.');
+          checked.push('— Recorded as a beacon proxy, it now has its own implementation slot. Its shape changed; the tripwire no longer applies.');
         }
         break;
       case 'beacon': {
-        checked.push(`— Beacon proxy. The implementation slot is empty and the beacon slot points at ${state.beacon}: the code that runs here is whatever that beacon names, and it names the same code for every proxy that shares it.`);
+        checked.push(`— Beacon proxy. The implementation slot is empty and the beacon slot points at ${state.beacon}: the code here is whatever that beacon names, for every proxy that shares it.`);
         if (subject.tripwire.kind === 'beacon') {
           const sameBeacon = state.beacon!.toLowerCase() === subject.tripwire.beacon.toLowerCase();
           checked.push(
@@ -284,7 +284,7 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
             couldNotCheck.push(whyUnread(proxyCode, 'proxy code'));
           }
         } else {
-          checked.push('— This address was recorded with an implementation slot of its own and now reads as a beacon proxy. Its shape has changed; the recorded tripwire no longer applies.');
+          checked.push('— Recorded with its own implementation slot, it now reads as a beacon proxy. Its shape changed; the tripwire no longer applies.');
         }
         break;
       }
@@ -298,7 +298,7 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
     checked.push(`— The contract exposes a pause flag, and it reads ${paused.value ? 'paused' : 'not paused'} at this block.`);
   } else {
     couldNotCheck.push(
-      '— pause flag: the contract returned no data for it. That is not a statement that the token is unpaused; it means the question was not answered.',
+      '— pause flag: no data returned. That is not the same as unpaused.',
     );
   }
   if (isRead(owner)) {
@@ -370,7 +370,7 @@ export const registrarProducer: Producer = async ({ now, store }): Promise<Produ
           + ' The remedy is scripts/capture-stock-pools.ts --write, not a hand edit.',
     );
   } else {
-    couldNotCheck.push(literal(pools.probesUnread) + ' of ' + literal(pools.probesMade) + ' venue probes went unanswered, so the pool book was not diffed against the chain this run. A probe with no answer is not a pool that closed.');
+    couldNotCheck.push(literal(pools.probesUnread) + ' of ' + literal(pools.probesMade) + ' venue probes went unanswered, so the pool book was not checked this run. No answer is not a closed pool.');
   }
 
   snapshots.push({ key: 'capture:drift', observedAt: now.toISOString(), payload: driftPayload });

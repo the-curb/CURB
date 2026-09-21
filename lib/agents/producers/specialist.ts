@@ -394,7 +394,7 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
         referenceAgeSeconds: references.get(p.feedKey)?.feedAgeSeconds ?? null,
         sessionAtSample: session.phase,
         poolsReadForTicker: readings.filter((r) => r.pool.ticker === ticker).length,
-        notPricedBecause: `every pool listed for this ticker answered and none of them is a market: each held no liquidity in force, or a book under the published floor of ${MARKET_FLOOR_USD} dollars. A pool that thin still reports a mid, and that mid is a memory rather than a price, so none is carried here.`,
+        notPricedBecause: `every pool listed for this ticker answered and none of them is a market: each held no liquidity, or a book under the floor of ${MARKET_FLOOR_USD} dollars. A mid from a pool that thin is a memory, not a price.`,
         sqrtPriceX96: null,
         liquidity: null,
       },
@@ -452,7 +452,7 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
       oldestInputAt: isRead(head) ? new Date(retrievedAt) : null,
       snapshots,
       observations,
-      note: `no pool in the captured book of ${STOCK_POOLS.length} answered; the book was not read, which is not the same as a book with no price`,
+      note: `none of the ${STOCK_POOLS.length} pools in the book answered; not read is not the same as no price`,
     };
   }
 
@@ -539,19 +539,19 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
     // and a fee tier is a figure read from the pool's key like any other.
     figures.push(...figuresIn(venueLabel(p), `${network.label} · the pool key as the factory recorded it`, retrievedAt));
 
-    let line = `— ${row.ticker}: ${poolPrice} in the pool against ${refPrice} from the feed — ${formatBasis(row.bps!)}. Deepest book: ${venueLabel(p)}.`;
+    let line = `— ${row.ticker}: pool ${poolPrice}, feed ${refPrice} — ${formatBasis(row.bps!)}. Deepest book: ${venueLabel(p)}.`;
     if (row.reading.depthUsd !== null) {
       const depth = size(row.reading.depthUsd);
       declare(depth, `${source} · size to move the mid one percent, computed by code from published state`);
-      line += ` About ${depth} ${p.quoteLabel === 'USDG' ? 'dollars' : 'dollars of ' + p.quoteLabel} moves that mid one percent${row.reading.exact ? ', over the whole book' : ', against the liquidity at today’s tick'}.`;
+      line += ` About ${depth} ${p.quoteLabel === 'USDG' ? 'dollars' : 'dollars of ' + p.quoteLabel} moves it one percent${row.reading.exact ? ' (whole book)' : ' (liquidity at this tick)'}.`;
     } else {
-      line += ' Its depth could not be computed from the state published, so none is given.';
+      line += ' Depth could not be computed, so none is given.';
     }
     if (row.reference!.feedAgeSeconds !== null) {
       const hours = Math.round(row.reference!.feedAgeSeconds / 3600);
       if (hours >= 1) {
         declare(String(hours), refSource);
-        line += ` The feed answer is ${hours} hours old.`;
+        line += ` Feed ${hours} ${hours === 1 ? 'hour' : 'hours'} old.`;
       }
     }
     measured.push(line);
@@ -559,7 +559,7 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
 
   const notRead: string[] = [];
   if (unreadPools.length > 0) {
-    notRead.push(`— ${literal(unreadPools.length)} of the ${literal(STOCK_POOLS.length)} pools in the captured book did not answer this run. Their tickers may still be priced from another pool; where they are not, the ticker is absent above rather than carried over.`);
+    notRead.push(`— ${literal(unreadPools.length)} of the ${literal(STOCK_POOLS.length)} pools in the book did not answer. A ticker with no other pool is left out, not carried over.`);
   }
   // Two different absences, kept apart. A ticker whose own feed is missing has
   // no reference to measure against; a ticker whose QUOTE asset has no feed has
@@ -570,25 +570,25 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
     .filter((r) => r.reference !== null && r.reading.priceUsd === null)
     .map((r) => `${r.ticker} (quoted in ${r.reading.pool.quoteLabel})`);
   if (noReference.length > 0) {
-    notRead.push(`— No basis for ${noReference.join(', ')}: a pool answered and the ticker's own feed did not, and a difference with one side missing is not a number.`);
+    notRead.push(`— No basis for ${noReference.join(', ')}: the pool answered, the feed did not; a gap with one side missing is not a number.`);
   }
   if (noQuoteFeed.length > 0) {
-    notRead.push(`— No basis for ${noQuoteFeed.join(', ')}: the pool has a market and the ticker has a feed, but the Pillar has not read a price for the asset the pool quotes in, so the mid cannot be stated in dollars. The mid itself is in the record.`);
+    notRead.push(`— No basis for ${noQuoteFeed.join(', ')}: no dollar price yet for the pool’s quote asset, so the mid cannot be stated in dollars. The mid is in the record.`);
   }
   if (withoutMarket.length > 0) {
-    notRead.push(`— No price for ${withoutMarket.join(', ')}: every pool these tickers have answered, and none of them had liquidity in force. An empty pool still reports whatever price it was left at, and that is a memory rather than a market, so none is carried here.`);
+    notRead.push(`— No price for ${withoutMarket.join(', ')}: their pools answered with no liquidity. An empty pool’s price is a memory, not a market.`);
   }
   const noPool = new Set(STOCK_POOLS.map((p) => p.ticker));
   for (const r of rows) noPool.delete(r.ticker);
   for (const t of withoutMarket) noPool.delete(t);
   if (noPool.size > 0) {
-    notRead.push(`— ${literal(noPool.size)} tickers in the book returned no readable state from any of their pools this run.`);
+    notRead.push(`— ${literal(noPool.size)} tickers returned no readable state from any pool.`);
   }
   for (const line of notRead) figures.push(...figuresIn(line, `${network.label} · as observed on this run`, retrievedAt));
 
   const sessionLine = session.phase === 'REGULAR'
-    ? 'The exchange was open when this was read, so both sides of every difference above were moving.'
-    : 'The exchange was shut when this was read. A feed answer carried across a closed market is a memory, and the difference beside it is the chain trading without one.';
+    ? 'The exchange was open, so both sides of every gap were moving.'
+    : 'The exchange was shut. The feed price is from the close; the gap is the chain trading without it.';
 
   literal(priced.length);
   literal(STOCK_POOLS.length);
@@ -607,9 +607,9 @@ export const specialistProducer: Producer = async (ctx): Promise<ProducerResult>
     ...(notRead.length > 0 ? notRead : ['— Every pool in the captured book answered, and every priced ticker carried a reference.']),
     '',
     'WHAT THIS IS NOT',
-    '— Not a quote. The size beside each ticker is the amount that moves the mid one percent against state the pool has already published — for a v2 pair that is the whole book and exact, for v3 and v4 it is the liquidity at the current tick and a move that leaves that tick meets liquidity this figure cannot see.',
-    '— Not a judgement. A difference is printed with its sign and the age of both prices. Whether it is wide, whether it is worth anything, and which way it closes are not stated here and will not be.',
-    '— Not the whole venue. Only pools discoverable from the factories in the captured book are read; a pool created since that capture, or one on a fee tier nobody asked about, is not in these figures.',
+    '— Not a quote. The size moves the mid one percent against published state: exact for v2, the current tick only for v3 and v4.',
+    '— Not a judgement. A gap is printed with its sign and both ages; whether it matters or which way it closes is not stated.',
+    '— Not the whole venue. Only pools in the captured book are read; newer pools are not in these figures.',
   ].join('\n');
 
   // Written only on a filing, so the next run measures its move against what

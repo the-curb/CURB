@@ -27,7 +27,7 @@ export const BRAND = {
    * current credit-desk evidence is shown on Services. Neither establishes a
    * public position pilot.
    */
-  stage: 'Mainnet — Robinhood Chain. The operator’s treasury, a 2-of-3 Safe, is live on chain since 13 September 2026; the token and the credit desk follow it, and Services shows their evidence as it is read. The position product is a prototype contract tested on forks and a local chain, not yet deployed; no public series deployment or issuer integration is approved.',
+  stage: 'Live on Robinhood Chain: the desk reads every stock token. The treasury, a 2-of-3 Safe, has been on chain since 13 September 2026. The CURB token has not launched. The position product is a tested prototype, not deployed, with no issuer integration.',
   /**
    * The desk beneath the product: the measuring agents and their line. Before
    * the American Stock Exchange had a building it was the Curb Market: claims

@@ -66,15 +66,15 @@ export function describeWatch(source: TermsSource, verdict: PageVerdict | null, 
   };
   switch (verdict.kind) {
     case 'FIRST_SEEN':
-      return `— ${source.title}: fetched and hashed for the first time. There is nothing yet to compare it against; from the next run on, a change will be reported.`;
+      return `— ${source.title}: fetched and hashed for the first time. Changes are reported from the next run.`;
     case 'UNCHANGED':
       return `— ${source.title}: fetched; its visible text hashes as it did when first seen ${ageOf(verdict.watch.firstSeenAt)} ago${verdict.watch.lastChangedAt ? `, and as it has since it last changed ${ageOf(verdict.watch.lastChangedAt)} ago` : ''}.`;
     case 'CHANGED': {
       const recorded =
         source.state === 'READ'
-          ? ` The line recorded for this page in the register was taken from an earlier version and no longer describes what is published; it stands as evidence of what was said on ${source.readAt}, not of what is said now.`
+          ? ` The line recorded for this page came from an earlier version; it shows what was said on ${source.readAt}, not now.`
           : '';
-      return `— ${source.title}: CHANGED. Its visible text no longer hashes as it did at the previous fetch. What changed is not read here; the page is the thing to read.${recorded}`;
+      return `— ${source.title}: CHANGED since the last fetch. What changed is not read here; read the page.${recorded}`;
     }
   }
 }
@@ -115,7 +115,7 @@ export const counselProducer: Producer = async ({ now, store }): Promise<Produce
     snapshots.push(watchSnapshot(source.key, verdict.watch, at));
     watchLines.push(
       priorsUnreadable
-        ? `— ${source.title}: fetched, but the previous watches could not be read back, so no comparison is made. This is not a statement that the page is unchanged.`
+        ? `— ${source.title}: fetched, but earlier checks could not be read back, so nothing is compared. Not the same as unchanged.`
         : describeWatch(source, verdict, null, now, (token, src) => declare(token, src, digest.retrievedAt)),
     );
   });
@@ -138,7 +138,7 @@ export const counselProducer: Producer = async ({ now, store }): Promise<Produce
     (source) => `— ${source.title} (${source.url}), read ${source.readAt}. It is the authority for ${source.covers}. Recorded: ${source.recorded}`,
   );
   const unreadLines = unread.map(
-    (source) => `— ${source.title} (${source.url}) is the authority for ${source.covers}. This system holds the link and has not read the page for its meaning, so nothing here describes what it says.`,
+    (source) => `— ${source.title} (${source.url}) is the authority for ${source.covers}. Held as a link, not read for meaning.`,
   );
 
   const body = [
@@ -155,9 +155,9 @@ export const counselProducer: Producer = async ({ now, store }): Promise<Produce
     ...NEVER_DETERMINED.map((line) => `— ${line}`),
     '',
     'HOW TO READ THIS',
-    '— A quotation above is what a page said on the date beside it. Pages change, and a recorded line is evidence of what was published then, not a guarantee of what is published now.',
-    '— A changed hash means the visible text of the page is not what it was. It does not say which words, and it is not read for meaning here.',
-    '— Pointing at a term is not interpreting it. Where the wording matters to a decision, the issuer’s page is the thing to read, not this summary of it.',
+    '— A quotation is what a page said on the date beside it, not what it says now.',
+    '— A changed hash means the page’s text changed. It does not say which words.',
+    '— Pointing at a term is not interpreting it. For a decision, read the issuer’s page.',
   ].join('\n');
 
   return {

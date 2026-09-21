@@ -80,7 +80,7 @@ export const SEQUENCER_FEED = {
   proxy: process.env.CURB_SEQUENCER_FEED ?? null,
   state: process.env.CURB_SEQUENCER_FEED ? 'CONFIGURED' : 'NOT_PUBLISHED',
   reason:
-    'no sequencer uptime feed exists for this network — the vendor lists none and has stopped adding networks — so the sequencer is not checked through a feed. This is not a statement that the sequencer is up',
+    'the vendor publishes no sequencer uptime feed for this network, so the sequencer is not checked. That is not a statement that it is up',
   source: 'https://docs.chain.link/data-feeds/l2-sequencer-feeds',
   observedAt: '2026-09-11T14:30:00Z',
 } as const;

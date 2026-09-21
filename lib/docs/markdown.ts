@@ -4,7 +4,7 @@
  * The document is the source of truth for the rules the code enforces, and the
  * site shows it from the file rather than from a copy, so the page cannot drift
  * from the document. The parser handles exactly what the document uses —
- * headings, paragraphs, bullet and numbered lists, pipe tables, indented code,
+ * headings, paragraphs, bullet and numbered lists, pipe tables, indented and fenced code,
  * inline code, bold, emphasis and links — and treats anything else as a
  * paragraph. It does not try to be a
  * markdown implementation; it tries to render one file faithfully.
@@ -95,6 +95,24 @@ export function parseMarkdown(source: string): Block[] {
       const text = heading[2]!.trim();
       blocks.push({ kind: 'heading', level, text, id: slugOf(text) });
       i += 1;
+      continue;
+    }
+
+    // A fenced block: everything to the closing fence, verbatim. MECHANISM.md
+    // has always used fences, and without this its code rendered as run-on
+    // paragraphs. An unclosed fence runs to the end of the document rather than
+    // swallowing nothing — the text is still shown, as code.
+    const fence = /^(```|~~~)/.exec(line);
+    if (fence) {
+      flushParagraph(paragraph);
+      const code: string[] = [];
+      i += 1;
+      while (i < lines.length && !lines[i]!.startsWith(fence[1]!)) {
+        code.push(lines[i]!);
+        i += 1;
+      }
+      i += 1;
+      blocks.push({ kind: 'code', text: code.join('\n').trimEnd() });
       continue;
     }
 

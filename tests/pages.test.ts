@@ -253,6 +253,21 @@ describe('the markdown renderer', () => {
     ]);
   });
 
+  it('renders a fenced block as code, verbatim, headings and all', () => {
+    const fence = '`'.repeat(3);
+    const blocks = parseMarkdown(['Before.', fence + 'ts', '## not a heading', '  indented stays', fence, 'After.'].join('\n'));
+    assert.deepEqual(blocks.map((b) => b.kind), ['paragraph', 'code', 'paragraph']);
+    assert.equal(blocks[1]!.kind === 'code' ? blocks[1]!.text : '', '## not a heading\n  indented stays');
+  });
+
+  it('renders every fenced block in MECHANISM.md as code', () => {
+    const source = readFileSync('MECHANISM.md', 'utf8');
+    const fences = source.split('\n').filter((l) => l.startsWith('`'.repeat(3))).length;
+    const code = parseMarkdown(source).filter((b) => b.kind === 'code').length;
+    assert.ok(fences % 2 === 0, 'every fence is closed');
+    assert.ok(code >= fences / 2, `${code} code blocks for ${fences / 2} fences`);
+  });
+
   it('parses a numbered list as an ordered list', () => {
     const blocks = parseMarkdown(['1. **First.** one', '2. second', '   wrapped', '', '- a'].join('\n'));
     assert.deepEqual(blocks.map((b) => b.kind), ['list', 'list']);

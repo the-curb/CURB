@@ -71,7 +71,7 @@ function narrate(session: SessionState, blockToken: string | null): string {
       ? `The next regular open is ${session.nextRegularOpenUtc}.`
       : 'The next regular open could not be determined and is shown as absent.',
     chainLine,
-    'A price carried across a closed market is a memory rather than a quote. It is reported here with its age, and it is not refreshed against anything.',
+    'A price carried across a closed market is a memory, not a quote. It is shown with its age.',
   ].join(' ');
 }
 

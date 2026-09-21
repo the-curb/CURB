@@ -119,4 +119,4 @@ export const POSSIBLY_SHARED: readonly { name: string; note: string; sources: re
   },
 ];
 
-export const NOT_KNOWN_LINE = 'A role with no name is a role the documents describe without naming the party. It is left empty on purpose: a name filled in from a partner list or from memory would be the kind of claim this desk refuses.';
+export const NOT_KNOWN_LINE = 'A role with no name is one the documents describe without naming the party. It stays empty on purpose: a name guessed from a partner list is a claim this desk refuses.';

@@ -75,7 +75,7 @@ export const AGENTS: readonly AgentSpec[] = [
       'Pause, freeze and transfer-restriction state',
       'Decimals, total supply, issuer metadata',
       'The issuer registry and the vendor feed directory as published today, against the captured copies — what was added, removed or moved since capture',
-      'The v2 and v3 factories and the v4 StateView, asked the same way the pool capture asked them, so a pool that opened or closed since is a reported condition rather than a file somebody remembers to re-run',
+      'The v2 and v3 factories and the v4 StateView, asked as the pool capture asked them, so a pool opened or closed since is reported',
     ],
   },
   {
@@ -124,7 +124,7 @@ export const AGENTS: readonly AgentSpec[] = [
     name: 'THE SPECIALIST',
     district: 'THE FLOOR',
     role: 'The price on this chain, and the distance to the feed',
-    line: 'The oracle says what it was worth when the market shut. The pool says what it is now. I print both, and the gap.',
+    line: 'The oracle says what it was worth at the close. The pool says what it is now. I print both, and the gap.',
     posture: 'MEASURES',
     // The same cadence as the Pillar. A basis is a difference between two
     // reads; reading one side four times as often does not make the pair
@@ -137,12 +137,12 @@ export const AGENTS: readonly AgentSpec[] = [
     // says it could not look.
     minimumSources: 130,
     refusal:
-      'Publishes the pool’s mid and the size that moves it one percent, computed from published state. Never calls a difference cheap or dear, never says which way it closes, and never quotes a size it did not compute from the book.',
+      'Publishes the pool’s mid and the size that moves it one percent, from published state. Never calls a gap cheap or dear, never says which way it closes, never quotes an uncomputed size.',
     reads: [
       'Every pool the v2 and v3 factories admit to for a priced stock token — reserves, or slot0 and liquidity',
       'Every v4 pool whose id recomputes from a captured key — getSlot0 and getLiquidity through the StateView lens',
-      'The Pillar’s own feed record for the reference price, so the basis is the distance from what the Floor shows and not from a second reading of the same oracle',
-      'The Pillar’s record for the asset each pool quotes against — USDG / USD or ETH / USD — which is what turns a mid into dollars. The Pillar samples the crypto feeds in rotation, so on a young store a mid can be read with no dollar price beside it, and the run says so',
+      'The Pillar’s feed record for the reference price, so the gap is measured from what the Floor shows',
+      'The Pillar’s record for each pool’s quote asset — USDG / USD or ETH / USD — to turn a mid into dollars. Without one, the run says so',
       'The session, so a difference measured across a shut exchange is printed as one',
     ],
   },

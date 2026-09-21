@@ -50,10 +50,10 @@ const NAMED = 5;
 
 /** Concentration questions a sample cannot answer. */
 const NEEDS_FULL_HISTORY = [
-  'Holder concentration. The share held by the largest accounts is a property of the entire history of a token, not of a sample of recent blocks. A ranking built from this sample would look authoritative and be wrong.',
-  'Whether an address is one holder or many. One custodian address can stand for thousands of people, and one person can hold across many addresses. Nothing on chain distinguishes them.',
-  'Whether a transfer was a sale. A transfer moves units between addresses; it does not record a price, a counterparty agreement, or an intention.',
-  'The total for the hour. The node will not answer a query that matches more than ten thousand logs, and an hour of this chain is far past that. The sample is a rate, and a rate is not a total.',
+  'Holder concentration. It depends on a token’s whole history, not a recent sample; a ranking from this sample would be wrong.',
+  'Whether an address is one holder or many. One custodian can stand for thousands; the chain cannot tell.',
+  'Whether a transfer was a sale. A transfer records no price, agreement or intention.',
+  'The total for the hour. The node refuses queries over ten thousand logs, and an hour is far past that. The sample is a rate, not a total.',
 ] as const;
 
 export interface Subject {
@@ -256,7 +256,7 @@ export const tallyProducer: Producer = async (): Promise<ProducerResult> => {
     '',
     'NOT ESTABLISHED BY A SAMPLE',
     ...NEEDS_FULL_HISTORY.map((line) => `— ${line}`),
-    '— Every count above describes this sample only. A quiet sample is not a quiet token, and nothing here is a statement about whether any figure is high or low.',
+    '— Every count describes this sample only. A quiet sample is not a quiet token, and no figure is called high or low.',
   ].join('\n');
 
   literals.add(String(TOKENS.length + STOCK_TOKENS.length));

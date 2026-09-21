@@ -1,69 +1,69 @@
 # A self-review of the series contract — not an independent review
 
-**Status:** Filed 12 September 2026 by the author of the code, against commit `1d6b3f7` of `contracts/src/CompanySeries.sol`. This is what an author can do before a reviewer arrives: walk the checklist a reviewer would walk, say what was looked at and what was found, and leave the findings where they can be checked. It does not satisfy C09, and the site does not say *reviewed* because of it.
+**Status:** Filed 12 September 2026 by the author of the code, against commit `1d6b3f7` of `contracts/src/CompanySeries.sol`. **This is not an independent review.** It does not satisfy C09, and the site does not say *reviewed* because of it.
 
-**13 September mainnet preparation addendum:** the table below preserves the earlier self-review and its source scope. The local source now uses two-step operator nomination/acceptance/cancellation and the public series deployment tool checks a reviewed Safe expectation on the target chain. These changes must be included in a new pinned release and independent review; the historical findings are not automatically a report on the changed source. Scope, open findings and acceptance fields are prepared in [the mainnet dossier](../mainnet/PREPARATION.md#independent-review-brief).
+**13 September mainnet preparation addendum:** local source has since added two-step operator nomination/acceptance/cancellation, and the public series deployment tool checks a reviewed Safe expectation on the target chain. The tables keep the earlier source scope, and those findings do not cover the changed source, which needs a new pinned release and independent review. Scope, open findings and acceptance fields: [the mainnet dossier](../mainnet/PREPARATION.md#independent-review-brief).
 
 ## Method
 
-Read the contract and its tests line by line against the blueprint's cases; run the unit tests, the fuzz sequence and the invariant handler (256 sequences, depth 64) with the recorded seed; run the fork tests against both real components; check each item below by hand.
+Line-by-line reading against the blueprint's cases; unit tests, fuzz sequence and invariant handler (256 sequences, depth 64, recorded seed); fork tests on both real components; each item below checked by hand.
 
 ## Checklist and findings
 
 | Area | Looked at | Finding |
 | --- | --- | --- |
-| Reentrancy | `mint` and `claimComponent` are `nonReentrant`; `allocateExit` makes no external call; claims set effects (claim to zero, reserve reduced) before the token is called | Held. The mock's reentrant callback is refused (T09); the invariant handler could not pay a claim twice. |
-| Checks-effects-interactions | Every external token call comes after state changes in `claimComponent`; in `mint` the receipt is issued after both pulls and both delta checks | Held. |
-| Return values of tokens | `_pull`/`_push` accept a true, or no data, and refuse a false or a revert | Held for standard and no-return tokens. A token returning data that is not a 32-byte word makes `abi.decode` revert — the call still fails closed. |
-| Balance deltas | `mint` checks each component's balance rose by exactly `lots × q`; `claimComponent` checks it fell by exactly the claim | Held. A fee-on-transfer component cannot be used (T10) and cannot be paid from (T22/T23 logic), which is deliberate: a fee would come out of other holders' backing. |
-| Whole-liability check | A claim pays only if `held ≥ liability` for that component; a mint reverts if the series would be short after the deposit | Held (T08, T23; invariant `ShortfallHaltsPayment`). |
+| Reentrancy | `nonReentrant` `mint`, `claimComponent`; `allocateExit` calls nothing external; claim effects first | Held (T09); the invariant handler never paid a claim twice. |
+| Checks-effects-interactions | Token calls after state changes; receipt after both pulls and delta checks | Held. |
+| Return values of tokens | `_pull`/`_push` accept true or no data only | Held for standard and no-return tokens; non-32-byte data makes `abi.decode` revert (fails closed). |
+| Balance deltas | Exactly `lots × q` in (`mint`), exactly the claim out (`claimComponent`) | Held; fee-on-transfer components unusable (T10) and unpayable (T22/T23 logic), deliberately. |
+| Whole-liability check | Pays only if `held ≥ liability`; a mint leaving the series short reverts | Held (T08, T23; invariant `ShortfallHaltsPayment`). |
 | Cap | `capLots` bounds `n × q + reserved` per component | Held (T22; invariant `CapCountsReserved`). |
-| Immutables and construction | Components, units, cap immutable; zero address, equal components, non-contract, zero units, zero cap and `cap × q` overflow refused | Held (T01, T19). |
-| Access control | `onlyOperator` on stops, permits, `transferOperator` and `cancelOperatorTransfer`; `acceptOperator` callable only by the nominated `pendingOperator` (two-step handover since 13 September 2026 — a new external surface this checklist now names); no admin mint, no burn without allocation, no sweep | Held (T24; the invariant handler's `transferReceipt` never succeeds). |
-| Receipt transfer | `transfer`, `transferFrom`, `approve` revert unconditionally | Held (T17). |
-| Permits | Mint needs an unexpired permit; claim needs a claim permit; both are on-chain state, no backend signature | Held (T25). |
-| Pauses | Mint pause and per-component claim pause are separate; a pause of A does not touch B | Held (T04, T20, operator-limit tests, the drill). |
-| Arithmetic | 18-decimal components, `uint256` throughout, `lots × q` bounded by the constructor's overflow check | Held (T12). |
-| Events | Every state change emits; the site's indexer decodes exactly these signatures, checked against the ABI fixture | Held. |
-| Time | `deadline` compared to `block.timestamp` for a mint preview; a validator can move it by seconds | Acceptable for a fifteen-minute preview; noted. |
-| Low-level calls to a component with no code | `call` to an address without code returns success with no data | Covered twice: the constructor refuses a non-contract, and every transfer is followed by a balance-delta check that a no-op cannot pass. A component that self-destructs after construction would fail the delta check on the next mint or claim — every operation would then revert, which is the right failure. |
-| `transferOperator` | Historical source: one step, no acceptance by the new operator | **Finding in the reviewed source:** a typo immediately hands away authority. **Local remediation prepared 13 September:** nomination with current authority retained, nominee-only acceptance and cancellation; see ADR-001. Independent verification and release signoff remain open. |
-| Reason strings | Stops carry a reason on chain; nothing enforces its length | The operator tool refuses a reason under eight characters; the contract does not. Acceptable: the reason is for people. |
-| Front-running | `allocateExit` and `claimComponent` act only on the caller's own receipts and claims; a mint's cap check can be raced by another mint, which then fails cleanly | No holder can act on another's rights. |
-| Gas griefing | A component's transfer that consumes all gas makes the call fail closed | The claim stays whole; the drill's frozen-A scenario shows the shape. |
+| Immutables and construction | Immutable components, units, cap; zero address, equal components, non-contract, zero units, zero cap, `cap × q` overflow refused | Held (T01, T19). |
+| Access control | `onlyOperator`: stops, permits, `transferOperator`, `cancelOperatorTransfer`; `acceptOperator`: the nominated `pendingOperator` only (a new surface since 13 September 2026); no admin mint, unallocated burn or sweep | Held (T24; the invariant handler's `transferReceipt` never succeeds). |
+| Receipt transfer | `transfer`, `transferFrom`, `approve` always revert | Held (T17). |
+| Permits | On-chain mint (unexpired) and claim permits; no backend signature | Held (T25). |
+| Pauses | Mint and per-component claim pauses independent; A's leaves B | Held (T04, T20, operator-limit tests, the drill). |
+| Arithmetic | 18 decimals, `uint256`, `lots × q` bounded by the constructor's overflow check | Held (T12). |
+| Events | Every state change emits; indexer checked against the ABI fixture | Held. |
+| Time | Preview `deadline` vs `block.timestamp`; validators shift seconds | Acceptable for a fifteen-minute preview; noted. |
+| Low-level calls to a component with no code | A codeless `call` succeeds with no data | Covered: the constructor refuses non-contracts; the delta check catches a no-op or a later self-destruct, and every operation then reverts, correctly. |
+| `transferOperator` | Historical source: one step, no acceptance | **Finding in the reviewed source:** a typo immediately hands away authority. **Local remediation prepared 13 September:** nomination (authority kept), nominee-only acceptance, cancellation; see ADR-001. Independent verification and release signoff remain open. |
+| Reason strings | On-chain stop reason, length unenforced | The operator tool refuses under eight characters, the contract does not; acceptable. |
+| Front-running | Exit and claim act only on the caller's rights; a raced mint cap check fails cleanly | No holder can act on another's rights. |
+| Gas griefing | A gas-exhausting component transfer | Fails closed; the claim stays whole (drill: frozen A). |
 
 ## The credit desk, walked the same way
 
-Against `contracts/src/CreditDesk.sol` (fifteen tests in `test/CreditDesk.t.sol`), on 12 September 2026. It is forty lines and does one thing; the walk is short because the contract is.
+`contracts/src/CreditDesk.sol` (fifteen tests in `test/CreditDesk.t.sol`), 12 September 2026: forty lines, one job.
 
 | Area | Looked at | Finding |
 | --- | --- | --- |
-| Surface | One external function, `topUp`; two immutables; no owner, no pause, no upgrade, no receive | Held. There is no state to corrupt and no role to capture. |
-| Reentrancy | `topUp` makes one external call (`transferFrom`) and one view call after it; the event is emitted after both; the contract holds no balance and no mapping, so re-entering `topUp` can only pay again | Held; nothing to guard. |
-| Return values | A false, a revert, or malformed data all revert `TransferFailed` | Held (returns-false, halted, no-allowance tests). |
-| Balance delta | The treasury's balance must rise by exactly `amount`, or `DeltaWrong` | Held (fee-on-transfer test); a token that pays the treasury less than the event says cannot be used, which is the point of the check: the site credits from the event. |
-| Zero cases | `amount == 0` and `keyHash == 0` refused; zero addresses and a non-contract token refused at construction | Held. |
-| Who pays whom | `msg.sender` pays; the treasury is immutable; anyone may top up any hash | Held. A top-up to a hash nobody holds is the payer's loss and the record shows it against that hash. |
-| Front-running | A top-up's effect is a credit to a hash the payer chose; observing one gives an attacker nothing to take | None. |
-| Site side | The credit is priced from the event at the block's rate; a reorg uncredits; the index is idempotent; the two rows per key have one writer each | Held by the tests in `tests/credits.test.ts` and the local rehearsal. **Closed 13 September 2026:** two concurrent charges on one key once raced on the spend row (the store replaced the row, the loser's charge was lost); the spend row is now written conditionally onto the version read (`writeSnapshotIf`), a losing charge reads again and is refused with the figures when the first left too little, and a write whose reply was lost is found by its token rather than made twice (`tests/credits.test.ts`, `tests/store-conformance.ts`). |
-| The treasury's key | The treasury is a multisig by policy; the tool refuses a treasury without code on a public chain | Held; an EOA treasury is allowed only on chain 31337. |
+| Surface | `topUp` only; two immutables; no owner, pause, upgrade or receive | Held. |
+| Reentrancy | One `transferFrom`, a view call, then the event; no stored balance or mapping | Held; re-entry can only pay again. |
+| Return values | False, revert or malformed data: `TransferFailed` | Held (returns-false, halted, no-allowance tests). |
+| Balance delta | Treasury rises by exactly `amount`, else `DeltaWrong` | Held (fee-on-transfer test); the site credits from the event, so an underpaying token is unusable. |
+| Zero cases | `amount == 0`, `keyHash == 0`; zero addresses and a non-contract token at construction | Refused; held. |
+| Who pays whom | `msg.sender` pays an immutable treasury; anyone may top up any hash | Held; a top-up to an unheld hash is the payer's recorded loss. |
+| Front-running | Credit goes to the payer's chosen hash | None. |
+| Site side | Event-priced at the block's rate; reorgs uncredit; idempotent index; two rows per key, one writer each | Held (`tests/credits.test.ts`, local rehearsal). **Closed 13 September 2026:** a spend-row race lost one of two concurrent charges. Now written conditionally on the version read (`writeSnapshotIf`); the loser re-reads and is refused, with figures, if too little is left; a write whose reply was lost is found by its token, not repeated (`tests/credits.test.ts`, `tests/store-conformance.ts`). |
+| The treasury's key | Multisig by policy; a codeless treasury refused on a public chain | Held; an EOA treasury only on chain 31337. |
 
 ## Static analysis, run and read (13 September 2026)
 
-Slither 0.11 on both contracts, compiled as the build compiles them (solc 0.8.30, via-IR, optimizer 200, prague), on every push to the source (`.github/workflows/static-analysis.yml`, advisory; the reports are kept with each run). Fifteen findings, none of which changes the source; each is read here, not waved through, and a reviewer who disagrees with a reading is the reason the job exists.
+Slither 0.11 on both contracts, compiled as built (solc 0.8.30, via-IR, optimizer 200, prague), on every source push (`.github/workflows/static-analysis.yml`, advisory; reports kept per run). Fifteen findings; none changes the source. The readings are the author's; a reviewer may differ.
 
 | Detector | Where | Reading |
 | --- | --- | --- |
-| `reentrancy-balance` (high, medium confidence) | `CreditDesk.topUp`; `CompanySeries.mint`, `claimComponent` | The balance-before / external call / balance-after pattern is the point of these functions: the delta check is what refuses a token that pays less than it says. In the series the two functions are `nonReentrant` (the guard the analyser does not credit) and the ledger is written after every check. In the desk there is no guard and no state: a token whose `transferFrom` reentered `topUp` would run an inner top-up whose own delta check passes, and then fail the outer one — the treasury moved by both amounts — so the whole transaction reverts and nothing is emitted. A guard would cost a slot and change the recorded bytecode for a case the delta check already refuses; not added. The token itself is the launch condition the record states: a plain ERC-20 that calls nobody. |
-| `reentrancy-no-eth`, `reentrancy-benign` (medium, low) | `CompanySeries.mint` | The same functions, `nonReentrant`; the state written after the pulls (`totalSupply`, `balanceOf`) is written after the deltas were checked against it. |
-| `reentrancy-events` (low) | `CreditDesk.topUp` | The event follows the call on purpose: an event before a failed transfer would be a top-up that did not happen. |
-| `timestamp` (low) | `CompanySeries.mint` | `block.timestamp` against a preview's deadline and a permit's expiry, both in seconds and both minutes to days wide; a sequencer's few seconds of drift change nothing. |
-| `low-level-calls` (informational) | `_pull`, `_push`, `topUp` | Deliberate: the raw call plus decode is how a token that returns nothing (the older ERC-20 shape) and one that returns `false` are both handled without a library. |
-| `cyclomatic-complexity` (informational) | `claimComponent` | Two components spelled out in full rather than indexed, so the reader sees each path; a style the self-review chose. |
+| `reentrancy-balance` (high, medium confidence) | `CreditDesk.topUp`; `CompanySeries.mint`, `claimComponent` | The delta check is intended. Series: `nonReentrant`, ledger written after checks. Desk: no guard or state; a reentering `transferFrom` fails the outer delta check, so everything reverts and nothing is emitted. A guard would cost a slot and change the recorded bytecode; not added. Launch condition: a plain ERC-20 token that calls nobody. |
+| `reentrancy-no-eth`, `reentrancy-benign` (medium, low) | `CompanySeries.mint` | `nonReentrant`; `totalSupply`, `balanceOf` written after the delta checks. |
+| `reentrancy-events` (low) | `CreditDesk.topUp` | Event after the call on purpose: a failed transfer records no top-up. |
+| `timestamp` (low) | `CompanySeries.mint` | Deadlines and permit expiries span minutes to days; seconds of sequencer drift change nothing. |
+| `low-level-calls` (informational) | `_pull`, `_push`, `topUp` | Deliberate: handles tokens returning nothing or `false`, without a library. |
+| `cyclomatic-complexity` (informational) | `claimComponent` | Each component's path spelled out; a chosen style. |
 
 ## What this review did not do
 
-- It did not read the components' code (the issuers' contracts are proxies whose implementations are theirs); the fork tests read their behaviour, not their source.
-- It did not look for economic attacks across series, because there is one series and no factory.
-- It ran a static analyser only after the fact (above); its readings of the analyser's findings are the author's, and a reviewer may read them differently.
-- It was done by the person who wrote the code.
+- It did not read the components' code (issuer proxies); fork tests read behaviour, not source.
+- No economic attacks across series: one series, no factory.
+- Static analysis ran only after the fact.
+- It was done by the person who wrote the code. It is not an independent review.

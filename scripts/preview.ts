@@ -38,12 +38,21 @@ const real = await getStoreAsync();
 // the filing rather than the decision to stay quiet. Nothing else is altered,
 // and nothing is written either way.
 const fresh = process.argv.includes('--fresh');
+// A proxy, not a spread: the Postgres store is a class, and spreading an
+// instance copies its own fields and drops every method on its prototype —
+// the Warden, the Herald and the Surveyor then failed with "is not a function".
+const hidden = { state: 'VERIFIED' as const, value: [], source: 'rehearsal · hidden', retrievedAt: now.toISOString(), ageSeconds: 0, intervalSeconds: 60 };
 const store: typeof real = fresh
-  ? {
-      ...real,
-      snapshots: async (prefix: string) => (prefix.startsWith(`${id}:`) ? { state: 'VERIFIED' as const, value: [], source: 'rehearsal · hidden', retrievedAt: now.toISOString(), ageSeconds: 0, intervalSeconds: 60 } : real.snapshots(prefix)),
-      publicationsByAgent: async (agentId, limit) => (agentId === id ? { state: 'VERIFIED' as const, value: [], source: 'rehearsal · hidden', retrievedAt: now.toISOString(), ageSeconds: 0, intervalSeconds: 60 } : real.publicationsByAgent(agentId, limit)),
-    }
+  ? new Proxy(real, {
+      get(target, prop, receiver) {
+        if (prop === 'snapshots') return async (prefix: string) => (prefix.startsWith(`${id}:`) ? hidden : target.snapshots(prefix));
+        if (prop === 'publicationsByAgent') {
+          return async (...args: Parameters<typeof real.publicationsByAgent>) => (args[0] === id ? hidden : target.publicationsByAgent(...args));
+        }
+        const value = Reflect.get(target, prop, receiver) as unknown;
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    })
   : real;
 const result = await producer({ spec, now, store });
 // The rehearsal is over; nothing else touches the store. Closing it here means
@@ -63,7 +72,9 @@ if (result.sourcesReached < spec.minimumSources) {
   process.exit(0);
 }
 if (result.publication === null) {
-  console.log('\nNOTHING_TO_SAY — a real outcome, and it would still leave a heartbeat.\n');
+  console.log('\nNOTHING_TO_SAY — a real outcome, and it would still leave a heartbeat.');
+  if (result.note) console.log(`note: ${result.note}`);
+  console.log('');
   process.exit(0);
 }
 

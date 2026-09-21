@@ -271,7 +271,7 @@ export function summariseEquity(
   lines.push(
     paused.length === 0
       ? `— Issuer oracle pause flag set: none of the ${literal(verdicts.length - pauseUnread.length)} tokens read.`
-      : `— Issuer oracle pause flag SET on ${paused.map((v) => v.label).join(', ')}. The feed holds its last value while the flag is set; the flag is advisory and not enforced on chain, so it is reported beside the age, not instead of it.`,
+      : `— Issuer oracle pause flag SET on ${paused.map((v) => v.label).join(', ')}. The feed holds its last value while set; the flag is advisory, so it is shown beside the age.`,
   );
   if (pauseUnread.length > 0) {
     lines.push(
@@ -454,7 +454,7 @@ export const pillarProducer: Producer = async ({ now, store }): Promise<Producer
       ageFigure(v.ageSeconds, `${network.label} · ${v.feed.name} updatedAt`, v.retrievedAt),
     );
     cryptoLines.push(
-      `— ${v.feed.name}: ${v.price}, updated ${describeAge(v.ageSeconds)} ago — ${v.pastHeartbeat ? 'past' : 'within'} its published heartbeat. This feed follows the crypto clock, which does not close, so age here is not explained by a shut market.`,
+      `— ${v.feed.name}: ${v.price}, updated ${describeAge(v.ageSeconds)} ago — ${v.pastHeartbeat ? 'past' : 'within'} its published heartbeat. Crypto never closes, so a shut market does not explain its age.`,
     );
   }
 
@@ -494,10 +494,10 @@ export const pillarProducer: Producer = async ({ now, store }): Promise<Producer
     });
     liveness =
       headAge > HEAD_STALL_SECONDS
-        ? `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. Blocks arrive every tenth of a second here, so a head this old is the chain not producing, and every feed age above should be read with that in mind.`
-        : `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. Blocks being produced is not the same claim as the sequencer being healthy; it is the one liveness signal this chain offers, and it is offered as that.`;
+        ? `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. Blocks come every tenth of a second, so a head this old means the chain is not producing. Read every age above with that in mind.`
+        : `— What the chain itself says: its head is block ${head.value.number.toLocaleString('en-US')}, timestamped ${describeAge(headAge)} ago. New blocks are the one liveness signal this chain offers; they do not prove the sequencer is healthy.`;
   } else {
-    liveness = `— The chain head could not be read (${head.reason}), so nothing is said about whether blocks are being produced. That is an absence, not a stall.`;
+    liveness = `— The chain head could not be read (${head.reason}), so nothing is said about block production. An absence, not a stall.`;
   }
 
   // A failure line carries whatever the source said, and what a source says can
@@ -533,13 +533,13 @@ export const pillarProducer: Producer = async ({ now, store }): Promise<Producer
     '',
     'WHAT THIS RUN DOES NOT ESTABLISH',
     sequencer.kind === 'NOT_CHECKED'
-      ? `— ${SEQUENCER_FEED.proxy === null ? `The sequencer: ${SEQUENCER_FEED.reason}` : `The sequencer was not checked: ${sequencer.reason}`}. This chain is a Layer 2, and during a sequencer outage a feed can go stale while still returning a value.`
+      ? `— ${SEQUENCER_FEED.proxy === null ? `The sequencer: ${SEQUENCER_FEED.reason}` : `The sequencer was not checked: ${sequencer.reason}`}. On this Layer 2, a sequencer outage can leave a feed stale while it still answers.`
       : sequencer.kind === 'DOWN'
         ? '— The sequencer uptime feed reports the sequencer is not up. Prices read during an outage should not be treated as current.'
         : `— The sequencer reports up, ${describeAge(sequencer.sinceSeconds)} since that status began.`,
     liveness,
-    `— Coverage: the vendor directory lists ${directoryCount} feeds for this network and every one is in this registry. The issuer's registry lists ${tokenCount} stock tokens on this chain, of which ${withoutFeed} have no feed this system can read: their prices are not stated anywhere here.`,
-    '— A feed within its heartbeat is a feed that updated recently. It is not a statement that the value is correct, and nothing here verifies the data behind it.',
+    `— Coverage: all ${directoryCount} vendor feeds for this network are in this registry. Of ${tokenCount} stock tokens, ${withoutFeed} have no feed, so their prices are not stated here.`,
+    '— Within its heartbeat means recently updated, not correct. Nothing here verifies the data behind a feed.',
   ].join('\n');
 
   const readings = Object.fromEntries(reads.map((r) => [r.feed.name, r.round]));

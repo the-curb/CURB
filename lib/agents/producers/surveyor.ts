@@ -116,7 +116,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
 
   if (periodsPerYear === null || !Number.isFinite(periodsPerYear)) {
     absent.push(
-      '— Annualised volatility: the spacing between samples could not be derived, so no annualisation was attempted. A rate we do not know is not replaced with one we assume.',
+      '— Annualised volatility: sample spacing unknown, so not annualised. An unknown rate is not replaced with a guess.',
     );
   } else {
     const spacingText = describeAge(Math.round(spacing!));
@@ -128,7 +128,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
 
   if (structure.volatilityLong === null) {
     absent.push(
-      `— Realised volatility: below the stated minimum of ${MINIMUMS.volatility} returns, so it is not declared. A dispersion computed from fewer samples is mostly an artefact of the sample.`,
+      `— Realised volatility: below the stated minimum of ${MINIMUMS.volatility} returns, so not declared. Fewer samples mostly measure the sample.`,
     );
   } else {
     const vol = round(structure.volatilityLong, 1);
@@ -144,7 +144,7 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
     const strength = round(structure.trendLong.strength, 2);
     declare(strength);
     measured.push(
-      `— Trend strength over the long window: ${strength}. The sign is the direction; the magnitude is how far the move stands out of the noise, normalised on the dispersion of the residuals rather than reported as a raw slope.`,
+      `— Trend strength over the long window: ${strength}. Sign is direction; size is how far the move stands out of the noise, not a raw slope.`,
     );
   }
 
@@ -180,9 +180,9 @@ export const surveyorProducer: Producer = async ({ store }): Promise<ProducerRes
     ...(absent.length > 0 ? absent : ['— Every figure this window supports was computed.']),
     '',
     'WHAT THIS IS NOT',
-    '— These are our own samples of a price feed, taken when the Pillar ran. They are not exchange daily closes, and a figure computed from them describes the feed, not the underlying session.',
+    '— These are our own feed samples, not exchange closes. They describe the feed, not the session.',
     `— ${describeRetention()}`,
-    '— No entry, no stop, no target. This is a measurement method, not a trading method: it contains no rule for sizing a position and nothing here allocates capital.',
+    '— No entry, no stop, no target. A measurement, not a trading method; nothing here sizes a position.',
   ].join('\n');
 
   return {

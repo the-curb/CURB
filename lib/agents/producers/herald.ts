@@ -59,13 +59,13 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
   // flattering half of the pair.
   const tally =
     counts === null
-      ? '— The publication and block counts could not be read from the store, so neither is quoted here. Quoting the first without the second would be choosing the flattering half.'
+      ? '— The publication and block counts could not be read, so neither is quoted. One without the other would flatter.'
       : (() => {
           const published = String(counts.publications);
           const blocked = String(counts.blocks);
           declare(published);
           declare(blocked);
-          return `— ${published} ${counts.publications === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${counts.blocks === 1 ? 'output was' : 'outputs were'} stopped by policy before reaching a channel. Both counts come from the same store; the second is not hidden to make the first look better.`;
+          return `— ${published} ${counts.publications === 1 ? 'publication is' : 'publications are'} in the store, and ${blocked} ${counts.blocks === 1 ? 'output was' : 'outputs were'} stopped by policy. Both come from the same store.`;
         })();
 
   // The brand lines are prose the product owner writes; any figure inside them —
@@ -94,12 +94,12 @@ export const heraldProducer: Producer = async ({ now, store }): Promise<Producer
     tally,
     // Worded around the forbidden phrases rather than quoting them: the gate
     // reads text, not intent, and it is not given an exception for this file.
-    `— ${rules} publication rules run in code ahead of every post, including this one. The rules against forecasting, and against naming a level to trade at, bind this agent exactly as they bind the measuring ones.`,
+    `— ${rules} publication rules run in code before every post, this one included. They bind this agent like every other.`,
     '',
     'WHAT YOU ARE NOT BEING OFFERED',
-    '— No forecast, no target, no operational parameter. Not because they would be unpopular, but because this system has no way to produce one it could stand behind.',
+    '— No forecast, no target, no operational parameter: this system cannot produce one it could stand behind.',
     '— Nothing to buy. There is no token, no sale, and no allocation attached to any of this.',
-    '— No claim that a figure published here is correct. The claim is narrower and it is the whole point: every figure carries where it came from and when it was read, and anything that could not be read is shown as absent rather than as zero.',
+    '— No claim that a figure is correct. Every figure says where it came from and when; what was not read shows as absent, never zero.',
   ].join('\n');
 
   return {

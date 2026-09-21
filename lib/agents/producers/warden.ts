@@ -106,7 +106,7 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
 
   if (counts === null) {
     numbers.push(
-      '— Outputs blocked by policy: the record counts could not be read, so the count is reported as absent. It is not a count of zero.',
+      '— Outputs blocked by policy: counts not readable, so absent. Not zero.',
     );
   } else {
     const blockCount = String(counts.blocks);
@@ -114,7 +114,7 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
     numbers.push(
       counts.blocks === 0
         ? `— Outputs blocked by policy and kept for review: ${blockCount}.`
-        : `— Outputs blocked by policy and kept for review: ${blockCount}. Each one is stored in full, with the rule it broke, because a blocked output is an event to look at rather than a silence.`,
+        : `— Outputs blocked by policy and kept for review: ${blockCount}. Each is stored in full with the rule it broke.`,
     );
   }
 
@@ -147,9 +147,9 @@ export const wardenProducer: Producer = async ({ now, store }): Promise<Producer
     verdict,
     '',
     'WHAT THIS REPORT DOES NOT ESTABLISH',
-    '— A heartbeat records that a run happened and what it reached. It is not evidence that what was published was correct: nothing here audits content.',
-    '— This describes the state before this run. The heartbeat for this report is written after the gates, so the report cannot include itself without misstating the order things happened in.',
-    '— An agent that has never been observed may have no producer wired at all. Never observed and never arrived are different facts, and this report does not merge them.',
+    '— A heartbeat records that a run happened and what it reached, not that its output was correct.',
+    '— This describes the state before this run; its own heartbeat is written after.',
+    '— An agent never observed may have no producer wired. Never observed and never arrived are kept apart.',
   ].join('\n');
 
   return {

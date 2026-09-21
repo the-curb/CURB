@@ -107,16 +107,17 @@ export const SERVICES_COPY = {
       review: 'The payment contract is reviewed',
       desk: 'The token launches and its payment desk is deployed',
       rate: 'A price for the token is read from its pool',
-      interviews: 'The interviews run',
+      interviews: 'Interviews with prospective holders',
     },
     state: {
       done: 'done',
       notDone: 'not done',
+      notHeld: 'not held, by decision',
     },
     details: {
       services: 'Rehearsed on a local chain.',
       review: 'A self-review is filed. No independent reviewer has reported.',
-      interviews: 'The guide is ready. Nobody has been interviewed.',
+      interviews: 'Decided on 20 September 2026. Observed use stands in.',
     },
   },
 

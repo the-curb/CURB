@@ -42,8 +42,8 @@ const INTERVAL = 6 * 3600;
 
 /** Questions a corporate action raises that bytecode cannot answer. */
 const NOT_DERIVABLE = [
-  'Why a multiplier moved. The chain records that it changed, not whether the cause was a dividend, a split, or a correction. The issuer’s notice is the only place that says.',
-  'Whether a corporate action that should have moved a multiplier failed to. Absence of a change is not evidence that nothing happened — it is the case this agent exists to make visible, and it needs the issuer’s calendar to confirm.',
+  'Why a multiplier moved. The chain records the change, not its cause; only the issuer’s notice says.',
+  'Whether an action that should have moved a multiplier failed to. No change is not proof nothing happened; that needs the issuer’s calendar.',
   'The tax or entitlement consequences of any action recorded here.',
 ] as const;
 
@@ -336,7 +336,7 @@ export const archivistProducer: Producer = async ({ now, store }): Promise<Produ
         ? '— This is the first reading kept for these tokens, so there is nothing yet to compare against.'
         : moved.length === 0
           ? '— Moved since the previous reading: none.'
-          : `— MOVED since the previous reading: ${moved.map((v) => `${v.token.ticker} ${declareMultiplier(v, v.movedFrom!, 'uiMultiplier() previous')} → ${declareMultiplier(v, v.multiplier!, 'uiMultiplier()')}`).join(', ')}. One token now represents a different number of shares, and any figure derived from the older value is wrong by that ratio. The chain records the movement; the issuer's notice says why.`,
+          : `— MOVED since the previous reading: ${moved.map((v) => `${v.token.ticker} ${declareMultiplier(v, v.movedFrom!, 'uiMultiplier() previous')} → ${declareMultiplier(v, v.multiplier!, 'uiMultiplier()')}`).join(', ')}. One token now stands for a different number of shares; figures from the old value are off by that ratio. The issuer's notice says why.`,
   );
   observed.push(
     pending.length === 0
