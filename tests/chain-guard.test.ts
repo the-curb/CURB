@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { forgetChainConfirmations, readBlockNumber, rpcCall } from '../lib/chain/rpc.ts';
-import { NETWORKS } from '../lib/chain/networks.ts';
+import { NETWORKS, prefersOwnEndpoint, rpcUrls } from '../lib/chain/networks.ts';
 
 /**
  * The endpoint is asked which chain it is before anything else it says is
@@ -30,9 +30,14 @@ describe('the chain guard', () => {
   const realUrl = process.env.CURB_RPC_URL;
   const realDoh = process.env.CURB_DNS_OVER_HTTPS;
 
+  const realRoute = process.env.CURB_RPC_ROUTE;
+
   beforeEach(() => {
     forgetChainConfirmations();
     process.env.CURB_RPC_URL = 'https://node.test.invalid/rpc';
+    // These tests are about the fallback itself, so every read starts on the
+    // operator's endpoint; the default routing has its own tests below.
+    process.env.CURB_RPC_ROUTE = 'all';
     delete process.env.CURB_DNS_OVER_HTTPS;
   });
 
@@ -40,6 +45,8 @@ describe('the chain guard', () => {
     globalThis.fetch = realFetch;
     if (realUrl === undefined) delete process.env.CURB_RPC_URL;
     else process.env.CURB_RPC_URL = realUrl;
+    if (realRoute === undefined) delete process.env.CURB_RPC_ROUTE;
+    else process.env.CURB_RPC_ROUTE = realRoute;
     if (realDoh === undefined) delete process.env.CURB_DNS_OVER_HTTPS;
     else process.env.CURB_DNS_OVER_HTTPS = realDoh;
     forgetChainConfirmations();
@@ -159,5 +166,101 @@ describe('the chain guard', () => {
     assert.equal(reverted.state, 'UNREAD');
     assert.equal(reverted.reason, 'FIELD_ABSENT');
     assert.deepEqual(calls, ['node.test.invalid eth_blockNumber']);
+  });
+
+  // 21 September 2026: the operator's dRPC balance ran low. A paid endpoint
+  // that has run out must hand its reads to the public node, not answer every
+  // read with a billing message the desk would print as the reading.
+  it('hands the reads to the public node when the operator’s endpoint is out of balance', async () => {
+    for (const refusal of [
+      { status: 402, body: 'Payment Required' },
+      { status: 402, body: JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'payment required' } }) },
+      { status: 200, body: JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'Insufficient balance: top up your account' } }) },
+      { status: 403, body: JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: 32002, message: 'your balance is too low' } }) },
+    ]) {
+      forgetChainConfirmations();
+      const calls: string[] = [];
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+        const host = new URL(String(url)).host;
+        calls.push(`${host} ${method}`);
+        if (host === 'node.test.invalid' && method !== 'eth_chainId') return new Response(refusal.body, { status: refusal.status });
+        const result = method === 'eth_chainId' ? mainnet.chainIdHex : '0x21';
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), { status: 200 });
+      }) as unknown as typeof globalThis.fetch;
+      const head = await readBlockNumber(opts);
+      assert.equal(head.state, 'VERIFIED', `${refusal.status} ${refusal.body}`);
+      assert.match(head.source, /^rpc.mainnet.chain.robinhood.com/);
+      assert.equal(calls.at(-1), 'rpc.mainnet.chain.robinhood.com eth_blockNumber');
+    }
+  });
+
+  it('does not mistake a contract’s own "insufficient balance" revert for the endpoint running out', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+      calls.push(`${new URL(String(url)).host} ${method}`);
+      if (method === 'eth_chainId') return new Response(JSON.stringify({ jsonrpc: '2.0', id, result: mainnet.chainIdHex }), { status: 200 });
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id, error: { code: 3, message: 'execution reverted: insufficient balance' } }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const r = await rpcCall('eth_call', [{ to: '0x0000000000000000000000000000000000000001', data: '0x' }, 'latest'], opts);
+    assert.equal(r.state, 'UNREAD');
+    assert.equal(r.reason, 'FIELD_ABSENT');
+    assert.ok(!calls.some((c) => c.startsWith('rpc.mainnet') && !c.endsWith('eth_chainId')), 'the answer was not asked again elsewhere');
+  });
+});
+
+describe('which endpoint a read goes to first', () => {
+  const realUrl = process.env.CURB_RPC_URL;
+  const realRoute = process.env.CURB_RPC_ROUTE;
+  const realFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    forgetChainConfirmations();
+    process.env.CURB_RPC_URL = 'https://node.test.invalid/rpc';
+    delete process.env.CURB_RPC_ROUTE;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    if (realUrl === undefined) delete process.env.CURB_RPC_URL;
+    else process.env.CURB_RPC_URL = realUrl;
+    if (realRoute === undefined) delete process.env.CURB_RPC_ROUTE;
+    else process.env.CURB_RPC_ROUTE = realRoute;
+    forgetChainConfirmations();
+  });
+
+  it('sends history to the paid endpoint and the head to the public node', () => {
+    assert.equal(prefersOwnEndpoint('eth_getLogs', [{ fromBlock: '0x1', toBlock: '0x2' }]), true);
+    assert.equal(prefersOwnEndpoint('eth_call', [{ to: '0x1', data: '0x' }, '0x4a2f11']), true, 'state at a past block');
+    assert.equal(prefersOwnEndpoint('eth_getStorageAt', ['0x1', '0x0', '0x4a2f11']), true);
+    assert.equal(prefersOwnEndpoint('eth_call', [{ to: '0x1', data: '0x' }, 'latest']), false);
+    assert.equal(prefersOwnEndpoint('eth_blockNumber', []), false);
+    assert.equal(prefersOwnEndpoint('eth_getBlockByNumber', ['0x4a2f11', false]), false, 'a block header is history the public node serves');
+    process.env.CURB_RPC_ROUTE = 'all';
+    assert.equal(prefersOwnEndpoint('eth_blockNumber', []), true, 'CURB_RPC_ROUTE=all puts the paid endpoint first for everything');
+  });
+
+  it('orders the endpoints by that preference, and uses the public node alone when no endpoint is set', () => {
+    assert.deepEqual(rpcUrls(mainnet, true), ['https://node.test.invalid/rpc', mainnet.defaultRpcUrl]);
+    assert.deepEqual(rpcUrls(mainnet, false), [mainnet.defaultRpcUrl, 'https://node.test.invalid/rpc']);
+    delete process.env.CURB_RPC_URL;
+    assert.deepEqual(rpcUrls(mainnet, true), [mainnet.defaultRpcUrl]);
+  });
+
+  it('reads the head from the public node without touching the paid endpoint', async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const { method, id } = JSON.parse(String(init?.body)) as { method: string; id: number };
+      calls.push(`${new URL(String(url)).host} ${method}`);
+      const result = method === 'eth_chainId' ? mainnet.chainIdHex : method === 'eth_blockNumber' ? '0x30' : [];
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id, result }), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const head = await readBlockNumber(opts);
+    assert.equal(head.state, 'VERIFIED');
+    assert.ok(calls.every((c) => c.startsWith('rpc.mainnet')), calls.join(' | '));
+    calls.length = 0;
+    await rpcCall('eth_getLogs', [{ fromBlock: '0x1', toBlock: '0x2' }], opts);
+    assert.equal(calls.at(-1), 'node.test.invalid eth_getLogs', 'logs go to the paid endpoint first');
   });
 });

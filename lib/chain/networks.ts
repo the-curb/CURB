@@ -95,15 +95,42 @@ export function rpcUrl(profile: NetworkProfile = activeNetwork()): string {
 }
 
 /**
- * The endpoints for a profile, in the order they are tried: the operator's
- * own (the environment override) first, the profile's public node after it
- * when the two differ. A read that the first cannot make — the transport,
- * a timeout, a quota — is made on the second; an answer, right or wrong, is
- * never second-guessed on another node.
+ * Which reads go to the operator's own endpoint first. The operator's endpoint
+ * is paid for by the call; the public node is not, and answers everything at
+ * the head of the chain. What only a paid endpoint serves well is history:
+ * wide `eth_getLogs` (the public node refuses a query matching more than ten
+ * thousand logs) and state at a past block (it keeps about ten minutes of
+ * state). So by default those go to the operator's endpoint first and
+ * everything read at `latest` goes to the public node first, each with the
+ * other as its fallback — a balance lasts, and running it out costs the desk
+ * its history reads, not its prices.
+ *
+ * `CURB_RPC_ROUTE=all` sends every read to the operator's endpoint first, as
+ * before 21 September 2026.
  */
-export function rpcUrls(profile: NetworkProfile = activeNetwork()): readonly string[] {
+export const RPC_ROUTE_ENV = 'CURB_RPC_ROUTE';
+
+export function prefersOwnEndpoint(method: string, params: readonly unknown[] = []): boolean {
+  if (process.env[RPC_ROUTE_ENV] === 'all') return true;
+  if (method === 'eth_getLogs') return true;
+  // A call pinned to a block number reads the past: eth_call, eth_getCode,
+  // eth_getStorageAt and eth_getBalance take the block as their last argument.
+  const tag = params[params.length - 1];
+  return typeof tag === 'string' && /^0x[0-9a-f]+$/i.test(tag) && ['eth_call', 'eth_getCode', 'eth_getStorageAt', 'eth_getBalance'].includes(method);
+}
+
+/**
+ * The endpoints for a profile, in the order they are tried. With an operator
+ * endpoint set (the environment override), both are tried, in the order
+ * `prefersOwnEndpoint` gives for the read; without one, the public node alone.
+ * A read that the first cannot make — the transport, a timeout, a quota, a
+ * spent balance — is made on the second; an answer, right or wrong, is never
+ * second-guessed on another node.
+ */
+export function rpcUrls(profile: NetworkProfile = activeNetwork(), preferOwn = true): readonly string[] {
   const own = process.env[profile.rpcEnv];
-  return own && own !== profile.defaultRpcUrl ? [own, profile.defaultRpcUrl] : [profile.defaultRpcUrl];
+  if (!own || own === profile.defaultRpcUrl) return [profile.defaultRpcUrl];
+  return preferOwn ? [own, profile.defaultRpcUrl] : [profile.defaultRpcUrl, own];
 }
 
 /** An explorer link for an address, or null where the network publishes no explorer. */

@@ -6,7 +6,7 @@
  * exception that some caller quietly turns into a zero.
  */
 
-import { activeNetwork, rpcUrl, rpcUrls, type NetworkProfile } from './networks.ts';
+import { activeNetwork, prefersOwnEndpoint, rpcUrl, rpcUrls, type NetworkProfile } from './networks.ts';
 import { request } from './transport.ts';
 import { read, unread, type Reading } from '../doctrine/reading.ts';
 
@@ -44,8 +44,15 @@ const confirmations = new Map<string, { until: number; fault: Reading<never> | n
 export const DEMOTION_SECONDS = 60;
 const demotions = new Map<string, number>();
 
-/** A provider's own refusal that is about the account, not the query: the next endpoint is asked. Anchored, so a hash or a code that happens to contain the digits is not one. */
-const QUOTA = /\bHTTP 429\b|rate.?limit|too many requests|\bquota\b|exceeded .*(?:limit|plan|credits)|compute units/i;
+/**
+ * A provider's own refusal that is about the account, not the query: the next
+ * endpoint is asked. That includes a spent or low balance — a paid endpoint
+ * that has run out must hand its reads to the public node, not answer every
+ * one of them with a billing message. Anchored, so a hash or a code that
+ * happens to contain the digits is not one. A contract's own "insufficient
+ * balance" revert never reaches this: a revert is classified first.
+ */
+const QUOTA = /\bHTTP (?:402|429)\b|rate.?limit|too many requests|\bquota\b|exceeded .*(?:limit|plan|credits)|compute units|payment required|insufficient (?:account )?(?:balance|credits?)|not enough (?:balance|credits?)|(?:low|zero|negative|empty) balance|balance (?:is )?(?:too low|empty|exhausted|depleted)|out of (?:credits?|funds|balance)|top.?up (?:your|the) (?:balance|account)/i;
 
 /**
  * Whether a reading is the endpoint failing to answer at all — to be tried
@@ -101,9 +108,10 @@ export function forgetChainConfirmations(): void {
  * provenance line points at something a reader could check themselves. Every
  * method but `eth_chainId` itself waits on the chain being confirmed first.
  *
- * The profile's endpoints are tried in order (the operator's own, then the
- * public node): one that does not answer — the transport, a timeout, a
- * quota — is passed over for the next and not asked again for
+ * The profile's endpoints are tried in the order `prefersOwnEndpoint` gives
+ * for the read (history on the operator's own first, the head on the public
+ * node first): one that does not answer — the transport, a timeout, a quota,
+ * a spent balance — is passed over for the next and not asked again for
  * DEMOTION_SECONDS; an answer, including a wrong one (a reverted call, a
  * refused query, another chain's id), is the reading, never retried
  * elsewhere. When none answers, the first endpoint's failure is the reading,
@@ -115,7 +123,7 @@ export async function rpcCall<T>(
   opts: RpcOptions,
 ): Promise<Reading<T>> {
   const profile = opts.profile ?? activeNetwork();
-  const urls = rpcUrls(profile);
+  const urls = rpcUrls(profile, prefersOwnEndpoint(method, params));
   const now = Date.now();
   const live = urls.filter((u) => (demotions.get(u) ?? 0) <= now);
   const order = live.length > 0 ? live : urls;
@@ -169,6 +177,9 @@ async function rpcCallAt<T>(url: string, method: string, params: readonly unknow
     // September 2026): the error's own words are the answer, and they are what
     // a reader halves on. A non-2xx with no such body is the transport.
     let body: RpcSuccess | RpcFailure | null = null;
+    // Payment Required is the account, whatever the body says: the endpoint is
+    // not answering this desk until someone pays, so the next one is asked.
+    if (response.status === 402) return unread('SOURCE_UNREACHABLE', { source, detail: 'HTTP 402' });
     if (!response.ok) {
       try {
         const parsed = JSON.parse(response.text) as RpcSuccess | RpcFailure;
