@@ -27,7 +27,34 @@ import type { NarrationRecord, Store } from '../store/types.ts';
 import { composeEdition, type Edition } from './edition.ts';
 import { BRAND } from '../brand.ts';
 
-export const NARRATION_MODEL = 'claude-opus-5';
+export const DEFAULT_NARRATION_MODEL = 'claude-opus-5';
+/** @deprecated the model is chosen at call time; see narrationModel(). */
+export const NARRATION_MODEL = DEFAULT_NARRATION_MODEL;
+
+/**
+ * The model the lede is asked of. `CURB_NARRATION_MODEL` names another, for
+ * a gateway that does not serve the default — set with `ANTHROPIC_BASE_URL`,
+ * which the SDK reads itself (the owner's choice on 21 September 2026: a
+ * key from SumoPod's Anthropic-format route). The record keeps the model the
+ * answer says served it, so the page never names one it did not use.
+ */
+export function narrationModel(): string {
+  return process.env.CURB_NARRATION_MODEL?.trim() || DEFAULT_NARRATION_MODEL;
+}
+
+/**
+ * How long a failed call waits before the day is asked again. A failure is
+ * not a verdict: an empty balance, a key that did not authenticate, a network
+ * that did not answer say nothing about the day, and the day should be
+ * narrated once they are fixed. A refusal and a policy block are verdicts and
+ * stand. Hourly, not every tick: a setup that stays broken costs a call an
+ * hour, not one every five minutes.
+ */
+export const NARRATION_RETRY_SECONDS = 3600;
+
+function retryDue(record: NarrationRecord, now: Date): boolean {
+  return record.outcome === 'MODEL_FAILED' && now.getTime() - Date.parse(record.generatedAt) >= NARRATION_RETRY_SECONDS * 1000;
+}
 
 /**
  * Pins a narration to the composition it was written for. Only the parts the
@@ -196,7 +223,7 @@ export async function narrateEdition(
   let served: string;
   try {
     const response = await client.messages.create({
-      model: NARRATION_MODEL,
+      model: narrationModel(),
       // A lede is two to four sentences. The cap is a hard reason, not a lowball.
       max_tokens: 1024,
       output_config: { effort: 'medium' },
@@ -231,7 +258,7 @@ export async function narrateEdition(
             : cause instanceof Error
               ? cause.message
               : 'unknown failure';
-    return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: NARRATION_MODEL, detail };
+    return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: narrationModel(), detail };
   }
 
   if (text === '') {
@@ -291,7 +318,7 @@ export async function narrateClosedDay(
   if (now.getTime() >= daySettledAt(day).getTime()) {
     const settled = await store.narration(day);
     if (settled.state === 'VERIFIED' && settled.value !== null) {
-      if (settled.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) {
+      if ((settled.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) && !retryDue(settled.value, now)) {
         return { state: 'ALREADY_DONE', day };
       }
     }
@@ -315,8 +342,9 @@ export async function narrateClosedDay(
   const existing = await store.narration(day);
   if (existing.state === 'VERIFIED' && existing.value?.editionHash === hash) {
     // NOT_CONFIGURED is not a result to keep: the moment a key appears, the day
-    // should be narrated. Every other outcome — including a refusal — stands.
-    if (existing.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) {
+    // should be narrated. A failed call is asked again after an hour. Every
+    // other outcome — a refusal, a policy block, a lede — stands.
+    if ((existing.value.outcome !== 'NOT_CONFIGURED' || !narrationConfigured()) && !retryDue(existing.value, now)) {
       return { state: 'ALREADY_DONE', day };
     }
   }

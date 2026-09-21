@@ -8,6 +8,8 @@ import {
   editionHash,
   narrateClosedDay,
   narrateEdition,
+  narrationModel,
+  NARRATION_RETRY_SECONDS,
   type NarrationClient,
 } from '../lib/gazette/narrate.ts';
 import type { DayRecord, NarrationRecord, Store } from '../lib/store/types.ts';
@@ -271,6 +273,51 @@ describe('narrateClosedDay, once the day has settled', () => {
     } finally {
       if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+// 21 September 2026: two days failed on an empty credit balance. A failed
+  // call is not a verdict on the day; once the account is fixed the day is
+  // narrated, asked at most once an hour. A refusal still stands.
+  it('asks a failed day again after an hour, not before, and never re-asks a refusal', async () => {
+    const failedAt = new Date(daySettledAt(DAY).getTime() + 60_000);
+    const failed: NarrationRecord = { ...narrated, outcome: 'MODEL_FAILED', standfirst: null, model: 'claude-opus-5', detail: 'API error 400: credit balance is too low', generatedAt: failedAt.toISOString() };
+    const soon = new Date(failedAt.getTime() + 10 * 60_000);
+    const later = new Date(failedAt.getTime() + NARRATION_RETRY_SECONDS * 1000 + 60_000);
+
+    const early = storeWith(failed);
+    assert.equal((await narrateClosedDay(early.store, DAY, soon, { client: scripted('One agent filed.') })).state, 'ALREADY_DONE');
+    assert.equal(early.calls.writes, 0);
+
+    const due = storeWith(failed);
+    const r = await narrateClosedDay(due.store, DAY, later, { client: scripted('One agent filed.') });
+    assert.equal(r.state, 'ATTEMPTED');
+    assert.equal(due.calls.writes, 1);
+
+    const refused = storeWith({ ...failed, outcome: 'REFUSED' });
+    assert.equal((await narrateClosedDay(refused.store, DAY, later, { client: scripted('One agent filed.') })).state, 'ALREADY_DONE');
+  });
+
+  it('asks the model the deployment names, and defaults to Claude Opus 5', async () => {
+    const saved = process.env.CURB_NARRATION_MODEL;
+    try {
+      delete process.env.CURB_NARRATION_MODEL;
+      assert.equal(narrationModel(), 'claude-opus-5');
+      process.env.CURB_NARRATION_MODEL = 'claude-opus-4-6';
+      assert.equal(narrationModel(), 'claude-opus-4-6');
+      let asked = '';
+      const client: NarrationClient = {
+        messages: {
+          async create(params: { model: string }) {
+            asked = params.model;
+            return scripted('One agent filed.').messages.create(params as never);
+          },
+        },
+      } as unknown as NarrationClient;
+      await narrateEdition(closed, { now: LATER, client });
+      assert.equal(asked, 'claude-opus-4-6');
+    } finally {
+      if (saved === undefined) delete process.env.CURB_NARRATION_MODEL;
+      else process.env.CURB_NARRATION_MODEL = saved;
     }
   });
 });
