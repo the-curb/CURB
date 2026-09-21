@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://the-curb-production.up.railway.app"><img src="docs/images/front.png" alt="THE CURB — the front page: one company, two issuers, one position" width="100%"></a>
+  <a href="https://thecurb.xyz"><img src="docs/images/front.png" alt="THE CURB — the front page: one company, two issuers, one position" width="100%"></a>
 </p>
 
 <h1 align="center">THE CURB</h1>
@@ -7,8 +7,8 @@
 <p align="center"><b>Every price with its age. Every issuer with its terms.</b></p>
 
 <p align="center">
-  <a href="https://the-curb-production.up.railway.app">Live</a> ·
-  <a href="https://the-curb-production.up.railway.app/guide">How to use it</a> ·
+  <a href="https://thecurb.xyz">Live</a> ·
+  <a href="https://thecurb.xyz/guide">How to use it</a> ·
   <a href="https://x.com/thecurb_xyz">X · @thecurb_xyz</a> ·
   <a href="MECHANISM.md">The mechanism</a> ·
   <a href="DOCTRINE.md">The doctrine</a> ·
@@ -57,13 +57,13 @@ treasury is not an Ethereum series operator.
 
 | What exists | Where |
 | --- | --- |
-| The mechanism (blueprint) | [MECHANISM.md](MECHANISM.md), rendered at [`/mechanism`](https://the-curb-production.up.railway.app/mechanism) |
+| The mechanism (blueprint) | [MECHANISM.md](MECHANISM.md), rendered at [`/mechanism`](https://thecurb.xyz/mechanism) |
 | Ledger model | `lib/positions/`, tested against the blueprint's cases in `tests/positions.test.ts` |
-| One simulated position: illustrative units, no prices, no chain | [`/positions/apple-s1`](https://the-curb-production.up.railway.app/positions/apple-s1) |
+| One simulated position: illustrative units, no prices, no chain | [`/positions/apple-s1`](https://thecurb.xyz/positions/apple-s1) |
 | Backend: issuer-record archive, daily on-chain checks of every address they name, event index and reconciliation once a series is deployed, API | `lib/positions/`, `app/api/positions` |
 | Contract prototype: Ethereum fork evidence against both real components, local rehearsal and drill | [`contracts/`](contracts/) |
-| Decision records: series ADRs and most operations policy proposed; treasury signers and token decided | [`docs/decisions/`](docs/decisions/), rendered at [`/mechanism/decisions`](https://the-curb-production.up.railway.app/mechanism/decisions) |
-| Token's one function (product owner's decision): prepaid desk credit in dollars, paid in CURB at a pool rate read at a block | [TOKEN.md](docs/decisions/TOKEN.md), [`/services`](https://the-curb-production.up.railway.app/services) |
+| Decision records: series ADRs and most operations policy proposed; treasury signers and token decided | [`docs/decisions/`](docs/decisions/), rendered at [`/mechanism/decisions`](https://thecurb.xyz/mechanism/decisions) |
+| Token's one function (product owner's decision): prepaid desk credit in dollars, paid in CURB at a pool rate read at a block | [TOKEN.md](docs/decisions/TOKEN.md), [`/services`](https://thecurb.xyz/services) |
 | Mainnet dossier: preparation, external facts, venue terms from primary sources, execution decisions | [`docs/mainnet/`](docs/mainnet/) |
 
 `npm run mainnet:preflight` lists evidence still missing for a token launch, a
@@ -73,8 +73,8 @@ deployment evidence are recorded, and authorizes nothing.
 ## The desk
 
 <p align="center">
-  <a href="https://the-curb-production.up.railway.app/floor"><img src="docs/images/floor.png" alt="The Floor — every price with its age" width="49%"></a>
-  <a href="https://the-curb-production.up.railway.app/gazette"><img src="docs/images/gazette.png" alt="The Curb Gazette — one day's record, set as a paper" width="49%"></a>
+  <a href="https://thecurb.xyz/floor"><img src="docs/images/floor.png" alt="The Floor — every price with its age" width="49%"></a>
+  <a href="https://thecurb.xyz/gazette"><img src="docs/images/gazette.png" alt="The Curb Gazette — one day's record, set as a paper" width="49%"></a>
 </p>
 
 A code policy gate stops forecast, advice, rating language and undeclared

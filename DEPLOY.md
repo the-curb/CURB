@@ -193,8 +193,11 @@ the deployment changes.
    whose resolver hijacks the RPC hostname. Railway's does not, and the plain
    `fetch` path is the one with the fewest moving parts.
 
-3. **Settings → Networking → Generate domain** (`<service>.up.railway.app`;
-   a custom domain is a CNAME to it, later). Deploy. Then confirm:
+3. **Settings → Networking → Generate domain** (`<service>.up.railway.app`).
+   Production also answers at `thecurb.xyz` and `www.thecurb.xyz`: both added
+   under Networking, apex as ALIAS and www as CNAME at the registrar, each with
+   Railway's TXT record. The pages print `BRAND.origin` (`lib/brand.ts`);
+   `CURB_SITE_ORIGIN` overrides it. Deploy. Then confirm:
 
    ```bash
    curl -s https://<deployment>/api/state | jq '{state, store: .warden}'

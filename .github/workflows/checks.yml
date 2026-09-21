@@ -209,7 +209,7 @@ jobs:
         working-directory: contracts
       - name: Exercise production HTTP with isolated mocks, database and webhook receiver
         run: node scripts/rehearsal-local.mjs --postgres-url 'postgres://postgres:curb@127.0.0.1:5432/postgres?sslmode=disable' --out .scratch/local-acceptance.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: local-acceptance

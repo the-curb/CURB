@@ -37,16 +37,14 @@ export const BRAND = {
   desk: {
     line: 'The ticker tells you the exposure. The desk tells you the conditions.',
   },
-  /** The name, which is not yet registered and does not resolve. */
-  domain: 'thecurb.io',
+  /** The registered name, pointed at the Railway service (apex and www). */
+  domain: 'thecurb.xyz',
   /**
-   * The origin that actually answers, used to resolve the metadata's relative
-   * URLs. A canonical link pointing at a domain nobody can open is worse than
-   * one pointing at the deployment, so this names the deployment until a
-   * domain is registered and pointed here (DEPLOY.md §2); `CURB_SITE_ORIGIN`
-   * overrides it without a code change.
+   * The origin the metadata's relative URLs resolve against, and the one the
+   * pages print. The Railway address still answers; `CURB_SITE_ORIGIN`
+   * overrides this without a code change.
    */
-  origin: 'https://the-curb-production.up.railway.app',
+  origin: 'https://thecurb.xyz',
   /** Where the desk is found off the site: the source, and the one account that speaks for it. */
   links: {
     github: 'https://github.com/the-curb/CURB',

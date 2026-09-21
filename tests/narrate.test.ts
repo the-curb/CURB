@@ -123,6 +123,7 @@ describe('the prompt', () => {
     const prompt = buildNarrationPrompt(closed);
     assert.match(prompt.system, /never forecast, advise, rate, or judge/);
     assert.match(prompt.system, /may not introduce any number/);
+    assert.match(prompt.system, /give a count for a list, name every item it counts, or drop the count/);
   });
 });
 
