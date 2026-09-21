@@ -9,6 +9,7 @@ import {
   narrateClosedDay,
   narrateEdition,
   narrationModel,
+  narrationConfigured,
   NARRATION_RETRY_SECONDS,
   type NarrationClient,
 } from '../lib/gazette/narrate.ts';
@@ -320,4 +321,67 @@ describe('narrateClosedDay, once the day has settled', () => {
       else process.env.CURB_NARRATION_MODEL = saved;
     }
   });
+});
+
+describe('the OpenAI-format route, for a gateway that serves Claude only there', () => {
+  const ENV = ['CURB_NARRATION_API', 'CURB_NARRATION_BASE_URL', 'CURB_NARRATION_API_KEY', 'CURB_NARRATION_MODEL', 'ANTHROPIC_API_KEY'] as const;
+  function withEnv(values: Partial<Record<(typeof ENV)[number], string>>, run: () => Promise<void>) {
+    const saved = Object.fromEntries(ENV.map((k) => [k, process.env[k]]));
+    for (const k of ENV) delete process.env[k];
+    Object.assign(process.env, values);
+    return run().finally(() => {
+      for (const k of ENV) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    });
+  }
+  function gateway(status: number, body: unknown, seen: { url?: string; auth?: string; model?: string } = {}) {
+    return (async (url: string | URL | Request, init?: RequestInit) => {
+      seen.url = String(url);
+      seen.auth = (init?.headers as Record<string, string>)?.authorization;
+      seen.model = JSON.parse(String(init?.body)).model;
+      return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof fetch;
+  }
+  const base = { CURB_NARRATION_API: 'openai', CURB_NARRATION_BASE_URL: 'https://gateway.test/v1/', ANTHROPIC_API_KEY: 'sk-test-gateway', CURB_NARRATION_MODEL: 'claude-opus-5' };
+
+  it('asks /chat/completions with the key as a bearer, and keeps the model that answered', () =>
+    withEnv(base, async () => {
+      const seen: { url?: string; auth?: string; model?: string } = {};
+      const r = await narrateEdition(closed, { now: LATER, fetch: gateway(200, { model: 'claude-opus-5', choices: [{ finish_reason: 'stop', message: { content: 'One agent filed.' } }] }, seen) });
+      assert.equal(r.outcome, 'NARRATED');
+      assert.equal(r.standfirst, 'One agent filed.');
+      assert.equal(r.model, 'claude-opus-5');
+      assert.equal(seen.url, 'https://gateway.test/v1/chat/completions');
+      assert.equal(seen.auth, 'Bearer sk-test-gateway');
+      assert.equal(seen.model, 'claude-opus-5');
+    }));
+
+  it('records a gateway error as a failed call, to be asked again', () =>
+    withEnv(base, async () => {
+      const r = await narrateEdition(closed, { now: LATER, fetch: gateway(404, { error: { message: 'model not found' } }) });
+      assert.equal(r.outcome, 'MODEL_FAILED');
+      assert.match(r.detail ?? '', /API error 404: model not found/);
+    }));
+
+  it('treats a content-filter stop as a refusal, which stands', () =>
+    withEnv(base, async () => {
+      const r = await narrateEdition(closed, { now: LATER, fetch: gateway(200, { model: 'claude-opus-5', choices: [{ finish_reason: 'content_filter', message: { content: '' } }] }) });
+      assert.equal(r.outcome, 'REFUSED');
+    }));
+
+  it('puts the answer through the same gate as every agent', () =>
+    withEnv(base, async () => {
+      const r = await narrateEdition(closed, { now: LATER, fetch: gateway(200, { model: 'claude-opus-5', choices: [{ finish_reason: 'stop', message: { content: 'This token is guaranteed to reach a price target of 500.' } }] }) });
+      assert.equal(r.outcome, 'POLICY_BLOCKED');
+    }));
+
+  it('is not configured without a base URL, and says which setting is missing', () =>
+    withEnv({ CURB_NARRATION_API: 'openai', ANTHROPIC_API_KEY: 'sk-test' }, async () => {
+      assert.equal(narrationConfigured(), false);
+      const r = await narrateEdition(closed, { now: LATER });
+      assert.equal(r.outcome, 'NOT_CONFIGURED');
+      assert.match(r.detail ?? '', /CURB_NARRATION_BASE_URL/);
+    }));
 });

@@ -182,11 +182,68 @@ export interface NarrationClient {
 export interface NarrateOptions {
   /** Injected for tests. Defaults to a client reading ANTHROPIC_API_KEY. */
   readonly client?: NarrationClient;
+  /** Injected for tests of the OpenAI-format route. Defaults to the global fetch. */
+  readonly fetch?: typeof fetch;
   readonly now?: Date;
 }
 
+/**
+ * Which wire format the lede is asked in. The default is the Anthropic Messages
+ * API through the official SDK. `CURB_NARRATION_API=openai` asks an
+ * OpenAI-format gateway instead, at `CURB_NARRATION_BASE_URL` (…/chat/completions)
+ * with `CURB_NARRATION_API_KEY`, else `ANTHROPIC_API_KEY`. That route exists
+ * because the owner's gateway, SumoPod, answers Claude models only there:
+ * measured 21 September 2026, its /anthropic/v1/messages returned 404 with a
+ * valid key while /v1/chat/completions answered claude-opus-5. The same gate
+ * screens the text either way.
+ */
+export type NarrationApi = 'anthropic' | 'openai';
+
+export function narrationApi(): NarrationApi {
+  return process.env.CURB_NARRATION_API === 'openai' ? 'openai' : 'anthropic';
+}
+
+function narrationKey(): string | undefined {
+  return process.env.CURB_NARRATION_API_KEY || process.env.ANTHROPIC_API_KEY || undefined;
+}
+
 export function narrationConfigured(): boolean {
+  if (narrationApi() === 'openai') return Boolean(process.env.CURB_NARRATION_BASE_URL && narrationKey());
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+}
+
+type Asked = { readonly kind: 'text'; readonly text: string; readonly model: string } | { readonly kind: 'refused'; readonly model: string; readonly detail: string } | { readonly kind: 'failed'; readonly detail: string };
+
+/** The lede asked over an OpenAI-format chat completion. Never throws. */
+async function askOpenAiFormat(prompt: NarrationPrompt, doFetch: typeof fetch): Promise<Asked> {
+  const url = `${(process.env.CURB_NARRATION_BASE_URL ?? '').replace(/\/+$/, '')}/chat/completions`;
+  try {
+    const response = await doFetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${narrationKey() ?? ''}` },
+      body: JSON.stringify({
+        model: narrationModel(),
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
+        ],
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const body = (await response.json().catch(() => null)) as {
+      model?: string;
+      choices?: { finish_reason?: string; message?: { content?: string | null } }[];
+      error?: { message?: string };
+    } | null;
+    if (!response.ok) return { kind: 'failed', detail: `API error ${response.status}: ${body?.error?.message ?? 'no message'}` };
+    const choice = body?.choices?.[0];
+    const model = body?.model ?? narrationModel();
+    if (choice?.finish_reason === 'content_filter') return { kind: 'refused', model, detail: 'the gateway reported a content filter stop' };
+    return { kind: 'text', text: (choice?.message?.content ?? '').trim(), model };
+  } catch (cause) {
+    return { kind: 'failed', detail: cause instanceof Error ? cause.message : 'unknown failure' };
+  }
 }
 
 /**
@@ -213,14 +270,27 @@ export async function narrateEdition(
   }
 
   if (!opts.client && !narrationConfigured()) {
-    return { ...base, outcome: 'NOT_CONFIGURED', standfirst: null, model: null, detail: 'no ANTHROPIC_API_KEY' };
+    return {
+      ...base,
+      outcome: 'NOT_CONFIGURED',
+      standfirst: null,
+      model: null,
+      detail: narrationApi() === 'openai' ? 'no CURB_NARRATION_BASE_URL or key for the OpenAI-format route' : 'no ANTHROPIC_API_KEY',
+    };
   }
 
   const prompt = buildNarrationPrompt(edition);
-  const client = opts.client ?? new Anthropic();
 
   let text: string;
   let served: string;
+  if (!opts.client && narrationApi() === 'openai') {
+    const asked = await askOpenAiFormat(prompt, opts.fetch ?? fetch);
+    if (asked.kind === 'failed') return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: narrationModel(), detail: asked.detail };
+    if (asked.kind === 'refused') return { ...base, outcome: 'REFUSED', standfirst: null, model: asked.model, detail: asked.detail };
+    return settle(asked.text, asked.model);
+  }
+
+  const client = opts.client ?? new Anthropic();
   try {
     const response = await client.messages.create({
       model: narrationModel(),
@@ -261,23 +331,28 @@ export async function narrateEdition(
     return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: narrationModel(), detail };
   }
 
-  if (text === '') {
-    return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model: served, detail: 'the model returned no text' };
-  }
+  return settle(text, served);
 
-  // The same gate as every agent. The model is not exempt for being the model.
-  const verdict = screen({ text, figures: prompt.figures, allowedLiterals: prompt.allowedLiterals });
-  if (verdict.decision === 'BLOCK') {
-    return {
-      ...base,
-      outcome: 'POLICY_BLOCKED',
-      standfirst: null,
-      model: served,
-      detail: verdict.breaches.map((b) => `${b.rule}: "${b.matched}"`).join(' · '),
-    };
-  }
+  /** Whatever route asked it, the answer meets the same checks. */
+  function settle(answer: string, model: string): NarrationRecord {
+    if (answer === '') {
+      return { ...base, outcome: 'MODEL_FAILED', standfirst: null, model, detail: 'the model returned no text' };
+    }
 
-  return { ...base, outcome: 'NARRATED', standfirst: text, model: served, detail: null };
+    // The same gate as every agent. The model is not exempt for being the model.
+    const verdict = screen({ text: answer, figures: prompt.figures, allowedLiterals: prompt.allowedLiterals });
+    if (verdict.decision === 'BLOCK') {
+      return {
+        ...base,
+        outcome: 'POLICY_BLOCKED',
+        standfirst: null,
+        model,
+        detail: verdict.breaches.map((b) => `${b.rule}: "${b.matched}"`).join(' · '),
+      };
+    }
+
+    return { ...base, outcome: 'NARRATED', standfirst: answer, model, detail: null };
+  }
 }
 
 export type NarrateDayResult =

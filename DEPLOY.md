@@ -171,7 +171,10 @@ the deployment changes.
    | `CURB_RPC_ROUTE` | optional — unset, the split above, so a paid balance is spent only on what the public node cannot serve (decided 21 September 2026, when the dRPC balance ran low). `all` sends every read to `CURB_RPC_URL` first, as before. Production runs `all` since 21 September 2026, after the balance was topped up |
    | `CURB_RPC_URL_ETHEREUM` | optional — the position product's Ethereum endpoint; unset, `ethereum-rpc.publicnode.com` |
    | `ANTHROPIC_API_KEY` | optional — the Gazette's narration; unset, the day is printed unnarrated. A failed call (credit, key, network) is asked again after an hour; a refusal or a policy block stands |
-   | `ANTHROPIC_BASE_URL` | optional — an Anthropic-format gateway instead of api.anthropic.com, read by the SDK itself. For a SumoPod key: `https://ai.sumopod.com/anthropic` (its `/v1/messages` route answers there; `/v1/chat/completions` is OpenAI-format and is not used) |
+   | `ANTHROPIC_BASE_URL` | optional — an Anthropic-format gateway instead of api.anthropic.com, read by the SDK itself. Not for SumoPod: its `/anthropic/v1/messages` answered 404 with a valid key (measured 21 September 2026) |
+   | `CURB_NARRATION_API` | optional — `openai` asks an OpenAI-format gateway (`…/chat/completions`) instead of the Anthropic SDK. Production uses it for SumoPod since 21 September 2026 |
+   | `CURB_NARRATION_BASE_URL` | with `CURB_NARRATION_API=openai` — the gateway's base, e.g. `https://ai.sumopod.com/v1` |
+   | `CURB_NARRATION_API_KEY` | optional — the gateway's key; unset, `ANTHROPIC_API_KEY` is used (production keeps the SumoPod key there) |
    | `CURB_NARRATION_MODEL` | optional — the model the lede is asked of; unset, `claude-opus-5`. Set it to one the gateway serves; the page names the model the answer says served it |
    | `CURB_ONDO_API_KEY` | not held (register A8); the issuer's API answers ACCESS_DENIED without it and the page stays the source |
    | `CURB_CREDITS` | the credit desk, only after LAUNCH row 7 — the line the deployment tool prints; absent means NOT_CONFIGURED |
