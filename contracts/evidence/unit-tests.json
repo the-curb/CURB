@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-09-15T09:44:02.770Z",
-  "commit": "0c81f7458d60c16a8b49418c3f89562c821d40af",
+  "ranAt": "2026-09-21T06:11:27.279Z",
+  "commit": "eec5ac3bd577c757ecee1b305777ad7360f534f1",
   "workingTreeClean": true,
   "solc": "0.8.30",
   "fuzz": {
@@ -15,31 +15,6 @@
   "passing": 54,
   "failing": 0,
   "tests": [
-    {
-      "name": "test_TransferObservation_RevertDoesNotCountExistingFunds()",
-      "passed": true,
-      "fuzzRuns": null
-    },
-    {
-      "name": "test_TransferObservation_RepeatedProbesMeasureEachTransfer()",
-      "passed": true,
-      "fuzzRuns": null
-    },
-    {
-      "name": "test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()",
-      "passed": true,
-      "fuzzRuns": null
-    },
-    {
-      "name": "test_TransferObservation_FeeIsVisibleInReceivedUnits()",
-      "passed": true,
-      "fuzzRuns": null
-    },
-    {
-      "name": "test_TransferObservation_FalseReturnDoesNotCountExistingFunds()",
-      "passed": true,
-      "fuzzRuns": null
-    },
     {
       "name": "test_ZeroAndUnauthorizedNominationOrCancellationAreRefused()",
       "passed": true,
@@ -62,6 +37,31 @@
     },
     {
       "name": "test_CancelledOrReplacedNomineeCannotAccept()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_RevertDoesNotCountExistingFunds()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_RepeatedProbesMeasureEachTransfer()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_PrefundedRecipientCountsOnlyNewUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FeeIsVisibleInReceivedUnits()",
+      "passed": true,
+      "fuzzRuns": null
+    },
+    {
+      "name": "test_TransferObservation_FalseReturnDoesNotCountExistingFunds()",
       "passed": true,
       "fuzzRuns": null
     },
