@@ -298,6 +298,26 @@ describe('narrateClosedDay, once the day has settled', () => {
     assert.equal((await narrateClosedDay(refused.store, DAY, later, { client: scripted('One agent filed.') })).state, 'ALREADY_DONE');
   });
 
+  it('asks a refused day again only when the deployment names a different model', async () => {
+    const saved = process.env.CURB_NARRATION_MODEL;
+    const at = new Date(daySettledAt(DAY).getTime() + 60_000);
+    const refusedBy5: NarrationRecord = { ...narrated, outcome: 'REFUSED', standfirst: null, model: 'claude-opus-5', detail: 'content filter', generatedAt: at.toISOString() };
+    const soon = new Date(at.getTime() + 60_000);
+    try {
+      process.env.CURB_NARRATION_MODEL = 'claude-opus-5';
+      const same = storeWith(refusedBy5);
+      assert.equal((await narrateClosedDay(same.store, DAY, soon, { client: scripted('One agent filed.') })).state, 'ALREADY_DONE', 'the same model does not get asked twice');
+      process.env.CURB_NARRATION_MODEL = 'claude-opus-4-8';
+      const other = storeWith(refusedBy5);
+      const r = await narrateClosedDay(other.store, DAY, soon, { client: scripted('One agent filed.') });
+      assert.equal(r.state, 'ATTEMPTED', 'a different model is a new ask');
+      assert.equal(other.calls.writes, 1);
+    } finally {
+      if (saved === undefined) delete process.env.CURB_NARRATION_MODEL;
+      else process.env.CURB_NARRATION_MODEL = saved;
+    }
+  });
+
   it('asks the model the deployment names, and defaults to Claude Opus 5', async () => {
     const saved = process.env.CURB_NARRATION_MODEL;
     try {

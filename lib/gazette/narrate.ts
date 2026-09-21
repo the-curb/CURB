@@ -33,10 +33,10 @@ export const NARRATION_MODEL = DEFAULT_NARRATION_MODEL;
 
 /**
  * The model the lede is asked of. `CURB_NARRATION_MODEL` names another, for
- * a gateway that does not serve the default — set with `ANTHROPIC_BASE_URL`,
- * which the SDK reads itself (the owner's choice on 21 September 2026: a
- * key from SumoPod's Anthropic-format route). The record keeps the model the
- * answer says served it, so the page never names one it did not use.
+ * a gateway that does not serve the default or a model that will not write
+ * this lede (production: claude-opus-4-8 through SumoPod's OpenAI-format
+ * route, 21 September 2026 — see narrationApi()). The record keeps the model
+ * the answer says served it, so the page never names one it did not use.
  */
 export function narrationModel(): string {
   return process.env.CURB_NARRATION_MODEL?.trim() || DEFAULT_NARRATION_MODEL;
@@ -47,12 +47,17 @@ export function narrationModel(): string {
  * not a verdict: an empty balance, a key that did not authenticate, a network
  * that did not answer say nothing about the day, and the day should be
  * narrated once they are fixed. A refusal and a policy block are verdicts and
- * stand. Hourly, not every tick: a setup that stays broken costs a call an
- * hour, not one every five minutes.
+ * stand — for the model that gave them. A refusal from one model says nothing
+ * about another: when the deployment names a different model, a refused day is
+ * asked again (21 September 2026: claude-opus-5 stopped on a content filter
+ * through SumoPod for every day's prompt, claude-opus-4-8 wrote the lede).
+ * Hourly, not every tick: a setup that stays broken costs a call an hour, not
+ * one every five minutes.
  */
 export const NARRATION_RETRY_SECONDS = 3600;
 
 function retryDue(record: NarrationRecord, now: Date): boolean {
+  if (record.outcome === 'REFUSED') return record.model !== narrationModel();
   return record.outcome === 'MODEL_FAILED' && now.getTime() - Date.parse(record.generatedAt) >= NARRATION_RETRY_SECONDS * 1000;
 }
 
