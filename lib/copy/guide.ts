@@ -27,7 +27,7 @@ export const GUIDE = {
   description: 'What you can do at THE CURB today, step by step.',
   kicker: 'How to use it',
   headline: 'What you can do here, step by step.',
-  sub: 'Reading the desk and getting alerts are free. No wallet, no account.',
+  sub: 'No wallet, no account. Pick where to start.',
 
   parts: {
     read: { name: 'Read the prices', what: 'Every stock token, two prices, with ages.' },
@@ -58,7 +58,6 @@ export const GUIDE = {
       { title: 'What you are told', body: ['A gap passes {band}, a feed is paused, or a split is scheduled.', 'Also issuer and chain events that touch every token.', 'Once when it starts, once when it ends.'] },
       { title: 'Stop when you like', body: ['Cancel with the same key.'] },
     ] as readonly GuideStep[],
-    free: 'Free. Nothing is charged for a key, a webhook or a delivery.',
     paid: 'Alerts are paid per delivery right now. The prices and how to pay are on the Services page.',
   },
 
@@ -86,9 +85,9 @@ export const GUIDE = {
 
   token: {
     title: '5 · The token',
-    lede: 'The CURB token is how the work would be funded. The desk is free either way.',
+    lede: 'The CURB token is how the work would be funded. You do not need it to use the desk.',
     holders: 'Holding it gives no share of fees, no buyback and no vote.',
-    ladder: 'These steps build the payment machinery. It stays switched off while the desk is free.',
+    ladder: 'These steps build the payment machinery for the token. The desk does not use it today.',
     rungs: {
       NOTHING: 'Nothing recorded yet.',
       TREASURY_RECORDED: 'A 2-of-3 treasury wallet on Robinhood Chain.',
@@ -119,7 +118,6 @@ export function guideSentences(bandBps = 200): string[] {
     for (const step of section.steps) step.body.forEach(add);
   }
   add(GUIDE.read.states);
-  add(GUIDE.alerts.free);
   add(GUIDE.alerts.paid);
   add(GUIDE.position.emptyLookup);
   add(GUIDE.token.lede);

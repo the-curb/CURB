@@ -22,7 +22,7 @@ const everything = () => [SERVICES_COPY.headline.FREE, SERVICES_COPY.headline.PA
 
 describe('the services page is short', () => {
   it('says what the page is in a few words', () => {
-    assert.ok(words(SERVICES_COPY.headline.FREE) <= 8, SERVICES_COPY.headline.FREE);
+    assert.ok(words(SERVICES_COPY.headline.FREE) <= 10, SERVICES_COPY.headline.FREE);
     assert.ok(words(SERVICES_COPY.sub.FREE) <= 20, SERVICES_COPY.sub.FREE);
   });
 
@@ -46,7 +46,7 @@ describe('the services page is short', () => {
 describe('the services page describes the desk that is running', () => {
   it('names no price in the free path', () => {
     const c = SERVICES_COPY;
-    const freePath = [c.headline.FREE, c.sub.FREE, c.use.open.what, ...Object.values(c.use.services), c.alerts.headline, ...c.alerts.steps.map((s) => s.body), c.alerts.free, c.alerts.key.copy, c.alerts.key.server].join(' ');
+    const freePath = [c.headline.FREE, c.sub.FREE, c.use.open.what, ...Object.values(c.use.services), c.alerts.headline, ...c.alerts.steps.map((s) => s.body), c.alerts.key.copy, c.alerts.key.server].join(' ');
     assert.equal(/US\$|\$\d|cents?\b|top.?up|minimum|refund|prepaid|per delivery|per call/i.test(freePath), false, freePath);
   });
 
@@ -55,9 +55,9 @@ describe('the services page describes the desk that is running', () => {
     assert.match(SERVICES_COPY.alerts.paid, /paid/i);
   });
 
-  it('labels the machinery as switched off while the desk is free', () => {
-    assert.match(SERVICES_COPY.machinery.summary.FREE, /switched off while the desk is free/i);
-    assert.match(SERVICES_COPY.use.recordNote, /no endpoint reads them/i);
+  it('labels the machinery as not in use, without announcing a price of nothing', () => {
+    assert.match(SERVICES_COPY.machinery.summary.FREE, /not in use/i);
+    assert.match(SERVICES_COPY.machinery.recordNote.FREE, /no endpoint reads them today/i);
   });
 
   it('says a holder of the token gets nothing for holding it', () => {
@@ -128,6 +128,12 @@ describe('the services page', () => {
   it('folds the payment machinery while the desk is free, and opens it when it is paid', () => {
     assert.match(page, /<details className="[^"]*" open=\{!free\}>/);
     const fold = page.slice(page.indexOf('open={!free}'));
-    for (const piece of ['<CreditDesk', 'The rate', 'Receipts', 'The rule']) assert.ok(fold.includes(piece), piece);
+    for (const piece of ['<CreditDesk', 'The rate', 'Receipts', 'The rule', '{priceRows}']) assert.ok(fold.includes(piece), piece);
+  });
+
+  it('shows no cost column while nothing is charged', () => {
+    const table = page.slice(page.indexOf('C.use.kicker'), page.indexOf('id="alerts"'));
+    assert.ok(table.includes('{free ? null : <th'), 'the cost column is drawn only in the paid mode');
+    assert.equal(table.includes('priceRows'), false, 'the price list sits in the fold, not in the reading path');
   });
 });

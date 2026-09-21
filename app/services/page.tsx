@@ -14,7 +14,7 @@ import { CreditDesk } from '../components/credit-desk';
 import { KeyMaker } from '../components/key-maker';
 import { BRAND } from '@/lib/brand';
 import { DEFAULT_KINDS, WIDE_BASIS_BPS, type ConditionKind } from '@/lib/ops/alerts';
-import { ACCESS, accessMode } from '@/lib/credits/access';
+import { accessMode } from '@/lib/credits/access';
 import { SERVICES_COPY as C, bandText, fill } from '@/lib/copy/services';
 
 /** An address as text, linked to the chain's explorer where the profile publishes one; the address itself stays visible. */
@@ -34,12 +34,12 @@ export const metadata = { title: C.title, description: C.description };
 const linkClass = 'underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)';
 
 /**
- * The services page. It opens on what a reader can use and what it costs —
- * nothing, while the desk is free — then the one flow that needs a key, the
+ * The services page. It opens on what a reader can use — with no cost column
+ * while nothing is charged — then the one flow that needs a key, the
  * alerts, then what the CURB token is and is not. The payment machinery the
  * token was built for (the price list, the rate read from a pool at a block,
  * the desk, the receipts, the top-up) sits folded at the end, under a heading
- * that says it is switched off; in the paid mode it opens by itself. Every
+ * that says it is not in use; in the paid mode it opens by itself. Every
  * figure that depends on a rate says where the rate came from, and nothing
  * here is a condition of the position product.
  */
@@ -101,9 +101,9 @@ export default async function ServicesPage() {
   const priceRows = (
     <>
       <tr className="border-t border-(--color-rule) align-top">
-        <td className="py-3 pr-4 text-(--color-paper)">{C.use.minimum}</td>
+        <td className="py-3 pr-4 text-(--color-paper)">{C.machinery.minimum}</td>
         <td className="py-3 pr-4 text-(--color-paper-dim)">
-          {C.use.minimumWhat} <span className="text-(--color-paper-faint)">{fill(C.decided, { by: MINIMUM_DECISION.by, on: MINIMUM_DECISION.on })}</span>
+          {C.machinery.minimumWhat} <span className="text-(--color-paper-faint)">{fill(C.decided, { by: MINIMUM_DECISION.by, on: MINIMUM_DECISION.on })}</span>
         </td>
         <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">{centsText(MINIMUM_OPEN_CENTS)}</td>
       </tr>
@@ -127,7 +127,6 @@ export default async function ServicesPage() {
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">{C.headline[mode]}</h1>
         <p className="mt-4 max-w-2xl text-lg leading-relaxed text-(--color-paper-dim)">{C.sub[mode]}</p>
-        {free ? <p className="mt-3 text-[12px] text-(--color-paper-faint)">{fill(C.decided, { by: ACCESS.decidedBy, on: ACCESS.decidedOn })}</p> : null}
       </header>
 
       <section className="cells grid-cols-1">
@@ -135,13 +134,14 @@ export default async function ServicesPage() {
           <div className="kicker">
             <b>{C.use.kicker}</b>
           </div>
+          {/* While nothing is charged there is no cost to show, so there is no cost column: the page asks for nothing rather than announcing it. */}
           <table className="mt-4 w-full table-fixed text-[13px] wrap-anywhere">
-            <colgroup><col className="w-[30%]" /><col className="w-[50%]" /><col className="w-[20%]" /></colgroup>
+            {free ? <colgroup><col className="w-[32%]" /><col className="w-[68%]" /></colgroup> : <colgroup><col className="w-[30%]" /><col className="w-[50%]" /><col className="w-[20%]" /></colgroup>}
             <thead>
               <tr className="kicker text-left">
                 <th className="pb-2 pr-4 font-normal">{C.use.columns.service}</th>
                 <th className="pb-2 pr-4 font-normal">{C.use.columns.what}</th>
-                <th className="pb-2 text-right font-normal">{C.use.columns.cost}</th>
+                {free ? null : <th className="pb-2 text-right font-normal">{C.use.columns.cost}</th>}
               </tr>
             </thead>
             <tbody>
@@ -150,7 +150,7 @@ export default async function ServicesPage() {
                 <td className="py-3 pr-4 text-(--color-paper-dim)">
                   {C.use.open.what} <span className="tabular hidden text-[12px] text-(--color-paper-faint) sm:block">{C.use.open.path}</span>
                 </td>
-                <td className="py-3 text-right text-(--color-paper)">{C.use.free}</td>
+                {free ? null : <td className="py-3 text-right text-(--color-paper-faint)">{C.use.included}</td>}
               </tr>
               {SERVICES.map((s) => (
                 <tr key={s.id} className="border-t border-(--color-rule) align-top">
@@ -158,36 +158,22 @@ export default async function ServicesPage() {
                   <td className="py-3 pr-4 text-(--color-paper-dim)">
                     {C.use.services[s.id]} <span className="tabular hidden text-[12px] text-(--color-paper-faint) sm:block">{s.path}</span>
                   </td>
-                  <td className="tabular py-3 text-right text-(--color-paper)">
-                    {free ? (
-                      C.use.free
-                    ) : (
-                      <>
-                        <span className="whitespace-nowrap">{centsText(s.cents)}</span> <span className="block text-(--color-paper-faint)">/ {s.unit}</span>
-                      </>
-                    )}
-                  </td>
+                  {free ? null : (
+                    <td className="tabular py-3 text-right text-(--color-paper)">
+                      <span className="whitespace-nowrap">{centsText(s.cents)}</span> <span className="block text-(--color-paper-faint)">/ {s.unit}</span>
+                    </td>
+                  )}
                 </tr>
               ))}
               {free ? null : (
                 <tr className="border-t border-(--color-rule) align-top">
-                  <td className="py-3 pr-4 text-(--color-paper)">{C.use.minimum}</td>
-                  <td className="py-3 pr-4 text-(--color-paper-dim)">{C.use.minimumWhat}</td>
+                  <td className="py-3 pr-4 text-(--color-paper)">{C.machinery.minimum}</td>
+                  <td className="py-3 pr-4 text-(--color-paper-dim)">{C.machinery.minimumWhat}</td>
                   <td className="tabular py-3 text-right whitespace-nowrap text-(--color-paper)">{centsText(MINIMUM_OPEN_CENTS)}</td>
                 </tr>
               )}
             </tbody>
           </table>
-          {free ? (
-            <details className="mt-4 text-[12px]">
-              <summary className="kicker cursor-pointer hover:text-(--color-paper)">{C.use.record}</summary>
-              <p className="mt-3 max-w-2xl leading-relaxed text-(--color-paper-faint)">{fill(C.use.recordNote, { on: PRICES_DECISION.on })}</p>
-              <table className="mt-3 w-full table-fixed wrap-anywhere">
-                <colgroup><col className="w-[28%]" /><col className="w-[46%]" /><col className="w-[26%]" /></colgroup>
-                <tbody>{priceRows}</tbody>
-              </table>
-            </details>
-          ) : null}
         </div>
       </section>
 
@@ -214,7 +200,7 @@ export default async function ServicesPage() {
               </li>
             ))}
           </ol>
-          <p className="mt-6 text-[13px] text-(--color-paper)">{free ? C.alerts.free : C.alerts.paid}</p>
+          {free ? null : <p className="mt-6 text-[13px] text-(--color-paper)">{C.alerts.paid}</p>}
         </div>
         <div className="cell p-6 sm:p-8">
           <div className="kicker">
@@ -299,6 +285,13 @@ DELETE ${BRAND.origin}/api/subscriptions   { "id": "…" }`}</pre>
               <li key={line}>{fill(line, { days: NOTICE_DAYS })}</li>
             ))}
           </ul>
+
+          <div className="kicker mt-6">{C.machinery.record}</div>
+          <p className="mt-2 max-w-2xl text-[12px] leading-relaxed text-(--color-paper-faint)">{fill(C.machinery.recordNote[mode], { on: PRICES_DECISION.on })}</p>
+          <table className="mt-3 w-full table-fixed text-[12px] wrap-anywhere">
+            <colgroup><col className="w-[28%]" /><col className="w-[46%]" /><col className="w-[26%]" /></colgroup>
+            <tbody>{priceRows}</tbody>
+          </table>
 
           <section className="mt-6 cells grid-cols-1 md:grid-cols-2">
             <div className="cell p-6">

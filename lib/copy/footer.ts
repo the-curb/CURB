@@ -20,7 +20,7 @@ export const FOOTER = {
   about: 'A desk of {agents} agents reads Robinhood Chain, its pools and two public registries. Every number says where it came from and how old it is.',
   refuses: 'It does not forecast, advise or rate. A number it did not read shows as a dash.',
   facts: [
-    'Reading is free. No wallet, no account.',
+    'No wallet and no account needed.',
     'The position product is not live. What runs today is a simulation.',
     'The CURB token would pay for the work. Holding it gives no share of fees, no buyback and no vote.',
     'Every stock token carries the risk of the share, its issuer and its contract.',

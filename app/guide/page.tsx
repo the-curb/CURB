@@ -95,7 +95,7 @@ export default async function GuidePage() {
 
   const parts: readonly { part: { name: string; what: string }; href: string; state: React.ReactNode }[] = [
     { part: GUIDE.parts.read, href: '#read', state: <State tone="live">open</State> },
-    { part: GUIDE.parts.alerts, href: '#alerts', state: free ? <State tone="live">open · free</State> : <State tone="wait">paid</State> },
+    { part: GUIDE.parts.alerts, href: '#alerts', state: free ? <State tone="live">open</State> : <State tone="wait">paid</State> },
     { part: GUIDE.parts.position, href: '#position', state: seriesLive ? <State tone="live">a series is live</State> : <State tone="wait">simulation only</State> },
   ];
 
@@ -135,7 +135,7 @@ export default async function GuidePage() {
       </Section>
 
       {/* ── 2 · GET ALERTS ────────────────────────────────────────────────── */}
-      <Section id="alerts" title={GUIDE.alerts.title} lede={GUIDE.alerts.lede} state={free ? <State tone="live">open · free</State> : <State tone="wait">paid</State>}>
+      <Section id="alerts" title={GUIDE.alerts.title} lede={GUIDE.alerts.lede} state={free ? <State tone="live">open</State> : <State tone="wait">paid</State>}>
         {free ? (
           <>
             <ol className="mt-6 space-y-5">
@@ -155,7 +155,6 @@ export default async function GuidePage() {
                 />
               ))}
             </ol>
-            <p className="mt-6 text-sm text-(--color-paper-dim)">{GUIDE.alerts.free}</p>
           </>
         ) : (
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-(--color-paper-dim)">

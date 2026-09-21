@@ -36,8 +36,8 @@ describe('the guide is short', () => {
 });
 
 describe('the guide describes the desk that is running', () => {
-  it('names no price for a free desk in the free path', () => {
-    const freePath = [GUIDE.sub, GUIDE.alerts.lede, GUIDE.alerts.free, ...GUIDE.alerts.steps.flatMap((s) => s.body)].join(' ');
+  it('names no price on the path a reader takes', () => {
+    const freePath = [GUIDE.sub, GUIDE.alerts.lede, ...GUIDE.alerts.steps.flatMap((s) => s.body)].join(' ');
     assert.equal(/US\$|\$\d|cents?\b|top.?up|minimum|refund|prepaid|per delivery/i.test(freePath), false, freePath);
   });
 
@@ -45,8 +45,8 @@ describe('the guide describes the desk that is running', () => {
     assert.match(GUIDE.alerts.paid, /paid/i);
   });
 
-  it('describes the payment machinery as switched off while the desk is free', () => {
-    assert.match(GUIDE.token.ladder, /switched off while the desk is free/i);
+  it('says the desk does not use the payment machinery today', () => {
+    assert.match(GUIDE.token.ladder, /does not use it today/i);
   });
 
   it('says a holder of the token gets nothing for holding it', () => {

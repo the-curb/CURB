@@ -251,7 +251,7 @@ export default async function Home() {
         </section>
 
         {/* ── № 03 WHAT YOU CAN DO ─────────────────────────────────────────── */}
-        <Kicker n="03" title={HOME.actions.kicker} note={HOME.actions.free} />
+        <Kicker n="03" title={HOME.actions.kicker} note={HOME.actions.note} />
         <section className="cells grid-cols-1 md:grid-cols-3">
           {HOME.actions.items.map((item, i) => (
             <div key={item.title} className="cell flex flex-col p-6 sm:p-8">

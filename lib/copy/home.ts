@@ -26,7 +26,7 @@ export const HOME = {
     line: 'What stock tokens trade at on Robinhood Chain.',
     emphasis: 'Next to the stock’s last price, with the age of both.',
   },
-  subhead: 'Free to use — no wallet, no sign‑up. Prices are read from the chain every 15 minutes.',
+  subhead: 'No wallet, no sign‑up. Prices are read from the chain every 15 minutes.',
   primary: 'See today’s prices',
   secondary: 'How it works',
 
@@ -85,7 +85,7 @@ export const HOME = {
         href: '/registry',
       },
     ],
-    free: 'Free. The key for your alerts is made in your browser.',
+    note: 'The key for your alerts is made in your browser.',
   },
 
   trust: {
@@ -107,7 +107,7 @@ export const HOME = {
   },
 
   token: {
-    notLaunched: 'The CURB token has not launched. The desk is free either way.',
+    notLaunched: 'The CURB token has not launched. You do not need it to use the desk.',
   },
 
   more: {
@@ -141,7 +141,7 @@ export function homeSentences(bandBps = 200): string[] {
   add(HOME.table.empty);
   HOME.why.body.forEach(add);
   HOME.actions.items.forEach((i) => add(i.body));
-  add(HOME.actions.free);
+  add(HOME.actions.note);
   HOME.trust.points.forEach(add);
   add(HOME.next.body);
   add(HOME.token.notLaunched);

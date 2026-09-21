@@ -1,14 +1,15 @@
 /**
  * The words on the services page, kept in one place so they can be checked.
  *
- * The services page was written for a paid desk. When the desk went free on
- * 20 September it gained a headline that said so, and kept everything else: a
- * price list, a rate read from a pool that does not exist yet, a US$20 opening
- * minimum, a top-up walkthrough, and a footnote that still explained which
- * endpoints were charged. A reader was told "free" once and "paid" a dozen
- * times. The page now leads with what a reader can use, puts alerts — the one
- * thing that needs a key — in the reading path, and folds the payment
- * machinery under a heading that says it is switched off.
+ * The services page was written for a paid desk. When the desk stopped
+ * charging on 20 September it gained a headline that said so, and kept
+ * everything else: a price list, a rate read from a pool that does not exist
+ * yet, a US$20 opening minimum, a top-up walkthrough, and a footnote that
+ * still explained which endpoints were charged. The page now reads like any
+ * other product page: what a reader can use, the alerts — the one thing that
+ * needs a key — and what the CURB token is. It does not announce that nothing
+ * is charged; it simply asks for nothing. The payment machinery sits folded
+ * under a heading that says it is not in use.
  *
  * The machinery is folded, not cut. The contract, the price reader and the
  * receipts are still built, tested and readable, and in the paid mode the fold
@@ -28,29 +29,25 @@ export const SERVICES_COPY = {
   description: 'What you can use at THE CURB, and what the CURB token is for.',
   kicker: 'Services',
   headline: {
-    FREE: 'Everything here is free.',
+    FREE: 'Take the data, or get told when it changes.',
     PAID: 'Paid per call, in prepaid credit.',
   } satisfies Record<AccessMode, string>,
   sub: {
-    FREE: 'No wallet and no account. Alerts need a key, and a key costs nothing.',
-    PAID: 'Reading the pages stays free. The history and the alerts are paid per call.',
+    FREE: 'Every page is also JSON. Alerts need a key, made in your browser.',
+    PAID: 'The history and the alerts are paid per call. The pages are not.',
   } satisfies Record<AccessMode, string>,
   decided: 'Decided by {by} on {on}.',
 
   use: {
     kicker: 'What you can use',
     columns: { service: 'Service', what: 'What you get', cost: 'Cost' },
-    free: 'Free',
+    included: 'Included',
     open: { title: 'Every page, as JSON', what: 'The Floor, the Registry and the rest, for your own code.', path: '/api/state' },
     services: {
       'evidence-versions': 'Every saved copy of one source’s record for a series.',
       'journal-day': 'What changed on one day, as the Gazette prints it.',
       'alert-delivery': 'A message to your webhook when something changes.',
     } satisfies Record<ServiceId, string>,
-    record: 'Prices on record, not charged',
-    recordNote: 'These prices were set on {on} in case the desk is ever charged. No endpoint reads them while it is free.',
-    minimum: 'Opening a key',
-    minimumWhat: 'What a key would need before its first call.',
   },
 
   alerts: {
@@ -72,7 +69,6 @@ export const SERVICES_COPY = {
       chain: 'The chain stops making blocks.',
       desk: 'The desk’s own machinery. Sent only if you ask for it.',
     } satisfies Record<ConditionKind, string>,
-    free: 'Free. Nothing is charged for a key, a webhook or a delivery.',
     paid: 'Each delivery is paid from the key’s credit. The machinery below shows how to add credit.',
     key: {
       make: 'Make a key',
@@ -126,10 +122,17 @@ export const SERVICES_COPY = {
 
   machinery: {
     summary: {
-      FREE: 'The payment machinery · switched off while the desk is free',
+      FREE: 'The payment machinery · not in use',
       PAID: 'The payment machinery',
     } satisfies Record<AccessMode, string>,
     lede: 'The contract, the price reader and the receipts are built and tested. They stay here so anyone can check them.',
+    record: 'The price list',
+    recordNote: {
+      FREE: 'These prices were set on {on} for the token. No endpoint reads them today.',
+      PAID: 'These prices were set on {on}.',
+    } satisfies Record<AccessMode, string>,
+    minimum: 'Opening a key',
+    minimumWhat: 'What a key needs before its first call.',
     terms: [
       'A call is charged only when it is answered.',
       'Credit does not expire while the service it buys is offered.',
@@ -137,7 +140,7 @@ export const SERVICES_COPY = {
       'Nothing is refunded, in dollars or in CURB. The contract has no refund path.',
     ],
     termsTitle: {
-      FREE: 'The terms, if it is ever charged',
+      FREE: 'The terms, if payment is switched on',
       PAID: 'The terms',
     } satisfies Record<AccessMode, string>,
     keyTitle: 'A key, a quote, a top-up, a balance',
@@ -157,8 +160,8 @@ export function bandText(bps: number): string {
 }
 
 /**
- * Every sentence the page says in its own words in the free mode, for the
- * tests. The paid lines are checked separately.
+ * Every sentence the page says in its own words in the mode that runs, for
+ * the tests. The paid lines are checked separately.
  */
 export function servicesSentences(bandBps = 200): string[] {
   const out: string[] = [];
@@ -171,12 +174,9 @@ export function servicesSentences(bandBps = 200): string[] {
   add(c.sub.FREE);
   add(c.use.open.what);
   Object.values(c.use.services).forEach(add);
-  add(c.use.recordNote);
-  add(c.use.minimumWhat);
   add(c.alerts.headline);
   c.alerts.steps.forEach((s) => add(s.body));
   Object.values(c.alerts.kinds).forEach(add);
-  add(c.alerts.free);
   add(c.alerts.paid);
   add(c.alerts.key.copy);
   add(c.alerts.key.server);
@@ -190,6 +190,8 @@ export function servicesSentences(bandBps = 200): string[] {
   add(c.token.budget);
   Object.values(c.token.details).forEach(add);
   add(c.machinery.lede);
+  add(c.machinery.recordNote.FREE);
+  add(c.machinery.minimumWhat);
   add(c.machinery.keyLede);
   add(c.machinery.noRate);
   c.machinery.terms.forEach(add);
