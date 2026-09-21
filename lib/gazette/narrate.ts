@@ -22,7 +22,7 @@
 
 import { createHash } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
-import { screen, type DeclaredFigure } from '../doctrine/policy.ts';
+import { figuresIn, screen, type DeclaredFigure } from '../doctrine/policy.ts';
 import type { NarrationRecord, Store } from '../store/types.ts';
 import { composeEdition, type Edition } from './edition.ts';
 import { BRAND } from '../brand.ts';
@@ -162,15 +162,27 @@ ${ledger} · outputs stopped by policy ${edition.blockedOutputs}
 
 FIGURES YOU MAY REPEAT, EXACTLY AS WRITTEN
 ${figureList || '(none — the record holds no figures today; write without numbers)'}
+Any number printed in the filings above may also be repeated, exactly as printed. No other number may appear.
 
 Write the lede.`;
+
+  // Every number printed in a filing already passed the gate when the filing
+  // was published: as a declared figure, or as the agent's own count — a
+  // literal ("28 of 28 tickers", "258 pools") the publication record does not
+  // keep. Repeating one adds nothing to the record, so the narrator may; a
+  // number that is not printed in any filing still blocks the lede. Found on
+  // 21 September 2026, when a lede repeating "28", "258" and "35" from the
+  // day's filings was stopped as unsourced.
+  const printed = new Set<string>();
+  for (const s of edition.sections) {
+    for (const f of figuresIn(`${s.headline}\n${s.body}`, s.agent.name, s.publishedAt)) printed.add(f.token);
+  }
 
   return {
     system: SYSTEM,
     user,
     figures,
-    // Years and small ordinals pass the gate already; nothing else is exempted.
-    allowedLiterals: [],
+    allowedLiterals: [...printed],
   };
 }
 

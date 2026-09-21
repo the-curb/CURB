@@ -405,3 +405,29 @@ describe('the OpenAI-format route, for a gateway that serves Claude only there',
       assert.match(r.detail ?? '', /CURB_NARRATION_BASE_URL/);
     }));
 });
+
+describe('the numbers a lede may repeat', () => {
+  // A filing's own counts pass its gate as literals and are not kept as
+  // declared figures. The narrator may repeat any number printed in a filing,
+  // and nothing else.
+  const withCount: DayRecord = {
+    ...record,
+    publications: [{ ...record.publications[0]!, body: 'LINK / USD: 11.43, updated 61m ago. 35 of 35 feeds answered.' }],
+  };
+  const edition = composeEdition(withCount, LATER);
+
+  it('lets the lede repeat a count printed in a filing', async () => {
+    const r = await narrateEdition(edition, { now: LATER, client: scripted('One agent filed: 35 of 35 feeds answered, and LINK / USD read 11.43.') });
+    assert.equal(r.outcome, 'NARRATED', r.detail ?? '');
+  });
+
+  it('still stops a number printed nowhere in the record', async () => {
+    const r = await narrateEdition(edition, { now: LATER, client: scripted('One agent filed: 4,000 feeds answered.') });
+    assert.equal(r.outcome, 'POLICY_BLOCKED');
+    assert.match(r.detail ?? '', /4,000/);
+  });
+
+  it('tells the model which numbers it may use', () => {
+    assert.match(buildNarrationPrompt(edition).user, /Any number printed in the filings above may also be repeated/);
+  });
+});
