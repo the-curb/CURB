@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { Block, Inline } from '@/lib/docs/markdown';
+import { sectionsOf, type Block, type Inline } from '@/lib/docs/markdown';
 
 /**
  * A document, rendered block by block. Used by the pages that show a file
@@ -137,5 +137,39 @@ export function Contents({ sections }: { sections: readonly { id: string; text: 
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * The whole document, every word of it, with each section folded under its
+ * own heading. A reader sees the shape of the document first — its sections,
+ * in order — and opens the one they came for. It is the file, not a summary
+ * of it: nothing is cut and nothing is written in its place.
+ */
+export function FoldedDocument({ blocks }: { blocks: readonly Block[] }) {
+  const { preamble, sections } = sectionsOf(blocks);
+  return (
+    <article>
+      {preamble.map((block, i) => (
+        <BlockView key={`p${i}`} block={block} />
+      ))}
+      <div className="mt-8 border-b border-(--color-rule)">
+        {sections.map(({ heading, body }) => (
+          <details key={heading.id} id={heading.id} className="group scroll-mt-28 border-t border-(--color-rule)">
+            <summary className="flex cursor-pointer items-baseline justify-between gap-6 py-4">
+              <span className="display text-xl text-(--color-paper) group-open:text-(--color-accent) sm:text-2xl">{heading.text}</span>
+              <span aria-hidden="true" className="tabular text-sm text-(--color-paper-faint) group-open:rotate-45">
+                +
+              </span>
+            </summary>
+            <div className="pb-8">
+              {body.map((block, i) => (
+                <BlockView key={i} block={block} />
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+    </article>
   );
 }

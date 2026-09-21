@@ -149,3 +149,15 @@ export function parseMarkdown(source: string): Block[] {
   flushParagraph(paragraph);
   return blocks;
 }
+
+/** A document cut at its second-level headings: what comes before the first, then one section per heading. */
+export function sectionsOf(blocks: readonly Block[]): { readonly preamble: readonly Block[]; readonly sections: readonly { readonly heading: Extract<Block, { kind: 'heading' }>; readonly body: readonly Block[] }[] } {
+  const preamble: Block[] = [];
+  const sections: { heading: Extract<Block, { kind: 'heading' }>; body: Block[] }[] = [];
+  for (const block of blocks) {
+    if (block.kind === 'heading' && block.level === 2) sections.push({ heading: block, body: [] });
+    else if (sections.length === 0) preamble.push(block);
+    else sections[sections.length - 1]!.body.push(block);
+  }
+  return { preamble, sections };
+}

@@ -9,6 +9,9 @@ import { creditsStatus } from '@/lib/credits/config';
 import { centsText } from '@/lib/credits/prices';
 import { receiptsByDay } from '@/lib/credits/receipts';
 import { seriesById } from '@/lib/positions/series';
+import { GAZETTE, gazetteLine, splitFiling } from '@/lib/copy/gazette';
+
+const G = GAZETTE.edition;
 
 const JOURNAL_LABEL: Record<JournalEntry['kind'], string> = {
   EVIDENCE_ARCHIVED: 'archived',
@@ -50,14 +53,20 @@ function Masthead({ edition }: { edition: Edition }) {
       <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
         <span>{longDate(edition.day)}</span>
         <span>{BRAND.paper.cadence}</span>
-        <span>{edition.isToday ? 'Live edition' : 'Closed edition'}</span>
+        <span>{edition.isToday ? G.live : G.closed}</span>
       </div>
       <Rule heavy />
     </header>
   );
 }
 
+/**
+ * One filing. Its opening lines are in view and the rest is folded under "the
+ * full filing" — word for word, nothing cut — so a day's paper reads as a
+ * front page and not as every report end to end.
+ */
 function Section({ section }: { section: Edition['sections'][number] }) {
+  const { head, rest, restLines } = splitFiling(section.body);
   return (
     <article className="border-t border-(--color-rule) py-6 first:border-t-0 first:pt-0">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -65,18 +74,22 @@ function Section({ section }: { section: Edition['sections'][number] }) {
           {section.headline}
         </h3>
         <span className="text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
-          Filed by {section.agent.name} · {section.publishedAt.slice(11, 16)} UTC
-          {section.filings > 1 ? ` · latest of ${section.filings} filings today` : ''}
+          {gazetteLine(G.filedBy, { agent: section.agent.name, time: section.publishedAt.slice(11, 16) })}
+          {section.filings > 1 ? ` · ${gazetteLine(G.latestOf, { n: section.filings })}` : ''}
         </span>
       </div>
       {section.agent.posture === 'PROMOTES' ? (
         <p className="mb-3 text-[10px] uppercase tracking-[0.16em] text-(--color-brass)">
-          Promotion · disclosed by the author, appended by code
+          {G.promotion}
         </p>
       ) : null}
-      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-(--color-paper-dim)">
-        {section.body}
-      </pre>
+      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-(--color-paper-dim)">{head}</pre>
+      {restLines > 0 ? (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[11px] uppercase tracking-[0.14em] text-(--color-paper-faint) hover:text-(--color-paper)">{gazetteLine(G.more, { n: restLines })}</summary>
+          <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-(--color-paper-dim)">{rest}</pre>
+        </details>
+      ) : null}
       <p className="mt-3 border-l-2 border-(--color-rule-2) pl-3 text-[11px] italic leading-relaxed text-(--color-paper-faint)">
         {section.agent.refusal}
       </p>
@@ -97,9 +110,11 @@ export default async function EditionPage(props: { params: Params }) {
     return (
       <main className="mx-auto max-w-3xl px-6 py-16">
         <p className="text-sm" style={{ color: 'var(--color-state-stale)' }}>
-          The record for {day} could not be read ({record.reason}
-          {record.detail ? ` — ${record.detail}` : ''}). No edition is shown, and none should be
-          inferred: an unreadable record is not an empty day.
+          {G.unread}{' '}
+          <span className="text-(--color-paper-faint)">
+            ({day} · {record.reason}
+            {record.detail ? ` — ${record.detail}` : ''})
+          </span>
         </p>
       </main>
     );
@@ -134,12 +149,11 @@ export default async function EditionPage(props: { params: Params }) {
 
       {isFuture ? (
         <p className="text-sm text-(--color-paper-faint)">
-          {day} has not happened yet. There is nothing to print, and nothing here guesses at it.
+          {G.future}
         </p>
       ) : edition.sections.length === 0 && edition.notRead.length === 0 ? (
         <p className="text-sm text-(--color-paper-faint)">
-          Nothing was recorded on {day}. That is an empty day in the record, not a day the record
-          could not reach.
+          {G.empty}
         </p>
       ) : (
         <>
@@ -161,7 +175,7 @@ export default async function EditionPage(props: { params: Params }) {
                   {narration.standfirst}
                 </p>
                 <p className="mt-3 text-[10px] uppercase tracking-[0.16em] text-(--color-paper-faint)">
-                  Written by {narration.model} over the record · every figure in it is the record&apos;s · passed the same gate as every agent
+                  {gazetteLine(G.narratedBy, { model: narration.model ?? 'a model' })}
                 </p>
                 <p className="mt-4 border-l-2 border-(--color-rule-2) pl-4 text-sm leading-relaxed text-(--color-paper-dim)">
                   {edition.standfirst}
@@ -175,11 +189,11 @@ export default async function EditionPage(props: { params: Params }) {
                     {/* The outcome is the paper's business; the vendor's own error text is
                         not, and republishing a billing message on a public page tells a
                         reader nothing about the record. The detail stays in the row. */}
-                    A narration was attempted and {narration.outcome.replace(/_/g, ' ').toLowerCase()}. The paper&apos;s own count stands.
+                    {G.narrationFailed} <span className="text-(--color-paper-faint)">({narration.outcome.replace(/_/g, ' ').toLowerCase()})</span>
                   </p>
                 ) : narration && !narration.current ? (
                   <p className="mt-3 text-xs leading-relaxed text-(--color-paper-faint)">
-                    An earlier narration exists for a different composition of this day and is not shown.
+                    {G.narrationStale}
                   </p>
                 ) : null}
               </>
@@ -210,13 +224,12 @@ export default async function EditionPage(props: { params: Params }) {
           {/* ── What was not read ──────────────────────────────────────── */}
           <section className="mb-12">
             <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-              What was not read
+              {G.notRead}
             </h2>
             <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
               {edition.notRead.length === 0 ? (
                 <p className="text-sm text-(--color-paper-faint)">
-                  Every agent that ran completed its reading. This line is printed so its absence
-                  would be noticed.
+                  {G.allRead}
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -241,11 +254,11 @@ export default async function EditionPage(props: { params: Params }) {
           {edition.stoppedByPolicy.length > 0 ? (
             <section className="mb-12">
               <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-                Stopped by policy
+                {G.stopped}
               </h2>
               <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
                 <p className="mb-3 text-xs leading-relaxed text-(--color-paper-faint)">
-                  The reading was complete; the gate kept the text back, and the text is kept. A block is not a failed reading.
+                  {G.stoppedNote}
                 </p>
                 <ul className="space-y-3">
                   {edition.stoppedByPolicy.map((s) => (
@@ -264,15 +277,13 @@ export default async function EditionPage(props: { params: Params }) {
 
           {/* ── Sources of record ──────────────────────────────────────── */}
           <section className="mb-12">
-            <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-              Sources of record
-            </h2>
-            <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
+            <details className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
+              <summary className="cursor-pointer text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint) hover:text-(--color-paper)">
+                {G.sources} · {gazetteLine(G.sourcesCount, { n: edition.sources.length })}
+              </summary>
+              <div className="mt-4">
               {edition.sources.length === 0 ? (
-                <p className="text-sm text-(--color-paper-faint)">
-                  No figure was declared today, so no source is cited. A figure without a source
-                  does not go out.
-                </p>
+                <p className="text-sm text-(--color-paper-faint)">{G.noSources}</p>
               ) : (
                 <ol className="space-y-1.5">
                   {edition.sources.map((s, i) => (
@@ -288,13 +299,14 @@ export default async function EditionPage(props: { params: Params }) {
                   ))}
                 </ol>
               )}
-            </div>
+              </div>
+            </details>
           </section>
 
           {/* ── The ledger ─────────────────────────────────────────────── */}
           <section className="mb-12">
             <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-              The ledger
+              {G.ledger}
             </h2>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2 border border-(--color-rule) bg-(--color-ink-2) p-5 text-xs sm:grid-cols-3 sm:p-6">
               {(Object.entries(edition.ledger) as [string, number][]).map(([outcome, n]) => (
@@ -315,8 +327,7 @@ export default async function EditionPage(props: { params: Params }) {
               </div>
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
-              A dash is a count of zero, printed as a dash so it cannot be mistaken for a figure that was
-              measured. Every run that day is counted here, including the ones that produced nothing.
+              {G.ledgerNote}
             </p>
           </section>
         </>
@@ -325,16 +336,16 @@ export default async function EditionPage(props: { params: Params }) {
       {journal === null ? null : (
         <section className="mb-12">
           <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-            Positions · verified changes
+            {G.journal}
           </h2>
           <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
             {journal.storeFault !== null ? (
               <p className="text-sm" style={{ color: 'var(--color-state-stale)' }}>
-                The position product&apos;s archive could not be read ({journal.storeFault}). Nothing is shown, and an unreadable archive is not a day without change.
+                {G.journalUnread} <span className="text-(--color-paper-faint)">({journal.storeFault})</span>
               </p>
             ) : journal.entries.length === 0 ? (
               <p className="text-sm text-(--color-paper-faint)">
-                No issuer record or document was archived or changed, no candidate address moved between verification runs, and no reconciliation finding moved, on {day}. Printed so its absence would be noticed.
+                {G.journalNone}
               </p>
             ) : (
               <ul className="space-y-3">
@@ -363,7 +374,7 @@ export default async function EditionPage(props: { params: Params }) {
             )}
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
-            Derived from the archive&apos;s version rows and the verification&apos;s drift rows, by the day they were observed; composed again tomorrow from the same rows, the day reads the same. A change is a fact about the source, not a finding about the instrument.
+            {G.journalNote}
           </p>
         </section>
       )}
@@ -371,15 +382,15 @@ export default async function EditionPage(props: { params: Params }) {
       {receipts === null || (!deskExists && receipts.topUps === 0 && receipts.storeFault === null) ? null : (
         <section className="mb-12">
           <h2 className="mb-4 text-[11px] uppercase tracking-[0.28em] text-(--color-paper-faint)">
-            Services · receipts
+            {G.receipts}
           </h2>
           <div className="border border-(--color-rule) bg-(--color-ink-2) p-5 sm:p-6">
             {receipts.storeFault !== null ? (
               <p className="text-sm" style={{ color: 'var(--color-state-stale)' }}>
-                The credit desk&apos;s rows could not be read ({receipts.storeFault}). Nothing is shown, and an unreadable store is not a day without receipts.
+                {G.receiptsUnread} <span className="text-(--color-paper-faint)">({receipts.storeFault})</span>
               </p>
             ) : receipts.topUps === 0 ? (
-              <p className="text-sm text-(--color-paper-faint)">No top-up was credited on {day}. Printed so its absence would be noticed.</p>
+              <p className="text-sm text-(--color-paper-faint)">{G.receiptsNone}</p>
             ) : (
               <p className="text-sm text-(--color-paper)">
                 <span className="tabular">{receipts.topUps}</span> top-up{receipts.topUps === 1 ? '' : 's'} to <span className="tabular">{receipts.keys}</span> key{receipts.keys === 1 ? '' : 's'} credited{' '}
@@ -393,18 +404,14 @@ export default async function EditionPage(props: { params: Params }) {
             )}
           </div>
           <p className="mt-3 text-[11px] leading-relaxed text-(--color-paper-faint)">
-            Derived from the keys&apos; rows by the day the credit was made; key hashes are not printed. The price list and the running total are on the services page.
+            {G.receiptsNote}
           </p>
         </section>
       )}
 
       <footer className="border-t border-(--color-rule) pt-6 text-[11px] leading-relaxed text-(--color-paper-faint)">
-        <p>
-          This edition is composed from the day&apos;s record and adds nothing to it. The agents are
-          the reporters; each section carries its author&apos;s declared refusal. Nothing here is
-          investment, legal or tax advice, and no agent places an order.
-        </p>
-        <p className="mt-2 tabular">Composed {edition.composedAt}</p>
+        <p>{G.footer}</p>
+        <p className="mt-2 tabular">{gazetteLine(G.composed, { at: edition.composedAt })}</p>
       </footer>
     </main>
   );

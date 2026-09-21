@@ -6,19 +6,21 @@ import { ThemeToggle } from './theme-toggle';
 /**
  * The masthead. A folio strip — where the desk sits, and the ink switch —
  * over the title row: the mark in the second ink, the name in the serif,
- * and the positions, the mechanism, the desk, the paper, the services and the rules as a ruled run of small capitals. Under it the paper's
+ * and the sections as a ruled run of small capitals, in the order a reader
+ * uses them: the prices first, the product that is not live yet after the
+ * things that are. The mechanism and the doctrine are one click further, from
+ * the footer and from the pages that cite them. Under it the paper's
  * rule, a hairline over a heavy line. It stays at the top; the sheet scrolls
  * beneath it. On a narrow screen the sections become a third row that
  * scrolls sideways rather than a menu that hides them.
  */
 const SECTIONS: ReadonlyArray<readonly [string, string]> = [
-  ['Positions', '/positions'],
-  ['Mechanism', '/mechanism'],
-  ['The Desk', '/floor'],
+  ['The Floor', '/floor'],
+  ['Registry', '/registry'],
   ['Gazette', '/gazette'],
   ['Services', '/services'],
-  ['Doctrine', '/doctrine'],
-  ['How to', '/guide'],
+  ['Positions', '/positions'],
+  ['How to use it', '/guide'],
 ];
 
 export function SiteHeader() {
@@ -26,7 +28,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 bg-(--color-ink)">
       <div className="masthead-rule">
         <div className="tabular flex h-7 items-center justify-between gap-4 border-b border-(--color-rule) px-4 text-[10px] uppercase tracking-[0.2em] text-(--color-paper-faint)">
-          <span className="truncate">A desk on Robinhood Chain · 4663</span>
+          <span className="truncate">A desk on Robinhood Chain</span>
           <span className="flex items-center gap-4">
             <a href={BRAND.links.x} className="hidden hover:text-(--color-paper) sm:inline" target="_blank" rel="noopener noreferrer" aria-label={`${BRAND.name} on X, ${BRAND.links.xHandle}`}>
               X · {BRAND.links.xHandle}

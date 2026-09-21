@@ -4,20 +4,23 @@ import Link from 'next/link';
 import { RULE_COUNT } from '@/lib/doctrine/policy';
 import { AGENT_COUNTS } from '@/lib/agents/registry';
 import { parseMarkdown, type Block } from '@/lib/docs/markdown';
-import { BlockView, Contents } from '../components/markdown-view';
+import { FoldedDocument } from '../components/markdown-view';
+import { HashOpener } from '../components/hash-opener';
+import { DOCUMENTS, documentsLine } from '@/lib/copy/documents';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Doctrine' };
+export const metadata = { title: DOCUMENTS.doctrine.title, description: DOCUMENTS.doctrine.description };
 
 /**
  * DOCTRINE.md, rendered from the file. The document names the file that
  * enforces each rule, and this page shows the document rather than a copy of
  * it, so what the site says the rules are cannot drift from what they are.
  * If the file cannot be read, the page says so; it does not fall back to a
- * summary written by hand.
+ * summary written by hand. Each section is folded under its own heading.
  */
 
 const DOC = path.join(/*turbopackIgnore: true*/ process.cwd(), 'DOCTRINE.md');
+const C = DOCUMENTS.doctrine;
 
 export default async function DoctrinePage() {
   let blocks: Block[] | null = null;
@@ -27,41 +30,35 @@ export default async function DoctrinePage() {
   } catch (cause) {
     fault = cause instanceof Error ? cause.message : 'unknown failure';
   }
-  const sections = blocks?.filter((b): b is Extract<Block, { kind: 'heading' }> => b.kind === 'heading' && b.level === 2) ?? [];
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-6">
         <div className="kicker">
-          <b>The desk</b> · Doctrine
+          <b>{C.kicker}</b> · {C.title}
         </div>
-        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
-          The rules the desk is built on. Each one names the file that enforces it.
-        </h1>
-        <p className="mt-4 max-w-xl text-base leading-relaxed text-(--color-paper-dim)">
-          {RULE_COUNT} policy rules as code. {AGENT_COUNTS.measure} agents measure, {AGENT_COUNTS.promote} promotes,{' '}
-          {AGENT_COUNTS.execute} execute. This page is the document itself, read from the repository at request time —
-          not a summary of it. The position product’s own rules are in the{' '}
-          <Link href="/mechanism" className="text-(--color-paper) underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-accent)">
-            mechanism
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">{C.headline}</h1>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-(--color-paper-dim)">
+          {C.sub} {DOCUMENTS.open}
+        </p>
+        <p className="tabular mt-3 text-[12px] text-(--color-paper-faint)">
+          {documentsLine(C.counts, { rules: RULE_COUNT, measure: AGENT_COUNTS.measure, promote: AGENT_COUNTS.promote })}
+        </p>
+        <p className="mt-3 text-sm text-(--color-paper-dim)">
+          <Link href="/mechanism" className="underline decoration-(--color-accent) underline-offset-4 hover:text-(--color-paper)">
+            {C.mechanism}
           </Link>
-          .
         </p>
       </header>
 
       {fault !== null || blocks === null ? (
         <p className="mt-8 text-base leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-          The doctrine file could not be read ({fault ?? 'no content'}). Nothing is shown in its place: a summary
-          written by hand would be a second document that could disagree with the first.
+          {DOCUMENTS.unread} <span className="text-(--color-paper-faint)">({fault ?? 'no content'})</span>
         </p>
       ) : (
         <>
-          <Contents sections={sections} />
-          <article>
-            {blocks.map((block, i) => (
-              <BlockView key={i} block={block} />
-            ))}
-          </article>
+          <HashOpener />
+          <FoldedDocument blocks={blocks} />
         </>
       )}
     </main>

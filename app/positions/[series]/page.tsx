@@ -15,15 +15,20 @@ import { getStoreAsync } from '@/lib/store';
 import { PositionSimulator } from '../../components/position-simulator';
 import { WalletLookup } from '../../components/wallet-lookup';
 import { WalletSign } from '../../components/wallet-sign';
+import { POSITIONS, positionsLine } from '@/lib/copy/positions';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * One series: what it would hold, from whom, what is known and not known
- * about each component, the four statuses each component has to earn on its
- * own, the ledger run by hand, and the gates before any of it touches a real
- * asset. Every figure is labelled illustrative because every figure is.
+ * One series. It opens on what the product is and is not, then what one lot
+ * holds and what is not known about it, then the simulation and the address
+ * lookup, then the checks that must pass before a real asset. The full
+ * record — related parties, evidence, the drill, the rules — follows in full,
+ * folded under plain headings. Every figure is labelled illustrative because
+ * every figure is.
  */
+
+const P = POSITIONS.series;
 
 const STATUS_LABEL: Record<ComponentStatus, { text: string; colour: string }> = {
   NOT_DETERMINED: { text: 'not determined', colour: 'var(--color-state-fog)' },
@@ -75,14 +80,23 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
     <main className="px-3 py-8 wrap-anywhere sm:px-4 sm:py-10">
       <header className="mb-8 px-1">
         <div className="kicker">
-          <b>The position</b> · {spec.company} · <Link href="/positions" className="hover:text-(--color-paper)">all positions</Link>
+          <b>{P.kicker}</b> · {spec.company} · <Link href="/positions" className="hover:text-(--color-paper)">{P.all}</Link>
         </div>
         <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">{spec.name}</h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">{spec.stageLine}</p>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-(--color-paper-dim)">{positionsLine(P.sub, { company: spec.company })}</p>
+        <ul className="mt-4 max-w-2xl space-y-1 text-sm leading-relaxed text-(--color-paper-faint)">
+          {POSITIONS.status.map((line) => (
+            <li key={line}>— {line}</li>
+          ))}
+          <li>— {positionsLine(P.checks, { passed: GATES.filter((g) => g.status === 'PASSED').length, total: GATES.length })}</li>
+        </ul>
       </header>
 
       {/* ── the components ─────────────────────────────────────────────── */}
       <section>
+        <div className="kicker px-1 pb-3">
+          <b>{P.lot.kicker}</b>
+        </div>
         <div className="cells grid-cols-1 md:grid-cols-2">
           {[a, b].map((c) => (
             <div key={c.id} className="cell p-6 sm:p-8">
@@ -97,9 +111,22 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
               <h2 className="display mt-3 text-2xl text-(--color-paper)">{c.instrument}</h2>
               <p className="mt-2 text-[13px] leading-relaxed text-(--color-paper-dim)">{c.issuer}</p>
 
-              <div className="mt-5 grid gap-6 sm:grid-cols-2">
-                <div>
-                  <div className="kicker">Known · from the issuer’s documents</div>
+              <div className="mt-5">
+                  <div className="kicker">{P.lot.unknown}</div>
+                  <ul className="mt-2 space-y-2">
+                    {c.unknown.map((line) => (
+                      <li key={line} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
+                        <span className="text-(--color-paper-faint)">—</span>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+              </div>
+
+              <details className="mt-5 border-t border-(--color-rule) pt-4">
+                <summary className="kicker cursor-pointer hover:text-(--color-paper)">{P.lot.more}</summary>
+                <div className="mt-4">
+                  <div className="kicker">{P.lot.known}</div>
                   <ul className="mt-2 space-y-2">
                     {c.known.map((line) => (
                       <li key={line} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
@@ -109,21 +136,8 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                     ))}
                   </ul>
                 </div>
-                <div>
-                  <div className="kicker">Not known · not replaced by a guess</div>
-                  <ul className="mt-2 space-y-2">
-                    {c.unknown.map((line) => (
-                      <li key={line} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
-                        <span className="text-(--color-paper-faint)">—</span>
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
               <div className="mt-5 border-t border-(--color-rule) pt-4">
-                <div className="kicker">Four statuses, each on its own</div>
+                <div className="kicker">{P.lot.checks}</div>
                 <dl className="tabular mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-y-1 text-[12px]">
                   {(
                     [
@@ -167,12 +181,12 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   })}
                 </dl>
                 <p className="mt-2 text-[10px] leading-relaxed text-(--color-paper-faint)">
-                  A status is an admission decision; the lines under them are evidence, dated, for whoever decides.
+                  {P.lot.checksNote}
                 </p>
               </div>
 
               <div className="mt-5 border-t border-(--color-rule) pt-4">
-                <div className="kicker">Sources</div>
+                <div className="kicker">{P.lot.sources}</div>
                 <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
                   {c.sources.map((s) => (
                     <li key={s.url}>
@@ -183,13 +197,122 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
                   ))}
                 </ul>
               </div>
+              </details>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── related parties ─────────────────────────────────────────────── */}
+      {/* ── the ledger, by hand ─────────────────────────────────────────── */}
       <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+          <span className="kicker">
+            <b>{P.simulate.kicker}</b> · {P.simulate.lede}
+          </span>
+          <Link href="/mechanism#7-the-ledger-lots-with-fixed-components" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+            {P.simulate.mechanism}
+          </Link>
+        </div>
+        <PositionSimulator
+          seriesName={spec.name}
+          q={{ A: a.perLotIllustrative.toString(), B: b.perLotIllustrative.toString() }}
+          capLots={spec.capLotsIllustrative.toString()}
+          labels={{ A: 'Mock A', B: 'Mock B' }}
+        />
+      </section>
+
+      {/* ── my position, read only ──────────────────────────────────────── */}
+      <section className="mt-8">
+        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+          <span className="kicker">
+            <b>{P.lookup.kicker}</b> · {P.lookup.lede}
+          </span>
+          <Link href="/mechanism#6-flows-and-screens" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+            §6 of the mechanism
+          </Link>
+        </div>
+        <WalletLookup seriesId={spec.id} labels={{ A: a.instrument, B: b.instrument }} />
+      </section>
+
+      {/* ── with your own wallet, only for a deployed series ────────────── */}
+      {deployment.state === 'CONFIGURED' && deployment.address && deployment.chainId !== null && deployment.components ? (
+        <section className="mt-8">
+          <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
+            <span className="kicker">
+              <b>{P.sign.kicker}</b> · {P.sign.lede}
+            </span>
+            <Link href="/mechanism/decisions/adr-003-on-chain-access" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
+              a permit on chain, ADR-003
+            </Link>
+          </div>
+          <WalletSign seriesId={spec.id} seriesAddress={deployment.address} chainId={deployment.chainId} labels={{ A: a.instrument, B: b.instrument }} components={deployment.components} />
+        </section>
+      ) : null}
+
+      {/* ── what must happen first, and what we will and will not say ──── */}
+      <section className="mt-8">
+        <div className="cells grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <div className="cell p-6 sm:p-8">
+            <div className="kicker">
+              <b>{P.gates.kicker}</b>
+            </div>
+            <p className="mt-2 text-[13px] leading-relaxed text-(--color-paper-dim)">{P.gates.lede}</p>
+            <ul className="mt-4 divide-y divide-(--color-rule)">
+              {GATES.map((g) => (
+                <li key={g.id}>
+                  <details className="py-2.5">
+                    <summary className="flex cursor-pointer items-baseline gap-2 text-[13px]">
+                      <span className="tabular text-(--color-accent)">{g.id}</span>
+                      <span className="text-(--color-paper)">{g.name}</span>
+                      <span className="tabular ml-auto text-[10px] uppercase tracking-[0.14em]" style={{ color: GATE_COLOUR[g.status] }}>
+                        {g.status.toLowerCase().replace('_', ' ')}
+                      </span>
+                    </summary>
+                    <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-faint)">{g.today}</p>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="cell p-6 sm:p-8">
+            <div className="kicker">
+              <b>{P.say.will}</b>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {PROMISES.testable.map((r) => (
+                <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper)">
+                  <span className="text-(--color-accent)">—</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="kicker mt-6">
+              <b>{P.say.wont}</b>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {PROMISES.unsupported.map((r) => (
+                <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-faint)">
+                  <span>×</span>
+                  <span className="line-through decoration-(--color-rule-2)">{r}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* ── the full record ─────────────────────────────────────────────── */}
+      <section className="mt-12">
+        <div className="px-1 pb-3">
+          <div className="kicker">
+            <b>{P.record.kicker}</b>
+          </div>
+          <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-(--color-paper-dim)">{P.record.lede}</p>
+        </div>
+        <details className="border-t border-(--color-rule) py-4">
+          <summary className="cursor-pointer px-1 text-[14px] text-(--color-paper) hover:text-(--color-accent)">{P.record.parties}</summary>
+      {/* ── related parties ─────────────────────────────────────────────── */}
+      <section className="mt-4">
         <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
           <span className="kicker">
             <b>Related parties</b> · as the issuers’ documents name them · read {DEPENDENCIES[0]?.readOn}
@@ -263,8 +386,11 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
         </div>
       </section>
 
+        </details>
+        <details className="border-t border-(--color-rule) py-4">
+          <summary className="cursor-pointer px-1 text-[14px] text-(--color-paper) hover:text-(--color-accent)">{P.record.evidence}</summary>
       {/* ── evidence and status ─────────────────────────────────────────── */}
-      <section className="mt-8">
+      <section className="mt-4">
         <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
           <span className="kicker">
             <b>Evidence and status</b> · what was fetched, what the chain said, what is deployed
@@ -660,9 +786,14 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
         </div>
       </section>
 
+        </details>
+        {drill.drill ? (
+          <>
+        <details className="border-t border-(--color-rule) py-4">
+          <summary className="cursor-pointer px-1 text-[14px] text-(--color-paper) hover:text-(--color-accent)">{P.record.drill}</summary>
       {/* ── the drill ───────────────────────────────────────────────────── */}
       {drill.drill ? (
-        <section className="mt-8">
+        <section className="mt-4">
           <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
             <span className="kicker">
               <b>The drill</b> · incidents staged on a local chain · {drill.drill.ranAt.slice(0, 16).replace('T', ' ')} UTC
@@ -717,114 +848,26 @@ export default async function SeriesPage({ params }: { params: Promise<{ series:
         </section>
       ) : null}
 
-      {/* ── the ledger, by hand ─────────────────────────────────────────── */}
-      <section className="mt-8">
-        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
-          <span className="kicker">
-            <b>The ledger</b> · run it yourself
-          </span>
-          <Link href="/mechanism#7-the-ledger-lots-with-fixed-components" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
-            §7 of the mechanism, in code
-          </Link>
-        </div>
-        <PositionSimulator
-          seriesName={spec.name}
-          q={{ A: a.perLotIllustrative.toString(), B: b.perLotIllustrative.toString() }}
-          capLots={spec.capLotsIllustrative.toString()}
-          labels={{ A: 'Mock A', B: 'Mock B' }}
-        />
-      </section>
-
-      {/* ── my position, read only ──────────────────────────────────────── */}
-      <section className="mt-8">
-        <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
-          <span className="kicker">
-            <b>My position</b> · what the index holds for an address
-          </span>
-          <Link href="/mechanism#6-flows-and-screens" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
-            §6 of the mechanism
-          </Link>
-        </div>
-        <WalletLookup seriesId={spec.id} labels={{ A: a.instrument, B: b.instrument }} />
-      </section>
-
-      {/* ── with your own wallet, only for a deployed series ────────────── */}
-      {deployment.state === 'CONFIGURED' && deployment.address && deployment.chainId !== null && deployment.components ? (
-        <section className="mt-8">
-          <div className="flex items-baseline justify-between gap-6 px-1 pb-3">
-            <span className="kicker">
-              <b>Form a position, claim components</b> · your wallet signs, the site sends nothing
-            </span>
-            <Link href="/mechanism/decisions/adr-003-on-chain-access" className="hidden text-[13px] text-(--color-paper-faint) hover:text-(--color-paper) sm:inline">
-              a permit on chain, ADR-003
-            </Link>
-          </div>
-          <WalletSign seriesId={spec.id} seriesAddress={deployment.address} chainId={deployment.chainId} labels={{ A: a.instrument, B: b.instrument }} components={deployment.components} />
-        </section>
-      ) : null}
-
-      {/* ── rules, promises, gates ──────────────────────────────────────── */}
-      <section className="mt-8">
-        <div className="cells grid-cols-1 lg:grid-cols-3">
-          <div className="cell p-6 sm:p-8">
-            <div className="kicker">
-              <b>The rules</b> of a series
+        </details>
+          </>
+        ) : null}
+        <details className="border-t border-(--color-rule) py-4">
+          <summary className="cursor-pointer px-1 text-[14px] text-(--color-paper) hover:text-(--color-accent)">{P.record.rules}</summary>
+          <div className="cells mt-4 grid-cols-1">
+            <div className="cell p-6 sm:p-8">
+              <ul className="space-y-2">
+                {spec.rules.map((r) => (
+                  <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
+                    <span className="text-(--color-accent)">—</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="kicker mt-6">{P.record.deferred}</div>
+              <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-faint)">{spec.deferred.join(' · ')}.</p>
             </div>
-            <ul className="mt-3 space-y-2">
-              {spec.rules.map((r) => (
-                <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-dim)">
-                  <span className="text-(--color-accent)">—</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
           </div>
-          <div className="cell p-6 sm:p-8">
-            <div className="kicker">
-              <b>What we will say</b> · and can test
-            </div>
-            <ul className="mt-3 space-y-2">
-              {PROMISES.testable.map((r) => (
-                <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper)">
-                  <span className="text-(--color-accent)">—</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="kicker mt-6">
-              <b>What we will not say</b>
-            </div>
-            <ul className="mt-3 space-y-1.5">
-              {PROMISES.unsupported.map((r) => (
-                <li key={r} className="grid grid-cols-[1rem_minmax(0,1fr)] text-[13px] leading-relaxed text-(--color-paper-faint)">
-                  <span>×</span>
-                  <span className="line-through decoration-(--color-rule-2)">{r}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="cell p-6 sm:p-8">
-            <div className="kicker">
-              <b>Gates</b> before a real asset
-            </div>
-            <ul className="mt-3 space-y-3">
-              {GATES.map((g) => (
-                <li key={g.id} className="text-[13px] leading-relaxed">
-                  <div className="flex items-baseline gap-2">
-                    <span className="tabular text-(--color-accent)">{g.id}</span>
-                    <span className="text-(--color-paper)">{g.name}</span>
-                    <span className="tabular ml-auto text-[10px] uppercase tracking-[0.14em]" style={{ color: GATE_COLOUR[g.status] }}>
-                      {g.status.toLowerCase().replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="text-(--color-paper-faint)">{g.today}</div>
-                </li>
-              ))}
-            </ul>
-            <div className="kicker mt-6">Deferred</div>
-            <p className="mt-2 text-[12px] leading-relaxed text-(--color-paper-faint)">{spec.deferred.join(' · ')}.</p>
-          </div>
-        </div>
+        </details>
       </section>
     </main>
   );

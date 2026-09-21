@@ -5,9 +5,10 @@ import { AGENTS, AGENT_COUNTS } from '@/lib/agents/registry';
 import { systemHealth, type AgentHealth } from '@/lib/agents/health';
 import { PRODUCERS } from '@/lib/agents/producers';
 import { getStoreAsync } from '@/lib/store';
+import { AGENTS_COPY as C, agentsLine } from '@/lib/copy/agents';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'The agents' };
+export const metadata = { title: C.index.title, description: C.index.description };
 
 const LIGHT: Record<AgentHealth, string> = {
   LIVE: 'var(--color-state-live)',
@@ -27,21 +28,16 @@ export default async function AgentsIndex() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-
       <header className="mb-12">
         <DeskNav current="THE AGENTS" />
-        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">
-          {AGENT_COUNTS.total} agents, one job each. What each refuses to do is as defined as what it does.
-        </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-(--color-paper-dim)">
-          {AGENT_COUNTS.measure} measure. {AGENT_COUNTS.promote} promotes, and says so in every post.
-          {' '}{AGENT_COUNTS.execute} execute — nothing here touches a venue or places an order.
-          None of them answers outside its own trade.
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">{agentsLine(C.index.headline, { total: AGENT_COUNTS.total })}</h1>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-(--color-paper-dim)">
+          {agentsLine(C.index.sub, { measure: AGENT_COUNTS.measure, promote: AGENT_COUNTS.promote })}
         </p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-(--color-paper-faint)">{C.index.refusals}</p>
         {health === null ? (
           <p className="mt-4 text-xs" style={{ color: 'var(--color-state-stale)' }}>
-            The heartbeat store could not be read, so no light is shown. That is not a roster of
-            idle agents.
+            {C.index.unread}
           </p>
         ) : null}
       </header>
@@ -60,24 +56,18 @@ export default async function AgentsIndex() {
                 const status = statusOf(agent.id);
                 const wired = PRODUCERS[agent.id] !== undefined;
                 return (
-                  <Link
-                    key={agent.id}
-                    href={`/agents/${agent.id}`}
-                    className="group block bg-(--color-ink-2) p-5 transition-colors hover:bg-(--color-ink-3)"
-                  >
+                  <Link key={agent.id} href={`/agents/${agent.id}`} className="group block bg-(--color-ink-2) p-5 transition-colors hover:bg-(--color-ink-3)">
                     <div className="flex items-baseline justify-between gap-3">
-                      <h3 className="text-sm tracking-[0.14em] text-(--color-paper) group-hover:text-(--color-brass)">
-                        {agent.name}
-                      </h3>
+                      <h3 className="text-sm tracking-[0.14em] text-(--color-paper) group-hover:text-(--color-brass)">{agent.name}</h3>
                       {status ? (
                         <span className="text-[10px] uppercase tracking-[0.14em]" style={{ color: LIGHT[status.health] }}>
-                          ● {status.health.replace(/_/g, ' ')}
+                          ● {C.health[status.health]}
                         </span>
                       ) : null}
                     </div>
                     <p className="mt-1 text-xs text-(--color-paper-faint)">
                       {agent.role}
-                      {!wired ? ' · not wired' : ''}
+                      {!wired ? ` · ${C.index.notWired}` : ''}
                     </p>
                     <p className="mt-3 text-sm italic leading-relaxed text-(--color-paper-dim)">“{agent.line}”</p>
                   </Link>

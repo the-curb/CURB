@@ -1,31 +1,39 @@
 import Link from 'next/link';
 import { DECISIONS, statusOf } from '@/lib/docs/decisions';
+import { DOCUMENTS, documentsLine } from '@/lib/copy/documents';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Decision records' };
+export const metadata = { title: DOCUMENTS.decisions.title, description: DOCUMENTS.decisions.description };
+
+const C = DOCUMENTS.decisions;
 
 /**
  * The decisions the blueprint asks to be written down before a pilot, as
  * proposals: what is proposed, why, what the prototype already does, and
  * what stays open. A record is proposed until a named person decides it —
  * the status line of each says who and when — and this page does not
- * decide for them; the decision so far (the token record, by the product
- * owner) is carried in the registry, not inferred here.
+ * decide for them; the decisions so far are carried in the registry, not
+ * inferred here.
  */
 export default function DecisionsIndex() {
+  const count = (s: string) => DECISIONS.filter((d) => statusOf(d) === s).length;
+  const partly = count('partly decided');
   return (
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-8">
         <div className="kicker">
-          <b>The position</b> · <Link href="/mechanism" className="hover:text-(--color-paper)">Mechanism</Link> · decision records
+          <b>{DOCUMENTS.mechanism.kicker}</b> ·{' '}
+          <Link href="/mechanism" className="hover:text-(--color-paper)">
+            {DOCUMENTS.mechanism.title}
+          </Link>{' '}
+          · {C.kicker}
         </div>
-        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">What has to be decided, written down before anyone decides it.</h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">
-          {DECISIONS.length} records, {DECISIONS.filter((d) => statusOf(d) === 'proposed').length}{' '}
-          <span className="text-(--color-paper)">proposed</span>
-          {DECISIONS.some((d) => statusOf(d) === 'partly decided') ? <>, {DECISIONS.filter((d) => statusOf(d) === 'partly decided').length} <span className="text-(--color-paper)">partly decided</span></> : null} and{' '}
-          {DECISIONS.filter((d) => statusOf(d) === 'decided').length} <span className="text-(--color-paper)">decided</span>: the design choices the blueprint asks for (R03, R05, R06), the operator policy (O01), the runbook (O03), the cost comparison with its measured inputs (B01), the deployment plan (G02), the assumption register that says what is assumed while no one has decided, a self-review that is not a review (C09), the interview guide that is ready to run (R04, B02), and the token's one function with its prices, conversion, terms and proceeds (§16) — decided by the product owner on 12 September 2026, the launch chain (Robinhood Chain) included. Each says what the prototype already does and what stays open. They are files in the repository, read at request time.
+        <h1 className="display mt-4 max-w-3xl text-4xl text-(--color-paper) sm:text-5xl">{C.headline}</h1>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-(--color-paper-dim)">
+          {documentsLine(C.sub, { records: DECISIONS.length, proposed: count('proposed'), decided: count('decided') })}
+          {partly > 0 ? ` ${partly} partly decided.` : ''}
         </p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-(--color-paper-faint)">{C.what}</p>
       </header>
       <ol className="cells grid-cols-1 md:grid-cols-2">
         {DECISIONS.map((d, i) => (

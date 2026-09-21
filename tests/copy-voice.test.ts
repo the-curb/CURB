@@ -42,7 +42,7 @@ describe('the site does not keep announcing that it is free', () => {
   }
 
   it('prints no "free" badge or chip in the page markup either', () => {
-    for (const file of ['app/page.tsx', 'app/guide/page.tsx', 'app/services/page.tsx', 'app/floor/page.tsx', 'app/registry/page.tsx', 'app/vault/page.tsx', 'app/components/site-footer.tsx', 'app/components/site-header.tsx']) {
+    for (const file of ['app/page.tsx', 'app/guide/page.tsx', 'app/services/page.tsx', 'app/floor/page.tsx', 'app/registry/page.tsx', 'app/vault/page.tsx', 'app/components/site-footer.tsx', 'app/components/site-header.tsx', 'app/agents/page.tsx', 'app/agents/[id]/page.tsx', 'app/chambers/page.tsx', 'app/positions/page.tsx', 'app/positions/[series]/page.tsx', 'app/mechanism/page.tsx', 'app/doctrine/page.tsx', 'app/gazette/page.tsx', 'app/gazette/[day]/page.tsx']) {
       let source: string;
       try {
         source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');

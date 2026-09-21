@@ -2,17 +2,24 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DECISIONS, decisionBySlug, readDecision, resolveRecordLinks, statusOf } from '@/lib/docs/decisions';
 import { parseMarkdown } from '@/lib/docs/markdown';
-import { BlockView } from '../../../components/markdown-view';
+import { FoldedDocument } from '../../../components/markdown-view';
+import { HashOpener } from '../../../components/hash-opener';
+import { DOCUMENTS } from '@/lib/copy/documents';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const record = decisionBySlug(slug);
-  return { title: record ? record.title : 'Decision record' };
+  return { title: record ? record.title : DOCUMENTS.decisions.title };
 }
 
-/** A link to another record by its file name becomes a link to its page; anything else is left to the parser's own rules. */
+/**
+ * One decision record, read from its file. The title the file opens with is
+ * printed in the header — the document view leaves a first-level heading to
+ * the page — and each section is folded under its own heading. A link to
+ * another record by its file name becomes a link to its page.
+ */
 export default async function DecisionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const record = decisionBySlug(slug);
@@ -27,24 +34,44 @@ export default async function DecisionPage({ params }: { params: Promise<{ slug:
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <header className="mb-6">
         <div className="kicker">
-          <b>The position</b> · <Link href="/mechanism" className="hover:text-(--color-paper)">Mechanism</Link> ·{' '}
-          <Link href="/mechanism/decisions" className="hover:text-(--color-paper)">decision records</Link> · {record.backlog} · {statusOf(record) === 'proposed' ? 'proposed, not decided' : statusOf(record)}
+          <b>{DOCUMENTS.mechanism.kicker}</b> ·{' '}
+          <Link href="/mechanism" className="hover:text-(--color-paper)">
+            {DOCUMENTS.mechanism.title}
+          </Link>{' '}
+          ·{' '}
+          <Link href="/mechanism/decisions" className="hover:text-(--color-paper)">
+            {DOCUMENTS.decisions.kicker}
+          </Link>{' '}
+          · {record.backlog} · {statusOf(record) === 'proposed' ? DOCUMENTS.decisions.proposed : statusOf(record)}
         </div>
+        <h1 className="display mt-4 max-w-3xl text-3xl text-(--color-paper) sm:text-4xl">{record.title}</h1>
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-(--color-paper-dim)">{record.asks}.</p>
       </header>
       {blocks === null ? (
         <p className="mt-8 text-base leading-relaxed" style={{ color: 'var(--color-state-stale)' }}>
-          The record could not be read ({fault ?? 'no content'}). Nothing is shown in its place.
+          {DOCUMENTS.unread} <span className="text-(--color-paper-faint)">({fault ?? 'no content'})</span>
         </p>
       ) : (
-        <article>
-          {blocks.map((block, i) => (
-            <BlockView key={i} block={block} />
-          ))}
-        </article>
+        <>
+          <HashOpener />
+          <FoldedDocument blocks={blocks} />
+        </>
       )}
       <nav className="mt-12 flex items-baseline justify-between gap-6 border-t border-(--color-rule) pt-4 text-[13px]">
-        <span>{previous ? <Link href={`/mechanism/decisions/${previous.slug}`} className="text-(--color-paper-dim) hover:text-(--color-paper)">← {previous.title}</Link> : null}</span>
-        <span>{next ? <Link href={`/mechanism/decisions/${next.slug}`} className="text-(--color-paper-dim) hover:text-(--color-paper)">{next.title} →</Link> : null}</span>
+        <span>
+          {previous ? (
+            <Link href={`/mechanism/decisions/${previous.slug}`} className="text-(--color-paper-dim) hover:text-(--color-paper)">
+              ← {previous.title}
+            </Link>
+          ) : null}
+        </span>
+        <span>
+          {next ? (
+            <Link href={`/mechanism/decisions/${next.slug}`} className="text-(--color-paper-dim) hover:text-(--color-paper)">
+              {next.title} →
+            </Link>
+          ) : null}
+        </span>
       </nav>
     </main>
   );
