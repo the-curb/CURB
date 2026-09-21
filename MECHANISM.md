@@ -262,9 +262,9 @@ Deferred, with no promise of addition: single-stablecoin deposit, automatic rout
 | --- | --- | --- |
 | G1 — instrument | Two issuers, one underlying, one chain, canonical identities | A's raw token, both wrappers and B's token read on Ethereum daily, matching the issuers' records; B's broker-dealer and custodian described, not named. Not passed. |
 | G2 — rights and access | Review of rights, user categories, contract custody, receipt distribution, exit process | Not done. The access design is a proposed decision record; the review is a person's. Ability to hold is not enough. |
-| G3 — components | Static balances, decimals, correct wrapper version, authority, real transfer and claim under test | Fork evidence for both components, including a two-component round trip and T14 (see §17). A split is not on the record. Not passed: eligibility and a reviewed decision remain. |
+| G3 — components | Static balances, decimals, correct wrapper version, authority, real transfer and claim under test | Fork evidence for both components, including a two-component round trip and T14 (see [what exists today](/mechanism/status)). A split is not on the record. Not passed: eligibility and a reviewed decision remain. |
 | G4 — contract | Invariants and adversarial tests pass; independent review; material findings closed | A prototype passes T01–T12, T17, T19, T20, T22–T25 and a fuzz run. No independent review. Not passed. |
-| G5 — operations | Reconciliation, index recovery, incident drill, key management, direct claim interface | Shown on a local chain (see §17). Robinhood Chain treasury signers and Safe creation recorded; Ethereum series operator and remaining key-management policy unverified/proposed. Not passed. |
+| G5 — operations | Reconciliation, index recovery, incident drill, key management, direct claim interface | Shown on a local chain (see [what exists today](/mechanism/status)). Robinhood Chain treasury signers and Safe creation recorded; Ethereum series operator and remaining key-management policy unverified/proposed. Not passed. |
 | G6 — economics | Measured formation and exit cost, and user need against the baseline | Execution gas measured on a fork with the real wrapper, no price applied. User need not validated: no interviews held. Not passed. |
 
 Without two eligible issuers on Robinhood Chain, two tokens from one issuer do not meet the thesis; choose a chain that passes the gates or stay in simulation, with no hidden bridge plan. Receipt terms may need their own structure and distribution arrangements; nontransferable or testnet status does not settle every real-asset obligation. This is feasibility work, not a claim of regulatory approval.
@@ -341,7 +341,7 @@ Assets under management are never equated with transaction volume. Hypotheticall
 
 Governance, if ever used, may take proposals on research priorities or new series. No vote changes a balance, takes claim reserves, replaces an old series' components or declares an issuer safe. No basis exists yet for supply, allocation, vesting, buybacks, fee sharing or CURB covering losses, launchpad or not. Positions never depend on a CURB price or a bridge.
 
-CURB's one function is decided (the product owner, 12 September 2026): payment for data services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. It is built (§17; [the token record](/mechanism/decisions/token), [the services page](/services)):
+CURB's one function is decided (the product owner, 12 September 2026): payment for data services that actually exist, with stated prices, a stated conversion, slippage limits, credit validity and a cancellation policy. It is built ([what exists today](/mechanism/status); [the token record](/mechanism/decisions/token), [the services page](/services)):
 
 - Dollar prices for the history and fan-out the site keeps; a US$20 opening minimum.
 - The credit desk contract moves CURB to a published treasury, emitting the key hash and amount.
@@ -355,44 +355,7 @@ No token exists; nothing is configured (launch venue: §1). The services and gat
 
 Startable now without a token or launch: the instrument candidate file; testing the narrative against the two-tokens-in-a-wallet baseline, begun by the [simulation](/positions/apple-s1); proving the accounting with mocks, begun by the ledger model.
 
-Implemented in this repository as of 12 September 2026, and not:
-
-| Piece | Status | Where to check |
-| --- | --- | --- |
-| Ledger model (§7) and test cases | Implemented, tested | `lib/positions/ledger.ts`, `tests/positions.test.ts`, the simulation |
-| Issuer evidence archive: daily, as received, versioned by canonical fields (D02) | Implemented, on the tick | `/api/positions/apple-s1/evidence` |
-| On-chain checks of every evidence address (incl. EIP-1967 slots, multiplier, wrapper conversion); corporate actions seen on activation day; a changed address is DARK drift | Implemented, on the tick | the series page, `/api/positions/apple-s1/evidence` |
-| Product network profile, own RPC override; chain id confirmed before any read (D05) | Implemented | `lib/chain/networks.ts`, `lib/chain/rpc.ts` |
-| Event codec, idempotent index, reorg rollback, ledger replay (D03) | Implemented, tested against fixtures; no contract to index | `lib/positions/index.ts`, `tests/positions-backend.test.ts` |
-| Units owed reconciled against `balanceOf` (D04) | Implemented; only for a configured deployment | `lib/positions/reconcile.ts` |
-| Deployed code checked against this repository's build outside the immutable slots (G02's verification procedure) | Implemented; every tick for a configured deployment; a mismatch is DARK; rehearsed locally | `lib/positions/code.ts`, `contracts/evidence/CompanySeries.build.json` |
-| Product API (§10) with dated indicative value (§8): A from the wrapper's conversion at a recorded block, B from the issuer page's shares-per-token, against the desk's AAPL / USD sample | Implemented | `/api/positions`, `/api/wallets/…`, `/api/status` |
-| Series contract prototype (§7, §9, §11); tests as in §14; seed, results, commit recorded (C07) | Implemented in `contracts/`; unaudited, unreviewed, undeployed | `contracts/src/CompanySeries.sol`, `contracts/test/CompanySeries.t.sol` |
-| Ethereum fork tests (C08, G3): A's identity, transfer, round trip, unwrap (T21), derived raw balance, wrapper size; B's (issuer-page address) identity, transfer, round trip with both; authority behind each address (EIP-1967 implementation, admin, beacon, `owner()`, `paused()`) | Implemented; block not pinned (public node); findings shown dated | `contracts/test/fork/`, `contracts/evidence/apple-s1.fork.json`, the series page |
-| End-to-end rehearsal: two mock components, the worked example, five events in order, A and B `MATCHED` (T16, T18 in part) | Implemented, repeatable; a local chain, not a public one | `contracts/scripts/rehearsal.ts`, `tests/positions-rehearsal.test.ts` |
-| Wallet calls as bytes in previews, once a deployment is configured | Implemented; simulated locally against the real contract; the site holds no key, sends nothing | `lib/positions/calldata.ts`, `/api/positions/apple-s1/preview-mint` |
-| "My position" (§6): read-only lookup by address; claims kept apart from receipts | Implemented | the series page, `/api/wallets/<address>/…` |
-| "Form position" and "Claim components" (§6, U03, U04): one wallet transaction per step, wrong chain refused, receipt read after mining | Implemented for a deployed series; rehearsed locally with a stand-in wallet (approve, approve, mint, allocate, claim A, claim B) | `app/components/wallet-sign.tsx`, the series page when `CURB_SERIES_DEPLOYMENTS` is set |
-| The Gazette: verified changes by day (§9), never a second record | Implemented | `/gazette/<day>`, `lib/positions/journal.ts` |
-| Operational drill (O02): freeze of A, shortfall of A, backend down, RPC failure, lost source; 2-of-3 quorum (stop and resume each need two signatures; the former single key refused); nobody paged, nothing recovered | Implemented, repeatable; a local chain with mock components | `contracts/scripts/drill.ts`, `tests/positions-drill.test.ts`, `contracts/evidence/drill-local.json`, the series page |
-| Execution gas per operation, real wrapper as A (B01's input; no price applied) | Implemented, dated with the fork block | `contracts/evidence/apple-s1.fork.json`, the series page |
-| T14 (see §14): forks before and at the multiplier activation, block 25,706,680 (8 August 2026 00:30 UTC; found by binary search of `multiplier()`); multiplier +0.0603%, wrapper shares unchanged, raw balance moved, conversion rate equal to the multiplier on both sides | Implemented, recorded in `contracts/evidence/apple-s1.corporate-action.json`; a split is not on the record | `contracts/test/fork/AppleCorporateActionFork.t.sol`, the series page |
-| T13 on the site side (see §8); T18 against a public chain | T13 covered by the valuation and its tests; T18 needs a deployment | `tests/positions-valuation.test.ts` |
-| Independent review and audit of the contract | Not started | — |
-| Drift and evidence changes as conditions and alerts (T15) | Implemented | `/api/state` → `conditions`, the webhook |
-| Instrument file from archive and chain (R01, the automatable half) | Implemented | `/api/positions/apple-s1/file` |
-| Issuer documents watched by visible-text hash (13 pages) | Implemented, on the tick | the series page, `/api/positions/apple-s1/evidence` |
-| Related-party map (R02), each line sourced and dated; unnamed roles left empty; no party under both components; no independence claimed | Implemented from the issuers' documents as read on 12 September 2026; pages watched | the series page, `lib/positions/dependencies.ts`, `/api/positions/apple-s1/file` |
-| Decision records (R03, R05, R06): immutable series, nontransferable receipt, on-chain access, per-component stops, no sweep and claims to the holder, lots and cap; operator policy (O01), runbook (O03) | Series ADRs and remaining operator policy proposed; treasury signers recorded separately; each names who decides | [/mechanism/decisions](/mechanism/decisions), `docs/decisions/` |
-| Cost comparison against the baseline (B01): round-trip gas with both real components; gas and ETH prices left variable | A proposal with measured inputs; no price applied | [/mechanism/decisions/costs](/mechanism/decisions/costs) |
-| Deployment plan (G02); its tool refuses an unreviewed record, the wrong chain or a missing key | A proposal; the tool exists and refuses; rehearsed locally, nothing sent to a public chain | [/mechanism/decisions/deployment](/mechanism/decisions/deployment), `contracts/scripts/deploy-series.ts` |
-| Invariant tests: five invariants over 256 sequences of depth 64; seed, runs, results recorded | Implemented | `contracts/test/CompanySeries.invariant.t.sol`, `contracts/evidence/unit-tests.json` |
-| Assumption register (§19), a self-review that is not a review (C09), interview guide and comprehension test (R04, B02) | Written; conservative assumptions, none stated as fact | [/mechanism/decisions](/mechanism/decisions) |
-| The token's one function (§16): credit desk contract (nothing held, no admin; fifteen tests); pool-event pricing once node state is gone (Robinhood Chain's public node keeps ten minutes, measured); keys by hash; paid endpoints (evidence versions, journal by day, webhook delivery) admitted, answered, then charged; code and treasury verified every tick; receipts, conditions, deployment tool, services page, the Gazette's daily receipts; the operator's Safe planned unsigned and simulated on Robinhood Chain, quorum (approve the hash, execute) rehearsed with Safe's own code; plain ERC-20 as launch condition. Local rehearsal: mock token and pool, two top-ups at two prices | Implemented; the record decided by the product owner on 12 September 2026 (prices, terms, proceeds, order of work, Robinhood Chain); no token exists; NOT_CONFIGURED in production | [/services](/services), [/mechanism/decisions/token](/mechanism/decisions/token), `contracts/src/CreditDesk.sol`, `lib/credits/` |
-| User interviews (R04), comprehension tests (B02), the gate decision (G01), the independent review (C09) | Interviews: not held, by decision (20 September 2026); observed use stands in — see §15. The rest: not done — people; the assumption register says what is assumed meanwhile | [/mechanism/decisions/assumptions](/mechanism/decisions/assumptions) |
-| Any deployment, any real asset | None. `/api/status` says NOT_DEPLOYED | — |
-
-The Ondo API source records `ACCESS_DENIED`: its documented endpoint needs an API key the desk lacks, archived as the finding. B's candidate address comes from the issuer's own product page, which publishes per-network deployments and is archived and verified on chain daily. The example address in Ondo's API specification is never a source.
+What is implemented, piece by piece, with where to check each one, is on its own page: [what exists today](/mechanism/status). In short: nothing is deployed and no real asset is held; the contract is unaudited and unreviewed; the interviews are not held, by decision (20 September 2026).
 
 ## 18. Questions people ask
 

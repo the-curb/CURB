@@ -26,6 +26,14 @@ export const DOCUMENTS = {
     status: 'Not live · {passed} of {total} checks passed · {records} decision records: {proposed} proposed, {decided} decided',
     simulation: 'Try the simulation',
     decisions: 'Read the decision records',
+    exists: 'See what exists today',
+  },
+
+  status: {
+    title: 'What exists today',
+    description: 'Every piece of the position product, whether it is built, and where to check it.',
+    kicker: 'what exists today',
+    headline: 'What exists today.',
   },
 
   doctrine: {

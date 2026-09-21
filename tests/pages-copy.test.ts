@@ -8,6 +8,7 @@ import { DOCUMENTS } from '../lib/copy/documents.ts';
 import { GAZETTE, splitFiling } from '../lib/copy/gazette.ts';
 import { copySentences, copyStrings } from '../lib/copy/walk.ts';
 import { parseMarkdown, sectionsOf } from '../lib/docs/markdown.ts';
+import { resolveRecordLinks } from '../lib/docs/decisions.ts';
 import { PROMISES } from '../lib/positions/series.ts';
 import { screen } from '../lib/doctrine/policy.ts';
 
@@ -69,6 +70,7 @@ describe('each page reads its words from its copy module', () => {
     ['app/doctrine/page.tsx', 'documents'],
     ['app/mechanism/decisions/page.tsx', 'documents'],
     ['app/mechanism/decisions/[slug]/page.tsx', 'documents'],
+    ['app/mechanism/status/page.tsx', 'documents'],
     ['app/gazette/page.tsx', 'gazette'],
     ['app/gazette/[day]/page.tsx', 'gazette'],
   ] as const) {
@@ -121,6 +123,24 @@ describe('the documents', () => {
     assert.ok(headings >= 10, 'the mechanism has its sections');
     const { preamble, sections } = sectionsOf(blocks);
     assert.equal(preamble.length + sections.reduce((n, s) => n + 1 + s.body.length, 0), blocks.length);
+  });
+
+  it('keep the status table on its own page, and the mechanism pointing to it', () => {
+    const status = read('docs/STATUS.md');
+    const mechanism = read('MECHANISM.md');
+    assert.ok(parseMarkdown(status).some((b) => b.kind === 'table'), 'the table is on the status page');
+    assert.match(status, /Independent review and audit of the contract \| Not started/);
+    assert.match(status, /Any deployment, any real asset \| None/);
+    const s17 = mechanism.slice(mechanism.indexOf('## 17.'), mechanism.indexOf('## 18.'));
+    assert.match(s17, /\]\(\/mechanism\/status\)/);
+    assert.equal(s17.includes('| Piece | Status |'), false, 'the table is no longer repeated in the mechanism');
+    assert.match(read('app/mechanism/status/page.tsx'), /docs', 'STATUS\.md'/);
+  });
+
+  it('link a record named from the repository root to its page', () => {
+    assert.equal(resolveRecordLinks('see [the guide](docs/decisions/INTERVIEWS.md)'), 'see [the guide](/mechanism/decisions/interviews)');
+    assert.equal(resolveRecordLinks('[t](TOKEN.md#the-chain)'), '[t](/mechanism/decisions/token#the-chain)');
+    assert.match(resolveRecordLinks('[f](docs/mainnet/X.md)'), /github\.com\/the-curb\/CURB\/blob\/main\/docs\/mainnet\/X\.md/);
   });
 
   it('still refuse a summary written by hand', () => {

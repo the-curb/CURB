@@ -64,9 +64,12 @@ export const SOURCE_TREE = 'https://github.com/the-curb/CURB/blob/main';
  * does not render; anything else is left for the parser to show as text.
  */
 export function resolveRecordLinks(source: string): string {
-  return source.replace(/\]\(((?:\.\.\/mainnet\/|docs\/mainnet\/)?)([A-Za-z0-9._-]+\.md)(#[A-Za-z0-9._-]+)?\)/g, (whole, dir: string, file: string, anchor: string | undefined) => {
+  // A record named from the repository root — MECHANISM.md writes
+  // docs/decisions/INTERVIEWS.md — is the same record as its bare name, and
+  // was left as text until 21 September 2026.
+  return source.replace(/\]\(((?:\.\.\/mainnet\/|docs\/mainnet\/|docs\/decisions\/)?)([A-Za-z0-9._-]+\.md)(#[A-Za-z0-9._-]+)?\)/g, (whole, dir: string, file: string, anchor: string | undefined) => {
     const hash = anchor ?? '';
-    if (dir !== '') return `](${SOURCE_TREE}/docs/mainnet/${file}${hash})`;
+    if (dir !== '' && dir !== 'docs/decisions/') return `](${SOURCE_TREE}/docs/mainnet/${file}${hash})`;
     const target = DECISIONS.find((d) => d.file === file);
     return target ? `](/mechanism/decisions/${target.slug}${hash})` : whole;
   });

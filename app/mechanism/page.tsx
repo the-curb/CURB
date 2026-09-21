@@ -57,6 +57,9 @@ export default async function MechanismPage() {
           <Link href="/mechanism/decisions" className={linkClass}>
             {C.decisions}
           </Link>
+          <Link href="/mechanism/status" className={linkClass}>
+            {C.exists}
+          </Link>
         </p>
       </header>
 
