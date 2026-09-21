@@ -7,8 +7,10 @@
  * and neither is reported alone.
  *
  * Why a sample and not a total: this chain moves at hundreds of transfers a
- * second and the public node refuses any query matching more than ten thousand
- * logs, so an hour of flow is not readable from here by any paging. What is
+ * second. The keyed endpoint has no cap on results but an hour is far more
+ * logs than a run can read in time, and the fallback public node refuses any
+ * query matching more than ten thousand, so an hour of flow is not readable
+ * from here. What is
  * readable is a short window — about a minute of chain time — read in one
  * query per group and split when the node says it matched too much. Every
  * count is stated as what it is: a rate within that sample, never a total for
@@ -53,7 +55,7 @@ const NEEDS_FULL_HISTORY = [
   'Holder concentration. It depends on a token’s whole history, not a recent sample; a ranking from this sample would be wrong.',
   'Whether an address is one holder or many. One custodian can stand for thousands; the chain cannot tell.',
   'Whether a transfer was a sale. A transfer records no price, agreement or intention.',
-  'The total for the hour. The node refuses queries over ten thousand logs, and an hour is far past that. The sample is a rate, not a total.',
+  'The total for the hour. An hour of logs is far more than one run can read, on either node. The sample is a rate, not a total.',
 ] as const;
 
 export interface Subject {

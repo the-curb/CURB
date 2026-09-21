@@ -3,7 +3,7 @@
  *
  * Each sample is a rate — transfers per minute inside about a minute of chain
  * time — and the series of them is what the day looks like. Nothing here is a
- * total: the Tally cannot read one from a public node and says so, and this
+ * total: the Tally cannot read one in a run, on either node, and says so; this
  * page does not sum what the Tally would not.
  *
  * Composed from observation series, never from the chain. The page says how

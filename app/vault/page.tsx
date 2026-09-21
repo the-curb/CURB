@@ -12,10 +12,10 @@ export const metadata = { title: VAULT.title, description: VAULT.description };
 /**
  * THE VAULT — flow over the day. Every figure is a rate inside a sample of
  * about a minute of chain time; the bars are those samples in order. There
- * is no total on this page because the Tally cannot read one — the public
- * node refuses a query matching more than ten thousand logs, and this chain
- * makes hundreds of transfers a second — and the page does not add what the
- * agent would not.
+ * is no total on this page because the Tally cannot read one — this chain
+ * makes hundreds of transfers a second, more than a run can read on the keyed
+ * endpoint, and the fallback public node refuses a query matching more than
+ * ten thousand logs — and the page does not add what the agent would not.
  */
 
 const WINDOW_SAMPLES = 48;

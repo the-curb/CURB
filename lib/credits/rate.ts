@@ -15,11 +15,11 @@
  * Two ways to the price at a block, tried in this order by the indexer:
  *
  *   by state   — `eth_call` at the block. Exact, and the simplest to check;
- *                but a public node keeps state for a short window only
- *                (Robinhood Chain's serves about 6,200 blocks, ten minutes,
- *                measured 12 September 2026), and a tick — scheduled every
- *                five minutes, in practice every ten to twenty — reaches
- *                most top-ups after that window has passed.
+ *                the keyed dRPC endpoint keeps full archive state, but the
+ *                fallback public node keeps a short window only (about 6,200
+ *                blocks, ten minutes, measured 12 September 2026), and a tick
+ *                that lands on the fallback reaches most top-ups after that
+ *                window has passed.
  *   by events  — the pool's own log at or before the block: a pair emits
  *                `Sync(reserve0, reserve1)` on every change of reserves, a
  *                v3 pool emits `Swap(…, sqrtPriceX96, liquidity, …)` on every

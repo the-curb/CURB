@@ -659,9 +659,10 @@ and is reported under `credits`. No token exists; in production it is
 - **The sequencer uptime feed.** The vendor directory lists none for this
   network. Unconfigured, the Pillar reports the sequencer as not checked, which
   is not the same as up. If one is published, set `CURB_SEQUENCER_FEED`.
-- **Holder concentration and hourly flow totals.** The public node refuses any
-  log query matching more than ten thousand entries and this chain produces
-  hundreds of transfers a second, so the Tally measures a rate over a sample
+- **Holder concentration and hourly flow totals.** This chain produces
+  hundreds of transfers a second: an hour is far more logs than a run can read
+  through the keyed endpoint, and the fallback public node refuses any query
+  matching more than ten thousand. So the Tally measures a rate over a sample
   of about a minute and says so. Totals and concentration need an indexer this
   system does not have.
 - **Prices for 159 of the 194 stock tokens.** The directory lists a feed for
