@@ -1,28 +1,23 @@
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
+import { AGENT_COUNTS } from '@/lib/agents/registry';
+import { FOOTER, footerLine } from '@/lib/copy/footer';
 import { Mark } from './mark';
 
 const LINKS: ReadonlyArray<readonly [string, string]> = [
-  ['How to use it', '/guide'],
-  ['Positions', '/positions'],
-  ['Mechanism', '/mechanism'],
-  ['The Floor', '/floor'],
-  ['The Registry', '/registry'],
-  ['The Vault', '/vault'],
-  ['Chambers', '/chambers'],
-  ['The Curb Gazette', '/gazette'],
-  ['Services', '/services'],
-  ['Doctrine', '/doctrine'],
-  ['The agents', '/agents'],
-  ['State, as data', '/api/state'],
-  ['Source on GitHub', BRAND.links.github],
+  ...FOOTER.links,
+  [FOOTER.github, BRAND.links.github],
   [`X · ${BRAND.links.xHandle}`, BRAND.links.x],
 ];
 
+/** The descriptor the header carries, as two lines: the second set in italic. */
+const [LEAD, EMPHASIS] = BRAND.descriptor.split(/(?<=\.)\s+/);
+
 /**
- * The colophon. A heavy rule, then three columns: the thesis and the stage,
- * the mark and what the desk will not do, and every destination as a ruled
- * list. The folio line closes the sheet.
+ * The colophon. A heavy rule, then three columns: what the desk does, the
+ * mark and what is not live, and every destination as a ruled list — two
+ * across on a phone, so the list is half as tall. The folio line closes the
+ * sheet.
  */
 export function SiteFooter() {
   return (
@@ -30,38 +25,28 @@ export function SiteFooter() {
       <div className="border-t-[3px] border-(--color-paper)">
         <div className="cells !border-t-0 grid-cols-1 md:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)]">
           <div className="cell p-6 sm:p-8">
-            <p className="display text-3xl leading-tight text-(--color-paper) sm:text-4xl">
-              One company. Multiple issuers.
+            <p className="display text-2xl leading-tight text-(--color-paper) sm:text-4xl">
+              {LEAD}
               <br />
-              <em className="text-(--color-paper-dim)">One position.</em>
+              <em className="text-(--color-paper-dim)">{EMPHASIS}</em>
             </p>
-            <p className="mt-6 max-w-md text-base leading-relaxed text-(--color-paper-dim)">
-              {BRAND.name} began with a question about how share exposure is formed on a blockchain. A symbol names the company;
-              the issuer and its contract decide how that exposure is actually held. We are building a company position that
-              combines several stock-token issuers, discloses its components, and records a holder’s rights when the position is
-              formed and when it is unwound.
-            </p>
-            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">{BRAND.stage}</p>
+            <p className="mt-5 max-w-md text-[15px] leading-relaxed text-(--color-paper-dim)">{footerLine(FOOTER.about, AGENT_COUNTS.total)}</p>
+            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">{FOOTER.refuses}</p>
           </div>
           <div className="cell p-6 sm:p-8">
             <div className="flex items-center gap-3">
               <Mark size={30} className="text-(--color-accent)" />
               <span className="display text-xl tracking-[0.22em] text-(--color-paper)">{BRAND.name}</span>
             </div>
-            <p className="mt-5 max-w-md text-sm leading-relaxed text-(--color-paper-dim)">
-              The product is on Robinhood Chain mainnet: the treasury is live; the token and the desk follow, and the position
-              contract is a tested prototype not yet deployed. The risk of the share, of each issuer and of each contract remains,
-              and the ability to withdraw a component follows the state and terms of that instrument. No receipt is one share, no
-              exit is a cash redemption, and no CURB token is a condition of any of it.
-            </p>
-            <p className="mt-3 max-w-md text-[13px] leading-relaxed text-(--color-paper-faint)">
-              Beneath it, a desk of ten agents reads Robinhood Chain, its pools and two published registries on a schedule, publishes what
-              it measured with a source and a time on every figure, and refuses — in code, not in a prompt — to forecast, advise,
-              rate, or print a number it did not read. {BRAND.desk.line}
-            </p>
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-(--color-paper-dim)">{BRAND.desk.line}</p>
+            <ul className="mt-4 max-w-md space-y-2 text-[13px] leading-relaxed text-(--color-paper-faint)">
+              {FOOTER.facts.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
           <div className="cell">
-            <ul>
+            <ul className="grid grid-cols-2 md:grid-cols-1">
               {LINKS.map(([label, href]) => (
                 <li key={href} className="border-b border-(--color-rule) last:border-b-0">
                   <Link
@@ -84,7 +69,7 @@ export function SiteFooter() {
         <span>
           {BRAND.paper.name} · {BRAND.paper.cadence}
         </span>
-        <span>Design under test · printed from the record · MIT</span>
+        <span>{FOOTER.folio}</span>
       </p>
     </footer>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { PendingState } from '@/lib/credits/pending';
+import { newBrowserKey, sha256Hex } from '@/lib/credits/browser-key';
 
 /**
  * The credit desk, in the browser: a key made here — thirty-two random
@@ -70,17 +71,6 @@ const cents = (v: string) => {
   return `${sign}US$${(a / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(a % 100n).toString().padStart(2, '0')}`;
 };
 
-function base64url(bytes: Uint8Array): string {
-  let s = '';
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return `0x${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
-}
-
 /** The bytes of topUp(bytes32,uint256), assembled here so the reader can compare them with what a wallet shows. */
 function topUpCalldata(keyHash: string, amount: bigint): string {
   // keccak256("topUp(bytes32,uint256)")[:4] — fixed here and checked against the ABI in the tests.
@@ -111,12 +101,10 @@ export function CreditDesk({ configured, desk, network, decimals, topUpHeld }: P
   }, [topUp]);
 
   const makeKey = async () => {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    const k = `curb_${base64url(bytes)}`;
-    setKey(k);
-    setHash(await sha256Hex(k));
-    setLookup(await sha256Hex(k));
+    const made = await newBrowserKey();
+    setKey(made.key);
+    setHash(made.hash);
+    setLookup(made.hash);
     setAccount(null);
   };
 
